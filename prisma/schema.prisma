@@ -28,9 +28,10 @@ model User {
 
   birthday DateTime?
   address  Address?
-  wishlist Wishlist?
+  // wishlist Wishlist?
 
-  groups UserGroup[]
+  groups        UserGroup[]
+  wishlistItems WishlistItem[]
 }
 
 model Note {
@@ -109,27 +110,27 @@ model Address {
   userId String @unique
 }
 
-model Wishlist {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// model Wishlist {
+//   id        String   @id @default(cuid())
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId String @unique
+//   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+//   userId String @unique
 
-  items WishlistItem[]
-}
+//   items WishlistItem[]
+// }
 
 model WishlistItem {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  wishlistId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
 
-  link       String
-  isWishlist Boolean @default(false)
+  value          String
+  isWishlistLink Boolean @default(false)
 }
 
 model UserImage {
