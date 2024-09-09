@@ -69,7 +69,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
 	const response = await sendEmail({
 		to: email,
-		subject: `Welcome to Epic Notes!`,
+		subject: `Welcome to GiftPool!`,
 		react: <SignupEmail onboardingUrl={verifyUrl.toString()} otp={otp} />,
 	})
 
@@ -92,7 +92,7 @@ export function SignupEmail({
 		<E.Html lang="en" dir="ltr">
 			<E.Container>
 				<h1>
-					<E.Text>Welcome to Epic Notes!</E.Text>
+					<E.Text>Welcome to GiftPool!</E.Text>
 				</h1>
 				<p>
 					<E.Text>
@@ -109,7 +109,7 @@ export function SignupEmail({
 }
 
 export const meta: MetaFunction = () => {
-	return [{ title: 'Sign Up | Epic Notes' }]
+	return [{ title: 'Sign Up | GiftPool' }]
 }
 
 export default function SignupRoute() {
