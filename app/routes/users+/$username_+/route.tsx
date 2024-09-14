@@ -20,5 +20,11 @@ export async function loader({ params }: LoaderFunctionArgs) {
 }
 
 export default function Username() {
-	return <Outlet />
+	return (
+		<main className="container flex h-full min-h-[400px] px-0 pb-12 md:px-8">
+			<div className="grid w-full bg-muted pl-2 md:container md:rounded-3xl md:pr-0">
+				<Outlet />
+			</div>
+		</main>
+	)
 }

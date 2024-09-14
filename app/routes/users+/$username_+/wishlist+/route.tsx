@@ -34,56 +34,47 @@ export default function WishlistRoute() {
 	const ownerDisplayName = data.owner.name ?? data.owner.username
 
 	return (
-		<main className="container flex h-full min-h-[400px] px-0 pb-12 md:px-8">
-			<div className="grid w-full bg-muted pl-2 md:container md:rounded-3xl md:pr-0">
-				<div>
-					<div>
-						<Link
-							to={`/users/${data.owner.username}`}
-							className="flex flex-col items-center justify-center gap-2 bg-muted pb-4 pl-8 pr-4 pt-12 lg:flex-row lg:justify-start lg:gap-4"
-						>
-							<img
-								src={getUserImgSrc(data.owner.image?.id)}
-								alt={ownerDisplayName}
-								className="h-16 w-16 rounded-full object-cover lg:h-24 lg:w-24"
-							/>
-							<h1 className="text-center text-base font-bold md:text-lg lg:text-left lg:text-2xl">
-								{ownerDisplayName}'s Wishlist
-							</h1>
-						</Link>
-						{
-							<div>
-								{isOwner ? <WishlistItemEditor /> : null}
-								{data.owner.wishlistItems.length === 0 ? (
-									<div className="flex w-full flex-col items-center justify-center">
-										{isOwner ? (
-											<p className="text-center text-base text-slate-500">
-												Looks like you don't have any items in your wishlist
-												yet! You don't want stuff? Really?
-											</p>
-										) : (
-											<p className="text-center text-base text-slate-500">
-												Oh no! {ownerDisplayName} doesn't have any items in
-												their wishlist yet! Maybe you should throw something at
-												them? 🤔
-											</p>
-										)}
-									</div>
-								) : (
-									<ul className="overflow-y-auto overflow-x-hidden pb-12">
-										{data.owner.wishlistItems.map(wishlistItem => (
-											<li key={wishlistItem.id}>
-												<WishlistItem wishlistItem={wishlistItem} />
-											</li>
-										))}
-									</ul>
-								)}
-							</div>
-						}
+		<div>
+			<Link
+				to={`/users/${data.owner.username}`}
+				className="flex flex-col items-center justify-center gap-2 bg-muted pb-4 pl-8 pr-4 pt-12 lg:flex-row lg:justify-start lg:gap-4"
+			>
+				<img
+					src={getUserImgSrc(data.owner.image?.id)}
+					alt={ownerDisplayName}
+					className="h-16 w-16 rounded-full object-cover lg:h-24 lg:w-24"
+				/>
+				<h1 className="text-center text-base font-bold md:text-lg lg:text-left lg:text-2xl">
+					{ownerDisplayName}'s Wishlist
+				</h1>
+			</Link>
+			<div>
+				{isOwner ? <WishlistItemEditor /> : null}
+				{data.owner.wishlistItems.length === 0 ? (
+					<div className="flex w-full flex-col items-center justify-center">
+						{isOwner ? (
+							<p className="text-center text-base text-slate-500">
+								Looks like you don't have any items in your wishlist yet! You
+								don't want stuff? Really?
+							</p>
+						) : (
+							<p className="text-center text-base text-slate-500">
+								Oh no! {ownerDisplayName} doesn't have any items in their
+								wishlist yet! Maybe you should throw something at them? 🤔
+							</p>
+						)}
 					</div>
-				</div>
+				) : (
+					<ul className="overflow-y-auto overflow-x-hidden pb-12">
+						{data.owner.wishlistItems.map(wishlistItem => (
+							<li key={wishlistItem.id}>
+								<WishlistItem wishlistItem={wishlistItem} />
+							</li>
+						))}
+					</ul>
+				)}
 			</div>
-		</main>
+		</div>
 	)
 }
 
