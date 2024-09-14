@@ -29,6 +29,7 @@ import { useRef } from 'react'
 import { AuthenticityTokenProvider } from 'remix-utils/csrf/react'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
+import { TopNavItem } from '#app/components/ui/topNavItem.tsx'
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { ErrorList } from './components/forms.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
@@ -241,6 +242,8 @@ function App() {
 				<header className="container py-6">
 					<nav className="flex flex-wrap items-center justify-between gap-4 sm:flex-nowrap md:gap-8">
 						<Logo />
+						<WishlistNav />
+						<GroupsNav />
 						<div className="ml-auto hidden max-w-sm flex-1 sm:block">
 							{searchBar}
 						</div>
@@ -269,6 +272,34 @@ function App() {
 			<EpicToaster closeButton position="top-center" theme={theme} />
 			<EpicProgress />
 		</Document>
+	)
+}
+
+function WishlistNav() {
+	const user = useOptionalUser()
+	if (!user) {
+		return null
+	}
+	return (
+		<TopNavItem
+			to={`/users/${user.username}/wishlist`}
+			icon="star"
+			label="Wishlist"
+		/>
+	)
+}
+
+function GroupsNav() {
+	const user = useOptionalUser()
+	if (!user) {
+		return null
+	}
+	return (
+		<TopNavItem
+			to={`/users/${user.username}/groups`}
+			icon="person"
+			label="Groups"
+		/>
 	)
 }
 
@@ -329,13 +360,6 @@ function UserDropdown() {
 						<Link prefetch="intent" to={`/users/${user.username}`}>
 							<Icon className="text-body-md" name="avatar">
 								Profile
-							</Icon>
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link prefetch="intent" to={`/users/${user.username}/wishlist`}>
-							<Icon className="text-body-md" name="star">
-								Wishlist
 							</Icon>
 						</Link>
 					</DropdownMenuItem>
