@@ -4,7 +4,7 @@ import { useLoaderData } from '@remix-run/react'
 import { Heading } from '#app/components/ui/heading.tsx'
 import { SectionTitle } from '#app/components/ui/sectionTitle.tsx'
 import { prisma } from '#app/utils/db.server.ts'
-import { getUserImgSrc } from '#app/utils/misc.js'
+import { getUserImgSrc } from '#app/utils/misc.tsx'
 
 export async function loader({ params }: LoaderFunctionArgs) {
 	const giftGroup = await prisma.giftGroup.findUnique({
