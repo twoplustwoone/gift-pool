@@ -32,10 +32,11 @@ model User {
 }
 
 model GiftGroup {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  name      String
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  name        String
+  description String
 
   // Relations
   groupMembers UsersInGiftGroups[]
@@ -49,7 +50,7 @@ model UsersInGiftGroups {
   giftGroup   GiftGroup @relation(fields: [giftGroupId], references: [id])
   giftGroupId String
   budget      Float     @default(0.0)
-  role        String    @default("MEMBER")
+  role        String    @default("member") // owner, admin, member
   joinedAt    DateTime  @default(now())
 
   @@id([userId, giftGroupId])
