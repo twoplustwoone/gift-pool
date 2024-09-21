@@ -1,7 +1,7 @@
-import { Button } from '#app/components/ui/button.js'
 import { invariantResponse } from '@epic-web/invariant'
 import { json, type LoaderFunctionArgs } from '@remix-run/node'
 import { Link, useLoaderData } from '@remix-run/react'
+import { Button } from '#app/components/ui/button.tsx'
 import { Heading } from '#app/components/ui/heading.tsx'
 import { SectionTitle } from '#app/components/ui/sectionTitle.tsx'
 import { prisma } from '#app/utils/db.server.ts'
