@@ -21,7 +21,6 @@ import {
 	useFetcher,
 	useFetchers,
 	useLoaderData,
-	useMatches,
 	useSubmit,
 } from '@remix-run/react'
 import { withSentry } from '@sentry/remix'
@@ -29,10 +28,10 @@ import { useRef } from 'react'
 import { AuthenticityTokenProvider } from 'remix-utils/csrf/react'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
+import { TopNavItem } from '#app/components/ui/topNavItem.tsx'
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { ErrorList } from './components/forms.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
-import { SearchBar } from './components/search-bar.tsx'
 import { useToast } from './components/toaster.tsx'
 import { Button } from './components/ui/button.tsx'
 import {
@@ -230,9 +229,6 @@ function App() {
 	const nonce = useNonce()
 	const user = useOptionalUser()
 	const theme = useTheme()
-	const matches = useMatches()
-	const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
-	const searchBar = isOnSearchPage ? null : <SearchBar status="idle" />
 	useToast(data.toast)
 
 	return (
@@ -241,9 +237,9 @@ function App() {
 				<header className="container py-6">
 					<nav className="flex flex-wrap items-center justify-between gap-4 sm:flex-nowrap md:gap-8">
 						<Logo />
-						<div className="ml-auto hidden max-w-sm flex-1 sm:block">
-							{searchBar}
-						</div>
+						<WishlistNav />
+						<GroupsNav />
+						<div className="ml-auto hidden max-w-sm flex-1 sm:block"></div>
 						<div className="flex items-center gap-10">
 							{user ? (
 								<UserDropdown />
@@ -253,7 +249,6 @@ function App() {
 								</Button>
 							)}
 						</div>
-						<div className="block w-full sm:hidden">{searchBar}</div>
 					</nav>
 				</header>
 
@@ -269,6 +264,34 @@ function App() {
 			<EpicToaster closeButton position="top-center" theme={theme} />
 			<EpicProgress />
 		</Document>
+	)
+}
+
+function WishlistNav() {
+	const user = useOptionalUser()
+	if (!user) {
+		return null
+	}
+	return (
+		<TopNavItem
+			to={`/users/${user.username}/wishlist`}
+			icon="star"
+			label="Wishlist"
+		/>
+	)
+}
+
+function GroupsNav() {
+	const user = useOptionalUser()
+	if (!user) {
+		return null
+	}
+	return (
+		<TopNavItem
+			to={`/users/${user.username}/groups`}
+			icon="person"
+			label="Groups"
+		/>
 	)
 }
 
@@ -329,13 +352,6 @@ function UserDropdown() {
 						<Link prefetch="intent" to={`/users/${user.username}`}>
 							<Icon className="text-body-md" name="avatar">
 								Profile
-							</Icon>
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link prefetch="intent" to={`/users/${user.username}/wishlist`}>
-							<Icon className="text-body-md" name="star">
-								Wishlist
 							</Icon>
 						</Link>
 					</DropdownMenuItem>

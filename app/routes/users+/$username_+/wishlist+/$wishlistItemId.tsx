@@ -1,12 +1,11 @@
-/* eslint-disable import/order */
 import { parse } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { json, type ActionFunctionArgs } from '@remix-run/node'
 import { z } from 'zod'
-import { prisma } from '#app/utils/db.server.ts'
-import { requireUserWithPermission } from '#app/utils/permissions.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { validateCSRF } from '#app/utils/csrf.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
+import { requireUserWithPermission } from '#app/utils/permissions.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 
 const DeleteFormSchema = z.object({
