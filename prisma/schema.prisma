@@ -47,7 +47,7 @@ model GiftGroup {
 model UsersInGiftGroups {
   user        User      @relation(fields: [userId], references: [id])
   userId      String
-  giftGroup   GiftGroup @relation(fields: [giftGroupId], references: [id])
+  giftGroup   GiftGroup @relation(fields: [giftGroupId], references: [id], onDelete: Cascade)
   giftGroupId String
   budget      Float     @default(0.0)
   role        String    @default("member") // owner, admin, member
@@ -157,7 +157,7 @@ model Session {
 model Permission {
   id          String @id @default(cuid())
   action      String // e.g. create, read, update, delete
-  entity      String // e.g. note, user, etc.
+  entity      String // e.g. note, user, wishlistItem, giftGroup
   access      String // e.g. own or any
   description String @default("")
 
