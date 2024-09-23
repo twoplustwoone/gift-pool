@@ -9,6 +9,7 @@ export type IconName =
 	| 'chevron-right'
 	| 'clock'
 	| 'cross-1'
+	| 'cross-2'
 	| 'dots-horizontal'
 	| 'download'
 	| 'envelope-closed'
