@@ -337,7 +337,7 @@ function UserDropdown() {
 			<DropdownMenuPortal>
 				<DropdownMenuContent sideOffset={8} align="start">
 					<DropdownMenuItem asChild>
-						<Link prefetch="intent" to={`/users/${user.username}`}>
+						<Link prefetch="intent" to={`/me`}>
 							<Icon className="text-body-md" name="avatar">
 								Profile
 							</Icon>
