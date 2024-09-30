@@ -272,13 +272,7 @@ function WishlistNav() {
 	if (!user) {
 		return null
 	}
-	return (
-		<TopNavItem
-			to={`/users/${user.username}/wishlist`}
-			icon="star"
-			label="Wishlist"
-		/>
-	)
+	return <TopNavItem to={`/wishlist`} icon="star" label="Wishlist" />
 }
 
 function GroupsNav() {

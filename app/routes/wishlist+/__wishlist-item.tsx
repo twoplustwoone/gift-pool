@@ -95,12 +95,11 @@ export function DeleteWishlistItem({
 	const actionData = useActionData<typeof action>()
 	const isPending = useIsPending()
 	const fetcher = useFetcher()
-	const { username } = useParams()
 
 	return (
 		<fetcher.Form
 			method="DELETE"
-			action={`/users/${username}/wishlist/${id}`}
+			action={`/wishlist/${id}`}
 			className={className}
 		>
 			<AuthenticityTokenInput />
@@ -110,7 +109,7 @@ export function DeleteWishlistItem({
 				name="intent"
 				value="delete-wishlist-item"
 				variant="destructive"
-				status={isPending ? 'pending' : actionData?.status ?? 'idle'}
+				status={isPending ? 'pending' : (actionData?.status ?? 'idle')}
 				disabled={isPending}
 				className="w-full max-md:aspect-square max-md:px-0"
 			>

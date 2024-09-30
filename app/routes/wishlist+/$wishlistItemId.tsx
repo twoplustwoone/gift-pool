@@ -43,7 +43,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
 	await prisma.wishlistItem.delete({ where: { id: wishlistItem.id } })
 
-	return redirectWithToast(`/users/${wishlistItem.owner.username}/wishlist`, {
+	return redirectWithToast(`/wishlist`, {
 		type: 'success',
 		title: 'Success',
 		description: 'Your wishlist item has been deleted.',
