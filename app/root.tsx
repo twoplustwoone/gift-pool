@@ -280,13 +280,7 @@ function GroupsNav() {
 	if (!user) {
 		return null
 	}
-	return (
-		<TopNavItem
-			to={`/users/${user.username}/groups`}
-			icon="person"
-			label="Groups"
-		/>
-	)
+	return <TopNavItem to={`/groups`} icon="person" label="Groups" />
 }
 
 function Logo() {

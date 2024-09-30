@@ -76,7 +76,6 @@ export async function action({ request }: ActionFunctionArgs) {
 				select: {
 					userId: true,
 					role: true,
-					user: { select: { username: true } },
 				},
 			},
 		},
@@ -97,11 +96,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		},
 	})
 
-	const username = updatedGiftGroup.groupMembers.find(
-		member => member.userId === userId,
-	)?.user.username
-
-	return redirect(`/users/${username}/groups/${updatedGiftGroup.id}`)
+	return redirect(`/groups/${updatedGiftGroup.id}`)
 }
 
 export function GroupEditor({
@@ -131,7 +126,7 @@ export function GroupEditor({
 			</SectionTitle>
 			<Form
 				method="POST"
-				className="flex h-full flex-col gap-y-4 overflow-y-auto overflow-x-hidden px-10 pb-28 pt-12"
+				className="flex flex-col gap-y-4 overflow-y-auto overflow-x-hidden px-10 pb-28 pt-12"
 				{...form.props}
 				encType="multipart/form-data"
 			>
