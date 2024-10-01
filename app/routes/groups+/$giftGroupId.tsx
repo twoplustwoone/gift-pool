@@ -23,6 +23,7 @@ import {
 } from '#app/components/ui/dialog.tsx'
 import { Heading } from '#app/components/ui/heading.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { SectionSubtitle } from '#app/components/ui/sectionSubtitle'
 import { SectionTitle } from '#app/components/ui/sectionTitle.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
@@ -36,6 +37,7 @@ import {
 } from '#app/utils/group-permissions.server.ts'
 import { getUserImgSrc, useIsPending } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
+import { Subheading } from '../../components/ui/subheading'
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
 	const groupId = params.giftGroupId!
@@ -122,22 +124,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	// Proceed with deleting the group
 	await prisma.giftGroup.delete({ where: { id: giftGroupId } })
 
-	return redirectWithToast(`/users/${params.username}/groups`, {
+	return redirectWithToast(`/groups`, {
 		type: 'success',
 		title: 'Success',
 		description: `Group has been deleted.`,
 	})
-}
-
-export function SectionSubtitle({ children }: { children?: React.ReactNode }) {
-	if (!children) {
-		return null
-	}
-	return <div className="mb-5">{children}</div>
-}
-
-function Subheading({ children }: { children: React.ReactNode }) {
-	return <div className="text-lg text-slate-500">{children}</div>
 }
 
 export default function GiftGroup() {

@@ -7,7 +7,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	return json({})
 }
 
-export default function GroupsRoute() {
+export default function ProfileRoute() {
 	return (
 		<div>
 			<Outlet />
