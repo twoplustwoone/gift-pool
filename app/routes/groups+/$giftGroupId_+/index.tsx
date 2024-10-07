@@ -1,6 +1,5 @@
 import { useForm } from '@conform-to/react'
 import { parse } from '@conform-to/zod'
-import { invariantResponse } from '@epic-web/invariant'
 import {
 	type ActionFunctionArgs,
 	json,
@@ -10,6 +9,7 @@ import { Form, useActionData, useLoaderData } from '@remix-run/react'
 import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { z } from 'zod'
 import { ErrorList } from '#app/components/forms.tsx'
+import { Avatar } from '#app/components/ui/avatar.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
 	Dialog,
@@ -26,43 +26,21 @@ import { Icon } from '#app/components/ui/icon.tsx'
 import { SectionSubtitle } from '#app/components/ui/sectionSubtitle'
 import { SectionTitle } from '#app/components/ui/sectionTitle.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
+import { Subheading } from '#app/components/ui/subheading.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { validateCSRF } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
-	type GroupPermission,
-	type GroupRole,
-	groupRolePermissions,
+	requireUserInGroup,
 	requireUserWithGroupPermission,
+	userHasGroupPermission,
 } from '#app/utils/group-permissions.server.ts'
-import { getUserImgSrc, useIsPending } from '#app/utils/misc.tsx'
+import { useIsPending } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
-import { Subheading } from '../../components/ui/subheading'
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
 	const groupId = params.giftGroupId!
-	const userId = await requireUserId(request)
-
-	// Ensure the user is a member of the group and get their role
-	const userInGroup = await prisma.usersInGiftGroups.findUnique({
-		where: {
-			userId_giftGroupId: { userId, giftGroupId: groupId },
-		},
-		select: { role: true },
-	})
-
-	if (!userInGroup) {
-		throw json(
-			{
-				error: 'Unauthorized',
-				message: `User is not a member of group ${groupId}`,
-			},
-			{ status: 403 },
-		)
-	}
-
-	const currentUserRole = userInGroup.role as GroupRole
-	const currentUserPermissions = groupRolePermissions[currentUserRole]
+	const userId = await requireUserInGroup(request, groupId)
 
 	const giftGroup = await prisma.giftGroup.findUnique({
 		where: { id: groupId },
@@ -91,9 +69,13 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 		},
 	})
 
-	invariantResponse(giftGroup, 'Not found', { status: 404 })
+	const canDelete = await userHasGroupPermission(userId, groupId, 'deleteGroup')
 
-	return json({ giftGroup, currentUserRole, currentUserPermissions })
+	if (!giftGroup) {
+		throw new Response('Group not found', { status: 404 })
+	}
+
+	return json({ giftGroup, canDelete })
 }
 
 const DeleteFormSchema = z.object({
@@ -131,15 +113,8 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	})
 }
 
-export default function GiftGroup() {
-	const data = useLoaderData<typeof loader>()
-	const { giftGroup, currentUserPermissions } = data
-
-	function hasPermission(permission: GroupPermission) {
-		return currentUserPermissions.includes(permission)
-	}
-
-	const canDelete = hasPermission('deleteGroup')
+export default function GiftGroupIndex() {
+	const { giftGroup, canDelete } = useLoaderData<typeof loader>()
 
 	return (
 		<div>
@@ -157,10 +132,10 @@ export default function GiftGroup() {
 				<div className="text-xl font-bold">Members</div>
 				{giftGroup.groupMembers.map(groupMember => (
 					<div key={groupMember.user.id} className="flex items-center gap-2">
-						<img
-							src={getUserImgSrc(groupMember.user.image?.id)}
-							alt={groupMember.user.name ?? groupMember.user.username}
-							className="h-8 w-8 rounded-full object-cover"
+						<Avatar
+							size={'s'}
+							image={groupMember.user.image}
+							user={groupMember.user}
 						/>
 						<div className="text-body-md">{groupMember.user.username}</div>
 					</div>
