@@ -272,13 +272,7 @@ function WishlistNav() {
 	if (!user) {
 		return null
 	}
-	return (
-		<TopNavItem
-			to={`/users/${user.username}/wishlist`}
-			icon="star"
-			label="Wishlist"
-		/>
-	)
+	return <TopNavItem to={`/wishlist`} icon="star" label="Wishlist" />
 }
 
 function GroupsNav() {
@@ -286,13 +280,7 @@ function GroupsNav() {
 	if (!user) {
 		return null
 	}
-	return (
-		<TopNavItem
-			to={`/users/${user.username}/groups`}
-			icon="person"
-			label="Groups"
-		/>
-	)
+	return <TopNavItem to={`/groups`} icon="person" label="Groups" />
 }
 
 function Logo() {
@@ -349,7 +337,7 @@ function UserDropdown() {
 			<DropdownMenuPortal>
 				<DropdownMenuContent sideOffset={8} align="start">
 					<DropdownMenuItem asChild>
-						<Link prefetch="intent" to={`/users/${user.username}`}>
+						<Link prefetch="intent" to={`/me`}>
 							<Icon className="text-body-md" name="avatar">
 								Profile
 							</Icon>

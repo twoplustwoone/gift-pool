@@ -2,7 +2,7 @@ import { parse } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { type WishlistItem } from '@prisma/client'
 import { json, type ActionFunctionArgs } from '@remix-run/node'
-import { useActionData, useFetcher, useParams } from '@remix-run/react'
+import { useActionData, useFetcher } from '@remix-run/react'
 import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { z } from 'zod'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -95,12 +95,11 @@ export function DeleteWishlistItem({
 	const actionData = useActionData<typeof action>()
 	const isPending = useIsPending()
 	const fetcher = useFetcher()
-	const { username } = useParams()
 
 	return (
 		<fetcher.Form
 			method="DELETE"
-			action={`/users/${username}/wishlist/${id}`}
+			action={`/wishlist/${id}`}
 			className={className}
 		>
 			<AuthenticityTokenInput />
@@ -110,7 +109,7 @@ export function DeleteWishlistItem({
 				name="intent"
 				value="delete-wishlist-item"
 				variant="destructive"
-				status={isPending ? 'pending' : actionData?.status ?? 'idle'}
+				status={isPending ? 'pending' : (actionData?.status ?? 'idle')}
 				disabled={isPending}
 				className="w-full max-md:aspect-square max-md:px-0"
 			>

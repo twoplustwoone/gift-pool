@@ -1,5 +1,5 @@
 import React from 'react'
-import { SectionSubtitle } from '#app/routes/users+/$username_+/groups+/$giftGroupId.tsx'
+import { SectionSubtitle } from './sectionSubtitle'
 
 export function SectionTitle({ children }: { children?: React.ReactNode }) {
 	const [subtitle, childrenWithoutSubtitle] = React.Children.toArray(
