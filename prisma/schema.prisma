@@ -28,7 +28,8 @@ model User {
   wishlistItems WishlistItem[]
 
   // Relations
-  giftGroups UsersInGiftGroups[]
+  giftGroups      UsersInGiftGroups[]
+  GroupInvitation GroupInvitation[]
 }
 
 model GiftGroup {
@@ -39,7 +40,8 @@ model GiftGroup {
   description String
 
   // Relations
-  groupMembers UsersInGiftGroups[]
+  groupMembers    UsersInGiftGroups[]
+  GroupInvitation GroupInvitation[]
 
   @@map("Group")
 }
@@ -54,6 +56,21 @@ model UsersInGiftGroups {
   joinedAt    DateTime  @default(now())
 
   @@id([userId, giftGroupId])
+}
+
+model GroupInvitation {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  giftGroup   GiftGroup @relation(fields: [giftGroupId], references: [id], onDelete: Cascade)
+  giftGroupId String
+
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById String
+
+  @@index([code])
 }
 
 model Note {
