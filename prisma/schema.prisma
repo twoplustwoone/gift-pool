@@ -28,8 +28,8 @@ model User {
   wishlistItems WishlistItem[]
 
   // Relations
-  giftGroups      UsersInGiftGroups[]
-  GroupInvitation GroupInvitation[]
+  giftGroups       UsersInGiftGroups[]
+  groupInvitations GroupInvitation[]
 }
 
 model GiftGroup {
@@ -40,8 +40,8 @@ model GiftGroup {
   description String
 
   // Relations
-  groupMembers    UsersInGiftGroups[]
-  GroupInvitation GroupInvitation[]
+  groupMembers     UsersInGiftGroups[]
+  groupInvitations GroupInvitation[]
 
   @@map("Group")
 }
