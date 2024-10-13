@@ -35,7 +35,7 @@ export default function GroupsIndex() {
 				</Button>
 			</SectionTitle>
 			<div className="mt-4 space-y-4">
-				{user.giftGroups.map(group => (
+				{user.giftGroups.map((group) => (
 					<div key={group.giftGroup.id}>
 						<Link to={`/groups/${group.giftGroup.id}`}>
 							{group.giftGroup.name}

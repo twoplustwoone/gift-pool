@@ -1,14 +1,16 @@
-import { useForm } from '@conform-to/react'
-import { getFieldsetConstraint, parse } from '@conform-to/zod'
+import { getFormProps, useForm } from '@conform-to/react'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import {
 	type ActionFunctionArgs,
 	json,
 	type LoaderFunctionArgs,
 } from '@remix-run/node'
 import { Form, useActionData, useLoaderData } from '@remix-run/react'
-import { useEffect, useState } from 'react'
+import { nanoid } from 'nanoid'
+import { useState } from 'react'
 import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 
+import { z } from 'zod'
 import { ErrorList } from '#app/components/forms.tsx'
 import { Avatar } from '#app/components/ui/avatar.tsx'
 import { Button } from '#app/components/ui/button.tsx'
@@ -47,7 +49,6 @@ import {
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { validateCSRF } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import {} from '#app/utils/gift-group.server.ts'
 import { getInviteLink } from '#app/utils/group-invitations.server.ts'
 import {
 	requireUserInGroup,
@@ -56,8 +57,6 @@ import {
 } from '#app/utils/group-permissions.server.ts'
 import { useDebounce, useIsPending } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
-import { nanoid } from 'nanoid'
-import { z } from 'zod'
 
 export enum GiftGroupIdFormIntent {
 	DeleteGiftGroup = 'delete-gift-group',
@@ -134,7 +133,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 	return json({ giftGroup, canInvite, canDelete, inviteLink })
 }
 
-export async function action({ request, params }: ActionFunctionArgs) {
+export async function action({ request }: ActionFunctionArgs) {
 	await requireUserId(request)
 	const formData = await request.formData()
 	await validateCSRF(formData, request.headers)
@@ -145,27 +144,33 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	let giftGroupId
 	switch (formIntent) {
 		case GiftGroupIdFormIntent.DeleteGiftGroup:
-			submission = parse(formData, {
+			submission = parseWithZod(formData, {
 				schema: DeleteFormSchema,
 			})
 
-			if (submission.intent !== 'submit') {
-				return json({
-					intent: GiftGroupIdFormIntent.DeleteGiftGroup,
-					status: 'idle',
-					submission,
+			if (submission.status !== 'success') {
+				return json(submission.reply(), {
+					status: submission.status === 'error' ? 400 : 200,
 				})
 			}
-			if (!submission.value) {
-				return json(
-					{
-						intent: GiftGroupIdFormIntent.DeleteGiftGroup,
-						status: 'error',
-						submission,
-					},
-					{ status: 400 },
-				)
-			}
+
+			// if (submission.intent !== 'submit') {
+			// 	return json({
+			// 		intent: GiftGroupIdFormIntent.DeleteGiftGroup,
+			// 		status: 'idle',
+			// 		submission,
+			// 	})
+			// }
+			// if (!submission.value) {
+			// 	return json(
+			// 		{
+			// 			intent: GiftGroupIdFormIntent.DeleteGiftGroup,
+			// 			status: 'error',
+			// 			submission,
+			// 		},
+			// 		{ status: 400 },
+			// 	)
+			// }
 
 			giftGroupId = submission.value.giftGroupId
 
@@ -179,27 +184,33 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				description: `Group has been deleted.`,
 			})
 		case GiftGroupIdFormIntent.CreateInviteLink:
-			submission = parse(formData, {
+			submission = parseWithZod(formData, {
 				schema: CreateInviteLinkFormSchema,
 			})
 
-			if (submission.intent !== 'submit') {
-				return json({
-					status: 'idle',
-					submission,
-					intent: GiftGroupIdFormIntent.CreateInviteLink,
+			if (submission.status !== 'success') {
+				return json(submission.reply(), {
+					status: submission.status === 'error' ? 400 : 200,
 				})
 			}
-			if (!submission.value) {
-				return json(
-					{
-						status: 'error',
-						submission,
-						intent: GiftGroupIdFormIntent.CreateInviteLink,
-					},
-					{ status: 400 },
-				)
-			}
+
+			// if (submission.intent !== 'submit') {
+			// 	return json({
+			// 		status: 'idle',
+			// 		submission,
+			// 		intent: GiftGroupIdFormIntent.CreateInviteLink,
+			// 	})
+			// }
+			// if (!submission.value) {
+			// 	return json(
+			// 		{
+			// 			status: 'error',
+			// 			submission,
+			// 			intent: GiftGroupIdFormIntent.CreateInviteLink,
+			// 		},
+			// 		{ status: 400 },
+			// 	)
+			// }
 
 			const { expiresInDays } = submission.value
 			giftGroupId = submission.value.giftGroupId
@@ -213,7 +224,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				'addMember',
 			)
 
-			const invitation = await prisma.groupInvitation.create({
+			await prisma.groupInvitation.create({
 				data: {
 					giftGroupId,
 					code: nanoid(),
@@ -222,14 +233,18 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				},
 			})
 
-			const inviteLink = getInviteLink(invitation.code)
+			// TODO: need to load this instead of returning it from action maybe?
+			// const inviteLink = getInviteLink(invitation.code)
 
-			return json({
-				status: 'success',
-				inviteLink,
-				submission,
-				intent: GiftGroupIdFormIntent.CreateInviteLink,
-			})
+			return json(
+				submission.reply(),
+				// {
+				// status: 'success',
+				// inviteLink,
+				// submission,
+				// intent: GiftGroupIdFormIntent.CreateInviteLink,
+				// }
+			)
 		default:
 			throw new Error(`Unknown form intent: ${formIntent}`)
 	}
@@ -261,7 +276,7 @@ export default function GiftGroupIndex() {
 			<div className="text-body-sm"></div>
 			<div>
 				<div className="text-xl font-bold">Members</div>
-				{giftGroup.groupMembers.map(groupMember => (
+				{giftGroup.groupMembers.map((groupMember) => (
 					<div key={groupMember.user.id} className="flex items-center gap-2">
 						<Avatar
 							size={'s'}
@@ -287,31 +302,32 @@ function CreateInviteLinkDialog({
 	const isPending = useIsPending()
 	const [form] = useForm({
 		id: GiftGroupIdFormIntent.CreateInviteLink,
-		lastSubmission: actionData?.submission,
-		constraint: getFieldsetConstraint(CreateInviteLinkFormSchema),
+		lastResult: actionData,
+		constraint: getZodConstraint(CreateInviteLinkFormSchema),
 		// onValidate({ formData }) {
-		// 	return parse(formData, { schema: CreateInviteLinkFormSchema })
+		// 	return parseWithZod(formData, { schema: CreateInviteLinkFormSchema })
 		// },
 		defaultValue: {
 			expiresInDays: '7',
 		},
 	})
 
-	const [link, setLink] = useState(initialLink)
+	const [link /* , setLink */] = useState(initialLink)
 	const [hasCopied, setHasCopied] = useState(false)
 
-	useEffect(() => {
-		if (actionData?.inviteLink) {
-			setLink(actionData.inviteLink)
-		}
-	}, [actionData])
+	// TODO: load from loader
+	// useEffect(() => {
+	// 	if (actionData?.inviteLink) {
+	// 		setLink(actionData.inviteLink)
+	// 	}
+	// }, [actionData])
 
 	const debouncedReset = useDebounce(() => setHasCopied(false), 2000)
 
 	const copyLink = () => {
 		setHasCopied(true)
 		debouncedReset()
-		navigator.clipboard.writeText(link!)
+		void navigator.clipboard.writeText(link!)
 	}
 
 	const handleInputClick = (
@@ -364,7 +380,7 @@ function CreateInviteLinkDialog({
 							</TooltipProvider>
 						</div>
 					) : (
-						<Form method="POST" {...form.props}>
+						<Form method="POST" {...getFormProps(form)}>
 							<AuthenticityTokenInput />
 							<input type="hidden" name="giftGroupId" value={giftGroupId} />
 							<div className="flex items-center">
@@ -372,7 +388,7 @@ function CreateInviteLinkDialog({
 								<div className="w-1/2">
 									<Select
 										defaultValue="7"
-										onValueChange={value => {
+										onValueChange={() => {
 											// TODO: hook up change to form
 										}}
 									>
@@ -436,7 +452,7 @@ function DeleteGroupDialog({ id }: { id: string }) {
 	const isPending = useIsPending()
 	const [form] = useForm({
 		id: GiftGroupIdFormIntent.DeleteGiftGroup,
-		lastSubmission: actionData?.submission,
+		lastResult: actionData,
 	})
 
 	return (
@@ -464,7 +480,7 @@ function DeleteGroupDialog({ id }: { id: string }) {
 							Cancel
 						</Button>
 					</DialogClose>
-					<Form method="POST" {...form.props}>
+					<Form method="POST" {...getFormProps(form)}>
 						<AuthenticityTokenInput />
 						<input type="hidden" name="giftGroupId" value={id} />
 						<StatusButton

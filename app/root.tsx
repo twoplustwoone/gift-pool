@@ -1,6 +1,5 @@
-import { useForm } from '@conform-to/react'
-import { parse } from '@conform-to/zod'
-import { cssBundleHref } from '@remix-run/css-bundle'
+import { getFormProps, useForm } from '@conform-to/react'
+import { parseWithZod } from '@conform-to/zod'
 import {
 	json,
 	type LoaderFunctionArgs,
@@ -29,6 +28,8 @@ import { AuthenticityTokenProvider } from 'remix-utils/csrf/react'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import { TopNavItem } from '#app/components/ui/topNavItem.tsx'
+import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png'
+import faviconAssetUrl from './assets/favicons/favicon.svg'
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { ErrorList } from './components/forms.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
@@ -43,7 +44,7 @@ import {
 } from './components/ui/dropdown-menu.tsx'
 import { Icon, href as iconsHref } from './components/ui/icon.tsx'
 import { EpicToaster } from './components/ui/sonner.tsx'
-import tailwindStyleSheetUrl from './styles/tailwind.css'
+import tailwindStyleSheetUrl from './styles/tailwind.css?url'
 import { getUserId, logout } from './utils/auth.server.ts'
 import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx'
 import { csrf } from './utils/csrf.server.ts'
@@ -62,25 +63,19 @@ export const links: LinksFunction = () => {
 	return [
 		// Preload svg sprite as a resource to avoid render blocking
 		{ rel: 'preload', href: iconsHref, as: 'image' },
-		// Preload CSS as a resource to avoid render blocking
-		{ rel: 'preload', href: tailwindStyleSheetUrl, as: 'style' },
-		cssBundleHref ? { rel: 'preload', href: cssBundleHref, as: 'style' } : null,
-		{ rel: 'mask-icon', href: '/favicons/mask-icon.svg' },
 		{
-			rel: 'alternate icon',
-			type: 'image/png',
-			href: '/favicons/favicon-32x32.png',
+			rel: 'icon',
+			href: '/favicon.ico',
+			sizes: '48x48',
 		},
-		{ rel: 'apple-touch-icon', href: '/favicons/apple-touch-icon.png' },
+		{ rel: 'icon', type: 'image/svg+xml', href: faviconAssetUrl },
+		{ rel: 'apple-touch-icon', href: appleTouchIconAssetUrl },
 		{
 			rel: 'manifest',
 			href: '/site.webmanifest',
 			crossOrigin: 'use-credentials',
 		} as const, // necessary to make typescript happy
-		//These should match the css preloads above to avoid css as render blocking resource
-		{ rel: 'icon', type: 'image/svg+xml', href: '/favicons/favicon.svg' },
 		{ rel: 'stylesheet', href: tailwindStyleSheetUrl },
-		cssBundleHref ? { rel: 'stylesheet', href: cssBundleHref } : null,
 	].filter(Boolean)
 }
 
@@ -171,21 +166,22 @@ const ThemeFormSchema = z.object({
 
 export async function action({ request }: ActionFunctionArgs) {
 	const formData = await request.formData()
-	const submission = parse(formData, {
+	const submission = parseWithZod(formData, {
 		schema: ThemeFormSchema,
 	})
-	if (submission.intent !== 'submit') {
-		return json({ status: 'idle', submission } as const)
+
+	if (submission.status !== 'success') {
+		return json(submission.reply(), {
+			status: submission.status === 'error' ? 400 : 200,
+		})
 	}
-	if (!submission.value) {
-		return json({ status: 'error', submission } as const, { status: 400 })
-	}
+
 	const { theme } = submission.value
 
 	const responseInit = {
 		headers: { 'set-cookie': setTheme(theme) },
 	}
-	return json({ success: true, submission }, responseInit)
+	return json(submission.reply(), responseInit)
 }
 
 function Document({
@@ -320,7 +316,7 @@ function UserDropdown() {
 					<Link
 						to={`/users/${user.username}`}
 						// this is for progressive enhancement
-						onClick={e => e.preventDefault()}
+						onClick={(e) => e.preventDefault()}
 						className="flex items-center gap-2"
 					>
 						<img
@@ -346,7 +342,7 @@ function UserDropdown() {
 					<DropdownMenuItem
 						asChild
 						// this prevents the menu from closing before the form submission is completed
-						onSelect={event => {
+						onSelect={(event) => {
 							event.preventDefault()
 							submit(formRef.current)
 						}}
@@ -383,13 +379,14 @@ export function useTheme() {
  */
 export function useOptimisticThemeMode() {
 	const fetchers = useFetchers()
-	const themeFetcher = fetchers.find(f => f.formAction === '/')
+	const themeFetcher = fetchers.find((f) => f.formAction === '/')
 
 	if (themeFetcher && themeFetcher.formData) {
-		const submission = parse(themeFetcher.formData, {
+		const submission = parseWithZod(themeFetcher.formData, {
 			schema: ThemeFormSchema,
 		})
-		return submission.value?.theme
+		return submission.status === 'success' ? submission.value.theme : null
+		// return submission.value?.theme
 	}
 }
 
@@ -398,7 +395,7 @@ function ThemeSwitch({ userPreference }: { userPreference?: Theme | null }) {
 
 	const [form] = useForm({
 		id: 'theme-switch',
-		lastSubmission: fetcher.data?.submission,
+		lastResult: fetcher.data,
 	})
 
 	const optimisticMode = useOptimisticThemeMode()
@@ -424,7 +421,7 @@ function ThemeSwitch({ userPreference }: { userPreference?: Theme | null }) {
 	}
 
 	return (
-		<fetcher.Form method="POST" {...form.props}>
+		<fetcher.Form method="POST" {...getFormProps(form)}>
 			<input type="hidden" name="theme" value={nextMode} />
 			<div className="flex gap-2">
 				<button

@@ -1,13 +1,7 @@
-import { conform, useForm } from '@conform-to/react'
-import { getFieldsetConstraint, parse } from '@conform-to/zod'
+import { getFormProps, getInputProps, useForm } from '@conform-to/react'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { type WishlistItem } from '@prisma/client'
-import {
-	unstable_createMemoryUploadHandler as createMemoryUploadHandler,
-	json,
-	unstable_parseMultipartFormData as parseMultipartFormData,
-	type ActionFunctionArgs,
-	type SerializeFrom,
-} from '@remix-run/node'
+import { type SerializeFrom } from '@remix-run/node'
 import { Form, useActionData } from '@remix-run/react'
 import React, { useRef } from 'react'
 import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
@@ -15,78 +9,16 @@ import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { requireUserId } from '#app/utils/auth.server.ts'
-import { validateCSRF } from '#app/utils/csrf.server.ts'
-import { prisma } from '#app/utils/db.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
+import { type action } from './__wishlist-item-editor.server'
 
 const valueMinLength = 1
 const valueMaxLength = 255
 
-const MAX_UPLOAD_SIZE = 1024 * 1024 * 3 // 3MB
-
-const WishlistItemSchema = z.object({
+export const WishlistItemSchema = z.object({
 	id: z.string().optional(),
 	value: z.string().min(valueMinLength).max(valueMaxLength),
 })
-
-export async function action({ request }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
-
-	const formData = await parseMultipartFormData(
-		request,
-		createMemoryUploadHandler({ maxPartSize: MAX_UPLOAD_SIZE }),
-	)
-	await validateCSRF(formData, request.headers)
-
-	const submission = await parse(formData, {
-		schema: WishlistItemSchema.superRefine(async (data, ctx) => {
-			if (!data.id) return
-
-			const wishlistItem = await prisma.wishlistItem.findUnique({
-				select: { id: true },
-				where: { id: data.id, ownerId: userId },
-			})
-			if (!wishlistItem) {
-				ctx.addIssue({
-					code: z.ZodIssueCode.custom,
-					message: 'Wishlist item not found',
-				})
-			}
-		}).transform(async ({ ...data }) => {
-			return {
-				...data,
-			}
-		}),
-		async: true,
-	})
-
-	if (submission.intent !== 'submit') {
-		return json({ submission } as const)
-	}
-
-	if (!submission.value) {
-		return json({ submission } as const, { status: 400 })
-	}
-
-	const { id: wishlistItemId, value } = submission.value
-
-	await prisma.wishlistItem.upsert({
-		select: { id: true, owner: { select: { username: true } } },
-		where: { id: wishlistItemId ?? '__new_wishlist_item__' },
-		create: {
-			ownerId: userId,
-			value,
-		},
-		update: {
-			value,
-		},
-	})
-
-	return json({
-		submission,
-	})
-}
 
 export function WishlistItemEditor({
 	wishlistItem,
@@ -99,17 +31,17 @@ export function WishlistItemEditor({
 
 	React.useEffect(() => {
 		// If the actionData exists and the submission was successful, reset the form
-		if (actionData && !Object.keys(actionData.submission?.error).length) {
+		if (actionData?.status === 'success') {
 			formRef.current?.reset() // Reset
 		}
 	}, [actionData])
 
 	const [form, fields] = useForm({
 		id: 'wishlist-item-editor',
-		constraint: getFieldsetConstraint(WishlistItemSchema),
-		lastSubmission: actionData?.submission,
+		constraint: getZodConstraint(WishlistItemSchema),
+		lastResult: actionData,
 		onValidate({ formData }) {
-			return parse(formData, { schema: WishlistItemSchema })
+			return parseWithZod(formData, { schema: WishlistItemSchema })
 		},
 		defaultValue: {
 			value: wishlistItem?.value ?? '',
@@ -121,7 +53,7 @@ export function WishlistItemEditor({
 			{/* <div className="absolute inset-0"> */}
 			<Form
 				method="POST"
-				{...form.props}
+				{...getFormProps(form)}
 				encType="multipart/form-data"
 				ref={formRef}
 			>
@@ -142,7 +74,10 @@ export function WishlistItemEditor({
 						inputProps={{
 							autoFocus: true,
 							placeholder: 'Add item to your wishlist',
-							...conform.input(fields.value, { ariaAttributes: true }),
+							...getInputProps(fields.value, {
+								type: 'text',
+								ariaAttributes: true,
+							}),
 						}}
 						errors={fields.value.errors}
 					/>

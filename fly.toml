@@ -1,8 +1,9 @@
-app = "gift-pool-c7cf"
-primary_region = "ord"
+app = "plate-portal-0e68"
+primary_region = "sjc"
 kill_signal = "SIGINT"
 kill_timeout = 5
 processes = [ ]
+swap_size_mb = 512
 
 [experimental]
 allowed_public_ports = [ ]
@@ -12,11 +13,12 @@ auto_rollback = true
 source = "data"
 destination = "/data"
 
-[deploy]
-release_command = "node ./other/sentry-create-release"
+[build]
+dockerfile = "/other/Dockerfile"
+ignorefile = "/other/Dockerfile.dockerignore"
 
 [[services]]
-internal_port = 8_080
+internal_port = 8080
 processes = [ "app" ]
 protocol = "tcp"
 script_checks = [ ]
@@ -52,8 +54,8 @@ script_checks = [ ]
   headers = { }
 
   [[services.http_checks]]
-  grace_period = "10s"
-  interval = "30s"
-  method = "GET"
-  timeout = "5s"
-  path = "/litefs/health"
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/litefs/health"

@@ -1,0 +1,83 @@
+import { parseWithZod } from '@conform-to/zod'
+import { type ActionFunctionArgs } from '@remix-run/node'
+import { json, redirect } from '@remix-run/react'
+import { z } from 'zod'
+import { requireUserId } from '#app/utils/auth.server.ts'
+import { validateCSRF } from '#app/utils/csrf.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
+import { GroupEditorSchema } from './__group-editor'
+
+export async function action({ request }: ActionFunctionArgs) {
+	const userId = await requireUserId(request)
+
+	const formData = await request.formData()
+	await validateCSRF(formData, request.headers)
+
+	const submission = await parseWithZod(formData, {
+		schema: GroupEditorSchema.superRefine(async (data, ctx) => {
+			if (!data.id) return
+
+			const giftGroup = await prisma.giftGroup.findUnique({
+				select: {
+					id: true,
+					groupMembers: { select: { userId: true, role: true } },
+				},
+				where: {
+					id: data.id,
+					groupMembers: {
+						some: { userId, OR: [{ role: 'owner' }, { role: 'admin' }] },
+					},
+				},
+			})
+
+			if (!giftGroup) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: 'Gift Group not found',
+				})
+			}
+		}),
+		async: true,
+	})
+
+	if (submission.status !== 'success') {
+		return json(submission.reply(), {
+			status: submission.status === 'error' ? 400 : 200,
+		})
+	}
+
+	if (!submission.value) {
+		return json(submission.reply(), { status: 400 })
+	}
+
+	const { id: giftGroupId, name, description } = submission.value
+
+	const updatedGiftGroup = await prisma.giftGroup.upsert({
+		select: {
+			id: true,
+			groupMembers: {
+				select: {
+					userId: true,
+					role: true,
+				},
+			},
+		},
+		where: { id: giftGroupId ?? '__new_gift_group__' },
+		create: {
+			name,
+			description,
+			groupMembers: {
+				create: {
+					userId,
+					role: 'owner',
+				},
+			},
+		},
+		update: {
+			name,
+			description,
+		},
+	})
+
+	return redirect(`/groups/${updatedGiftGroup.id}`)
+}

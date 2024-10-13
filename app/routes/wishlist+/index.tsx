@@ -6,7 +6,9 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
 import { WishlistItem } from './__wishlist-item'
-import { WishlistItemEditor, action } from './__wishlist-item-editor'
+import { WishlistItemEditor } from './__wishlist-item-editor'
+
+import { action } from './__wishlist-item-editor.server'
 
 export async function loader({ request }: LoaderFunctionArgs) {
 	const userId = await requireUserId(request)
@@ -57,7 +59,7 @@ export default function WishlistIndex() {
 					</div>
 				) : (
 					<ul className="overflow-y-auto overflow-x-hidden pb-12">
-						{data.user.wishlistItems.map(wishlistItem => (
+						{data.user.wishlistItems.map((wishlistItem) => (
 							<li key={wishlistItem.id}>
 								<WishlistItem wishlistItem={wishlistItem} />
 							</li>
