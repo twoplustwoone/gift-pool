@@ -1,5 +1,5 @@
-app = "plate-portal-0e68"
-primary_region = "sjc"
+app = "gift-pool-c7cf"
+primary_region = "ord"
 kill_signal = "SIGINT"
 kill_timeout = 5
 processes = [ ]
