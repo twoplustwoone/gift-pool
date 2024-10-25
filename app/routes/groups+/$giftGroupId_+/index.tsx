@@ -8,6 +8,7 @@ import {
 } from '@remix-run/node'
 import {
 	Form,
+	Link,
 	useActionData,
 	useFetcher,
 	useLoaderData,
@@ -244,17 +245,23 @@ export default function GiftGroupIndex() {
 			</SectionTitle>
 			<div className="text-body-sm"></div>
 			<div>
-				<div className="text-xl font-bold">Members</div>
-				{giftGroup.groupMembers.map((groupMember) => (
-					<div key={groupMember.user.id} className="flex items-center gap-2">
-						<Avatar
-							size={'s'}
-							image={groupMember.user.image}
-							user={groupMember.user}
-						/>
-						<div className="text-body-md">{groupMember.user.username}</div>
-					</div>
-				))}
+				<h2 className="mb-8 text-xl font-bold">Members</h2>
+				<div className="flex flex-col gap-4">
+					{giftGroup.groupMembers.map((groupMember) => (
+						<Link
+							to={`/users/${groupMember.user.username}`}
+							className="flex items-center gap-2 bg-muted"
+							key={groupMember.user.id}
+						>
+							<Avatar
+								size={'s'}
+								image={groupMember.user.image}
+								user={groupMember.user}
+							/>
+							<div className="text-body-md">{groupMember.user.username}</div>
+						</Link>
+					))}
+				</div>
 			</div>
 		</div>
 	)
