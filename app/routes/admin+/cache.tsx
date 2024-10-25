@@ -30,7 +30,7 @@ import {
 	getInstanceInfo,
 } from '#app/utils/litefs.server.ts'
 import { useDebounce, useDoubleCheck } from '#app/utils/misc.tsx'
-import { requireUserWithRole } from '#app/utils/permissions.ts'
+import { requireUserWithRole } from '#app/utils/permissions.server.ts'
 
 export const handle: SEOHandle = {
 	getSitemapEntries: () => null,
@@ -109,7 +109,7 @@ export default function CacheAdminRoute() {
 			<Form
 				method="get"
 				className="flex flex-col gap-4"
-				onChange={e => handleFormChange(e.currentTarget)}
+				onChange={(e) => handleFormChange(e.currentTarget)}
 			>
 				<div className="flex-1">
 					<div className="flex flex-1 gap-4">
@@ -173,7 +173,7 @@ export default function CacheAdminRoute() {
 			<Spacer size="2xs" />
 			<div className="flex flex-col gap-4">
 				<h2 className="text-h2">LRU Cache:</h2>
-				{data.cacheKeys.lru.map(key => (
+				{data.cacheKeys.lru.map((key) => (
 					<CacheKeyRow
 						key={key}
 						cacheKey={key}
@@ -185,7 +185,7 @@ export default function CacheAdminRoute() {
 			<Spacer size="3xs" />
 			<div className="flex flex-col gap-4">
 				<h2 className="text-h2">SQLite Cache:</h2>
-				{data.cacheKeys.sqlite.map(key => (
+				{data.cacheKeys.sqlite.map((key) => (
 					<CacheKeyRow
 						key={key}
 						cacheKey={key}
