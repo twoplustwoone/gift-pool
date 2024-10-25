@@ -1,5 +1,5 @@
-import { conform, useForm } from '@conform-to/react'
-import { getFieldsetConstraint, parse } from '@conform-to/zod'
+import { getFormProps, getInputProps, useForm } from '@conform-to/react'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
 	json,
@@ -14,14 +14,12 @@ import {
 	useNavigation,
 } from '@remix-run/react'
 import * as QRCode from 'qrcode'
-import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { z } from 'zod'
-import { ErrorList, Field } from '#app/components/forms.tsx'
+import { ErrorList, OTPField } from '#app/components/forms.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { isCodeValid } from '#app/routes/_auth+/verify.tsx'
+import { isCodeValid } from '#app/routes/_auth+/verify.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { validateCSRF } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getDomainUrl, useIsPending } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
@@ -40,7 +38,10 @@ const VerifySchema = z.object({
 	code: z.string().min(6).max(6),
 })
 
-const ActionSchema = z.union([CancelSchema, VerifySchema])
+const ActionSchema = z.discriminatedUnion('intent', [
+	CancelSchema,
+	VerifySchema,
+])
 
 export const twoFAVerifyVerificationType = '2fa-verify'
 
@@ -78,9 +79,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
-	await validateCSRF(formData, request.headers)
 
-	const submission = await parse(formData, {
+	const submission = await parseWithZod(formData, {
 		schema: () =>
 			ActionSchema.superRefine(async (data, ctx) => {
 				if (data.intent === 'cancel') return null
@@ -101,11 +101,11 @@ export async function action({ request }: ActionFunctionArgs) {
 		async: true,
 	})
 
-	if (submission.intent !== 'submit') {
-		return json({ status: 'idle', submission } as const)
-	}
-	if (!submission.value) {
-		return json({ status: 'error', submission } as const, { status: 400 })
+	if (submission.status !== 'success') {
+		return json(
+			{ result: submission.reply() },
+			{ status: submission.status === 'error' ? 400 : 200 },
+		)
 	}
 
 	switch (submission.value.intent) {
@@ -138,21 +138,16 @@ export default function TwoFactorRoute() {
 
 	const isPending = useIsPending()
 	const pendingIntent = isPending ? navigation.formData?.get('intent') : null
-	const lastSubmissionIntent = actionData?.submission.value?.intent
 
 	const [form, fields] = useForm({
 		id: 'verify-form',
-		constraint: getFieldsetConstraint(ActionSchema),
-		lastSubmission: actionData?.submission,
+		constraint: getZodConstraint(ActionSchema),
+		lastResult: actionData?.result,
 		onValidate({ formData }) {
-			// otherwise, the best error zod gives us is "Invalid input" which is not
-			// enough
-			if (formData.get('intent') === 'cancel') {
-				return parse(formData, { schema: CancelSchema })
-			}
-			return parse(formData, { schema: VerifySchema })
+			return parseWithZod(formData, { schema: ActionSchema })
 		},
 	})
+	const lastSubmissionIntent = fields.intent.value
 
 	return (
 		<div>
@@ -179,20 +174,21 @@ export default function TwoFactorRoute() {
 					lose access to your account.
 				</p>
 				<div className="flex w-full max-w-xs flex-col justify-center gap-4">
-					<Form method="POST" {...form.props} className="flex-1">
-						<AuthenticityTokenInput />
-						<Field
-							labelProps={{
-								htmlFor: fields.code.id,
-								children: 'Code',
-							}}
-							inputProps={{
-								...conform.input(fields.code),
-								autoFocus: true,
-								autoComplete: 'one-time-code',
-							}}
-							errors={fields.code.errors}
-						/>
+					<Form method="POST" {...getFormProps(form)} className="flex-1">
+						<div className="flex items-center justify-center">
+							<OTPField
+								labelProps={{
+									htmlFor: fields.code.id,
+									children: 'Code',
+								}}
+								inputProps={{
+									...getInputProps(fields.code, { type: 'text' }),
+									autoFocus: true,
+									autoComplete: 'one-time-code',
+								}}
+								errors={fields.code.errors}
+							/>
+						</div>
 
 						<div className="min-h-[32px] px-4 pb-3 pt-1">
 							<ErrorList id={form.errorId} errors={form.errors} />
@@ -205,7 +201,7 @@ export default function TwoFactorRoute() {
 									pendingIntent === 'verify'
 										? 'pending'
 										: lastSubmissionIntent === 'verify'
-											? actionData?.status ?? 'idle'
+											? (form.status ?? 'idle')
 											: 'idle'
 								}
 								type="submit"
@@ -221,7 +217,7 @@ export default function TwoFactorRoute() {
 									pendingIntent === 'cancel'
 										? 'pending'
 										: lastSubmissionIntent === 'cancel'
-											? actionData?.status ?? 'idle'
+											? (form.status ?? 'idle')
 											: 'idle'
 								}
 								type="submit"

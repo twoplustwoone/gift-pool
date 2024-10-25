@@ -1,5 +1,5 @@
-import { useForm } from '@conform-to/react'
-import { parse } from '@conform-to/zod'
+import { getFormProps, useForm } from '@conform-to/react'
+import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import {
 	json,
@@ -26,12 +26,9 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { validateCSRF } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getNoteImgSrc, useIsPending } from '#app/utils/misc.tsx'
-import {
-	requireUserWithPermission,
-	userHasPermission,
-} from '#app/utils/permissions.ts'
+import { requireUserWithPermission } from '#app/utils/permissions.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
-import { useOptionalUser } from '#app/utils/user.ts'
+import { useOptionalUser, userHasPermission } from '#app/utils/user.ts'
 import { type loader as notesLoader } from './notes.tsx'
 
 export async function loader({ params }: LoaderFunctionArgs) {
@@ -72,14 +69,13 @@ export async function action({ request }: ActionFunctionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
 	await validateCSRF(formData, request.headers)
-	const submission = parse(formData, {
+	const submission = parseWithZod(formData, {
 		schema: DeleteFormSchema,
 	})
-	if (submission.intent !== 'submit') {
-		return json({ status: 'idle', submission } as const)
-	}
-	if (!submission.value) {
-		return json({ status: 'error', submission } as const, { status: 400 })
+	if (submission.status !== 'success') {
+		return json(submission.reply(), {
+			status: submission.status === 'error' ? 400 : 200,
+		})
 	}
 
 	const { noteId } = submission.value
@@ -120,7 +116,7 @@ export default function NoteRoute() {
 			<h2 className="mb-2 pt-12 text-h2 lg:mb-6">{data.note.title}</h2>
 			<div className={`${displayBar ? 'pb-24' : 'pb-12'} overflow-y-auto`}>
 				<ul className="flex flex-wrap gap-5 py-5">
-					{data.note.images.map(image => (
+					{data.note.images.map((image) => (
 						<li key={image.id}>
 							<a href={getNoteImgSrc(image.id)}>
 								<img
@@ -167,11 +163,11 @@ export function DeleteNote({ id }: { id: string }) {
 	const isPending = useIsPending()
 	const [form] = useForm({
 		id: 'delete-note',
-		lastSubmission: actionData?.submission,
+		lastResult: actionData,
 	})
 
 	return (
-		<Form method="POST" {...form.props}>
+		<Form method="POST" {...getFormProps(form)}>
 			<AuthenticityTokenInput />
 			<input type="hidden" name="noteId" value={id} />
 			<StatusButton
@@ -179,7 +175,7 @@ export function DeleteNote({ id }: { id: string }) {
 				name="intent"
 				value="delete-note"
 				variant="destructive"
-				status={isPending ? 'pending' : actionData?.status ?? 'idle'}
+				status={isPending ? 'pending' : (actionData?.status ?? 'idle')}
 				disabled={isPending}
 				className="w-full max-md:aspect-square max-md:px-0"
 			>
@@ -197,7 +193,7 @@ export const meta: MetaFunction<
 	{ 'routes/users+/$username_+/notes': typeof notesLoader }
 > = ({ data, params, matches }) => {
 	const notesMatch = matches.find(
-		m => m.id === 'routes/users+/$username_+/notes',
+		(m) => m.id === 'routes/users+/$username_+/notes',
 	)
 	const displayName = notesMatch?.data?.owner.name ?? params.username
 	const noteTitle = data?.note.title ?? 'Note'

@@ -1,6 +1,5 @@
-import { conform, useForm } from '@conform-to/react'
-import { getFieldsetConstraint, parse } from '@conform-to/zod'
-import { invariant } from '@epic-web/invariant'
+import { getFormProps, getInputProps, useForm } from '@conform-to/react'
+import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import {
 	json,
 	redirect,
@@ -14,7 +13,6 @@ import {
 	useLoaderData,
 	useSearchParams,
 } from '@remix-run/react'
-import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { safeRedirect } from 'remix-utils/safe-redirect'
 import { z } from 'zod'
@@ -22,7 +20,6 @@ import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireAnonymous, sessionKey, signup } from '#app/utils/auth.server.ts'
-import { validateCSRF } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
@@ -34,9 +31,8 @@ import {
 	UsernameSchema,
 } from '#app/utils/user-validation.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
-import { type VerifyFunctionArgs } from './verify.tsx'
 
-const onboardingEmailSessionKey = 'onboardingEmail'
+export const onboardingEmailSessionKey = 'onboardingEmail'
 
 const SignupFormSchema = z
 	.object({
@@ -62,6 +58,7 @@ async function requireOnboardingEmail(request: Request) {
 	}
 	return email
 }
+
 export async function loader({ request }: LoaderFunctionArgs) {
 	const email = await requireOnboardingEmail(request)
 	return json({ email })
@@ -70,10 +67,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
 	const email = await requireOnboardingEmail(request)
 	const formData = await request.formData()
-	await validateCSRF(formData, request.headers)
 	checkHoneypot(formData)
-	const submission = await parse(formData, {
-		schema: intent =>
+	const submission = await parseWithZod(formData, {
+		schema: (intent) =>
 			SignupFormSchema.superRefine(async (data, ctx) => {
 				const existingUser = await prisma.user.findUnique({
 					where: { username: data.username },
@@ -87,8 +83,8 @@ export async function action({ request }: ActionFunctionArgs) {
 					})
 					return
 				}
-			}).transform(async data => {
-				if (intent !== 'submit') return { ...data, session: null }
+			}).transform(async (data) => {
+				if (intent !== null) return { ...data, session: null }
 
 				const session = await signup({ ...data, email })
 				return { ...data, session }
@@ -96,11 +92,11 @@ export async function action({ request }: ActionFunctionArgs) {
 		async: true,
 	})
 
-	if (submission.intent !== 'submit') {
-		return json({ status: 'idle', submission } as const)
-	}
-	if (!submission.value?.session) {
-		return json({ status: 'error', submission } as const, { status: 400 })
+	if (submission.status !== 'success' || !submission.value.session) {
+		return json(
+			{ result: submission.reply() },
+			{ status: submission.status === 'error' ? 400 : 200 },
+		)
 	}
 
 	const { session, remember, redirectTo } = submission.value
@@ -129,22 +125,11 @@ export async function action({ request }: ActionFunctionArgs) {
 	)
 }
 
-export async function handleVerification({ submission }: VerifyFunctionArgs) {
-	invariant(submission.value, 'submission.value should be defined by now')
-	const verifySession = await verifySessionStorage.getSession()
-	verifySession.set(onboardingEmailSessionKey, submission.value.target)
-	return redirect('/onboarding', {
-		headers: {
-			'set-cookie': await verifySessionStorage.commitSession(verifySession),
-		},
-	})
-}
-
 export const meta: MetaFunction = () => {
-	return [{ title: 'Setup GiftPool Account' }]
+	return [{ title: 'Setup Epic Notes Account' }]
 }
 
-export default function SignupRoute() {
+export default function OnboardingRoute() {
 	const data = useLoaderData<typeof loader>()
 	const actionData = useActionData<typeof action>()
 	const isPending = useIsPending()
@@ -153,11 +138,11 @@ export default function SignupRoute() {
 
 	const [form, fields] = useForm({
 		id: 'onboarding-form',
-		constraint: getFieldsetConstraint(SignupFormSchema),
+		constraint: getZodConstraint(SignupFormSchema),
 		defaultValue: { redirectTo },
-		lastSubmission: actionData?.submission,
+		lastResult: actionData?.result,
 		onValidate({ formData }) {
-			return parse(formData, { schema: SignupFormSchema })
+			return parseWithZod(formData, { schema: SignupFormSchema })
 		},
 		shouldRevalidate: 'onBlur',
 	})
@@ -175,14 +160,13 @@ export default function SignupRoute() {
 				<Form
 					method="POST"
 					className="mx-auto min-w-full max-w-sm sm:min-w-[368px]"
-					{...form.props}
+					{...getFormProps(form)}
 				>
-					<AuthenticityTokenInput />
 					<HoneypotInputs />
 					<Field
 						labelProps={{ htmlFor: fields.username.id, children: 'Username' }}
 						inputProps={{
-							...conform.input(fields.username),
+							...getInputProps(fields.username, { type: 'text' }),
 							autoComplete: 'username',
 							className: 'lowercase',
 						}}
@@ -191,7 +175,7 @@ export default function SignupRoute() {
 					<Field
 						labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
 						inputProps={{
-							...conform.input(fields.name),
+							...getInputProps(fields.name, { type: 'text' }),
 							autoComplete: 'name',
 						}}
 						errors={fields.name.errors}
@@ -199,7 +183,7 @@ export default function SignupRoute() {
 					<Field
 						labelProps={{ htmlFor: fields.password.id, children: 'Password' }}
 						inputProps={{
-							...conform.input(fields.password, { type: 'password' }),
+							...getInputProps(fields.password, { type: 'password' }),
 							autoComplete: 'new-password',
 						}}
 						errors={fields.password.errors}
@@ -211,7 +195,7 @@ export default function SignupRoute() {
 							children: 'Confirm Password',
 						}}
 						inputProps={{
-							...conform.input(fields.confirmPassword, { type: 'password' }),
+							...getInputProps(fields.confirmPassword, { type: 'password' }),
 							autoComplete: 'new-password',
 						}}
 						errors={fields.confirmPassword.errors}
@@ -223,7 +207,7 @@ export default function SignupRoute() {
 							children:
 								'Do you agree to our Terms of Service and Privacy Policy?',
 						}}
-						buttonProps={conform.input(
+						buttonProps={getInputProps(
 							fields.agreeToTermsOfServiceAndPrivacyPolicy,
 							{ type: 'checkbox' },
 						)}
@@ -234,17 +218,17 @@ export default function SignupRoute() {
 							htmlFor: fields.remember.id,
 							children: 'Remember me',
 						}}
-						buttonProps={conform.input(fields.remember, { type: 'checkbox' })}
+						buttonProps={getInputProps(fields.remember, { type: 'checkbox' })}
 						errors={fields.remember.errors}
 					/>
 
-					<input {...conform.input(fields.redirectTo, { type: 'hidden' })} />
+					<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
 					<ErrorList errors={form.errors} id={form.errorId} />
 
 					<div className="flex items-center justify-between gap-6">
 						<StatusButton
 							className="w-full"
-							status={isPending ? 'pending' : actionData?.status ?? 'idle'}
+							status={isPending ? 'pending' : (form.status ?? 'idle')}
 							type="submit"
 							disabled={isPending}
 						>

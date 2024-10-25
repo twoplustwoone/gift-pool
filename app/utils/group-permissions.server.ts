@@ -6,38 +6,19 @@ import { prisma } from './db.server'
 
 export type GroupRole = 'owner' | 'admin' | 'member'
 
-export type GroupPermission = 'deleteGroup' | 'addMember' | 'removeMember'
+export type GroupPermission =
+	| 'deleteGroup'
+	| 'addMember'
+	| 'removeMember'
+	| 'leaveGroup'
 
 export const groupRolePermissions: Record<
 	GroupRole,
 	ReadonlyArray<GroupPermission>
 > = {
 	owner: ['deleteGroup', 'addMember', 'removeMember'],
-	admin: ['addMember', 'removeMember'],
-	member: [],
-}
-
-export async function requireUserInGroup(request: Request, groupId: string) {
-	const userId = await requireUserId(request)
-
-	const userInGroup = await prisma.usersInGiftGroups.findUnique({
-		where: {
-			userId_giftGroupId: { userId, giftGroupId: groupId },
-		},
-		select: { giftGroupId: true, userId: true },
-	})
-
-	if (!userInGroup) {
-		throw json(
-			{
-				error: 'Unauthorized',
-				message: `User is not a member of group ${groupId}`,
-			},
-			{ status: 403 },
-		)
-	}
-
-	return userId
+	admin: ['addMember', 'removeMember', 'leaveGroup'],
+	member: ['leaveGroup'],
 }
 
 export async function requireUserWithGroupRole(
