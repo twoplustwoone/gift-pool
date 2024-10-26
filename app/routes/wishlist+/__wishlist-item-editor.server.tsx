@@ -7,7 +7,6 @@ import {
 } from '@remix-run/node'
 import { z } from 'zod'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { validateCSRF } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { WishlistItemSchema } from './__wishlist-item-editor'
 
@@ -20,7 +19,6 @@ export async function action({ request }: ActionFunctionArgs) {
 		request,
 		createMemoryUploadHandler({ maxPartSize: MAX_UPLOAD_SIZE }),
 	)
-	await validateCSRF(formData, request.headers)
 
 	const submission = await parseWithZod(formData, {
 		schema: WishlistItemSchema.superRefine(async (data, ctx) => {

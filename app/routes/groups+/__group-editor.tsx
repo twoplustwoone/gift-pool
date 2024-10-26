@@ -3,7 +3,6 @@ import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { type GiftGroup } from '@prisma/client'
 import { type SerializeFrom } from '@remix-run/node'
 import { Form, useActionData } from '@remix-run/react'
-import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { z } from 'zod'
 import { Field, TextareaField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
@@ -55,7 +54,6 @@ export function GroupEditor({
 				{...getFormProps(form)}
 				encType="multipart/form-data"
 			>
-				<AuthenticityTokenInput />
 				<button type="submit" className="hidden" />
 				{group ? <input type="hidden" name="id" value={group.id} /> : null}
 				<Field

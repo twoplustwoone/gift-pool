@@ -4,7 +4,6 @@ import { type WishlistItem } from '@prisma/client'
 import { type SerializeFrom } from '@remix-run/node'
 import { Form, useActionData } from '@remix-run/react'
 import React, { useRef } from 'react'
-import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
@@ -57,7 +56,6 @@ export function WishlistItemEditor({
 				encType="multipart/form-data"
 				ref={formRef}
 			>
-				<AuthenticityTokenInput />
 				{/*
 					This hidden submit button is here to ensure that when the user hits
 					"enter" on an input field, the primary form function is submitted
