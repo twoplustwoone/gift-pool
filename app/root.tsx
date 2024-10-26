@@ -24,7 +24,6 @@ import {
 } from '@remix-run/react'
 import { withSentry } from '@sentry/remix'
 import { useRef } from 'react'
-import { AuthenticityTokenProvider } from 'remix-utils/csrf/react'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import { TopNavItem } from '#app/components/ui/topNavItem.tsx'
@@ -47,7 +46,6 @@ import { EpicToaster } from './components/ui/sonner.tsx'
 import tailwindStyleSheetUrl from './styles/tailwind.css?url'
 import { getUserId, logout } from './utils/auth.server.ts'
 import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx'
-import { csrf } from './utils/csrf.server.ts'
 import { prisma } from './utils/db.server.ts'
 import { getEnv } from './utils/env.server.ts'
 import { honeypot } from './utils/honeypot.server.ts'
@@ -125,7 +123,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	}
 	const { toast, headers: toastHeaders } = await getToast(request)
 	const honeyProps = honeypot.getInputProps()
-	const [csrfToken, csrfCookieHeader] = await csrf.commitToken()
 
 	return json(
 		{
@@ -141,13 +138,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			ENV: getEnv(),
 			toast,
 			honeyProps,
-			csrfToken,
 		},
 		{
 			headers: combineHeaders(
 				{ 'Server-Timing': timings.toString() },
 				toastHeaders,
-				csrfCookieHeader ? { 'set-cookie': csrfCookieHeader } : null,
 			),
 		},
 	)
@@ -295,11 +290,9 @@ function Logo() {
 function AppWithProviders() {
 	const data = useLoaderData<typeof loader>()
 	return (
-		<AuthenticityTokenProvider token={data.csrfToken}>
-			<HoneypotProvider {...data.honeyProps}>
-				<App />
-			</HoneypotProvider>
-		</AuthenticityTokenProvider>
+		<HoneypotProvider {...data.honeyProps}>
+			<App />
+		</HoneypotProvider>
 	)
 }
 

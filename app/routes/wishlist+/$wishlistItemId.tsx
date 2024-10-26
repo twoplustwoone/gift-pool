@@ -3,7 +3,6 @@ import { invariantResponse } from '@epic-web/invariant'
 import { json, type ActionFunctionArgs } from '@remix-run/node'
 import { z } from 'zod'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { validateCSRF } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { requireUserWithPermission } from '#app/utils/permissions.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
@@ -16,7 +15,6 @@ const DeleteFormSchema = z.object({
 export async function action({ request }: ActionFunctionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
-	await validateCSRF(formData, request.headers)
 	const submission = parseWithZod(formData, {
 		schema: DeleteFormSchema,
 	})
