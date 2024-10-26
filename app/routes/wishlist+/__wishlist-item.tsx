@@ -1,6 +1,5 @@
 import { type WishlistItem } from '@prisma/client'
 import { useActionData, useFetcher } from '@remix-run/react'
-import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { z } from 'zod'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
@@ -55,7 +54,6 @@ export function DeleteWishlistItem({
 			action={`/wishlist/${id}`}
 			className={className}
 		>
-			<AuthenticityTokenInput />
 			<input type="hidden" name="wishlistItemId" value={id} />
 			<StatusButton
 				type="submit"

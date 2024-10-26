@@ -14,7 +14,6 @@ import {
 	useLoaderData,
 } from '@remix-run/react'
 import { useState } from 'react'
-import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 
 import { z } from 'zod'
 import { ErrorList } from '#app/components/forms.tsx'
@@ -53,7 +52,6 @@ import {
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { validateCSRF } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	createInviteLink,
@@ -168,7 +166,6 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
 	await requireUserId(request)
 	const formData = await request.formData()
-	await validateCSRF(formData, request.headers)
 
 	const submission = parseWithZod(formData, {
 		schema: DeleteFormSchema.or(CreateInviteLinkFormSchema)
@@ -346,7 +343,6 @@ function CreateInviteLinkDialog() {
 						</div>
 					) : (
 						<Form method="POST" {...getFormProps(form)}>
-							<AuthenticityTokenInput />
 							<input type="hidden" name="giftGroupId" value={giftGroup.id} />
 							<div className="flex items-center">
 								<div className="w-1/2">Link expires after</div>
@@ -417,7 +413,6 @@ function DestroyInviteLinkButton() {
 	})
 	return (
 		<fetcher.Form method="POST" {...getFormProps(form)}>
-			<AuthenticityTokenInput />
 			<input type="hidden" name="giftGroupId" value={giftGroup.id} />
 			<input type="hidden" name="groupInvitationId" value={groupInvitationId} />
 			<StatusButton
@@ -471,7 +466,6 @@ function DeleteGroupDialog({ id }: { id: string }) {
 						</Button>
 					</DialogClose>
 					<Form method="POST" {...getFormProps(form)}>
-						<AuthenticityTokenInput />
 						<input type="hidden" name="giftGroupId" value={id} />
 						<StatusButton
 							type="submit"
@@ -523,7 +517,6 @@ function LeaveGroupDialog({ id }: { id: string }) {
 						</Button>
 					</DialogClose>
 					<Form method="POST" {...getFormProps(form)}>
-						<AuthenticityTokenInput />
 						<input type="hidden" name="giftGroupId" value={id} />
 						<StatusButton
 							type="submit"

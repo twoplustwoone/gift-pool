@@ -3,7 +3,6 @@ import { type ActionFunctionArgs } from '@remix-run/node'
 import { json, redirect } from '@remix-run/react'
 import { z } from 'zod'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { validateCSRF } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { GroupEditorSchema } from './__group-editor'
 
@@ -11,7 +10,6 @@ export async function action({ request }: ActionFunctionArgs) {
 	const userId = await requireUserId(request)
 
 	const formData = await request.formData()
-	await validateCSRF(formData, request.headers)
 
 	const submission = await parseWithZod(formData, {
 		schema: GroupEditorSchema.superRefine(async (data, ctx) => {
