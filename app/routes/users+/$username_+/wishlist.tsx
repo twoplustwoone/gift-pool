@@ -1,16 +1,16 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { json, type LoaderFunctionArgs } from '@remix-run/node'
-import { Outlet, redirect } from '@remix-run/react'
+import { redirect, useLoaderData } from '@remix-run/react'
+import { Wishlist } from '#app/routes/wishlist+/__wishlist.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { requireUsersShareAGroup } from '#app/utils/groups.server.ts'
 
-export async function loader({ params, request }: LoaderFunctionArgs) {
+export const loader = async ({ params, request }: LoaderFunctionArgs) => {
 	const { username } = params
 
 	const userId = await requireUserId(request)
-	await requireUsersShareAGroup({ userId, username })
-
+	await requireUsersShareAGroup({ userId, username: username! })
 	const user = await prisma.user.findFirst({
 		select: {
 			id: true,
@@ -25,18 +25,13 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 	invariantResponse(user, 'User not found', { status: 404 })
 
 	if (user.id === userId) {
-		return redirect('/me')
+		return redirect('/wishlist')
 	}
 
-	return json({})
+	return json({ user })
 }
 
-export default function Username() {
-	return (
-		<main className="container flex h-full min-h-[400px] px-0 pb-12 md:px-8">
-			<div className="grid w-full bg-muted pl-2 pr-2 md:container md:rounded-3xl">
-				<Outlet />
-			</div>
-		</main>
-	)
+export default function UserWishlist() {
+	const { user } = useLoaderData<typeof loader>()
+	return <Wishlist isOwner={false} user={user} />
 }

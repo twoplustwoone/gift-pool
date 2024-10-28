@@ -70,3 +70,34 @@ export async function removeUserFromGroup(userId: string, groupId: string) {
 		},
 	})
 }
+
+export async function requireUsersShareAGroup({
+	userId,
+	username,
+}: {
+	userId: string
+	username?: string
+}) {
+	const giftGroup = await prisma.giftGroup.findFirst({
+		where: {
+			groupMembers: {
+				some: {
+					userId,
+				},
+			},
+			AND: {
+				groupMembers: {
+					some: {
+						user: {
+							username,
+						},
+					},
+				},
+			},
+		},
+	})
+
+	if (!giftGroup) {
+		throw redirect('/groups')
+	}
+}
