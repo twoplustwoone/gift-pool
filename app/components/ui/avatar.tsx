@@ -11,7 +11,6 @@ interface AvatarProps {
 	user: SerializeFrom<Pick<User, 'name' | 'username'>>
 	size?: AvatarSize
 	shape?: AvatarShape
-	placeholderImage?: string
 	altText?: string
 	className?: string
 	style?: React.CSSProperties
@@ -27,7 +26,6 @@ export const Avatar = ({
 	user,
 	size = 'm',
 	shape = 'circle',
-	placeholderImage = '/images/default-avatar.png',
 	altText,
 	className,
 	style,
@@ -64,7 +62,7 @@ export const Avatar = ({
 		}
 	})()
 
-	const src = image?.id ? getUserImgSrc(image.id) : placeholderImage
+	const src = getUserImgSrc(image?.id)
 
 	const imageAlt = altText ?? image?.altText ?? user.name ?? user.username
 
