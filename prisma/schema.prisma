@@ -37,6 +37,7 @@ model GiftGroup {
   updatedAt   DateTime @updatedAt
   name        String
   description String
+  // slug        String   @unique
 
   // Relations
   groupMembers     UsersInGiftGroups[]
