@@ -47,13 +47,13 @@ model GiftGroup {
 }
 
 model UsersInGiftGroups {
-  user        User      @relation(fields: [userId], references: [id])
-  userId      String
-  giftGroup   GiftGroup @relation(fields: [giftGroupId], references: [id], onDelete: Cascade)
-  giftGroupId String
-  budget      Float     @default(0.0)
-  role        String    @default("member") // owner, admin, member
-  joinedAt    DateTime  @default(now())
+  user              User      @relation(fields: [userId], references: [id])
+  userId            String
+  giftGroup         GiftGroup @relation(fields: [giftGroupId], references: [id], onDelete: Cascade)
+  giftGroupId       String
+  contributionLimit Int       @default(0) // in cents
+  role              String    @default("member") // owner, admin, member
+  joinedAt          DateTime  @default(now())
 
   @@id([userId, giftGroupId])
 }
@@ -98,8 +98,11 @@ model WishlistItem {
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   ownerId String
 
-  value          String
-  isWishlistLink Boolean @default(false)
+  title    String
+  url      String?
+  notes    String?
+  priority Int? // optional for sorting or importance
+  isLink   Boolean @default(false)
 }
 
 model UserImage {

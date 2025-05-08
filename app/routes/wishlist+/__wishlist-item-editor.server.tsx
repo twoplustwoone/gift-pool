@@ -55,10 +55,10 @@ export async function action({ request }: ActionFunctionArgs) {
 		where: { id: wishlistItemId ?? '__new_wishlist_item__' },
 		create: {
 			ownerId: userId,
-			value,
+			title: value,
 		},
 		update: {
-			value,
+			title: value,
 		},
 	})
 

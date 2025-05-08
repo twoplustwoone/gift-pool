@@ -14,7 +14,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			id: true,
 			name: true,
 			username: true,
-			wishlistItems: { select: { id: true, value: true, ownerId: true } },
+			wishlistItems: { select: { id: true, title: true, ownerId: true } },
 			image: { select: { id: true } },
 		},
 		where: { id: userId },
