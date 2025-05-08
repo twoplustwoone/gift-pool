@@ -19,7 +19,6 @@ model User {
   updatedAt     DateTime       @updatedAt
   image         UserImage?
   password      Password?
-  notes         Note[]
   roles         Role[]
   sessions      Session[]
   connections   Connection[]
@@ -71,41 +70,6 @@ model GroupInvitation {
   createdById String
 
   @@index([code])
-}
-
-model Note {
-  id      String @id @default(cuid())
-  title   String
-  content String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  ownerId String
-
-  images NoteImage[]
-
-  // non-unique foreign key
-  @@index([ownerId])
-  // This helps our order by in the user search a LOT
-  @@index([ownerId, updatedAt])
-}
-
-model NoteImage {
-  id          String  @id @default(cuid())
-  altText     String?
-  contentType String
-  blob        Bytes
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  noteId String
-
-  // non-unique foreign key
-  @@index([noteId])
 }
 
 model Address {
@@ -174,7 +138,7 @@ model Session {
 model Permission {
   id          String @id @default(cuid())
   action      String // e.g. create, read, update, delete
-  entity      String // e.g. note, user, wishlistItem, giftGroup
+  entity      String // e.g. user, wishlistItem, giftGroup
   access      String // e.g. own or any
   description String @default("")
 
