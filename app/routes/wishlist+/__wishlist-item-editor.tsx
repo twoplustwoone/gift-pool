@@ -22,7 +22,7 @@ export const WishlistItemSchema = z.object({
 export function WishlistItemEditor({
 	wishlistItem,
 }: {
-	wishlistItem?: SerializeFrom<Pick<WishlistItem, 'id' | 'value'>>
+	wishlistItem?: SerializeFrom<Pick<WishlistItem, 'id' | 'title'>>
 }) {
 	const actionData = useActionData<typeof action>()
 	const isPending = useIsPending()
@@ -43,7 +43,7 @@ export function WishlistItemEditor({
 			return parseWithZod(formData, { schema: WishlistItemSchema })
 		},
 		defaultValue: {
-			value: wishlistItem?.value ?? '',
+			value: wishlistItem?.title ?? '',
 		},
 	})
 

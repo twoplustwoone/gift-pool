@@ -15,7 +15,7 @@ export const DeleteFormSchema = z.object({
 export function WishlistItem({
 	wishlistItem,
 }: {
-	wishlistItem: Pick<WishlistItem, 'id' | 'value' | 'ownerId'>
+	wishlistItem: Pick<WishlistItem, 'id' | 'title' | 'ownerId'>
 }) {
 	const user = useOptionalUser()
 	const isOwner = user?.id === wishlistItem.ownerId
@@ -26,7 +26,7 @@ export function WishlistItem({
 
 	return (
 		<div className="group flex min-h-14 w-96 items-center justify-between rounded-xl px-4 py-2 text-base hover:bg-accent lg:text-xl">
-			<div>{wishlistItem.value}</div>
+			<div>{wishlistItem.title}</div>
 			{canDelete && (
 				<DeleteWishlistItem
 					id={wishlistItem.id}

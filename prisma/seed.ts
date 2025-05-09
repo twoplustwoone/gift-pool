@@ -6,7 +6,6 @@ import {
 	cleanupDb,
 	createPassword,
 	createUser,
-	getNoteImages,
 	getUserImages,
 	img,
 } from '#tests/db-utils.ts'
@@ -21,7 +20,7 @@ async function seed() {
 	console.timeEnd('🧹 Cleaned up the database...')
 
 	console.time('🔑 Created permissions...')
-	const entities = ['user', 'wishlistItem', 'note']
+	const entities = ['user', 'wishlistItem', 'giftGroup']
 	const actions = ['create', 'read', 'update', 'delete']
 	const accesses = ['own', 'any'] as const
 	for (const entity of entities) {
@@ -33,6 +32,7 @@ async function seed() {
 	}
 	console.timeEnd('🔑 Created permissions...')
 
+	// Roles
 	console.time('👑 Created roles...')
 	await prisma.role.create({
 		data: {
@@ -58,9 +58,9 @@ async function seed() {
 	})
 	console.timeEnd('👑 Created roles...')
 
+	// Users
 	const totalUsers = 5
 	console.time(`👤 Created ${totalUsers} users...`)
-	const noteImages = await getNoteImages()
 	const userImages = await getUserImages()
 
 	for (let index = 0; index < totalUsers; index++) {
@@ -73,24 +73,25 @@ async function seed() {
 					password: { create: createPassword(userData.username) },
 					image: { create: userImages[index % userImages.length] },
 					roles: { connect: { name: 'user' } },
-					notes: {
+					birthday: faker.date.birthdate(),
+					address: {
+						create: {
+							street: faker.location.streetAddress(),
+							city: faker.location.city(),
+							state: faker.location.state(),
+							zip: faker.location.zipCode(),
+							country: faker.location.country(),
+						},
+					},
+					wishlistItems: {
 						create: Array.from({
 							length: faker.number.int({ min: 1, max: 3 }),
 						}).map(() => ({
-							title: faker.lorem.sentence(),
-							content: faker.lorem.paragraphs(),
-							images: {
-								create: Array.from({
-									length: faker.number.int({ min: 1, max: 3 }),
-								}).map(() => {
-									const imgNumber = faker.number.int({ min: 0, max: 9 })
-									const img = noteImages[imgNumber]
-									if (!img) {
-										throw new Error(`Could not find image #${imgNumber}`)
-									}
-									return img
-								}),
-							},
+							title: faker.commerce.productName(),
+							url: faker.internet.url(),
+							notes: faker.commerce.productDescription(),
+							priority: faker.number.int({ min: 1, max: 5 }),
+							isLink: faker.datatype.boolean(),
 						})),
 					},
 				},
@@ -102,39 +103,9 @@ async function seed() {
 	}
 	console.timeEnd(`👤 Created ${totalUsers} users...`)
 
-	console.time(`🐨 Created admin user "kody"`)
-
-	const kodyImages = await promiseHash({
-		kodyUser: img({ filepath: './tests/fixtures/images/user/kody.png' }),
-		cuteKoala: img({
-			altText: 'an adorable koala cartoon illustration',
-			filepath: './tests/fixtures/images/kody-notes/cute-koala.png',
-		}),
-		koalaEating: img({
-			altText: 'a cartoon illustration of a koala in a tree eating',
-			filepath: './tests/fixtures/images/kody-notes/koala-eating.png',
-		}),
-		koalaCuddle: img({
-			altText: 'a cartoon illustration of koalas cuddling',
-			filepath: './tests/fixtures/images/kody-notes/koala-cuddle.png',
-		}),
-		mountain: img({
-			altText: 'a beautiful mountain covered in snow',
-			filepath: './tests/fixtures/images/kody-notes/mountain.png',
-		}),
-		koalaCoder: img({
-			altText: 'a koala coding at the computer',
-			filepath: './tests/fixtures/images/kody-notes/koala-coder.png',
-		}),
-		koalaMentor: img({
-			altText:
-				'a koala in a friendly and helpful posture. The Koala is standing next to and teaching a woman who is coding on a computer and shows positive signs of learning and understanding what is being explained.',
-			filepath: './tests/fixtures/images/kody-notes/koala-mentor.png',
-		}),
-		koalaSoccer: img({
-			altText: 'a cute cartoon koala kicking a soccer ball on a soccer field ',
-			filepath: './tests/fixtures/images/kody-notes/koala-soccer.png',
-		}),
+	console.time(`🧑‍💼 Created admin user "Wade Wilson"`)
+	const wadeImage = await img({
+		filepath: './tests/fixtures/images/user/wade.png',
 	})
 
 	const githubUser = await insertGitHubUser(MOCK_CODE_GITHUB)
@@ -142,18 +113,39 @@ async function seed() {
 	await prisma.user.create({
 		select: { id: true },
 		data: {
-			email: 'kody@kcd.dev',
-			username: 'kody',
-			name: 'Kody',
-			image: { create: kodyImages.kodyUser },
-			password: { create: createPassword('kodylovesyou') },
+			email: 'wade@example.com',
+			username: 'wade',
+			name: 'Wade Wilson',
+			image: { create: wadeImage },
+			password: { create: createPassword('maximumeffort') },
 			connections: {
 				create: { providerName: 'github', providerId: githubUser.profile.id },
 			},
 			roles: { connect: [{ name: 'admin' }, { name: 'user' }] },
+			birthday: faker.date.birthdate(),
+			address: {
+				create: {
+					street: '1991 Chimichanga Lane',
+					city: 'Regeneropolis',
+					state: 'CA',
+					zip: '90210',
+					country: 'USA',
+				},
+			},
+			wishlistItems: {
+				create: [
+					{
+						title: 'Custom Katana Set',
+						url: 'https://example.com/katana',
+						notes: 'Engraved with Deadpool logo. Red + black colorway.',
+						priority: 1,
+						isLink: true,
+					},
+				],
+			},
 		},
 	})
-	console.timeEnd(`🐨 Created admin user "kody"`)
+	console.timeEnd(`🧑‍💼 Created admin user "Wade Wilson"`)
 
 	console.timeEnd(`🌱 Database has been seeded`)
 }

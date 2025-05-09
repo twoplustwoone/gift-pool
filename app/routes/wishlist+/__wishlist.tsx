@@ -14,7 +14,7 @@ export function Wishlist({
 }: {
 	user: Pick<User, 'username' | 'name'> & {
 		image: Pick<UserImage, 'id'> | null
-		wishlistItems: Pick<WishlistItemType, 'id' | 'value' | 'ownerId'>[]
+		wishlistItems: Pick<WishlistItemType, 'id' | 'title' | 'ownerId'>[]
 	}
 	isOwner: boolean
 }) {
