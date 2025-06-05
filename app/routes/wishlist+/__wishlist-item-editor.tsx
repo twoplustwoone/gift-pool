@@ -15,14 +15,17 @@ const valueMinLength = 1
 const valueMaxLength = 255
 
 export const WishlistItemSchema = z.object({
-	id: z.string().optional(),
-	value: z.string().min(valueMinLength).max(valueMaxLength),
+        id: z.string().optional(),
+        value: z.string().min(valueMinLength).max(valueMaxLength),
+        categoryId: z.string().optional(),
 })
 
 export function WishlistItemEditor({
 	wishlistItem,
 }: {
-	wishlistItem?: SerializeFrom<Pick<WishlistItem, 'id' | 'title'>>
+        wishlistItem?: SerializeFrom<Pick<WishlistItem, 'id' | 'title' | 'categoryId'>> & {
+                categoryId?: string | null
+        }
 }) {
 	const actionData = useActionData<typeof action>()
 	const isPending = useIsPending()
@@ -42,9 +45,10 @@ export function WishlistItemEditor({
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: WishlistItemSchema })
 		},
-		defaultValue: {
-			value: wishlistItem?.title ?? '',
-		},
+               defaultValue: {
+                        value: wishlistItem?.title ?? '',
+                        categoryId: wishlistItem?.categoryId ?? undefined,
+                },
 	})
 
 	return (
@@ -62,9 +66,12 @@ export function WishlistItemEditor({
 					rather than the first button in the form (which is delete/add image).
 				*/}
 				<button type="submit" className="hidden" />
-				{wishlistItem ? (
-					<input type="hidden" name="id" value={wishlistItem.id} />
-				) : null}
+                                {wishlistItem ? (
+                                        <input type="hidden" name="id" value={wishlistItem.id} />
+                                ) : null}
+                                {fields.categoryId ? (
+                                        <input {...getInputProps(fields.categoryId, { type: 'hidden' })} />
+                                ) : null}
 				<div className="flex flex-col gap-1">
 					<Field
 						className="w-80"

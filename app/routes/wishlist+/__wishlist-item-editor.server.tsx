@@ -20,9 +20,9 @@ export async function action({ request }: ActionFunctionArgs) {
 		createMemoryUploadHandler({ maxPartSize: MAX_UPLOAD_SIZE }),
 	)
 
-	const submission = await parseWithZod(formData, {
-		schema: WishlistItemSchema.superRefine(async (data, ctx) => {
-			if (!data.id) return
+        const submission = await parseWithZod(formData, {
+                schema: WishlistItemSchema.superRefine(async (data, ctx) => {
+                        if (!data.id) return
 
 			const wishlistItem = await prisma.wishlistItem.findUnique({
 				select: { id: true },
@@ -34,13 +34,13 @@ export async function action({ request }: ActionFunctionArgs) {
 					message: 'Wishlist item not found',
 				})
 			}
-		}).transform(async ({ ...data }) => {
-			return {
-				...data,
-			}
-		}),
-		async: true,
-	})
+                }).transform(async ({ ...data }) => {
+                        return {
+                                ...data,
+                        }
+                }),
+                async: true,
+        })
 
 	if (submission.status !== 'success') {
 		return json(submission.reply(), {
@@ -48,19 +48,21 @@ export async function action({ request }: ActionFunctionArgs) {
 		})
 	}
 
-	const { id: wishlistItemId, value } = submission.value
+        const { id: wishlistItemId, value, categoryId } = submission.value
 
-	await prisma.wishlistItem.upsert({
-		select: { id: true, owner: { select: { username: true } } },
-		where: { id: wishlistItemId ?? '__new_wishlist_item__' },
-		create: {
-			ownerId: userId,
-			title: value,
-		},
-		update: {
-			title: value,
-		},
-	})
+        await prisma.wishlistItem.upsert({
+                select: { id: true, owner: { select: { username: true } } },
+                where: { id: wishlistItemId ?? '__new_wishlist_item__' },
+                create: {
+                        ownerId: userId,
+                        title: value,
+                        categoryId,
+                },
+                update: {
+                        title: value,
+                        categoryId,
+                },
+        })
 
 	return json(submission.reply())
 }

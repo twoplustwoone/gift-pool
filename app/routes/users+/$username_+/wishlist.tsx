@@ -11,16 +11,34 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
 
 	const userId = await requireUserId(request)
 	await requireUsersShareAGroup({ userId, username: username! })
-	const user = await prisma.user.findFirst({
-		select: {
-			id: true,
-			name: true,
-			username: true,
-			wishlistItems: { select: { id: true, title: true, ownerId: true } },
-			image: { select: { id: true } },
-		},
-		where: { username },
-	})
+        const user = await prisma.user.findFirst({
+                select: {
+                        id: true,
+                        name: true,
+                        username: true,
+                        wishlistItems: {
+                                select: { id: true, title: true, ownerId: true },
+                                where: { categoryId: null },
+                        },
+                        wishlistCategories: {
+                                orderBy: { position: 'asc' },
+                                select: {
+                                        id: true,
+                                        name: true,
+                                        position: true,
+                                        items: {
+                                                select: {
+                                                        id: true,
+                                                        title: true,
+                                                        ownerId: true,
+                                                },
+                                        },
+                                },
+                        },
+                        image: { select: { id: true } },
+                },
+                where: { username },
+        })
 
 	invariantResponse(user, 'User not found', { status: 404 })
 

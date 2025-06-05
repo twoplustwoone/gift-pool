@@ -9,16 +9,34 @@ import { action } from './__wishlist-item-editor.server'
 
 export async function loader({ request }: LoaderFunctionArgs) {
 	const userId = await requireUserId(request)
-	const user = await prisma.user.findFirst({
-		select: {
-			id: true,
-			name: true,
-			username: true,
-			wishlistItems: { select: { id: true, title: true, ownerId: true } },
-			image: { select: { id: true } },
-		},
-		where: { id: userId },
-	})
+        const user = await prisma.user.findFirst({
+                select: {
+                        id: true,
+                        name: true,
+                        username: true,
+                        wishlistItems: {
+                                select: { id: true, title: true, ownerId: true },
+                                where: { categoryId: null },
+                        },
+                        wishlistCategories: {
+                                orderBy: { position: 'asc' },
+                                select: {
+                                        id: true,
+                                        name: true,
+                                        position: true,
+                                        items: {
+                                                select: {
+                                                        id: true,
+                                                        title: true,
+                                                        ownerId: true,
+                                                },
+                                        },
+                                },
+                        },
+                        image: { select: { id: true } },
+                },
+                where: { id: userId },
+        })
 
 	invariantResponse(user, 'User not found', { status: 404 })
 
