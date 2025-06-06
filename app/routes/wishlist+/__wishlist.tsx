@@ -5,7 +5,7 @@ import {
 } from '@prisma/client'
 import { Link } from '@remix-run/react'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
-import { WishlistItem } from './__wishlist-item'
+import { WishlistItem } from '#app/components/wishlist'
 import { WishlistItemEditor } from './__wishlist-item-editor'
 
 export function Wishlist({

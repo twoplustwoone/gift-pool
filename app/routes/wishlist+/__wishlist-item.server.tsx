@@ -5,7 +5,7 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { requireUserWithPermission } from '#app/utils/permissions.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
-import { DeleteFormSchema } from './__wishlist-item'
+import { DeleteFormSchema } from '#app/components/wishlist/wishlist-item'
 
 export async function action({ request }: ActionFunctionArgs) {
 	const userId = await requireUserId(request)

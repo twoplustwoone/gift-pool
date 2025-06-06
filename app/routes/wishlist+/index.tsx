@@ -4,7 +4,7 @@ import { useLoaderData } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { Wishlist } from './__wishlist'
+import { Wishlist } from '#app/components/wishlist'
 import { action } from './__wishlist-item-editor.server'
 
 export async function loader({ request }: LoaderFunctionArgs) {
