@@ -1,31 +1,38 @@
 # Contributor Guidelines
 
-This repository contains the GiftPool web application built with Remix, Express and TypeScript. The following notes describe the project structure and the expected workflow when contributing code.
+This repository contains the GiftPool web application built with Remix, Express
+and TypeScript. The following notes describe the project structure and the
+expected workflow when contributing code.
 
 ## Development
 
 - **Node version:** 20 (see `package.json` `engines` field).
 - Use `npm run dev` to start the development server.
-- Icon assets under `app/components/ui/icons` are generated. Run `npm run build:icons` to update them.
+- Icon assets under `app/components/ui/icons` are generated. Run
+  `npm run build:icons` to update them.
 - Run `npm run build` to create a production build.
 
 ## Testing
 
 - Unit tests are written with Vitest and end‑to‑end tests use Playwright.
-- To run all checks (tests, linting, type checks, e2e) execute `npm run validate`.
+- To run all checks (tests, linting, type checks, e2e) execute
+  `npm run validate`.
 - If Playwright is missing, install browsers with `npm run test:e2e:install`.
 - Mocks for external services live in `tests/mocks` and are powered by MSW.
 
 ## Linting and Formatting
 
 - ESLint and Prettier configuration come from `@epic-web/config`.
-- Format code with `npm run format` and lint with `npm run lint` before committing.
+- Format code with `npm run format` and lint with `npm run lint` before
+  committing.
 - Run `npm run lint:fix` to automatically fix ESLint issues.
-- Use `npm run validate` to run all checks (tests, linting, type checks, e2e) before committing.
+- Use `npm run validate` to run all checks (tests, linting, type checks, e2e)
+  before committing.
 
 ## Database
 
-- Prisma manages the SQLite schema. Run `npm run setup` to build the project, generate the client, apply migrations and seed data.
+- Prisma manages the SQLite schema. Run `npm run setup` to build the project,
+  generate the client, apply migrations and seed data.
 
 ## Repository Layout
 
@@ -33,9 +40,12 @@ This repository contains the GiftPool web application built with Remix, Express 
 - `server/` – Express entry points.
 - `prisma/` – Database schema and migrations.
 - `tests/` – Vitest and Playwright tests.
-- `other/` – Additional scripts and build helpers. See `other/README.md` for details.
+- `other/` – Additional scripts and build helpers. See `other/README.md` for
+  details.
 
 ## Additional Notes
 
-- `public/favicons` explains favicon usage and `tests/mocks/README.md` documents the mock server setup.
-- Keep miscellaneous files out of the project root when possible by placing them in `other/`.
+- `public/favicons` explains favicon usage and `tests/mocks/README.md` documents
+  the mock server setup.
+- Keep miscellaneous files out of the project root when possible by placing them
+  in `other/`.
