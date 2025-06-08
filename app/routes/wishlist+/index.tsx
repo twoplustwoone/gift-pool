@@ -2,9 +2,9 @@ import { invariantResponse } from '@epic-web/invariant'
 import { json, type LoaderFunctionArgs } from '@remix-run/node'
 import { useLoaderData } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { Wishlist } from '#app/components/wishlist'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { Wishlist } from '#app/components/wishlist'
 import { action } from './__wishlist-item-editor.server'
 
 export async function loader({ request }: LoaderFunctionArgs) {

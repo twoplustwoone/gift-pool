@@ -4,8 +4,8 @@ import {
 	type WishlistItem as WishlistItemType,
 } from '@prisma/client'
 import { Link } from '@remix-run/react'
-import { getUserImgSrc } from '#app/utils/misc.tsx'
 import { WishlistItem } from '#app/components/wishlist'
+import { getUserImgSrc } from '#app/utils/misc.tsx'
 import { WishlistItemEditor } from './__wishlist-item-editor'
 
 export function Wishlist({
