@@ -17,6 +17,8 @@ This repository contains the GiftPool web application built with Remix, Express 
 ## Linting and Formatting
 - ESLint and Prettier configuration come from `@epic-web/config`.
 - Format code with `npm run format` and lint with `npm run lint` before committing.
+- Run `npm run lint:fix` to automatically fix ESLint issues.
+- Use `npm run validate` to run all checks (tests, linting, type checks, e2e) before committing.
 
 ## Database
 - Prisma manages the SQLite schema. Run `npm run setup` to build the project, generate the client, apply migrations and seed data.
