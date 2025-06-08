@@ -1,9 +1,17 @@
 import { type WishlistItem as WishlistItemType } from '@prisma/client'
-import { useActionData, useFetcher } from '@remix-run/react'
+import { useFetcher } from '@remix-run/react'
 import { z } from 'zod'
+import { Button } from '#app/components/ui/button.tsx'
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from '#app/components/ui/dialog.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { type action } from '#app/routes/wishlist+/__wishlist-item.server'
 import { useIsPending } from '#app/utils/misc.tsx'
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts'
 
@@ -44,28 +52,44 @@ export function DeleteWishlistItem({
 	id: string
 	className?: string
 }) {
-	const actionData = useActionData<typeof action>()
 	const isPending = useIsPending()
 	const fetcher = useFetcher()
 
 	return (
-		<fetcher.Form
-			method="DELETE"
-			action={`/wishlist/${id}`}
-			className={className}
-		>
-			<input type="hidden" name="wishlistItemId" value={id} />
-			<StatusButton
-				type="submit"
-				name="intent"
-				value="delete-wishlist-item"
-				variant="destructive"
-				status={isPending ? 'pending' : (actionData?.status ?? 'idle')}
-				disabled={isPending}
-				className="w-full max-md:aspect-square max-md:px-0"
-			>
-				<Icon name="trash" className="scale-125 max-md:scale-150" />
-			</StatusButton>
-		</fetcher.Form>
+		<Dialog>
+			<DialogTrigger asChild>
+				<Button variant="destructive" className={className}>
+					<Icon name="trash" className="scale-125 max-md:scale-150" />
+				</Button>
+			</DialogTrigger>
+			<DialogContent className="sm:max-w-[425px]">
+				<DialogHeader>
+					<DialogTitle>Delete wishlist item</DialogTitle>
+					<DialogDescription>
+						Are you sure you want to delete this item? This action cannot be
+						undone.
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<fetcher.Form
+						method="DELETE"
+						action={`/wishlist/${id}`}
+						className="flex w-full gap-4"
+					>
+						<input type="hidden" name="wishlistItemId" value={id} />
+						<Button
+							type="submit"
+							name="intent"
+							value="delete-wishlist-item"
+							variant="destructive"
+							disabled={isPending}
+							className="flex-1"
+						>
+							Delete
+						</Button>
+					</fetcher.Form>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	)
 }
