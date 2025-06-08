@@ -21,7 +21,7 @@ export function WishlistItem({
 	const isOwner = user?.id === wishlistItem.ownerId
 	const canDelete = userHasPermission(
 		user,
-		isOwner ? `delete:note:own` : `delete:note:any`,
+		isOwner ? `delete:wishlistItem:own` : `delete:wishlistItem:any`,
 	)
 
 	return (
