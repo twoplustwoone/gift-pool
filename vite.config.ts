@@ -6,6 +6,7 @@ import { defineConfig } from 'vite'
 import { envOnlyMacros } from 'vite-env-only'
 
 const MODE = process.env.NODE_ENV
+const IS_STORYBOOK = !!process.env.STORYBOOK
 
 export default defineConfig({
 	build: {
@@ -34,31 +35,31 @@ export default defineConfig({
 	},
 	plugins: [
 		envOnlyMacros(),
-		// it would be really nice to have this enabled in tests, but we'll have to
-		// wait until https://github.com/remix-run/remix/issues/9871 is fixed
-		process.env.NODE_ENV === 'test'
-			? null
-			: remix({
-					ignoredRouteFiles: ['**/*'],
-					serverModuleFormat: 'esm',
-					routes: async (defineRoutes) => {
-						return flatRoutes('routes', defineRoutes, {
-							ignoredRouteFiles: [
-								'.*',
-								'**/*.css',
-								'**/*.test.{js,jsx,ts,tsx}',
-								'**/__*.*',
+		// Only enable remix if NOT running Storybook and NOT testing
+		!IS_STORYBOOK &&
+			process.env.NODE_ENV !== 'test' &&
+			remix({
+				// ...your remix config here...
+				ignoredRouteFiles: ['**/*'],
+				serverModuleFormat: 'esm',
+				routes: async (defineRoutes) => {
+					return flatRoutes('routes', defineRoutes, {
+						ignoredRouteFiles: [
+							'.*',
+							'**/*.css',
+							'**/*.test.{js,jsx,ts,tsx}',
+							'**/__*.*',
 								// This is for server-side utilities you want to colocate
 								// next to your routes without making an additional
 								// directory. If you need a route that includes "server" or
 								// "client" in the filename, use the escape brackets like:
 								// my-route.[server].tsx
-								'**/*.server.*',
-								'**/*.client.*',
-							],
-						})
-					},
-				}),
+							'**/*.server.*',
+							'**/*.client.*',
+						],
+					})
+				},
+			}),
 		process.env.SENTRY_AUTH_TOKEN
 			? sentryVitePlugin({
 					disable: MODE !== 'production',
@@ -67,9 +68,7 @@ export default defineConfig({
 					project: process.env.SENTRY_PROJECT,
 					release: {
 						name: process.env.COMMIT_SHA,
-						setCommits: {
-							auto: true,
-						},
+						setCommits: { auto: true },
 					},
 					sourcemaps: {
 						filesToDeleteAfterUpload: await glob([
@@ -79,7 +78,7 @@ export default defineConfig({
 					},
 				})
 			: null,
-	],
+	].filter(Boolean),
 	test: {
 		include: ['./app/**/*.test.{ts,tsx}'],
 		setupFiles: ['./tests/setup/setup-test-env.ts'],
