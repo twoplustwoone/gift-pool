@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react-vite'
+import  { type Meta, type StoryObj } from '@storybook/react-vite'
 import { StatusButton } from './status-button'
 
 const meta: Meta<typeof StatusButton> = {
