@@ -1,26 +1,26 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Button } from "./button";
+import type { Meta, StoryObj } from '@storybook/react-vite'
+import { Button } from './button'
 
 const meta: Meta<typeof Button> = {
-  title: "UI/Button",
-  component: Button,
-};
-export default meta;
+	title: 'UI/Button',
+	component: Button,
+}
+export default meta
 
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
-  args: { children: "Button" },
-};
+	args: { children: 'Button' },
+}
 
 export const Destructive: Story = {
-  args: { variant: "destructive", children: "Delete" },
-};
+	args: { variant: 'destructive', children: 'Delete' },
+}
 
 export const Outline: Story = {
-  args: { variant: "outline", children: "Outline" },
-};
+	args: { variant: 'outline', children: 'Outline' },
+}
 
 export const Small: Story = {
-  args: { size: "sm", children: "Small" },
-};
+	args: { size: 'sm', children: 'Small' },
+}
