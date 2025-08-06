@@ -67,8 +67,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: prisma/data.db
-          key:
-            db-cache-schema_${{
+          key: db-cache-schema_${{
             hashFiles('prisma/schema.prisma')}}-migrations_${{
             hashFiles('prisma/migrations/*/migration.sql') }}
       - run: npx prisma db seed
