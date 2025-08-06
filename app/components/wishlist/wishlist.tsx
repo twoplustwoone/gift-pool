@@ -6,6 +6,7 @@ import {
 import { Link } from '@remix-run/react';
 import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
+import { Grid } from '../ui/primitives';
 import { WishlistItem } from './wishlist-item';
 
 export function Wishlist({
@@ -50,13 +51,11 @@ export function Wishlist({
             )}
           </div>
         ) : (
-          <ul className="overflow-y-auto overflow-x-hidden pb-12">
-            {user.wishlistItems.map((wishlistItem) => (
-              <li key={wishlistItem.id}>
-                <WishlistItem wishlistItem={wishlistItem} />
-              </li>
+          <Grid columns={3} gap={4}>
+            {user.wishlistItems.map((item) => (
+              <WishlistItem key={item.id} wishlistItem={item} />
             ))}
-          </ul>
+          </Grid>
         )}
       </div>
     </div>

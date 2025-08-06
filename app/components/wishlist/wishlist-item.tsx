@@ -14,6 +14,7 @@ import {
 import { Icon } from '#app/components/ui/icon.tsx';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
+import { Box, Text, Flex } from '../ui/primitives';
 
 export const DeleteFormSchema = z.object({
   intent: z.literal('delete-wishlist-item'),
@@ -33,32 +34,39 @@ export function WishlistItem({
   );
 
   return (
-    <div className="group flex min-h-14 w-96 items-center justify-between rounded-xl px-4 py-2 text-base hover:bg-accent lg:text-xl">
-      <div>{wishlistItem.title}</div>
-      {canDelete && (
-        <DeleteWishlistItem
-          id={wishlistItem.id}
-          className={'hidden group-hover:flex'}
-        />
-      )}
-    </div>
+    <Box
+      p={4}
+      className="group h-28 cursor-pointer rounded-lg border border-gray-200 bg-accent shadow-sm transition-all hover:border-gray-300 hover:shadow-md"
+    >
+      <Flex justify="between" align="center">
+        <Text size="base" weight="medium">
+          {wishlistItem.title}
+        </Text>
+        {canDelete && (
+          <DeleteWishlistItem
+            id={wishlistItem.id}
+            className="items-center justify-center text-red-600 opacity-0 transition-opacity duration-200 ease-in-out hover:text-red-800 group-hover:opacity-100"
+          />
+        )}
+      </Flex>
+    </Box>
   );
 }
 
-export function DeleteWishlistItem({
+export const DeleteWishlistItem = ({
   id,
   className,
 }: {
   id: string;
   className?: string;
-}) {
+}) => {
   const isPending = useIsPending();
   const fetcher = useFetcher();
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="destructive" className={className}>
+        <Button variant="ghost" className={className} size={'icon'}>
           <Icon name="trash" className="scale-125 max-md:scale-150" />
         </Button>
       </DialogTrigger>
@@ -92,4 +100,4 @@ export function DeleteWishlistItem({
       </DialogContent>
     </Dialog>
   );
-}
+};
