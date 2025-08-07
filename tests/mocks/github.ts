@@ -128,8 +128,9 @@ async function getUser(request: Request) {
 }
 
 const passthroughGitHub =
-  !process.env.GITHUB_CLIENT_ID.startsWith('MOCK_') &&
-  process.env.NODE_ENV !== 'test';
+  !(process.env.GITHUB_CLIENT_ID ?? 'MOCK_GITHUB_CLIENT_ID').startsWith(
+    'MOCK_',
+  ) && process.env.NODE_ENV !== 'test';
 
 export const handlers: Array<HttpHandler> = [
   http.post(
