@@ -1,4 +1,9 @@
-import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import {
+  getFormProps,
+  getInputProps,
+  useForm,
+  type SubmissionResult,
+} from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type WishlistItem } from '@prisma/client';
 import { type SerializeFrom } from '@remix-run/node';
@@ -6,7 +11,9 @@ import { Form, useActionData } from '@remix-run/react';
 import React, { useRef } from 'react';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
-import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx';
+import { Field, TextareaField } from '#app/components/forms.tsx';
+import { useToast } from '#app/components/toaster.tsx';
+import { type Toast } from '#app/utils/toast.server.ts';
 import { Button } from '#app/components/ui/button';
 import {
   Dialog,
@@ -32,7 +39,7 @@ export const WishlistItemSchema = z.object({
   title: z.string().min(valueMinLength).max(valueMaxLength),
   note: z.string().optional(),
   url: z.string().url().optional(),
-  type: z.enum(['text', 'link', 'wishlist']),
+  type: z.enum(['text', 'link', 'wishlist']).default('text'),
 });
 
 export function WishlistItemEditor({
@@ -41,22 +48,31 @@ export function WishlistItemEditor({
   wishlistItem?: SerializeFrom<Pick<WishlistItem, 'id' | 'title'>>;
 }) {
   const [open, setOpen] = React.useState(false);
-  const actionData = useActionData<typeof action>();
+  const actionData = useActionData<typeof action>() as
+    | {
+        result: SubmissionResult<z.infer<typeof WishlistItemSchema>>;
+        intent: 'save' | 'save-add-another';
+        toast: Toast | null;
+      }
+    | undefined;
   const isPending = useIsPending();
   const formRef = useRef<HTMLFormElement>(null);
 
-  // TODO: Add logic to close/reset dialog based on actionData
+  useToast(actionData?.toast);
+
   React.useEffect(() => {
-    // If the actionData exists and the submission was successful, reset the form
-    if (actionData?.status === 'success') {
-      formRef.current?.reset(); // Reset
+    if (actionData?.result?.status === 'success') {
+      formRef.current?.reset();
+      if (actionData.intent === 'save') {
+        setOpen(false);
+      }
     }
   }, [actionData]);
 
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.infer<typeof WishlistItemSchema>>({
     id: 'wishlist-item-editor',
     constraint: getZodConstraint(WishlistItemSchema),
-    lastResult: actionData,
+    lastResult: actionData?.result as any,
     onValidate({ formData }) {
       return parseWithZod(formData, { schema: WishlistItemSchema });
     },

@@ -20,6 +20,10 @@ export async function action({ request }: ActionFunctionArgs) {
     createMemoryUploadHandler({ maxPartSize: MAX_UPLOAD_SIZE }),
   );
 
+  const intent = z
+    .enum(['save', 'save-add-another'])
+    .parse(formData.get('intent'));
+
   const submission = await parseWithZod(formData, {
     schema: WishlistItemSchema.superRefine(async (data, ctx) => {
       if (!data.id) return;
@@ -34,10 +38,6 @@ export async function action({ request }: ActionFunctionArgs) {
           message: 'Wishlist item not found',
         });
       }
-    }).transform(async ({ ...data }) => {
-      return {
-        ...data,
-      };
     }),
     async: true,
   });
@@ -48,19 +48,26 @@ export async function action({ request }: ActionFunctionArgs) {
     });
   }
 
-  const { id: wishlistItemId, value } = submission.value;
+  const { id: wishlistItemId, ...data } = submission.value;
 
   await prisma.wishlistItem.upsert({
-    select: { id: true, owner: { select: { username: true } } },
     where: { id: wishlistItemId ?? '__new_wishlist_item__' },
-    create: {
-      ownerId: userId,
-      title: value,
-    },
-    update: {
-      title: value,
-    },
+    create: { ownerId: userId, ...data },
+    update: data,
   });
 
-  return json(submission.reply());
+  const toast =
+    intent === 'save-add-another'
+      ? {
+          type: 'success' as const,
+          title: 'Item added',
+          description: 'Wishlist item added.',
+        }
+      : null;
+
+  return json({
+    result: submission.reply(),
+    intent,
+    toast,
+  });
 }
