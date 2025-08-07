@@ -11,6 +11,7 @@ import {
 import { Input } from './ui/input.tsx';
 import { Label } from './ui/label.tsx';
 import { Textarea } from './ui/textarea.tsx';
+import { Stack } from './ui-kit';
 
 export type ListOfErrors = Array<string | null | undefined> | null | undefined;
 
@@ -49,18 +50,27 @@ export function Field({
   const id = inputProps.id ?? fallbackId;
   const errorId = errors?.length ? `${id}-error` : undefined;
   return (
-    <div className={className}>
-      <Label htmlFor={id} {...labelProps} />
+    <Stack gap={2} className={className}>
+      <Label htmlFor={id} {...labelProps}>
+        {labelProps.children}
+        {inputProps.required && (
+          <span className="ml-1 text-red-500" aria-hidden="true">
+            *
+          </span>
+        )}
+      </Label>
       <Input
         id={id}
         aria-invalid={errorId ? true : undefined}
         aria-describedby={errorId}
         {...inputProps}
       />
-      <div className="min-h-[32px] px-4 pb-3 pt-1">
-        {errorId ? <ErrorList id={errorId} errors={errors} /> : null}
-      </div>
-    </div>
+      {errorId && (
+        <div className="px-4 pb-3 pt-1">
+          <ErrorList id={errorId} errors={errors} />
+        </div>
+      )}
+    </Stack>
   );
 }
 
@@ -123,7 +133,7 @@ export function TextareaField({
   const id = textareaProps.id ?? textareaProps.name ?? fallbackId;
   const errorId = errors?.length ? `${id}-error` : undefined;
   return (
-    <div className={className}>
+    <Stack gap={2} className={className}>
       <Label htmlFor={id} {...labelProps} />
       <Textarea
         id={id}
@@ -134,7 +144,7 @@ export function TextareaField({
       <div className="min-h-[32px] px-4 pb-3 pt-1">
         {errorId ? <ErrorList id={errorId} errors={errors} /> : null}
       </div>
-    </div>
+    </Stack>
   );
 }
 

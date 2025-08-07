@@ -6,8 +6,20 @@ import { Form, useActionData } from '@remix-run/react';
 import React, { useRef } from 'react';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
-import { ErrorList, Field } from '#app/components/forms.tsx';
+import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx';
+import { Button } from '#app/components/ui/button';
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from '#app/components/ui/dialog';
+import { Icon } from '#app/components/ui/icon';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
+import { Text } from '#app/components/ui-kit';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { type action } from './__wishlist-item-editor.server';
 
@@ -16,7 +28,11 @@ const valueMaxLength = 255;
 
 export const WishlistItemSchema = z.object({
   id: z.string().optional(),
-  value: z.string().min(valueMinLength).max(valueMaxLength),
+  categoryId: z.string().nullable().optional(),
+  title: z.string().min(valueMinLength).max(valueMaxLength),
+  note: z.string().optional(),
+  url: z.string().url().optional(),
+  type: z.enum(['text', 'link', 'wishlist']),
 });
 
 export function WishlistItemEditor({
@@ -24,10 +40,12 @@ export function WishlistItemEditor({
 }: {
   wishlistItem?: SerializeFrom<Pick<WishlistItem, 'id' | 'title'>>;
 }) {
+  const [open, setOpen] = React.useState(false);
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
   const formRef = useRef<HTMLFormElement>(null);
 
+  // TODO: Add logic to close/reset dialog based on actionData
   React.useEffect(() => {
     // If the actionData exists and the submission was successful, reset the form
     if (actionData?.status === 'success') {
@@ -43,54 +61,104 @@ export function WishlistItemEditor({
       return parseWithZod(formData, { schema: WishlistItemSchema });
     },
     defaultValue: {
-      value: wishlistItem?.title ?? '',
+      title: wishlistItem?.title ?? '',
     },
   });
 
   return (
-    <div className="flex gap-4">
-      {/* <div className="absolute inset-0"> */}
-      <Form
-        method="POST"
-        {...getFormProps(form)}
-        encType="multipart/form-data"
-        ref={formRef}
-      >
-        {/*
-					This hidden submit button is here to ensure that when the user hits
-					"enter" on an input field, the primary form function is submitted
-					rather than the first button in the form (which is delete/add image).
-				*/}
-        <button type="submit" className="hidden" />
-        {wishlistItem ? (
-          <input type="hidden" name="id" value={wishlistItem.id} />
-        ) : null}
-        <div className="flex flex-col gap-1">
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="default" onClick={() => setOpen(true)}>
+          <Icon name="plus" />
+          <Text size="sm">Add Wishlist Item</Text>
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Wishlist Item</DialogTitle>
+        </DialogHeader>
+        <Form
+          method="POST"
+          {...getFormProps(form)}
+          className="flex flex-col gap-4"
+          encType="multipart/form-data"
+          ref={formRef}
+        >
+          {/* Hidden submit for Enter key */}
+          <button type="submit" className="hidden" />
+          {wishlistItem ? (
+            <input type="hidden" name="id" value={wishlistItem.id} />
+          ) : null}
           <Field
             className="w-80"
-            labelProps={{}}
+            labelProps={{ children: 'Title' }}
             inputProps={{
+              placeholder: 'Title for your item',
               autoFocus: true,
-              placeholder: 'Add item to your wishlist',
-              ...getInputProps(fields.value, {
+              ...getInputProps(fields.title, {
                 type: 'text',
                 ariaAttributes: true,
               }),
             }}
-            errors={fields.value.errors}
+            errors={fields.title.errors}
           />
-        </div>
-        <ErrorList id={form.errorId} errors={form.errors} />
-      </Form>
-      <StatusButton
-        form={form.id}
-        type="submit"
-        disabled={isPending}
-        status={isPending ? 'pending' : 'idle'}
-      >
-        Add Item
-      </StatusButton>
-    </div>
+          <Field
+            className="w-80"
+            labelProps={{ children: 'Link' }}
+            inputProps={{
+              placeholder: 'https://amazon.com/',
+              ...getInputProps(fields.url, {
+                type: 'url',
+                ariaAttributes: true,
+              }),
+            }}
+            errors={[]}
+          />
+          <TextareaField
+            className="w-80"
+            labelProps={{ children: 'Description' }}
+            textareaProps={{
+              placeholder: 'Describe the item...',
+              rows: 3,
+              ...getInputProps(fields.note, {
+                type: 'text',
+                ariaAttributes: true,
+              }),
+            }}
+            errors={[]}
+          />
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </DialogClose>
+            <StatusButton
+              form={form.id}
+              type="submit"
+              disabled={isPending}
+              status={isPending ? 'pending' : 'idle'}
+              variant="secondary"
+              name="intent"
+              value="save-add-another"
+            >
+              Save & Add Another
+            </StatusButton>
+            <StatusButton
+              form={form.id}
+              type="submit"
+              disabled={isPending}
+              status={isPending ? 'pending' : 'idle'}
+              variant="default"
+              name="intent"
+              value="save"
+            >
+              Save
+            </StatusButton>
+          </DialogFooter>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

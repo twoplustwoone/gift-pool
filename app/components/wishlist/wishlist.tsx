@@ -4,9 +4,10 @@ import {
   type WishlistItem as WishlistItemType,
 } from '@prisma/client';
 import { Link } from '@remix-run/react';
+
 import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
-import { Grid } from '../ui/primitives';
+import { Grid } from '../ui-kit';
 import { WishlistItem } from './wishlist-item';
 
 export function Wishlist({

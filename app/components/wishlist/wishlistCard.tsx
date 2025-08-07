@@ -1,5 +1,5 @@
-import { Stack, Text } from '../ui/primitives';
-import { Box } from '../ui/primitives/box.tsx';
+import { Stack, Text } from '../ui-kit/primitives/index.ts';
+import { Box } from '../ui-kit/primitives/box.tsx';
 
 type WishlistCardProps = {
   title: string;

@@ -14,7 +14,7 @@ import {
 import { Icon } from '#app/components/ui/icon.tsx';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
-import { Box, Text, Flex } from '../ui/primitives';
+import { Box, Text, Flex } from '../ui-kit';
 
 export const DeleteFormSchema = z.object({
   intent: z.literal('delete-wishlist-item'),

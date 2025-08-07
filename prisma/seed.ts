@@ -88,9 +88,8 @@ async function seed() {
             }).map(() => ({
               title: faker.commerce.productName(),
               url: faker.internet.url(),
-              notes: faker.commerce.productDescription(),
-              priority: faker.number.int({ min: 1, max: 5 }),
-              isLink: faker.datatype.boolean(),
+              note: faker.commerce.productDescription(),
+              type: 'text',
             })),
           },
         },
@@ -136,9 +135,8 @@ async function seed() {
           {
             title: 'Custom Katana Set',
             url: 'https://example.com/katana',
-            notes: 'Engraved with Deadpool logo. Red + black colorway.',
-            priority: 1,
-            isLink: true,
+            note: 'Engraved with Deadpool logo. Red + black colorway.',
+            type: 'text',
           },
         ],
       },
