@@ -110,14 +110,17 @@ export const test = base.extend<{
     await page.route(/\/auth\/github(?!\/callback)/, async (route, request) => {
       const headers = {
         ...request.headers(),
-        [MOCK_CODE_GITHUB_HEADER]: testInfo.testId,
+        // Ensure uniqueness per test run in UI mode; include worker index if available
+        [MOCK_CODE_GITHUB_HEADER]: `${testInfo.testId}-${process.env.PW_TEST_WORKER_INDEX || 0}`,
       };
       await route.continue({ headers });
     });
 
     let ghUser: GitHubUser | null = null;
     await use(async () => {
-      const newGitHubUser = await insertGitHubUser(testInfo.testId)!;
+      const newGitHubUser = await insertGitHubUser(
+        `${testInfo.testId}-${process.env.PW_TEST_WORKER_INDEX || 0}`,
+      )!;
       ghUser = newGitHubUser;
       return newGitHubUser;
     });

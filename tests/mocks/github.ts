@@ -9,13 +9,14 @@ const { json } = HttpResponse;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const here = (...s: Array<string>) => path.join(__dirname, ...s);
 
+// Use a per-worker file to avoid concurrent write corruption when tests run in parallel
+const WORKER_ID =
+  (process.env.PW_TEST_WORKER_INDEX as string | undefined) ??
+  (process.env.VITEST_POOL_ID as string | undefined) ??
+  '0';
+
 const githubUserFixturePath = path.join(
-  here(
-    '..',
-    'fixtures',
-    'github',
-    `users.${process.env.VITEST_POOL_ID || 0}.local.json`,
-  ),
+  here('..', 'fixtures', 'github', `users.${WORKER_ID}.local.json`),
 );
 
 await fsExtra.ensureDir(path.dirname(githubUserFixturePath));

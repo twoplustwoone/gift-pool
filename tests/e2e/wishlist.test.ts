@@ -8,7 +8,7 @@ test('users can add wishlist items', async ({ page, login }) => {
 
   await page.getByRole('button', { name: /add wishlist item/i }).click();
   await page.getByLabel('Title').fill('First Item');
-  await page.getByRole('button', { name: /^save$/i }).click();
+  await page.getByRole('button', { name: /^save idle$/i }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByText('First Item')).toBeVisible();
 

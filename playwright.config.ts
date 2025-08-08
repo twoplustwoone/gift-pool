@@ -37,6 +37,8 @@ export default defineConfig({
     env: {
       PORT,
       NODE_ENV: 'test',
+      // Ensure MSW mocks are enabled even when running locally (non-CI)
+      MOCKS: 'true',
     },
   },
 });

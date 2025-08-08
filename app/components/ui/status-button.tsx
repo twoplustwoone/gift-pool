@@ -64,12 +64,16 @@ export const StatusButton = React.forwardRef<
       {children}
       {/* fade badge in/out without overlap */}
       <span
+        role="status"
+        aria-live="polite"
+        aria-label={status}
         className={cn(
           'flex items-center transition-opacity',
           badge ? 'opacity-100' : 'opacity-0',
         )}
       >
         {badgeNode}
+        <span className="sr-only">{status}</span>
       </span>
     </Button>
   );

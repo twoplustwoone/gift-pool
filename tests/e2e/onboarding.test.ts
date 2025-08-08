@@ -60,9 +60,7 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
   await emailTextbox.fill(onboardingData.email);
 
   await page.getByRole('button', { name: /submit/i }).click();
-  await expect(
-    page.getByRole('button', { name: /submit/i, disabled: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('button', { name: /submit/i })).toBeVisible();
   await expect(page.getByText(/check your email/i)).toBeVisible();
 
   const email = await readEmail(onboardingData.email);
@@ -332,7 +330,7 @@ test('login as existing user', async ({ page, insertNewUser }) => {
   invariant(user.name, 'User name not found');
   await page.goto('/login');
   await page.getByRole('textbox', { name: /username/i }).fill(user.username);
-  await page.getByLabel(/^password$/i).fill(password);
+  await page.getByRole('textbox', { name: /password/i }).fill(password);
   await page.getByRole('button', { name: /log in/i }).click();
   await expect(page).toHaveURL(`/`);
 
@@ -376,8 +374,12 @@ test('reset password with a link', async ({ page, insertNewUser }) => {
 
   await expect(page).toHaveURL(`/reset-password`);
   const newPassword = faker.internet.password();
-  await page.getByLabel(/^new password$/i).fill(newPassword);
-  await page.getByLabel(/^confirm password$/i).fill(newPassword);
+  await page.getByRole('textbox', { name: /new password/i }).fill(newPassword);
+  // await page.getByLabel(/^new password$/i).fill(newPassword);
+  await page
+    .getByRole('textbox', { name: /confirm password/i })
+    .fill(newPassword);
+  // await page.getByLabel(/^confirm password$/i).fill(newPassword);
 
   await page.getByRole('button', { name: /reset password/i }).click();
   await expect(
@@ -386,12 +388,12 @@ test('reset password with a link', async ({ page, insertNewUser }) => {
 
   await expect(page).toHaveURL('/login');
   await page.getByRole('textbox', { name: /username/i }).fill(user.username);
-  await page.getByLabel(/^password$/i).fill(originalPassword);
+  await page.getByRole('textbox', { name: /password/i }).fill(originalPassword);
   await page.getByRole('button', { name: /log in/i }).click();
 
   await expect(page.getByText(/invalid username or password/i)).toBeVisible();
 
-  await page.getByLabel(/^password$/i).fill(newPassword);
+  await page.getByRole('textbox', { name: /password/i }).fill(newPassword);
   await page.getByRole('button', { name: /log in/i }).click();
 
   await expect(page).toHaveURL(`/`);

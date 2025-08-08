@@ -32,13 +32,41 @@ export class GitHubProvider implements AuthProvider {
         clientSecret: process.env.GITHUB_CLIENT_SECRET,
         callbackURL: '/auth/github/callback',
       },
-      async ({ profile }) => {
-        const email = profile.emails[0]?.value.trim().toLowerCase();
+      async ({ profile, accessToken }) => {
+        let email: string | undefined;
+
+        // Prefer fetching from the GitHub emails API to preserve primary/verified flags
+        try {
+          if (accessToken) {
+            const response = await fetch('https://api.github.com/user/emails', {
+              headers: { Authorization: `token ${accessToken}` },
+            });
+            if (response.ok) {
+              const emailList = (await response.json()) as Array<{
+                email: string;
+                verified: boolean;
+                primary: boolean;
+              }>;
+              const preferred =
+                emailList.find((e) => e.primary && e.verified) ??
+                emailList.find((e) => e.primary) ??
+                emailList.find((e) => e.verified) ??
+                emailList[0];
+              email = preferred?.email?.trim().toLowerCase();
+            }
+          }
+        } catch {}
+
+        // Fallback to the first email in the profile if needed
+        if (!email) {
+          const emails = profile.emails as Array<{ value: string }> | undefined;
+          email = emails?.[0]?.value?.trim().toLowerCase();
+        }
         if (!email) {
           throw new Error('Email not found');
         }
         const username = profile.displayName;
-        const imageUrl = profile.photos[0].value;
+        const imageUrl = profile.photos[0]?.value;
         return {
           email,
           id: profile.id,
