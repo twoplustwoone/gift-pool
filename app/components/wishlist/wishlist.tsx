@@ -7,7 +7,7 @@ import { Link } from '@remix-run/react';
 
 import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
-import { Grid } from '../ui-kit';
+import { Box, Grid, Stack } from '../ui-kit';
 import { WishlistItem } from './wishlist-item';
 
 export function Wishlist({
@@ -36,8 +36,12 @@ export function Wishlist({
           {displayName}'s Wishlist
         </h1>
       </Link>
-      <div>
-        {isOwner && <WishlistItemEditor />}
+      <Stack gap={4}>
+        {isOwner && (
+          <Box>
+            <WishlistItemEditor />
+          </Box>
+        )}
         {user.wishlistItems.length === 0 ? (
           <div className="flex w-full flex-col items-center justify-center">
             {isOwner ? (
@@ -58,7 +62,7 @@ export function Wishlist({
             ))}
           </Grid>
         )}
-      </div>
+      </Stack>
     </div>
   );
 }
