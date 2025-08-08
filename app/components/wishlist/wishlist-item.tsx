@@ -35,7 +35,8 @@ export function WishlistItem({
 
   return (
     <Box
-      p={4}
+      px={4}
+      py={2}
       className="group h-28 cursor-pointer rounded-lg border border-gray-200 bg-accent shadow-sm transition-all hover:border-gray-300 hover:shadow-md"
     >
       <Flex justify="between" align="center">
