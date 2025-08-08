@@ -13,7 +13,6 @@ import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Field, TextareaField } from '#app/components/forms.tsx';
 import { useToast } from '#app/components/toaster.tsx';
-import { type Toast } from '#app/utils/toast.server.ts';
 import { Button } from '#app/components/ui/button';
 import {
   Dialog,
@@ -28,6 +27,7 @@ import { Icon } from '#app/components/ui/icon';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Text } from '#app/components/ui-kit';
 import { useIsPending } from '#app/utils/misc.tsx';
+import { type Toast } from '#app/utils/toast.server.ts';
 import { type action } from './__wishlist-item-editor.server';
 
 const valueMinLength = 1;
@@ -128,7 +128,7 @@ export function WishlistItemEditor({
                 ariaAttributes: true,
               }),
             }}
-            errors={[]}
+            errors={fields.url.errors}
           />
           <TextareaField
             className="w-80"
