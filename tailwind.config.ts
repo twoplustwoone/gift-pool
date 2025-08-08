@@ -6,6 +6,28 @@ import { extendedTheme } from './app/utils/extended-theme.ts';
 
 export default {
   content: ['./app/**/*.{ts,tsx,jsx,js}'],
+  // Safelist dynamic utility classes used by UI kit primitives (e.g., Grid, Box)
+  // so Tailwind does not purge them when they're constructed at runtime.
+  safelist: [
+    // grid columns (with responsive variants)
+    { pattern: /^grid-cols-(1|2|3|4|5|6|7|8|9|10|11|12)$/ },
+    { pattern: /^(sm|md|lg|xl|2xl):grid-cols-(1|2|3|4|5|6|7|8|9|10|11|12)$/ },
+    // auto-fit variant used by Grid when autoFit is true
+    'grid-cols-[repeat(auto-fit,minmax(0,1fr))]',
+    // gaps (common scale with responsive variants)
+    { pattern: /^gap-(0|1|2|3|4|5|6|7|8|9|10|11|12)$/ },
+    { pattern: /^(sm|md|lg|xl|2xl):gap-(0|1|2|3|4|5|6|7|8|9|10|11|12)$/ },
+    // padding/margin scales used by Box (keep modest range to avoid bloat)
+    { pattern: /^(p|px|py|pt|pr|pb|pl)-(0|1|2|3|4|5|6|7|8|9|10|11|12)$/ },
+    { pattern: /^(m|mx|my|mt|mr|mb|ml)-(0|1|2|3|4|5|6|7|8|9|10|11|12)$/ },
+    // flex utilities used by Flex primitive
+    { pattern: /^flex-(row|column|row-reverse|column-reverse)$/ },
+    { pattern: /^flex-(nowrap|wrap|wrap-reverse)$/ },
+    { pattern: /^justify-(start|center|end|between|around|evenly)$/ },
+    { pattern: /^items-(start|center|end|baseline|stretch)$/ },
+    'flex',
+    'inline-flex',
+  ],
   darkMode: 'class',
   theme: {
     container: {
