@@ -101,7 +101,12 @@ export function WishlistItemEditor({
           ref={formRef}
         >
           {/* Hidden submit for Enter key */}
-          <button type="submit" className="hidden" />
+          <button
+            type="submit"
+            name="intent"
+            value="save-add-another"
+            className="hidden"
+          />
           {wishlistItem ? (
             <input type="hidden" name="id" value={wishlistItem.id} />
           ) : null}
@@ -156,9 +161,9 @@ export function WishlistItemEditor({
               status={isPending ? 'pending' : 'idle'}
               variant="secondary"
               name="intent"
-              value="save-add-another"
+              value="save"
             >
-              Save & Add Another
+              Save
             </StatusButton>
             <StatusButton
               form={form.id}
@@ -167,9 +172,9 @@ export function WishlistItemEditor({
               status={isPending ? 'pending' : 'idle'}
               variant="default"
               name="intent"
-              value="save"
+              value="save-add-another"
             >
-              Save
+              Save & Add Another
             </StatusButton>
           </DialogFooter>
         </Form>

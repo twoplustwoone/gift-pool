@@ -24,7 +24,7 @@ export const DeleteFormSchema = z.object({
 export function WishlistItem({
   wishlistItem,
 }: {
-  wishlistItem: Pick<WishlistItemType, 'id' | 'title' | 'ownerId'>;
+  wishlistItem: Pick<WishlistItemType, 'id' | 'title' | 'ownerId' | 'note'>;
 }) {
   const user = useOptionalUser();
   const isOwner = user?.id === wishlistItem.ownerId;
@@ -37,7 +37,7 @@ export function WishlistItem({
     <Box
       px={4}
       py={2}
-      className="group h-28 cursor-pointer rounded-lg border border-gray-200 bg-accent shadow-sm transition-all hover:border-gray-300 hover:shadow-md"
+      className="group h-28 cursor-pointer rounded-lg border border-gray-200 bg-card shadow-sm transition-all hover:border-gray-300 hover:shadow-md"
     >
       <Flex justify="between" align="center">
         <Text size="base" weight="medium">
@@ -50,6 +50,11 @@ export function WishlistItem({
           />
         )}
       </Flex>
+      <Box className="overflow-y-hidden">
+        <Text size="xs" className="text-muted-foreground">
+          {wishlistItem.note}
+        </Text>
+      </Box>
     </Box>
   );
 }

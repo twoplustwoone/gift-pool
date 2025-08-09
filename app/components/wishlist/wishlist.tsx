@@ -16,7 +16,10 @@ export function Wishlist({
 }: {
   user: Pick<User, 'username' | 'name'> & {
     image: Pick<UserImage, 'id'> | null;
-    wishlistItems: Pick<WishlistItemType, 'id' | 'title' | 'ownerId'>[];
+    wishlistItems: Pick<
+      WishlistItemType,
+      'id' | 'title' | 'ownerId' | 'note'
+    >[];
   };
   isOwner: boolean;
 }) {
@@ -56,7 +59,7 @@ export function Wishlist({
             )}
           </div>
         ) : (
-          <Grid columns={3} gap={4}>
+          <Grid columns={4} gap={4}>
             {user.wishlistItems.map((item) => (
               <WishlistItem key={item.id} wishlistItem={item} />
             ))}
