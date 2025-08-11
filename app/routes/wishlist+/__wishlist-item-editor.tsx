@@ -25,7 +25,7 @@ import {
 } from '#app/components/ui/dialog';
 import { Icon } from '#app/components/ui/icon';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
-import { Text } from '#app/components/ui-kit';
+import { Flex, Text } from '#app/components/ui-kit';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { type Toast } from '#app/utils/toast.server.ts';
 import { type action } from './__wishlist-item-editor.server';
@@ -95,8 +95,10 @@ export function WishlistItemEditor({
           trigger
         ) : (
           <Button variant="default" onClick={() => setOpen(true)}>
-            <Icon name="plus" />
-            <Text size="sm">Add Wishlist Item</Text>
+            <Flex gap={1}>
+              <Icon name="plus" />
+              <Text size="sm">Add Wishlist Item</Text>
+            </Flex>
           </Button>
         )}
       </DialogTrigger>
