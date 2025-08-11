@@ -18,7 +18,7 @@ export function Wishlist({
     image: Pick<UserImage, 'id'> | null;
     wishlistItems: Pick<
       WishlistItemType,
-      'id' | 'title' | 'ownerId' | 'note'
+      'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type'
     >[];
   };
   isOwner: boolean;
@@ -59,9 +59,13 @@ export function Wishlist({
             )}
           </div>
         ) : (
-          <Grid columns={4} gap={4}>
+          <Grid columns={{ sm: 2, md: 3, lg: 4 }} gap={4}>
             {user.wishlistItems.map((item) => (
-              <WishlistItem key={item.id} wishlistItem={item} />
+              <WishlistItem
+                key={item.id}
+                wishlistItem={item}
+                isOwner={isOwner}
+              />
             ))}
           </Grid>
         )}

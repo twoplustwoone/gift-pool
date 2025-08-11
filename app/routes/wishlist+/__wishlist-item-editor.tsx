@@ -44,9 +44,14 @@ export const WishlistItemSchema = z.object({
 
 export function WishlistItemEditor({
   wishlistItem,
+  trigger,
 }: {
-  wishlistItem?: SerializeFrom<Pick<WishlistItem, 'id' | 'title'>>;
+  wishlistItem?: SerializeFrom<
+    Pick<WishlistItem, 'id' | 'title' | 'url' | 'note' | 'type'>
+  >;
+  trigger?: React.ReactNode;
 }) {
+  const isEditing = Boolean(wishlistItem?.id);
   const [open, setOpen] = React.useState(false);
   const actionData = useActionData<typeof action>() as
     | {
@@ -78,20 +83,28 @@ export function WishlistItemEditor({
     },
     defaultValue: {
       title: wishlistItem?.title ?? '',
+      url: wishlistItem?.url ?? '',
+      note: wishlistItem?.note ?? '',
     },
   });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="default" onClick={() => setOpen(true)}>
-          <Icon name="plus" />
-          <Text size="sm">Add Wishlist Item</Text>
-        </Button>
+        {trigger ? (
+          trigger
+        ) : (
+          <Button variant="default" onClick={() => setOpen(true)}>
+            <Icon name="plus" />
+            <Text size="sm">Add Wishlist Item</Text>
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add Wishlist Item</DialogTitle>
+          <DialogTitle>
+            {wishlistItem ? 'Edit Wishlist Item' : 'Add Wishlist Item'}
+          </DialogTitle>
         </DialogHeader>
         <Form
           method="POST"
@@ -100,15 +113,22 @@ export function WishlistItemEditor({
           encType="multipart/form-data"
           ref={formRef}
         >
-          {/* Hidden submit for Enter key */}
-          <button
-            type="submit"
-            name="intent"
-            value="save-add-another"
-            className="hidden"
-          />
+          {/* Hidden submit for Enter key (creation only) */}
+          {!isEditing ? (
+            <button
+              type="submit"
+              name="intent"
+              value="save-add-another"
+              className="hidden"
+            />
+          ) : null}
           {wishlistItem ? (
-            <input type="hidden" name="id" value={wishlistItem.id} />
+            <>
+              <input type="hidden" name="id" value={wishlistItem.id} />
+              {wishlistItem.type ? (
+                <input type="hidden" name="type" value={wishlistItem.type} />
+              ) : null}
+            </>
           ) : null}
           <Field
             className="w-80"
@@ -165,17 +185,19 @@ export function WishlistItemEditor({
             >
               Save
             </StatusButton>
-            <StatusButton
-              form={form.id}
-              type="submit"
-              disabled={isPending}
-              status={isPending ? 'pending' : 'idle'}
-              variant="default"
-              name="intent"
-              value="save-add-another"
-            >
-              Save & Add Another
-            </StatusButton>
+            {!isEditing ? (
+              <StatusButton
+                form={form.id}
+                type="submit"
+                disabled={isPending}
+                status={isPending ? 'pending' : 'idle'}
+                variant="default"
+                name="intent"
+                value="save-add-another"
+              >
+                Save & Add Another
+              </StatusButton>
+            ) : null}
           </DialogFooter>
         </Form>
       </DialogContent>

@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from '#app/components/ui/dialog.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
+import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
 import { Box, Text, Flex } from '../ui-kit';
@@ -23,17 +24,22 @@ export const DeleteFormSchema = z.object({
 
 export function WishlistItem({
   wishlistItem,
+  isOwner = false,
 }: {
-  wishlistItem: Pick<WishlistItemType, 'id' | 'title' | 'ownerId' | 'note'>;
+  wishlistItem: Pick<
+    WishlistItemType,
+    'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type'
+  >;
+  isOwner?: boolean;
 }) {
   const user = useOptionalUser();
-  const isOwner = user?.id === wishlistItem.ownerId;
+  const isOwnerByUser = user?.id === wishlistItem.ownerId;
   const canDelete = userHasPermission(
     user,
-    isOwner ? `delete:wishlistItem:own` : `delete:wishlistItem:any`,
+    isOwnerByUser ? `delete:wishlistItem:own` : `delete:wishlistItem:any`,
   );
 
-  return (
+  const Card = (
     <Box
       px={4}
       py={2}
@@ -57,6 +63,21 @@ export function WishlistItem({
       </Box>
     </Box>
   );
+
+  if (!isOwner) return Card;
+
+  return (
+    <WishlistItemEditor
+      wishlistItem={{
+        id: wishlistItem.id,
+        title: wishlistItem.title,
+        url: wishlistItem.url ?? null,
+        note: wishlistItem.note ?? null,
+        type: wishlistItem.type,
+      }}
+      trigger={Card}
+    />
+  );
 }
 
 export const DeleteWishlistItem = ({
@@ -72,7 +93,13 @@ export const DeleteWishlistItem = ({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost" className={className} size={'icon'}>
+        <Button
+          variant="ghost"
+          className={className}
+          size={'icon'}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           <Icon name="trash" className="scale-125 max-md:scale-150" />
         </Button>
       </DialogTrigger>

@@ -48,7 +48,16 @@ describe('Wishlist components', () => {
               username: 'jane',
               name: 'Jane',
               image: { id: 'img1' },
-              wishlistItems: [{ id: '1', title: 'Item one', ownerId: 'user1' }],
+              wishlistItems: [
+                {
+                  id: '1',
+                  title: 'Item one',
+                  ownerId: 'user1',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                },
+              ],
             }}
           />
         ),
