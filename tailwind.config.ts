@@ -11,12 +11,18 @@ export default {
   safelist: [
     // grid columns (with responsive variants)
     { pattern: /^grid-cols-(1|2|3|4|5|6|7|8|9|10|11|12)$/ },
-    { pattern: /^(sm|md|lg|xl|2xl):grid-cols-(1|2|3|4|5|6|7|8|9|10|11|12)$/ },
+    {
+      pattern: /^grid-cols-(1|2|3|4|5|6|7|8|9|10|11|12)$/,
+      variants: ['sm', 'md', 'lg', 'xl', '2xl'],
+    },
     // auto-fit variant used by Grid when autoFit is true
     'grid-cols-[repeat(auto-fit,minmax(0,1fr))]',
     // gaps (common scale with responsive variants)
     { pattern: /^gap-(0|1|2|3|4|5|6|7|8|9|10|11|12)$/ },
-    { pattern: /^(sm|md|lg|xl|2xl):gap-(0|1|2|3|4|5|6|7|8|9|10|11|12)$/ },
+    {
+      pattern: /^gap-(0|1|2|3|4|5|6|7|8|9|10|11|12)$/,
+      variants: ['sm', 'md', 'lg', 'xl', '2xl'],
+    },
     // padding/margin scales used by Box (keep modest range to avoid bloat)
     { pattern: /^(p|px|py|pt|pr|pb|pl)-(0|1|2|3|4|5|6|7|8|9|10|11|12)$/ },
     { pattern: /^(m|mx|my|mt|mr|mb|ml)-(0|1|2|3|4|5|6|7|8|9|10|11|12)$/ },
