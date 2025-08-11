@@ -92,17 +92,24 @@ export const DeleteWishlistItem = ({
 
   return (
     <Dialog>
-      <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          className={className}
-          size={'icon'}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <Icon name="trash" className="scale-125 max-md:scale-150" />
-        </Button>
-      </DialogTrigger>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        onKeyUp={(e) => e.stopPropagation()}
+      >
+        <DialogTrigger asChild>
+          <Button
+            variant="ghost"
+            className={className}
+            size={'icon'}
+            type="button"
+          >
+            <Icon name="trash" className="scale-125 max-md:scale-150" />
+          </Button>
+        </DialogTrigger>
+      </div>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Delete wishlist item</DialogTitle>

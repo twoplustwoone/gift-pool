@@ -7,7 +7,7 @@ import { Link } from '@remix-run/react';
 
 import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
-import { Box, Grid, Stack } from '../ui-kit';
+import { Grid, Stack } from '../ui-kit';
 import { WishlistItem } from './wishlist-item';
 
 export function Wishlist({
@@ -26,25 +26,25 @@ export function Wishlist({
   const displayName = user.name ?? user.username;
   return (
     <div>
-      <Link
-        to={`/users/${user.username}`}
-        className="flex flex-col items-center justify-center gap-2 bg-muted pb-4 pl-8 pr-4 pt-12 lg:flex-row lg:justify-start lg:gap-4"
-      >
-        <img
-          src={getUserImgSrc(user.image?.id)}
-          alt={displayName}
-          className="h-16 w-16 rounded-full object-cover lg:h-24 lg:w-24"
-        />
-        <h1 className="text-center text-base font-bold md:text-lg lg:text-left lg:text-2xl">
-          {displayName}'s Wishlist
-        </h1>
-      </Link>
+      <div className="bg-muted pb-4 pl-8 pr-4 pt-12">
+        <div className="flex flex-col items-center justify-between gap-2 lg:flex-row">
+          <Link
+            to={`/users/${user.username}`}
+            className="flex flex-col items-center justify-center gap-2 lg:flex-row lg:justify-start lg:gap-4"
+          >
+            <img
+              src={getUserImgSrc(user.image?.id)}
+              alt={displayName}
+              className="h-16 w-16 rounded-full object-cover lg:h-24 lg:w-24"
+            />
+            <h1 className="text-center text-base font-bold md:text-lg lg:text-left lg:text-2xl">
+              {displayName}'s Wishlist
+            </h1>
+          </Link>
+          {isOwner && <WishlistItemEditor />}
+        </div>
+      </div>
       <Stack gap={4}>
-        {isOwner && (
-          <Box>
-            <WishlistItemEditor />
-          </Box>
-        )}
         {user.wishlistItems.length === 0 ? (
           <div className="flex w-full flex-col items-center justify-center">
             {isOwner ? (
