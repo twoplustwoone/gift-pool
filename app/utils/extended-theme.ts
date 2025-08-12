@@ -50,6 +50,14 @@ export const extendedTheme = {
       foreground: 'hsl(var(--surface-foreground))',
       border: 'hsl(var(--surface-border))',
     },
+    gift: {
+      DEFAULT: 'hsl(var(--gift))',
+      foreground: 'hsl(var(--gift-foreground))',
+    },
+    pool: {
+      DEFAULT: 'hsl(var(--pool))',
+      foreground: 'hsl(var(--pool-foreground))',
+    },
   },
   borderColor: {
     DEFAULT: 'hsl(var(--border))',

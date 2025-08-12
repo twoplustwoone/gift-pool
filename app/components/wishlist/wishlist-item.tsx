@@ -75,7 +75,7 @@ export const WishlistItem = ({
       trigger={CardTrigger}
     />
   );
-}
+};
 
 export const DeleteWishlistItem = ({
   id,

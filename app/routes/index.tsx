@@ -11,8 +11,8 @@ const Index = () => {
             data-heading
             className="text-10xl mt-8 animate-slide-top text-foreground [animation-delay:0.3s] [animation-fill-mode:backwards] md:text-5xl xl:mt-4 xl:animate-slide-left xl:text-6xl xl:[animation-delay:0.8s] xl:[animation-fill-mode:backwards]"
           >
-            <span className="font-light">gift</span>
-            <span className="font-bold">pool</span>
+            <span className="text-gift font-light">gift</span>
+            <span className="text-pool font-bold">pool</span>
           </h1>
           <p
             data-paragraph

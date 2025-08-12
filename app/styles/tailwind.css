@@ -46,6 +46,12 @@
     --surface: 210 40% 96%; /* slightly tinted panel */
     --surface-foreground: var(--foreground);
     --surface-border: 214 25% 90%; /* a hair darker than --border for contrast */
+
+    --gift: 0 100% 68%; /* #FF5D5D in HSL */
+    --gift-foreground: 0 0% 100%;
+
+    --pool: 174 66% 47%; /* #2EC4B6 in HSL */
+    --pool-foreground: 0 0% 100%;
   }
 
   .dark {
