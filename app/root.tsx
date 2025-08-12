@@ -43,6 +43,7 @@ import {
 } from './components/ui/dropdown-menu.tsx';
 import { Icon, href as iconsHref } from './components/ui/icon.tsx';
 import { EpicToaster } from './components/ui/sonner.tsx';
+import nunitoStyleSheet from './styles/nunito-font.css';
 import tailwindStyleSheetUrl from './styles/tailwind.css?url';
 import { getUserId, logout } from './utils/auth.server.ts';
 import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx';
@@ -74,6 +75,8 @@ export const links: LinksFunction = () => {
       crossOrigin: 'use-credentials',
     } as const, // necessary to make typescript happy
     { rel: 'stylesheet', href: tailwindStyleSheetUrl },
+    { rel: 'preload', href: nunitoStyleSheet, as: 'style' },
+    { rel: 'stylesheet', href: nunitoStyleSheet },
   ].filter(Boolean);
 };
 
@@ -213,7 +216,7 @@ const Document = ({
       </body>
     </html>
   );
-}
+};
 
 const App = () => {
   const data = useLoaderData<typeof loader>();
@@ -256,7 +259,7 @@ const App = () => {
       <EpicProgress />
     </Document>
   );
-}
+};
 
 const WishlistNav = () => {
   const user = useOptionalUser();
@@ -350,7 +353,7 @@ const UserDropdown = () => {
       </DropdownMenuPortal>
     </DropdownMenu>
   );
-}
+};
 
 /**
  * @returns the user's theme preference, or the client hint theme if the user
@@ -427,7 +430,7 @@ const ThemeSwitch = ({ userPreference }: { userPreference?: Theme | null }) => {
       <ErrorList errors={form.errors} id={form.errorId} />
     </fetcher.Form>
   );
-}
+};
 
 export const ErrorBoundary = () => {
   // the nonce doesn't rely on the loader so we can access that
@@ -446,4 +449,4 @@ export const ErrorBoundary = () => {
       <GeneralErrorBoundary />
     </Document>
   );
-}
+};

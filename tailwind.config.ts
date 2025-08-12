@@ -43,7 +43,12 @@ export default {
         '2xl': '1400px',
       },
     },
-    extend: extendedTheme,
+    extend: {
+      ...extendedTheme,
+      fontFamily: {
+        sans: ['var(--font-sans)'],
+      },
+    },
   },
   presets: [marketingPreset],
   plugins: [animatePlugin, radixPlugin],

@@ -196,6 +196,12 @@ app.use((req, res, next) => {
   return generalRateLimit(req, res, next);
 });
 
+app.use(
+  '/fonts',
+  // Can aggressively cache fonts as they don't change often
+  express.static('public/fonts', { immutable: true, maxAge: '1y' }),
+);
+
 async function getBuild() {
   try {
     const build = viteDevServer

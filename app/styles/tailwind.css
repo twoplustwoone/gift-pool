@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    /* --font-sans: here if you have one */
+    --font-sans: Nunito;
     /* --font-mono: here if you got it... */
 
     /* prefixed with foreground because it should look good on the background */
