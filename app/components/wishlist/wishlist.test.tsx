@@ -33,7 +33,7 @@ vi.mock('@remix-run/react', async () => {
 });
 
 vi.mock('#app/routes/wishlist+/__wishlist-item-editor', () => ({
-  WishlistItemEditor: () => <div>editor</div>,
+  WishlistItemEditor: (props: any) => props.trigger ?? <div>editor</div>,
 }));
 
 describe('Wishlist components', () => {
