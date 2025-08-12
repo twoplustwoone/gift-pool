@@ -41,6 +41,11 @@
     --ring: 215 20.2% 65.1%;
 
     --radius: 0.5rem;
+
+    /* page → surface → card */
+    --surface: 210 40% 96%; /* slightly tinted panel */
+    --surface-foreground: var(--foreground);
+    --surface-border: 214 25% 90%; /* a hair darker than --border for contrast */
   }
 
   .dark {
@@ -76,5 +81,9 @@
     --destructive-foreground: 0 85.7% 97.3%;
 
     --ring: 217.2 32.6% 60%;
+
+    --surface: 224 20% 12%;
+    --surface-foreground: var(--foreground);
+    --surface-border: 224 12% 20%;
   }
 }

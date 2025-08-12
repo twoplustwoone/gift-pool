@@ -43,6 +43,12 @@ export const extendedTheme = {
     card: {
       DEFAULT: 'hsl(var(--card))',
       foreground: 'hsl(var(--card-foreground))',
+      border: 'hsl(var(--border))', // or add --card-border if you want a different edge
+    },
+    surface: {
+      DEFAULT: 'hsl(var(--surface))',
+      foreground: 'hsl(var(--surface-foreground))',
+      border: 'hsl(var(--surface-border))',
     },
   },
   borderColor: {
