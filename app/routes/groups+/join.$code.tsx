@@ -61,7 +61,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
   });
 }
 
-export default function JoinGroupPage() {
+const JoinGroupPage = () => {
   const { giftGroupName } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigate = useNavigate();
@@ -100,4 +100,6 @@ export default function JoinGroupPage() {
       </Dialog>
     </div>
   );
-}
+};
+
+export default JoinGroupPage;

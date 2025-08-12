@@ -71,7 +71,7 @@ export const meta: MetaFunction = () => {
   return [{ title: 'Reset Password | GiftPool' }];
 };
 
-export default function ResetPasswordPage() {
+const ResetPasswordPage = () => {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
@@ -134,8 +134,10 @@ export default function ResetPasswordPage() {
       </div>
     </div>
   );
-}
+};
 
-export function ErrorBoundary() {
+export default ResetPasswordPage;
+
+export const ErrorBoundary = () => {
   return <GeneralErrorBoundary />;
-}
+};

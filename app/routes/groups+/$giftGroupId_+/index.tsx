@@ -223,7 +223,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
-export default function GiftGroupIndex() {
+const GiftGroupIndex = () => {
   const { giftGroup, canInvite, canDelete, canLeave } =
     useLoaderData<typeof loader>();
 
@@ -266,9 +266,11 @@ export default function GiftGroupIndex() {
       </div>
     </div>
   );
-}
+};
 
-function CreateInviteLinkDialog() {
+export default GiftGroupIndex;
+
+const CreateInviteLinkDialog = () => {
   const { inviteLink, giftGroup } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
@@ -405,9 +407,9 @@ function CreateInviteLinkDialog() {
       </DialogContent>
     </Dialog>
   );
-}
+};
 
-function DestroyInviteLinkButton() {
+const DestroyInviteLinkButton = () => {
   const { giftGroup, groupInvitationId } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const [form] = useForm({
@@ -434,9 +436,9 @@ function DestroyInviteLinkButton() {
       </StatusButton>
     </fetcher.Form>
   );
-}
+};
 
-function DeleteGroupDialog({ id }: { id: string }) {
+const DeleteGroupDialog = ({ id }: { id: string }) => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
   const [form] = useForm({
@@ -488,9 +490,9 @@ function DeleteGroupDialog({ id }: { id: string }) {
       </DialogContent>
     </Dialog>
   );
-}
+};
 
-function LeaveGroupDialog({ id }: { id: string }) {
+const LeaveGroupDialog = ({ id }: { id: string }) => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
   const [form] = useForm({
@@ -538,4 +540,4 @@ function LeaveGroupDialog({ id }: { id: string }) {
       </DialogContent>
     </Dialog>
   );
-}
+};

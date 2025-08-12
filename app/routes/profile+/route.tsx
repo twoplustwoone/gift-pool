@@ -7,10 +7,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
   return json({});
 }
 
-export default function ProfileRoute() {
+const ProfileRoute = () => {
   return (
     <div>
       <Outlet />
     </div>
   );
-}
+};
+
+export default ProfileRoute;

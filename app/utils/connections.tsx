@@ -19,7 +19,7 @@ export const providerIcons: Record<ProviderName, React.ReactNode> = {
   [GITHUB_PROVIDER_NAME]: <Icon name="github-logo" />,
 } as const;
 
-export function ProviderConnectionForm({
+export const ProviderConnectionForm = ({
   redirectTo,
   type,
   providerName,
@@ -27,7 +27,7 @@ export function ProviderConnectionForm({
   redirectTo?: string | null;
   type: 'Connect' | 'Login' | 'Signup';
   providerName: ProviderName;
-}) {
+}) => {
   const label = providerLabels[providerName];
   const formAction = `/auth/${providerName}`;
   const isPending = useIsPending({ formAction });

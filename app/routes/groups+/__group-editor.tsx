@@ -23,11 +23,11 @@ export const GroupEditorSchema = z.object({
   description: z.string().min(descriptionMinLength).max(descriptionMaxLength),
 });
 
-export function GroupEditor({
+export const GroupEditor = ({
   group,
 }: {
   group?: SerializeFrom<Pick<GiftGroup, 'name' | 'id'>>;
-}) {
+}) => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
 

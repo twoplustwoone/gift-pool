@@ -37,7 +37,7 @@ const childrenSizeClassName = {
  * Pass `title` prop to the `Icon` component to get `<title>` element rendered
  * in the SVG container, providing this way for accessibility.
  */
-export function Icon({
+export const Icon = ({
   name,
   size = 'font',
   className,
@@ -48,7 +48,7 @@ export function Icon({
   name: IconName;
   size?: Size;
   title?: string;
-}) {
+}) => {
   if (children) {
     return (
       <span

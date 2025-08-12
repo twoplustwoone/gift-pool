@@ -104,7 +104,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
-export default function ChangeEmailIndex() {
+const ChangeEmailIndex = () => {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
@@ -147,4 +147,6 @@ export default function ChangeEmailIndex() {
       </div>
     </div>
   );
-}
+};
+
+export default ChangeEmailIndex;

@@ -91,13 +91,13 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
-function ForgotPasswordEmail({
+const ForgotPasswordEmail = ({
   onboardingUrl,
   otp,
 }: {
   onboardingUrl: string;
   otp: string;
-}) {
+}) => {
   return (
     <E.Html lang="en" dir="ltr">
       <E.Container>
@@ -116,13 +116,13 @@ function ForgotPasswordEmail({
       </E.Container>
     </E.Html>
   );
-}
+};
 
 export const meta: MetaFunction = () => {
   return [{ title: 'Password Recovery for GiftPool' }];
 };
 
-export default function ForgotPasswordRoute() {
+const ForgotPasswordRoute = () => {
   const forgotPassword = useFetcher<typeof action>();
 
   const [form, fields] = useForm({
@@ -187,8 +187,10 @@ export default function ForgotPasswordRoute() {
       </div>
     </div>
   );
-}
+};
 
-export function ErrorBoundary() {
+export default ForgotPasswordRoute;
+
+export const ErrorBoundary = () => {
   return <GeneralErrorBoundary />;
-}
+};

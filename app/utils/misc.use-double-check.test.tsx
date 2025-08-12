@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { expect, test } from 'vitest';
 import { useDoubleCheck } from './misc.tsx';
 
-function TestComponent() {
+const TestComponent = () => {
   const [defaultPrevented, setDefaultPrevented] = useState<
     'idle' | 'no' | 'yes'
   >('idle');

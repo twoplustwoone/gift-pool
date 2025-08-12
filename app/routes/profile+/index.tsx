@@ -30,7 +30,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString() });
 }
 
-export default function ProfileIndex() {
+const ProfileIndex = () => {
   const data = useLoaderData<typeof loader>();
   const user = data.user;
   const userDisplayName = user.name ?? user.username;
@@ -98,7 +98,9 @@ export default function ProfileIndex() {
       </div>
     </div>
   );
-}
+};
+
+export default ProfileIndex;
 
 export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
   const displayName = data?.user.name ?? params.username;
@@ -111,7 +113,7 @@ export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
   ];
 };
 
-export function ErrorBoundary() {
+export const ErrorBoundary = () => {
   return (
     <GeneralErrorBoundary
       statusHandlers={{
@@ -121,4 +123,4 @@ export function ErrorBoundary() {
       }}
     />
   );
-}
+};

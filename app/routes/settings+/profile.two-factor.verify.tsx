@@ -131,7 +131,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
-export default function TwoFactorRoute() {
+const TwoFactorRoute = () => {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
@@ -233,4 +233,6 @@ export default function TwoFactorRoute() {
       </div>
     </div>
   );
-}
+};
+
+export default TwoFactorRoute;

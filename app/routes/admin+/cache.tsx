@@ -90,7 +90,7 @@ export async function action({ request }: ActionFunctionArgs) {
   return json({ success: true });
 }
 
-export default function CacheAdminRoute() {
+const CacheAdminRoute = () => {
   const data = useLoaderData<typeof loader>();
   const [searchParams] = useSearchParams();
   const submit = useSubmit();
@@ -196,9 +196,11 @@ export default function CacheAdminRoute() {
       </div>
     </div>
   );
-}
+};
 
-function CacheKeyRow({
+export default CacheAdminRoute;
+
+const CacheKeyRow = ({
   cacheKey,
   instance,
   type,
@@ -206,7 +208,7 @@ function CacheKeyRow({
   cacheKey: string;
   instance?: string;
   type: 'sqlite' | 'lru';
-}) {
+}) => {
   const fetcher = useFetcher<typeof action>();
   const dc = useDoubleCheck();
   const encodedKey = encodeURIComponent(cacheKey);
@@ -234,9 +236,9 @@ function CacheKeyRow({
       </Link>
     </div>
   );
-}
+};
 
-export function ErrorBoundary() {
+export const ErrorBoundary = () => {
   return (
     <GeneralErrorBoundary
       statusHandlers={{
@@ -246,4 +248,4 @@ export function ErrorBoundary() {
       }}
     />
   );
-}
+};

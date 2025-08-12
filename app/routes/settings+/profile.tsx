@@ -32,7 +32,7 @@ const BreadcrumbHandleMatch = z.object({
   handle: BreadcrumbHandle,
 });
 
-export default function EditUserProfile() {
+const EditUserProfile = () => {
   const user = useUser();
   const matches = useMatches();
   const breadcrumbs = matches
@@ -77,4 +77,6 @@ export default function EditUserProfile() {
       </main>
     </div>
   );
-}
+};
+
+export default EditUserProfile;

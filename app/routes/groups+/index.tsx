@@ -22,7 +22,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   return json({ user });
 }
 
-export default function GroupsIndex() {
+const GroupsIndex = () => {
   const data = useLoaderData<typeof loader>();
 
   const { user } = data;
@@ -45,4 +45,6 @@ export default function GroupsIndex() {
       </div>
     </div>
   );
-}
+};
+
+export default GroupsIndex;

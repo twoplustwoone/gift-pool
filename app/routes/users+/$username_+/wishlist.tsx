@@ -41,7 +41,9 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   return json({ user });
 };
 
-export default function UserWishlist() {
+const UserWishlist = () => {
   const { user } = useLoaderData<typeof loader>();
   return <Wishlist isOwner={false} user={user} />;
-}
+};
+
+export default UserWishlist;

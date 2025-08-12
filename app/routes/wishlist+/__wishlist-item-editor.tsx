@@ -42,7 +42,7 @@ export const WishlistItemSchema = z.object({
   type: z.enum(['text', 'link', 'wishlist']).default('text'),
 });
 
-export function WishlistItemEditor({
+export const WishlistItemEditor = ({
   wishlistItem,
   trigger,
 }: {
@@ -50,7 +50,7 @@ export function WishlistItemEditor({
     Pick<WishlistItem, 'id' | 'title' | 'url' | 'note' | 'type'>
   >;
   trigger?: React.ReactNode;
-}) {
+}) => {
   const isEditing = Boolean(wishlistItem?.id);
   const [open, setOpen] = React.useState(false);
   const actionData = useActionData<typeof action>() as
@@ -207,7 +207,7 @@ export function WishlistItemEditor({
   );
 }
 
-export function ErrorBoundary() {
+export const ErrorBoundary = () => {
   return (
     <GeneralErrorBoundary
       statusHandlers={{

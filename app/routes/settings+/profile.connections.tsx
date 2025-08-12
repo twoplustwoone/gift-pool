@@ -123,7 +123,7 @@ export async function action({ request }: ActionFunctionArgs) {
   return json({ status: 'success' } as const, { headers: toastHeaders });
 }
 
-export default function Connections() {
+const Connections = () => {
   const data = useLoaderData<typeof loader>();
 
   return (
@@ -156,15 +156,17 @@ export default function Connections() {
       </div>
     </div>
   );
-}
+};
 
-function Connection({
+export default Connections;
+
+const Connection = ({
   connection,
   canDelete,
 }: {
   connection: SerializeFrom<typeof loader>['connections'][number];
   canDelete: boolean;
-}) {
+}) => {
   const deleteFetcher = useFetcher<typeof action>();
   const [infoOpen, setInfoOpen] = useState(false);
   const icon = providerIcons[connection.providerName];
@@ -221,4 +223,4 @@ function Connection({
       )}
     </div>
   );
-}
+};

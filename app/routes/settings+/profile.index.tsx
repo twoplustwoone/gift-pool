@@ -100,7 +100,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
-export default function EditUserProfile() {
+const EditUserProfile = () => {
   const data = useLoaderData<typeof loader>();
 
   return (
@@ -174,7 +174,9 @@ export default function EditUserProfile() {
       </div>
     </div>
   );
-}
+};
+
+export default EditUserProfile;
 
 async function profileUpdateAction({ userId, formData }: ProfileActionArgs) {
   const submission = await parseWithZod(formData, {
@@ -216,7 +218,7 @@ async function profileUpdateAction({ userId, formData }: ProfileActionArgs) {
   });
 }
 
-function UpdateProfile() {
+const UpdateProfile = () => {
   const data = useLoaderData<typeof loader>();
 
   const fetcher = useFetcher<typeof profileUpdateAction>();
@@ -271,7 +273,7 @@ function UpdateProfile() {
       </div>
     </fetcher.Form>
   );
-}
+};
 
 async function signOutOfSessionsAction({ request, userId }: ProfileActionArgs) {
   const authSession = await authSessionStorage.getSession(
@@ -291,7 +293,7 @@ async function signOutOfSessionsAction({ request, userId }: ProfileActionArgs) {
   return json({ status: 'success' } as const);
 }
 
-function SignOutOfSessions() {
+const SignOutOfSessions = () => {
   const data = useLoaderData<typeof loader>();
   const dc = useDoubleCheck();
 
@@ -326,7 +328,7 @@ function SignOutOfSessions() {
       )}
     </div>
   );
-}
+};
 
 async function deleteDataAction({ userId }: ProfileActionArgs) {
   await prisma.user.delete({ where: { id: userId } });
@@ -337,7 +339,7 @@ async function deleteDataAction({ userId }: ProfileActionArgs) {
   });
 }
 
-function DeleteData() {
+const DeleteData = () => {
   const dc = useDoubleCheck();
 
   const fetcher = useFetcher<typeof deleteDataAction>();
@@ -360,4 +362,4 @@ function DeleteData() {
       </fetcher.Form>
     </div>
   );
-}
+};

@@ -1,4 +1,4 @@
-export function Spacer({
+export const Spacer = ({
   size,
 }: {
   /**
@@ -38,7 +38,7 @@ export function Spacer({
     | '2xl'
     | '3xl'
     | '4xl';
-}) {
+}) => {
   const options: Record<typeof size, string> = {
     '4xs': 'h-4',
     '3xs': 'h-8',

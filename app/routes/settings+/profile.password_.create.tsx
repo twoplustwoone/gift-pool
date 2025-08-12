@@ -77,7 +77,7 @@ export async function action({ request }: ActionFunctionArgs) {
   return redirect(`/settings/profile`, { status: 302 });
 }
 
-export default function CreatePasswordRoute() {
+const CreatePasswordRoute = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
 
@@ -125,4 +125,6 @@ export default function CreatePasswordRoute() {
       </div>
     </Form>
   );
-}
+};
+
+export default CreatePasswordRoute;

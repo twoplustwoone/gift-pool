@@ -36,11 +36,11 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
-export function ThemeSwitch({
+export const ThemeSwitch = ({
   userPreference,
 }: {
   userPreference?: Theme | null;
-}) {
+}) => {
   const fetcher = useFetcher<typeof action>();
   const requestInfo = useRequestInfo();
 

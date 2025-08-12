@@ -11,6 +11,8 @@ export const handle: BreadcrumbHandle & SEOHandle = {
 
 export const twoFAVerificationType = '2fa' satisfies VerificationTypes;
 
-export default function TwoFactorRoute() {
+const TwoFactorRoute = () => {
   return <Outlet />;
-}
+};
+
+export default TwoFactorRoute;

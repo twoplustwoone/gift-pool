@@ -1,7 +1,7 @@
 import React from 'react';
 import { SectionSubtitle } from './sectionSubtitle';
 
-export function SectionTitle({ children }: { children?: React.ReactNode }) {
+export const SectionTitle = ({ children }: { children?: React.ReactNode }) => {
   const [subtitle, childrenWithoutSubtitle] = React.Children.toArray(
     children,
   ).reduce<[React.ReactNode | null, React.ReactNode[]]>(

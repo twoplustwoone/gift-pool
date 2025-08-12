@@ -43,7 +43,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString() });
 }
 
-export default function ProfileRoute() {
+const ProfileRoute = () => {
   const data = useLoaderData<typeof loader>();
   const user = data.user;
   const userDisplayName = user.name ?? user.username;
@@ -111,7 +111,9 @@ export default function ProfileRoute() {
       </div>
     </div>
   );
-}
+};
+
+export default ProfileRoute;
 
 export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
   const displayName = data?.user.name ?? params.username;
@@ -124,7 +126,7 @@ export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
   ];
 };
 
-export function ErrorBoundary() {
+export const ErrorBoundary = () => {
   return (
     <GeneralErrorBoundary
       statusHandlers={{
@@ -134,4 +136,4 @@ export function ErrorBoundary() {
       }}
     />
   );
-}
+};

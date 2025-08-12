@@ -68,13 +68,13 @@ export async function handleVerification({
   );
 }
 
-export function EmailChangeEmail({
+export const EmailChangeEmail = ({
   verifyUrl,
   otp,
 }: {
   verifyUrl: string;
   otp: string;
-}) {
+}) => {
   return (
     <E.Html lang="en" dir="ltr">
       <E.Container>
@@ -95,7 +95,7 @@ export function EmailChangeEmail({
   );
 }
 
-function EmailChangeNoticeEmail({ userId }: { userId: string }) {
+const EmailChangeNoticeEmail = ({ userId }: { userId: string }) => {
   return (
     <E.Html lang="en" dir="ltr">
       <E.Container>

@@ -89,13 +89,13 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
-export function SignupEmail({
+export const SignupEmail = ({
   onboardingUrl,
   otp,
 }: {
   onboardingUrl: string;
   otp: string;
-}) {
+}) => {
   return (
     <E.Html lang="en" dir="ltr">
       <E.Container>
@@ -114,13 +114,13 @@ export function SignupEmail({
       </E.Container>
     </E.Html>
   );
-}
+};
 
 export const meta: MetaFunction = () => {
   return [{ title: 'Sign Up | GiftPool' }];
 };
 
-export default function SignupRoute() {
+const SignupRoute = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
   const [searchParams] = useSearchParams();
@@ -184,8 +184,10 @@ export default function SignupRoute() {
       </div>
     </div>
   );
-}
+};
 
-export function ErrorBoundary() {
+export default SignupRoute;
+
+export const ErrorBoundary = () => {
   return <GeneralErrorBoundary />;
-}
+};

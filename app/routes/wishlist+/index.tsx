@@ -37,13 +37,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export { action };
 
-export default function WishlistIndex() {
+const WishlistIndex = () => {
   const data = useLoaderData<typeof loader>();
 
   return <Wishlist isOwner user={data.user} />;
-}
+};
 
-export function ErrorBoundary() {
+export default WishlistIndex;
+
+export const ErrorBoundary = () => {
   return (
     <GeneralErrorBoundary
       statusHandlers={{
@@ -53,4 +55,4 @@ export function ErrorBoundary() {
       }}
     />
   );
-}
+};

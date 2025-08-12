@@ -178,7 +178,7 @@ export const meta: MetaFunction = () => {
   return [{ title: 'Setup GiftPool Account' }];
 };
 
-export default function OnboardingProviderRoute() {
+const OnboardingProviderRoute = () => {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
@@ -282,4 +282,6 @@ export default function OnboardingProviderRoute() {
       </div>
     </div>
   );
-}
+};
+
+export default OnboardingProviderRoute;

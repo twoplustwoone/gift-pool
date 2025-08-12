@@ -10,7 +10,7 @@ import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { Grid, Stack } from '../ui-kit';
 import { WishlistItem } from './wishlist-item';
 
-export function Wishlist({
+export const Wishlist = ({
   user,
   isOwner,
 }: {
@@ -22,7 +22,7 @@ export function Wishlist({
     >[];
   };
   isOwner: boolean;
-}) {
+}) => {
   const displayName = user.name ?? user.username;
   return (
     <div>

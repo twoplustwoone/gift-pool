@@ -4,7 +4,7 @@ import { useSpinDelay } from 'spin-delay';
 import { cn } from '#app/utils/misc.tsx';
 import { Icon } from './ui/icon.tsx';
 
-function EpicProgress() {
+const EpicProgress = () => {
   const transition = useNavigation();
   const busy = transition.state !== 'idle';
   const delayedPending = useSpinDelay(busy, {

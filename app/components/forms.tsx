@@ -15,13 +15,13 @@ import { Stack } from './ui-kit';
 
 export type ListOfErrors = Array<string | null | undefined> | null | undefined;
 
-export function ErrorList({
+export const ErrorList = ({
   id,
   errors,
 }: {
   errors?: ListOfErrors;
   id?: string;
-}) {
+}) => {
   const errorsToRender = errors?.filter(Boolean);
   if (!errorsToRender?.length) return null;
   return (
@@ -35,7 +35,7 @@ export function ErrorList({
   );
 }
 
-export function Field({
+export const Field = ({
   labelProps,
   inputProps,
   errors,
@@ -45,7 +45,7 @@ export function Field({
   inputProps: React.InputHTMLAttributes<HTMLInputElement>;
   errors?: ListOfErrors;
   className?: string;
-}) {
+}) => {
   const fallbackId = useId();
   const id = inputProps.id ?? fallbackId;
   const errorId = errors?.length ? `${id}-error` : undefined;
@@ -74,7 +74,7 @@ export function Field({
   );
 }
 
-export function OTPField({
+export const OTPField = ({
   labelProps,
   inputProps,
   errors,
@@ -84,7 +84,7 @@ export function OTPField({
   inputProps: Partial<OTPInputProps & { render: never }>;
   errors?: ListOfErrors;
   className?: string;
-}) {
+}) => {
   const fallbackId = useId();
   const id = inputProps.id ?? fallbackId;
   const errorId = errors?.length ? `${id}-error` : undefined;
@@ -118,7 +118,7 @@ export function OTPField({
   );
 }
 
-export function TextareaField({
+export const TextareaField = ({
   labelProps,
   textareaProps,
   errors,
@@ -128,7 +128,7 @@ export function TextareaField({
   textareaProps: React.TextareaHTMLAttributes<HTMLTextAreaElement>;
   errors?: ListOfErrors;
   className?: string;
-}) {
+}) => {
   const fallbackId = useId();
   const id = textareaProps.id ?? textareaProps.name ?? fallbackId;
   const errorId = errors?.length ? `${id}-error` : undefined;
@@ -150,7 +150,7 @@ export function TextareaField({
   );
 }
 
-export function CheckboxField({
+export const CheckboxField = ({
   labelProps,
   buttonProps,
   errors,
@@ -164,7 +164,7 @@ export function CheckboxField({
   };
   errors?: ListOfErrors;
   className?: string;
-}) {
+}) => {
   const { key, defaultChecked, ...checkboxProps } = buttonProps;
   const fallbackId = useId();
   const checkedValue = buttonProps.value ?? 'on';

@@ -10,13 +10,13 @@ type TopNavItemProps = {
   end?: boolean;
 };
 
-export function TopNavItem({
+export const TopNavItem = ({
   to,
   icon,
   label,
   className,
   end,
-}: TopNavItemProps) {
+}: TopNavItemProps) => {
   return (
     <NavLink
       to={to}

@@ -121,7 +121,7 @@ export async function action({ request }: ActionFunctionArgs) {
   );
 }
 
-export default function ChangePasswordRoute() {
+const ChangePasswordRoute = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
 
@@ -177,4 +177,6 @@ export default function ChangePasswordRoute() {
       </div>
     </Form>
   );
-}
+};
+
+export default ChangePasswordRoute;

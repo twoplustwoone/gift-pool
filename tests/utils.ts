@@ -4,30 +4,30 @@ import { authSessionStorage } from '#app/utils/session.server.ts';
 
 export const BASE_URL = 'https://www.giftpool.app';
 
-export function convertSetCookieToCookie(setCookie: string) {
+export const convertSetCookieToCookie = (setCookie: string) => {
   const parsedCookie = setCookieParser.parseString(setCookie);
   return new URLSearchParams({
     [parsedCookie.name]: parsedCookie.value,
   }).toString();
-}
+};
 
-export async function getSessionSetCookieHeader(
+export const getSessionSetCookieHeader = async (
   session: { id: string },
   existingCookie?: string,
-) {
+) => {
   const authSession = await authSessionStorage.getSession(existingCookie);
   authSession.set(sessionKey, session.id);
   const setCookieHeader = await authSessionStorage.commitSession(authSession);
   return setCookieHeader;
-}
+};
 
-export async function getSessionCookieHeader(
+export const getSessionCookieHeader = async (
   session: { id: string },
   existingCookie?: string,
-) {
+) => {
   const setCookieHeader = await getSessionSetCookieHeader(
     session,
     existingCookie,
   );
   return convertSetCookieToCookie(setCookieHeader);
-}
+};

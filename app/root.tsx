@@ -179,7 +179,7 @@ export async function action({ request }: ActionFunctionArgs) {
   return json(submission.reply(), responseInit);
 }
 
-function Document({
+const Document = ({
   children,
   nonce,
   theme = 'light',
@@ -189,7 +189,7 @@ function Document({
   nonce: string;
   theme?: Theme;
   env?: Record<string, string>;
-}) {
+}) => {
   return (
     <html lang="en" className={`${theme} h-full overflow-x-hidden`}>
       <head>
@@ -215,7 +215,7 @@ function Document({
   );
 }
 
-function App() {
+const App = () => {
   const data = useLoaderData<typeof loader>();
   const nonce = useNonce();
   const user = useOptionalUser();
@@ -258,23 +258,23 @@ function App() {
   );
 }
 
-function WishlistNav() {
+const WishlistNav = () => {
   const user = useOptionalUser();
   if (!user) {
     return null;
   }
   return <TopNavItem to={`/wishlist`} icon="star" label="Wishlist" />;
-}
+};
 
-function GroupsNav() {
+const GroupsNav = () => {
   const user = useOptionalUser();
   if (!user) {
     return null;
   }
   return <TopNavItem to={`/groups`} icon="person" label="Groups" />;
-}
+};
 
-function Logo() {
+const Logo = () => {
   return (
     <Link to="/" className="group grid leading-snug">
       <span className="font-light transition group-hover:-translate-x-1">
@@ -285,20 +285,20 @@ function Logo() {
       </span>
     </Link>
   );
-}
+};
 
-function AppWithProviders() {
+const AppWithProviders = () => {
   const data = useLoaderData<typeof loader>();
   return (
     <HoneypotProvider {...data.honeyProps}>
       <App />
     </HoneypotProvider>
   );
-}
+};
 
 export default withSentry(AppWithProviders);
 
-function UserDropdown() {
+const UserDropdown = () => {
   const user = useUser();
   const submit = useSubmit();
   const formRef = useRef<HTMLFormElement>(null);
@@ -383,7 +383,7 @@ export function useOptimisticThemeMode() {
   }
 }
 
-function ThemeSwitch({ userPreference }: { userPreference?: Theme | null }) {
+const ThemeSwitch = ({ userPreference }: { userPreference?: Theme | null }) => {
   const fetcher = useFetcher<typeof action>();
 
   const [form] = useForm({
@@ -429,7 +429,7 @@ function ThemeSwitch({ userPreference }: { userPreference?: Theme | null }) {
   );
 }
 
-export function ErrorBoundary() {
+export const ErrorBoundary = () => {
   // the nonce doesn't rely on the loader so we can access that
   const nonce = useNonce();
 

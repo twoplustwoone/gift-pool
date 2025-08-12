@@ -1,4 +1,4 @@
-export function SectionSubtitle({ children }: { children?: React.ReactNode }) {
+export const SectionSubtitle = ({ children }: { children?: React.ReactNode }) => {
   if (!children) {
     return null;
   }

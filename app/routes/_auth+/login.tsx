@@ -80,7 +80,7 @@ export async function action({ request }: ActionFunctionArgs) {
   });
 }
 
-export default function LoginPage() {
+const LoginPage = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
   const [searchParams] = useSearchParams();
@@ -199,12 +199,14 @@ export default function LoginPage() {
       </div>
     </div>
   );
-}
+};
+
+export default LoginPage;
 
 export const meta: MetaFunction = () => {
   return [{ title: 'Login to GiftPool' }];
 };
 
-export function ErrorBoundary() {
+export const ErrorBoundary = () => {
   return <GeneralErrorBoundary />;
-}
+};

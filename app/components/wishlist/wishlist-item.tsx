@@ -23,7 +23,7 @@ export const DeleteFormSchema = z.object({
   wishlistItemId: z.string(),
 });
 
-export function WishlistItem({
+export const WishlistItem = ({
   wishlistItem,
   isOwner = false,
 }: {
@@ -32,7 +32,7 @@ export function WishlistItem({
     'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type'
   >;
   isOwner?: boolean;
-}) {
+}) => {
   const user = useOptionalUser();
   const isOwnerByUser = user?.id === wishlistItem.ownerId;
   const canDelete = userHasPermission(

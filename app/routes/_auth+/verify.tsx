@@ -38,7 +38,7 @@ export async function action({ request }: ActionFunctionArgs) {
   return validateRequest(request, formData);
 }
 
-export default function VerifyRoute() {
+const VerifyRoute = () => {
   const [searchParams] = useSearchParams();
   const isPending = useIsPending();
   const actionData = useActionData<typeof action>();
@@ -138,8 +138,10 @@ export default function VerifyRoute() {
       </div>
     </main>
   );
-}
+};
 
-export function ErrorBoundary() {
+export default VerifyRoute;
+
+export const ErrorBoundary = () => {
   return <GeneralErrorBoundary />;
-}
+};
