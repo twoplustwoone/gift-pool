@@ -26,7 +26,7 @@ export function Wishlist({
   const displayName = user.name ?? user.username;
   return (
     <div>
-      <div className="bg-muted pb-4 pl-8 pr-4 pt-12">
+      <div className="pb-4 pl-8 pr-4 pt-12">
         <div className="flex flex-col items-center justify-between gap-2 lg:flex-row">
           <Link
             to={`/users/${user.username}`}

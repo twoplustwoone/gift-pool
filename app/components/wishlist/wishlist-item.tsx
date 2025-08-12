@@ -2,6 +2,7 @@ import { type WishlistItem as WishlistItemType } from '@prisma/client';
 import { useFetcher } from '@remix-run/react';
 import { z } from 'zod';
 import { Button } from '#app/components/ui/button.tsx';
+import { Card } from '#app/components/ui/card.tsx';
 import {
   Dialog,
   DialogContent,
@@ -39,12 +40,8 @@ export function WishlistItem({
     isOwnerByUser ? `delete:wishlistItem:own` : `delete:wishlistItem:any`,
   );
 
-  const Card = (
-    <Box
-      px={4}
-      py={2}
-      className="group h-28 cursor-pointer rounded-lg border border-gray-200 bg-card shadow-sm transition-all hover:border-gray-300 hover:shadow-md"
-    >
+  const CardTrigger = (
+    <Card variant="interactive" padding="md" className="group h-28">
       <Flex justify="between" align="center">
         <Text size="base" weight="medium">
           {wishlistItem.title}
@@ -61,10 +58,10 @@ export function WishlistItem({
           {wishlistItem.note}
         </Text>
       </Box>
-    </Box>
+    </Card>
   );
 
-  if (!isOwner) return Card;
+  if (!isOwner) return CardTrigger;
 
   return (
     <WishlistItemEditor
@@ -75,7 +72,7 @@ export function WishlistItem({
         note: wishlistItem.note ?? null,
         type: wishlistItem.type,
       }}
-      trigger={Card}
+      trigger={CardTrigger}
     />
   );
 }
