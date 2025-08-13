@@ -21,7 +21,7 @@ export const UserDropdown = () => {
       <DropdownMenuTrigger asChild>
         <Button variant="secondary">
           <Link
-            to={`/profile`}
+            to={`/me`}
             // this is for progressive enhancement
             onClick={(e) => e.preventDefault()}
             className="flex items-center gap-2"
@@ -44,7 +44,7 @@ export const UserDropdown = () => {
       <DropdownMenuPortal>
         <DropdownMenuContent sideOffset={8} align="end">
           <DropdownMenuItem asChild>
-            <Link prefetch="intent" to={`/profile`}>
+            <Link prefetch="intent" to={`/me`}>
               <Icon className="text-body-md" name="avatar">
                 Profile
               </Icon>
