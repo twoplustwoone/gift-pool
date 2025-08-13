@@ -11,7 +11,6 @@ import {
   DropdownMenuItem,
 } from './ui/dropdown-menu';
 import { Icon } from './ui/icon';
-import { Flex } from './ui-kit/flex.tsx';
 
 export const UserDropdown = () => {
   const user = useUser();
@@ -26,18 +25,16 @@ export const UserDropdown = () => {
             onClick={(e) => e.preventDefault()}
             className="flex items-center gap-2"
           >
-            <Flex>
-              <img
-                className="size-8 rounded-full object-cover"
-                alt={user.name ?? user.username}
-                src={getUserImgSrc(user.image?.id)}
-                width={256}
-                height={256}
-              />
-              <span className="text-body-sm font-bold">
-                {user.name ?? user.username}
-              </span>
-            </Flex>
+            <img
+              className="size-8 rounded-full object-cover"
+              alt={user.name ?? user.username}
+              src={getUserImgSrc(user.image?.id)}
+              width={256}
+              height={256}
+            />
+            <span className="text-body-sm font-bold">
+              {user.name ?? user.username}
+            </span>
           </Link>
         </Button>
       </DropdownMenuTrigger>
