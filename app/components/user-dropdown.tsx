@@ -2,7 +2,6 @@ import { Form, Link } from '@remix-run/react';
 import { useRef } from 'react';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useUser } from '#app/utils/user.ts';
-import { Button } from './ui/button';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -18,25 +17,23 @@ export const UserDropdown = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="secondary">
-          <Link
-            to={`/me`}
-            // this is for progressive enhancement
-            onClick={(e) => e.preventDefault()}
-            className="flex items-center gap-2"
-          >
-            <img
-              className="size-8 rounded-full object-cover"
-              alt={user.name ?? user.username}
-              src={getUserImgSrc(user.image?.id)}
-              width={256}
-              height={256}
-            />
-            <span className="hidden text-body-sm font-bold sm:inline">
-              {user.name ?? user.username}
-            </span>
-          </Link>
-        </Button>
+        <Link
+          to={`/me`}
+          // this is for progressive enhancement
+          onClick={(e) => e.preventDefault()}
+          className="inline-flex items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-11 sm:bg-secondary sm:px-4 sm:text-secondary-foreground sm:hover:bg-secondary/80"
+        >
+          <img
+            className="size-10 rounded-full object-cover sm:size-8"
+            alt={user.name ?? user.username}
+            src={getUserImgSrc(user.image?.id)}
+            width={256}
+            height={256}
+          />
+          <span className="hidden text-body-sm font-bold sm:inline">
+            {user.name ?? user.username}
+          </span>
+        </Link>
       </DropdownMenuTrigger>
       <DropdownMenuPortal>
         <DropdownMenuContent sideOffset={8} align="end">
