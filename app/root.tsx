@@ -43,7 +43,8 @@ import {
 } from './components/ui/dropdown-menu.tsx';
 import { Icon, href as iconsHref } from './components/ui/icon.tsx';
 import { EpicToaster } from './components/ui/sonner.tsx';
-import nunitoStyleSheet from './styles/nunito-font.css';
+import { UserDropdown } from './components/user-dropdown.tsx';
+import nunitoStyleSheet from './styles/nunito-font.css?url';
 import tailwindStyleSheetUrl from './styles/tailwind.css?url';
 import { getUserId, logout } from './utils/auth.server.ts';
 import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx';
