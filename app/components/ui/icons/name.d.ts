@@ -19,6 +19,7 @@ export type IconName =
 	| "exit"
 	| "file-text"
 	| "github-logo"
+	| "hamburger-menu"
 	| "laptop"
 	| "link-2"
 	| "lock-closed"

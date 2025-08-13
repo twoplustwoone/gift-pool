@@ -32,7 +32,7 @@ export const UserDropdown = () => {
               width={256}
               height={256}
             />
-            <span className="text-body-sm font-bold">
+            <span className="hidden text-body-sm font-bold sm:inline">
               {user.name ?? user.username}
             </span>
           </Link>

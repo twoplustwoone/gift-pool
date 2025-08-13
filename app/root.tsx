@@ -31,6 +31,12 @@ import { ErrorList } from './components/forms.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
 import { useToast } from './components/toaster.tsx';
 import { Button } from './components/ui/button.tsx';
+import {
+  Drawer,
+  DrawerTrigger,
+  DrawerContent,
+  DrawerHeader,
+} from './components/ui/drawer.tsx';
 import { Icon, href as iconsHref } from './components/ui/icon.tsx';
 import { EpicToaster } from './components/ui/sonner.tsx';
 import { UserDropdown } from './components/user-dropdown.tsx';
@@ -219,17 +225,55 @@ const App = () => {
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
       <div className="flex h-screen flex-col justify-between">
-        <header className="container py-6">
-          <nav className="flex flex-wrap items-center justify-between gap-4 sm:flex-nowrap md:gap-8">
+        <header className="container py-4 sm:py-6">
+          {/* Desktop/Tablet */}
+          <nav className="hidden items-center justify-between gap-4 sm:flex md:gap-8">
             <Logo />
-            <WishlistNav />
-            <GroupsNav />
-            <div className="ml-auto hidden max-w-sm flex-1 sm:block"></div>
-            <div className="flex items-center gap-10">
+            <div className="flex items-center gap-4">
+              <WishlistNav />
+              <GroupsNav />
+            </div>
+            <div className="flex items-center">
               {user ? (
                 <UserDropdown />
               ) : (
                 <Button asChild variant="default" size="lg">
+                  <Link to="/login">Log In</Link>
+                </Button>
+              )}
+            </div>
+          </nav>
+          {/* Mobile */}
+          <nav className="flex items-center justify-between gap-2 sm:hidden">
+            <Drawer>
+              <DrawerTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Open menu">
+                  <Icon name="hamburger-menu" />
+                </Button>
+              </DrawerTrigger>
+              <DrawerContent side="left" showHandle={false}>
+                <DrawerHeader className="pb-2 pt-4">
+                  <div className="flex items-center gap-3">
+                    <Icon name="star" />
+                    <span className="text-body-md font-semibold">Menu</span>
+                  </div>
+                </DrawerHeader>
+                <div className="flex flex-col gap-2 p-4">
+                  <TopNavItem to={`/wishlist`} icon="star" label="Wishlist" />
+                  <TopNavItem to={`/groups`} icon="person" label="Groups" />
+                </div>
+              </DrawerContent>
+            </Drawer>
+            <div className="flex-1">
+              <div className="flex justify-center">
+                <Logo />
+              </div>
+            </div>
+            <div className="flex items-center justify-end">
+              {user ? (
+                <UserDropdown />
+              ) : (
+                <Button asChild variant="default" size="sm">
                   <Link to="/login">Log In</Link>
                 </Button>
               )}
@@ -280,6 +324,8 @@ const Logo = () => {
     </Link>
   );
 };
+
+// Mobile dropdown menu replaced by Drawer
 
 const AppWithProviders = () => {
   const data = useLoaderData<typeof loader>();
