@@ -314,7 +314,7 @@ const GroupsNav = () => {
 
 const Logo = () => {
   return (
-    <Link to="/" className="group grid leading-snug">
+    <Link to="/" className="group grid text-2xl leading-snug sm:text-base">
       <span className="text-gift font-light transition group-hover:-translate-x-1">
         gift
       </span>
