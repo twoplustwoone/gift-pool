@@ -1,30 +1,40 @@
-import { NavLink } from '@remix-run/react'
-import { Icon, type IconName } from './icon'
+import { NavLink } from '@remix-run/react';
+import { cn } from '#app/utils/misc.tsx';
+import { Icon, type IconName } from './icon';
 
-export function TopNavItem({
-	to,
-	icon,
-	label,
-}: {
-	to: string
-	icon: IconName
-	label: string
-}) {
-	return (
-		<NavLink
-			to={to}
-			className={({ isActive }) =>
-				[
-					'flex items-center rounded-md px-4 py-2 text-lg font-medium transition-colors duration-200',
-					isActive
-						? 'bg-accent text-white'
-						: 'text-gray-700 hover:bg-muted hover:text-gray-900',
-				].join(' ')
-			}
-		>
-			<Icon className="text-body-md" name={icon}>
-				{label}
-			</Icon>
-		</NavLink>
-	)
+type TopNavItemProps = {
+  to: string;
+  icon: IconName;
+  label: string;
+  className?: string;
+  end?: boolean;
+};
+
+export const TopNavItem = ({
+  to,
+  icon,
+  label,
+  className,
+  end,
+}: TopNavItemProps) => {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      prefetch="intent"
+      className={({ isActive }) =>
+        cn(
+          'inline-flex items-center gap-2 rounded-full px-4 py-2 text-body-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+
+          isActive
+            ? 'bg-accent text-accent-foreground'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+          className,
+        )
+      }
+    >
+      <Icon name={icon} size="md" className="shrink-0" />
+      <span>{label}</span>
+    </NavLink>
+  );
 }

@@ -19,7 +19,6 @@ model User {
   updatedAt     DateTime       @updatedAt
   image         UserImage?
   password      Password?
-  notes         Note[]
   roles         Role[]
   sessions      Session[]
   connections   Connection[]
@@ -38,6 +37,7 @@ model GiftGroup {
   updatedAt   DateTime @updatedAt
   name        String
   description String
+  // slug        String   @unique
 
   // Relations
   groupMembers     UsersInGiftGroups[]
@@ -47,13 +47,13 @@ model GiftGroup {
 }
 
 model UsersInGiftGroups {
-  user        User      @relation(fields: [userId], references: [id])
-  userId      String
-  giftGroup   GiftGroup @relation(fields: [giftGroupId], references: [id], onDelete: Cascade)
-  giftGroupId String
-  budget      Float     @default(0.0)
-  role        String    @default("member") // owner, admin, member
-  joinedAt    DateTime  @default(now())
+  user              User      @relation(fields: [userId], references: [id])
+  userId            String
+  giftGroup         GiftGroup @relation(fields: [giftGroupId], references: [id], onDelete: Cascade)
+  giftGroupId       String
+  contributionLimit Int       @default(0) // in cents
+  role              String    @default("member") // owner, admin, member
+  joinedAt          DateTime  @default(now())
 
   @@id([userId, giftGroupId])
 }
@@ -71,41 +71,6 @@ model GroupInvitation {
   createdById String
 
   @@index([code])
-}
-
-model Note {
-  id      String @id @default(cuid())
-  title   String
-  content String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  ownerId String
-
-  images NoteImage[]
-
-  // non-unique foreign key
-  @@index([ownerId])
-  // This helps our order by in the user search a LOT
-  @@index([ownerId, updatedAt])
-}
-
-model NoteImage {
-  id          String  @id @default(cuid())
-  altText     String?
-  contentType String
-  blob        Bytes
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  noteId String
-
-  // non-unique foreign key
-  @@index([noteId])
 }
 
 model Address {
@@ -126,15 +91,18 @@ model Address {
 }
 
 model WishlistItem {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id String @id @default(cuid())
 
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   ownerId String
 
-  value          String
-  isWishlistLink Boolean @default(false)
+  categoryId String?
+  title      String
+  note       String?
+  url        String?
+  type       String // should be 'text' | 'link' | 'wishlist'
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model UserImage {
@@ -174,7 +142,7 @@ model Session {
 model Permission {
   id          String @id @default(cuid())
   action      String // e.g. create, read, update, delete
-  entity      String // e.g. note, user, wishlistItem, giftGroup
+  entity      String // e.g. user, wishlistItem, giftGroup
   access      String // e.g. own or any
   description String @default("")
 

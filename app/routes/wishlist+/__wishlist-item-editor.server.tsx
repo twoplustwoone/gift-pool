@@ -1,66 +1,73 @@
-import { parseWithZod } from '@conform-to/zod'
+import { parseWithZod } from '@conform-to/zod';
 import {
-	unstable_createMemoryUploadHandler as createMemoryUploadHandler,
-	json,
-	unstable_parseMultipartFormData as parseMultipartFormData,
-	type ActionFunctionArgs,
-} from '@remix-run/node'
-import { z } from 'zod'
-import { requireUserId } from '#app/utils/auth.server.ts'
-import { prisma } from '#app/utils/db.server.ts'
-import { WishlistItemSchema } from './__wishlist-item-editor'
+  unstable_createMemoryUploadHandler as createMemoryUploadHandler,
+  json,
+  unstable_parseMultipartFormData as parseMultipartFormData,
+  type ActionFunctionArgs,
+} from '@remix-run/node';
+import { z } from 'zod';
+import { requireUserId } from '#app/utils/auth.server.ts';
+import { prisma } from '#app/utils/db.server.ts';
+import { WishlistItemSchema } from './__wishlist-item-editor';
 
-const MAX_UPLOAD_SIZE = 1024 * 1024 * 3 // 3MB
+const MAX_UPLOAD_SIZE = 1024 * 1024 * 3; // 3MB
 
 export async function action({ request }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
+  const userId = await requireUserId(request);
 
-	const formData = await parseMultipartFormData(
-		request,
-		createMemoryUploadHandler({ maxPartSize: MAX_UPLOAD_SIZE }),
-	)
+  const formData = await parseMultipartFormData(
+    request,
+    createMemoryUploadHandler({ maxPartSize: MAX_UPLOAD_SIZE }),
+  );
 
-	const submission = await parseWithZod(formData, {
-		schema: WishlistItemSchema.superRefine(async (data, ctx) => {
-			if (!data.id) return
+  const intent = z
+    .enum(['save', 'save-add-another'])
+    .parse(formData.get('intent'));
 
-			const wishlistItem = await prisma.wishlistItem.findUnique({
-				select: { id: true },
-				where: { id: data.id, ownerId: userId },
-			})
-			if (!wishlistItem) {
-				ctx.addIssue({
-					code: z.ZodIssueCode.custom,
-					message: 'Wishlist item not found',
-				})
-			}
-		}).transform(async ({ ...data }) => {
-			return {
-				...data,
-			}
-		}),
-		async: true,
-	})
+  const submission = await parseWithZod(formData, {
+    schema: WishlistItemSchema.superRefine(async (data, ctx) => {
+      if (!data.id) return;
 
-	if (submission.status !== 'success') {
-		return json(submission.reply(), {
-			status: submission.status === 'error' ? 400 : 200,
-		})
-	}
+      const wishlistItem = await prisma.wishlistItem.findUnique({
+        select: { id: true },
+        where: { id: data.id, ownerId: userId },
+      });
+      if (!wishlistItem) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Wishlist item not found',
+        });
+      }
+    }),
+    async: true,
+  });
 
-	const { id: wishlistItemId, value } = submission.value
+  if (submission.status !== 'success') {
+    return json(submission.reply(), {
+      status: submission.status === 'error' ? 400 : 200,
+    });
+  }
 
-	await prisma.wishlistItem.upsert({
-		select: { id: true, owner: { select: { username: true } } },
-		where: { id: wishlistItemId ?? '__new_wishlist_item__' },
-		create: {
-			ownerId: userId,
-			value,
-		},
-		update: {
-			value,
-		},
-	})
+  const { id: wishlistItemId, ...data } = submission.value;
 
-	return json(submission.reply())
+  await prisma.wishlistItem.upsert({
+    where: { id: wishlistItemId ?? '__new_wishlist_item__' },
+    create: { ownerId: userId, ...data },
+    update: data,
+  });
+
+  const toast =
+    intent === 'save-add-another'
+      ? {
+          type: 'success' as const,
+          title: 'Item added',
+          description: 'Wishlist item added.',
+        }
+      : null;
+
+  return json({
+    result: submission.reply(),
+    intent,
+    toast,
+  });
 }

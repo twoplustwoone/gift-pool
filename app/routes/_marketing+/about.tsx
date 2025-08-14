@@ -1,3 +1,5 @@
-export default function AboutRoute() {
-	return <div>About page</div>
-}
+const AboutRoute = () => {
+  return <div>About page</div>;
+};
+
+export default AboutRoute;

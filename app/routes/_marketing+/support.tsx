@@ -1,3 +1,5 @@
-export default function SupportRoute() {
-	return <div>Support</div>
-}
+const SupportRoute = () => {
+  return <div>Support</div>;
+};
+
+export default SupportRoute;

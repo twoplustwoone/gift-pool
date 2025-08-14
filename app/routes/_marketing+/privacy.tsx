@@ -1,3 +1,5 @@
-export default function PrivacyRoute() {
-	return <div>Privacy</div>
-}
+const PrivacyRoute = () => {
+  return <div>Privacy</div>;
+};
+
+export default PrivacyRoute;

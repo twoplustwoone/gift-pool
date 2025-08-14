@@ -1,3 +1,5 @@
-export default function TermsOfServiceRoute() {
-	return <div>Terms of service</div>
-}
+const TermsOfServiceRoute = () => {
+  return <div>Terms of service</div>;
+};
+
+export default TermsOfServiceRoute;
