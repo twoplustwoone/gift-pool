@@ -248,7 +248,7 @@ const App = () => {
             <Drawer>
               <DrawerTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label="Open menu">
-                  <Icon name="hamburger-menu" />
+                  <Icon size="lg" name="hamburger-menu" />
                 </Button>
               </DrawerTrigger>
               <DrawerContent side="left" showHandle={false}>
