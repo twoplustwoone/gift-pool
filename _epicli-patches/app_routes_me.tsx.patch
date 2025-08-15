@@ -1,0 +1,10 @@
+diff --git a/app/routes/me.tsx b/app/routes/me.tsx
+index 28eb14c..affe9e7 100644
+--- a/app/routes/me.tsx
++++ b/app/routes/me.tsx
+@@ -1,4 +1,4 @@
+-import { redirect, type LoaderFunctionArgs } from '@remix-run/node'
++import { redirect, type LoaderFunctionArgs } from 'react-router'
+ import { requireUserId, logout } from '#app/utils/auth.server.ts'
+ import { prisma } from '#app/utils/db.server.ts'
+ 

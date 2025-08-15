@@ -1,0 +1,13 @@
+diff --git a/eslint.config.js b/eslint.config.js
+index 611208a..5fa72f2 100644
+--- a/eslint.config.js
++++ b/eslint.config.js
+@@ -4,4 +4,8 @@ import { default as defaultConfig } from '@epic-web/config/eslint'
+ export default [
+ 	...defaultConfig,
+ 	// add custom config objects here:
++	{
++		files: ['**/tests/**/*.ts'],
++		rules: { 'react-hooks/rules-of-hooks': 'off' },
++	},
+ ]

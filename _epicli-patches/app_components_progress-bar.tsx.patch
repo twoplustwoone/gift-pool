@@ -1,0 +1,10 @@
+diff --git a/app/components/progress-bar.tsx b/app/components/progress-bar.tsx
+index 00737ae..6e7c591 100644
+--- a/app/components/progress-bar.tsx
++++ b/app/components/progress-bar.tsx
+@@ -1,4 +1,4 @@
+-import { useNavigation } from '@remix-run/react'
++import { useNavigation } from 'react-router'
+ import { useEffect, useRef, useState } from 'react'
+ import { useSpinDelay } from 'spin-delay'
+ import { cn } from '#app/utils/misc.tsx'

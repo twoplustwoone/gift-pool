@@ -1,0 +1,8 @@
+diff --git a/types/reset.d.ts b/types/reset.d.ts
+index 3b8ad67..fa7fab4 100644
+--- a/types/reset.d.ts
++++ b/types/reset.d.ts
+@@ -1,2 +1,2 @@
+ // Do not add any other lines of code to this file!
+-import '@total-typescript/ts-reset/dom'
++import '@epic-web/config/reset.d.ts'

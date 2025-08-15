@@ -1,0 +1,10 @@
+diff --git a/app/utils/connections.tsx b/app/utils/connections.tsx
+index 39fd69b..9448b96 100644
+--- a/app/utils/connections.tsx
++++ b/app/utils/connections.tsx
+@@ -1,4 +1,4 @@
+-import { Form } from '@remix-run/react'
++import { Form } from 'react-router'
+ import { z } from 'zod'
+ import { Icon } from '#app/components/ui/icon.tsx'
+ import { StatusButton } from '#app/components/ui/status-button.tsx'

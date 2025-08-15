@@ -1,0 +1,10 @@
+diff --git a/app/utils/session.server.ts b/app/utils/session.server.ts
+index f155000..5d9fd32 100644
+--- a/app/utils/session.server.ts
++++ b/app/utils/session.server.ts
+@@ -1,4 +1,4 @@
+-import { createCookieSessionStorage } from '@remix-run/node'
++import { createCookieSessionStorage } from 'react-router'
+ 
+ export const authSessionStorage = createCookieSessionStorage({
+ 	cookie: {

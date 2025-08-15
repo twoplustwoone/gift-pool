@@ -1,0 +1,18 @@
+diff --git a/app/entry.client.tsx b/app/entry.client.tsx
+index cef8316..9b7749f 100644
+--- a/app/entry.client.tsx
++++ b/app/entry.client.tsx
+@@ -1,11 +1,11 @@
+-import { RemixBrowser } from '@remix-run/react'
+ import { startTransition } from 'react'
+ import { hydrateRoot } from 'react-dom/client'
++import { HydratedRouter } from 'react-router/dom'
+ 
+ if (ENV.MODE === 'production' && ENV.SENTRY_DSN) {
+ 	void import('./utils/monitoring.client.tsx').then(({ init }) => init())
+ }
+ 
+ startTransition(() => {
+-	hydrateRoot(document, <RemixBrowser />)
++	hydrateRoot(document, <HydratedRouter />)
+ })

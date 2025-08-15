@@ -1,0 +1,14 @@
+diff --git a/docs/examples.md b/docs/examples.md
+index 245b29e..0b43e02 100644
+--- a/docs/examples.md
++++ b/docs/examples.md
+@@ -116,6 +116,9 @@ This page links to examples of how to implement some things with the Epic Stack.
+ - [Epic Stack Globe Animation](https://github.com/hakimLyon/epic-stack-github-globe)
+   by [@hakimLyon](https://github.com/hakimLyon): An example of Epic Stack with a
+   Globe animation as seen on GitHub's homepage.
++- [Epic Stack + Hono](https://github.com/hakimLyon/epic-stack-hono) by
++  [@hakimLyon](https://github.com/hakimLyon): An example of Epic Stack with
++  Hono.
+ 
+ ## How to contribute
+ 

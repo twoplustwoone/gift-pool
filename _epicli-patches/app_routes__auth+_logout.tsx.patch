@@ -1,0 +1,10 @@
+diff --git a/app/routes/_auth+/logout.tsx b/app/routes/_auth+/logout.tsx
+index 876757e..4793d9d 100644
+--- a/app/routes/_auth+/logout.tsx
++++ b/app/routes/_auth+/logout.tsx
+@@ -1,4 +1,4 @@
+-import { redirect, type ActionFunctionArgs } from '@remix-run/node'
++import { redirect, type ActionFunctionArgs } from 'react-router'
+ import { logout } from '#app/utils/auth.server.ts'
+ 
+ export async function loader() {

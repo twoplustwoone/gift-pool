@@ -1,0 +1,12 @@
+diff --git a/app/routes/_auth+/auth.$provider.ts b/app/routes/_auth+/auth_.$provider.ts
+rename from app/routes/_auth+/auth.$provider.ts
+rename to app/routes/_auth+/auth_.$provider.ts
+index 7231920..ca80277 100644
+--- a/app/routes/_auth+/auth.$provider.ts
++++ b/app/routes/_auth+/auth_.$provider.ts
+@@ -1,4 +1,4 @@
+-import { redirect, type ActionFunctionArgs } from '@remix-run/node'
++import { redirect, type ActionFunctionArgs } from 'react-router'
+ import { authenticator } from '#app/utils/auth.server.ts'
+ import { handleMockAction } from '#app/utils/connections.server.ts'
+ import { ProviderNameSchema } from '#app/utils/connections.tsx'

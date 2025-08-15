@@ -1,0 +1,10 @@
+diff --git a/app/routes/_marketing+/index.tsx b/app/routes/_marketing+/index.tsx
+index 85e42f1..c734213 100644
+--- a/app/routes/_marketing+/index.tsx
++++ b/app/routes/_marketing+/index.tsx
+@@ -1,4 +1,4 @@
+-import { type MetaFunction } from '@remix-run/node'
++import { type MetaFunction } from 'react-router'
+ import {
+ 	Tooltip,
+ 	TooltipContent,
