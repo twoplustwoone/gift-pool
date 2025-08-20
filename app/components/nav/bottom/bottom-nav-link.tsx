@@ -1,6 +1,6 @@
 import { NavLink } from '@remix-run/react';
 import { cn } from '#app/utils/misc.tsx';
-import { Icon, type IconName } from '../ui/icon.tsx';
+import { Icon, type IconName } from '../../ui/icon.tsx';
 
 const activeClassName =
   'shadow-inner ring-2 ring-inset ring-accent text-foreground bg-accent/50';

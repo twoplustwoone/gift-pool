@@ -9,8 +9,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 const WishlistRoute = () => {
   return (
-    <main className="container flex h-full min-h-[400px] px-0 pb-12 md:px-8">
-      <div className="bg-surface text-surface-foreground border-surface-border grid w-full rounded-2xl border pl-2 pr-2 shadow-sm md:container md:rounded-3xl">
+    <main className="container flex h-full min-h-[400px] px-0 md:px-8 md:pb-12">
+      <div className="grid w-full rounded-2xl border border-surface-border bg-surface pl-2 pr-2 text-surface-foreground shadow-sm md:container md:rounded-3xl">
         <Outlet />
       </div>
     </main>

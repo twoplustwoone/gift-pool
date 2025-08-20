@@ -22,7 +22,7 @@ vi.mock('./ui/icon.tsx', () => ({
   ),
 }));
 
-import { BottomNav } from '../bottomNav/bottom-nav.tsx';
+import { BottomNav } from '../nav/bottom/bottom-nav.tsx';
 
 describe('<BottomNav />', () => {
   test('renders a navigation landmark', () => {

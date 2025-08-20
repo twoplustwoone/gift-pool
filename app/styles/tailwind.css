@@ -52,6 +52,7 @@
 
     --pool: 174 66% 47%; /* #2EC4B6 in HSL */
     --pool-foreground: 0 0% 100%;
+    --bottom-nav-height: 4rem;
   }
 
   .dark {

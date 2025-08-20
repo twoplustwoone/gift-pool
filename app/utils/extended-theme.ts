@@ -113,4 +113,7 @@ export const extendedTheme = {
   animation: {
     'caret-blink': 'caret-blink 1.25s ease-out infinite',
   },
+  spacing: {
+    'bottom-nav': 'var(--bottom-nav-height)',
+  },
 } satisfies Config['theme'];
