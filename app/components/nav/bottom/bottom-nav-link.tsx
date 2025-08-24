@@ -1,13 +1,19 @@
 import { NavLink } from '@remix-run/react';
+import { type ReactNode } from 'react';
 import { cn } from '#app/utils/misc.tsx';
-import { Icon, type IconName } from '../../ui/icon.tsx';
 
 const activeClassName =
   'shadow-inner ring-2 ring-inset ring-accent text-foreground bg-accent/50';
 const inactiveClassName =
   'text-muted-foreground hover:bg-muted hover:text-foreground';
 
-export const BottomNavLink = ({ to, icon }: { to: string; icon: IconName }) => {
+export const BottomNavLink = ({
+  to,
+  icon,
+}: {
+  to: string;
+  icon: ReactNode;
+}) => {
   return (
     <NavLink
       to={to}
@@ -19,7 +25,7 @@ export const BottomNavLink = ({ to, icon }: { to: string; icon: IconName }) => {
         )
       }
     >
-      <Icon name={icon} size="md" className="shrink-0" />
+      {icon}
     </NavLink>
   );
 };

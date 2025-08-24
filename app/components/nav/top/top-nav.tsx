@@ -1,19 +1,20 @@
 import { Link } from '@remix-run/react';
+import { type ReactNode } from 'react';
+import { FaRegHeart, FaUsers } from 'react-icons/fa';
 import { Logo } from '#app/components/logo';
 import { Button } from '#app/components/ui/button';
-import { type IconName } from '#app/components/ui/icon';
 import { TopNavItem } from '#app/components/ui/topNavItem';
 import { UserDropdown } from '#app/components/user-dropdown';
 import { useOptionalUser } from '#app/utils/user';
 
 const links: {
   to: string;
-  icon: IconName;
+  icon: ReactNode;
   label: string;
   needsAuth: boolean;
 }[] = [
-  { to: '/wishlist', icon: 'star', label: 'Wishlist', needsAuth: true },
-  { to: '/groups', icon: 'person', label: 'Groups', needsAuth: true },
+  { to: '/wishlist', icon: <FaRegHeart />, label: 'Wishlist', needsAuth: true },
+  { to: '/groups', icon: <FaUsers />, label: 'Groups', needsAuth: true },
 ];
 
 export const TopNav = () => {

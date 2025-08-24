@@ -1,9 +1,14 @@
-import { type IconName } from '../../ui/icon.tsx';
+import { type ReactNode } from 'react';
+import { FaRegHeart, FaUsers } from 'react-icons/fa';
 import { BottomNavLink } from './bottom-nav-link.tsx';
 
-const links: { to: string; icon: IconName }[] = [
-  { to: '/wishlist', icon: 'star' },
-  { to: '/groups', icon: 'person' },
+const links: {
+  to: string;
+  icon: ReactNode;
+  needsAuth: boolean;
+}[] = [
+  { to: '/wishlist', icon: <FaRegHeart />, needsAuth: true },
+  { to: '/groups', icon: <FaUsers />, needsAuth: true },
 ];
 
 export const BottomNav = () => {
