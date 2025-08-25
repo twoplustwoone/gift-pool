@@ -10,14 +10,17 @@ const inactiveClassName =
 export const BottomNavLink = ({
   to,
   icon,
+  label,
 }: {
   to: string;
   icon: ReactNode;
+  label: string;
 }) => {
   return (
     <NavLink
       to={to}
       prefetch="intent"
+      aria-label={label}
       className={({ isActive }) =>
         cn(
           'flex h-full w-full items-center justify-center hover:bg-accent hover:text-foreground',

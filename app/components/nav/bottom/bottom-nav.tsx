@@ -5,10 +5,11 @@ import { BottomNavLink } from './bottom-nav-link.tsx';
 const links: {
   to: string;
   icon: ReactNode;
+  label: string;
   needsAuth: boolean;
 }[] = [
-  { to: '/wishlist', icon: <FaRegHeart />, needsAuth: true },
-  { to: '/groups', icon: <FaUsers />, needsAuth: true },
+  { to: '/wishlist', icon: <FaRegHeart />, label: 'Wishlist', needsAuth: true },
+  { to: '/groups', icon: <FaUsers />, label: 'Groups', needsAuth: true },
 ];
 
 export const BottomNav = () => {
@@ -17,7 +18,7 @@ export const BottomNav = () => {
       <ul className="h-bottom-nav flex divide-x divide-border">
         {links.map((link) => (
           <li className="flex-1" key={link.to}>
-            <BottomNavLink to={link.to} icon={link.icon} />
+            <BottomNavLink to={link.to} icon={link.icon} label={link.label} />
           </li>
         ))}
       </ul>
