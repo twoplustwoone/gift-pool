@@ -25,8 +25,8 @@ export const Wishlist = ({
 }) => {
   const displayName = user.name ?? user.username;
   return (
-    <div>
-      <div className="pb-4 pl-8 pr-4 pt-12">
+    <>
+      <div className="py-4 sm:pb-4 sm:pl-8 sm:pr-4 sm:pt-12">
         <div className="flex flex-col items-center justify-between gap-2 lg:flex-row">
           <Link
             to={`/users/${user.username}`}
@@ -44,7 +44,7 @@ export const Wishlist = ({
           {isOwner && <WishlistItemEditor />}
         </div>
       </div>
-      <Stack gap={4}>
+      <Stack gap={4} className="overflow-y-auto">
         {user.wishlistItems.length === 0 ? (
           <div className="flex w-full flex-col items-center justify-center">
             {isOwner ? (
@@ -70,6 +70,6 @@ export const Wishlist = ({
           </Grid>
         )}
       </Stack>
-    </div>
+    </>
   );
-}
+};

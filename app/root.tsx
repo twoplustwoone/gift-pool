@@ -28,7 +28,6 @@ import { GeneralErrorBoundary } from './components/error-boundary.tsx';
 import { ErrorList } from './components/forms.tsx';
 import { Logo } from './components/logo.tsx';
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
-import { TopNav } from './components/nav/top/top-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
 import { useToast } from './components/toaster.tsx';
@@ -216,7 +215,7 @@ const Footer = () => {
         <Logo />
         <ThemeSwitch userPreference={data.requestInfo.userPrefs.theme} />
       </div>
-      <div className="h-20 sm:hidden">
+      <div className="sm:hidden">
         <BottomNav />
       </div>
     </>
@@ -234,7 +233,7 @@ const App = () => {
       <div className="flex h-screen flex-col justify-between">
         <TopBar />
 
-        <div className="pb-bottom-nav flex-1">
+        <div className="pb-bottom-nav min-h-0 flex-1 overflow-y-auto">
           <Outlet />
         </div>
 

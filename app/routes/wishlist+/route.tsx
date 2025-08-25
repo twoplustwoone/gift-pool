@@ -10,7 +10,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 const WishlistRoute = () => {
   return (
     <main className="container flex h-full min-h-[400px] px-0 md:px-8 md:pb-12">
-      <div className="grid w-full rounded-2xl border border-surface-border bg-surface pl-2 pr-2 text-surface-foreground shadow-sm md:container md:rounded-3xl">
+      <div className="grid w-full rounded-none border border-surface-border bg-surface px-2 pb-4 text-surface-foreground shadow-sm md:container md:rounded-3xl">
         <Outlet />
       </div>
     </main>
