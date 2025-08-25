@@ -9,7 +9,7 @@ Gift Pool is a Remix-based web application for managing wishlists and gift group
 - **Framework**: Remix (Full-stack React framework)
 - **Database**: Prisma with SQLite
 - **Styling**: Tailwind CSS with Radix UI components
-- **Authentication**: remix-auth with GitHub OAuth
+- **Authentication**: remix-auth with email/password
 - **Testing**: Vitest (unit), Playwright (E2E)
 - **Deployment**: Fly.io with LiteFS for distributed SQLite
 
@@ -127,7 +127,7 @@ npm test -- --run       # Run unit tests once
 ### Security Notes
 
 - **Session secrets**: Generate strong random values for production
-- **GitHub OAuth**: Configure real client ID/secret for authentication
+
 - **Database**: SQLite with LiteFS for production distribution
 - **CSRF protection**: Honeypot and session-based protection enabled
 
@@ -141,7 +141,6 @@ npm test -- --run       # Run unit tests once
 
 ### Required for Full Functionality
 
-- **GitHub OAuth app** (for authentication)
 - **Resend account** (for email features)
 - **Sentry project** (for error tracking)
 

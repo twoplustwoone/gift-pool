@@ -1,7 +1,5 @@
 process.env.NODE_ENV ??= 'test';
-process.env.GITHUB_CLIENT_ID ??= 'MOCK_GITHUB_CLIENT_ID';
-process.env.GITHUB_CLIENT_SECRET ??= 'MOCK_GITHUB_CLIENT_SECRET';
-process.env.GITHUB_TOKEN ??= 'MOCK_GITHUB_TOKEN';
+
 process.env.LITEFS_DIR ??= '/tmp';
 process.env.SESSION_SECRET ??= 'SESSION_SECRET';
 process.env.INTERNAL_COMMAND_TOKEN ??= 'INTERNAL_COMMAND_TOKEN';

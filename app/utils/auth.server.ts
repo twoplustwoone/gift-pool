@@ -3,10 +3,8 @@ import { redirect } from '@remix-run/node';
 import bcrypt from 'bcryptjs';
 import { Authenticator } from 'remix-auth';
 import { safeRedirect } from 'remix-utils/safe-redirect';
-import { connectionSessionStorage, providers } from './connections.server.ts';
 import { prisma } from './db.server.ts';
 import { combineHeaders, downloadFile } from './misc.tsx';
-import { type ProviderUser } from './providers/provider.ts';
 import { authSessionStorage } from './session.server.ts';
 
 export const SESSION_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 30;
@@ -15,13 +13,7 @@ export const getSessionExpirationDate = () =>
 
 export const sessionKey = 'sessionId';
 
-export const authenticator = new Authenticator<ProviderUser>(
-  connectionSessionStorage,
-);
-
-for (const [providerName, provider] of Object.entries(providers)) {
-  authenticator.use(provider.getAuthStrategy(), providerName);
-}
+export const authenticator = new Authenticator<any>(authSessionStorage);
 
 export async function getUserId(request: Request) {
   const authSession = await authSessionStorage.getSession(
@@ -136,43 +128,6 @@ export async function signup({
               hash: hashedPassword,
             },
           },
-        },
-      },
-    },
-    select: { id: true, expirationDate: true },
-  });
-
-  return session;
-}
-
-export async function signupWithConnection({
-  email,
-  username,
-  name,
-  providerId,
-  providerName,
-  imageUrl,
-}: {
-  email: User['email'];
-  username: User['username'];
-  name: User['name'];
-  providerId: Connection['providerId'];
-  providerName: Connection['providerName'];
-  imageUrl?: string;
-}) {
-  const session = await prisma.session.create({
-    data: {
-      expirationDate: getSessionExpirationDate(),
-      user: {
-        create: {
-          email: email.toLowerCase(),
-          username: username.toLowerCase(),
-          name,
-          roles: { connect: { name: 'user' } },
-          connections: { create: { providerId, providerName } },
-          image: imageUrl
-            ? { create: await downloadFile(imageUrl) }
-            : undefined,
         },
       },
     },
