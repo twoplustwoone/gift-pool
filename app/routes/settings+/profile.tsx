@@ -14,7 +14,7 @@ export const BreadcrumbHandle = z.object({ breadcrumb: z.any() });
 export type BreadcrumbHandle = z.infer<typeof BreadcrumbHandle>;
 
 export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: <Icon name="file-text">Edit Profile</Icon>,
+  breadcrumb: 'Edit Profile',
   getSitemapEntries: () => null,
 };
 
@@ -39,9 +39,10 @@ const EditUserProfile = () => {
     .map((m) => {
       const result = BreadcrumbHandleMatch.safeParse(m);
       if (!result.success || !result.data.handle.breadcrumb) return null;
+      const breadcrumb = result.data.handle.breadcrumb;
       return (
         <Link key={m.id} to={m.pathname} className="flex items-center">
-          {result.data.handle.breadcrumb}
+          {breadcrumb}
         </Link>
       );
     })

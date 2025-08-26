@@ -25,7 +25,7 @@ import { PasswordSchema } from '#app/utils/user-validation.ts';
 import { type BreadcrumbHandle } from './profile.tsx';
 
 export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: <Icon name="dots-horizontal">Password</Icon>,
+  breadcrumb: 'Password',
   getSitemapEntries: () => null,
 };
 
