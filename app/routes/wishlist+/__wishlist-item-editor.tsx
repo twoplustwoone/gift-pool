@@ -94,12 +94,31 @@ export const WishlistItemEditor = ({
         {trigger ? (
           trigger
         ) : (
-          <Button variant="default" onClick={() => setOpen(true)}>
-            <Flex gap={1}>
-              <Icon name="plus" />
-              <Text size="sm">Add Wishlist Item</Text>
-            </Flex>
-          </Button>
+          <>
+            <Button
+              className="hidden sm:inline-flex"
+              variant="default"
+              onClick={() => setOpen(true)}
+            >
+              <Flex gap={1}>
+                <Icon name="plus" />
+                <Text size="sm">Add Wishlist Item</Text>
+              </Flex>
+            </Button>
+            {/* mobile-only */}
+            {!open && (
+              <Button
+                type="button"
+                size="icon"
+                onClick={() => setOpen(true)}
+                aria-label="Add Wishlist Item"
+                title="Add Wishlist Item"
+                className="fixed bottom-[calc(theme(spacing.4)+env(safe-area-inset-bottom)+4rem)] right-4 z-40 h-14 w-14 rounded-full border bg-primary text-primary-foreground shadow-lg sm:hidden"
+              >
+                <Icon name="plus" />
+              </Button>
+            )}
+          </>
         )}
       </DialogTrigger>
       <DialogContent>
@@ -205,7 +224,7 @@ export const WishlistItemEditor = ({
       </DialogContent>
     </Dialog>
   );
-}
+};
 
 export const ErrorBoundary = () => {
   return (
@@ -217,4 +236,4 @@ export const ErrorBoundary = () => {
       }}
     />
   );
-}
+};
