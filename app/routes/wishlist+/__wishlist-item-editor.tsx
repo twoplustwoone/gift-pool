@@ -48,9 +48,7 @@ type EditorProps = {
     Pick<WishlistItem, 'id' | 'title' | 'url' | 'note' | 'type'>
   >;
   trigger?: React.ReactNode;
-  /** optional: force initial mode; otherwise auto: create if no id, edit if id */
   initialMode?: 'auto' | 'view' | 'edit' | 'create';
-  /** if the viewer can edit; controls showing the "Edit" button in view mode */
   canEdit?: boolean;
 };
 
@@ -188,173 +186,195 @@ export const WishlistItemEditor = React.forwardRef<
         )}
       </DialogTrigger>
 
-      <DialogContent>
+      {/* Optional: ensure dialog can fit our inner width comfortably */}
+      <DialogContent className="sm:max-w-[36rem]">
         <DialogHeader>
           <DialogTitle>{titleText}</DialogTitle>
         </DialogHeader>
 
-        {/* === VIEW MODE (read-only) === */}
-        {mode === 'view' ? (
-          <div className="flex w-80 flex-col gap-4">
-            <div>
-              <Text size="xs" className="text-muted-foreground">
-                Title
-              </Text>
-              <Text size="base" weight="medium" className="break-words">
-                {wishlistItem?.title ?? '—'}
-              </Text>
-            </div>
+        {/* Shared width container for BOTH modes */}
+        <div className="mx-auto w-full sm:w-[28rem]">
+          {mode === 'view' ? (
+            // === VIEW (read-only) ===
+            <div className="flex flex-col gap-4">
+              <div>
+                <Text size="xs" className="text-muted-foreground">
+                  Title
+                </Text>
+                <Text size="base" weight="medium" className="break-words">
+                  {wishlistItem?.title ?? '—'}
+                </Text>
+              </div>
 
-            <div>
-              <Text size="xs" className="text-muted-foreground">
-                Link
-              </Text>
-              {wishlistItem?.url ? (
-                <a
-                  href={wishlistItem.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 text-primary underline decoration-primary/40 underline-offset-4"
+              <div>
+                <Text size="xs" className="text-muted-foreground">
+                  Link
+                </Text>
+                {wishlistItem?.url ? (
+                  <a
+                    href={wishlistItem.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 break-all text-primary underline decoration-primary/40 underline-offset-4"
+                  >
+                    {new URL(wishlistItem.url).hostname}
+                    <Icon name="external-link" className="h-3 w-3" />
+                  </a>
+                ) : (
+                  <Text size="base">—</Text>
+                )}
+              </div>
+
+              <div>
+                <Text size="xs" className="text-muted-foreground">
+                  Description
+                </Text>
+                <Text
+                  as="p"
+                  size="sm"
+                  className="whitespace-pre-wrap break-words text-foreground/90"
                 >
-                  {new URL(wishlistItem.url).hostname}
-                  <Icon name="external-link" className="h-3 w-3" />
-                </a>
-              ) : (
-                <Text size="base">—</Text>
-              )}
-            </div>
+                  {wishlistItem?.note || '—'}
+                </Text>
+              </div>
 
-            <div>
-              <Text size="xs" className="text-muted-foreground">
-                Description
-              </Text>
-              <Text
-                as="p"
-                size="sm"
-                className="whitespace-pre-wrap break-words text-foreground/90"
-              >
-                {wishlistItem?.note || '—'}
-              </Text>
-            </div>
+              <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
+                <DialogClose asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                  >
+                    Close
+                  </Button>
+                </DialogClose>
 
-            <DialogFooter className="mt-2">
-              <DialogClose asChild>
-                <Button type="button" variant="outline">
-                  Close
-                </Button>
-              </DialogClose>
-              {canEdit && hasId ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setMode('edit')}
-                >
-                  Edit
-                </Button>
-              ) : null}
-            </DialogFooter>
-          </div>
-        ) : (
-          /* === EDIT / CREATE FORM === */
-          <Form
-            method="POST"
-            {...getFormProps(form)}
-            className="flex flex-col gap-4"
-            encType="multipart/form-data"
-            ref={formRef}
-          >
-            {mode === 'create' ? (
-              <button
-                type="submit"
-                name="intent"
-                value="save-add-another"
-                className="hidden"
-              />
-            ) : null}
-
-            {hasId ? (
-              <>
-                <input type="hidden" name="id" value={wishlistItem!.id} />
-                {wishlistItem?.type ? (
-                  <input type="hidden" name="type" value={wishlistItem.type} />
+                {canEdit && hasId ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setMode('edit')}
+                    className="w-full sm:w-auto"
+                  >
+                    Edit
+                  </Button>
                 ) : null}
-              </>
-            ) : null}
-
-            <Field
-              className="w-80"
-              labelProps={{ children: 'Title' }}
-              inputProps={{
-                placeholder: 'Title for your item',
-                autoFocus: true,
-                ...getInputProps(fields.title, {
-                  type: 'text',
-                  ariaAttributes: true,
-                }),
-              }}
-              errors={fields.title.errors}
-            />
-
-            <Field
-              className="w-80"
-              labelProps={{ children: 'Link' }}
-              inputProps={{
-                placeholder: 'https://amazon.com/',
-                ...getInputProps(fields.url, {
-                  type: 'url',
-                  ariaAttributes: true,
-                }),
-              }}
-              errors={fields.url.errors}
-            />
-
-            <TextareaField
-              className="w-80"
-              labelProps={{ children: 'Description' }}
-              textareaProps={{
-                placeholder: 'Describe the item...',
-                rows: 3,
-                ...getInputProps(fields.note, {
-                  type: 'text',
-                  ariaAttributes: true,
-                }),
-              }}
-              errors={[]}
-            />
-
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button type="button" variant="outline">
-                  Cancel
-                </Button>
-              </DialogClose>
-              <StatusButton
-                form={form.id}
-                type="submit"
-                disabled={isPending}
-                status={isPending ? 'pending' : 'idle'}
-                variant="secondary"
-                name="intent"
-                value="save"
-              >
-                Save
-              </StatusButton>
+              </DialogFooter>
+            </div>
+          ) : (
+            // === EDIT / CREATE FORM ===
+            <Form
+              method="POST"
+              {...getFormProps(form)}
+              className="flex flex-col gap-4"
+              encType="multipart/form-data"
+              ref={formRef}
+            >
               {mode === 'create' ? (
+                <button
+                  type="submit"
+                  name="intent"
+                  value="save-add-another"
+                  className="hidden"
+                />
+              ) : null}
+
+              {hasId ? (
+                <>
+                  <input type="hidden" name="id" value={wishlistItem!.id} />
+                  {wishlistItem?.type ? (
+                    <input
+                      type="hidden"
+                      name="type"
+                      value={wishlistItem.type}
+                    />
+                  ) : null}
+                </>
+              ) : null}
+
+              <Field
+                className="w-full"
+                labelProps={{ children: 'Title' }}
+                inputProps={{
+                  placeholder: 'Title for your item',
+                  autoFocus: true,
+                  ...getInputProps(fields.title, {
+                    type: 'text',
+                    ariaAttributes: true,
+                  }),
+                }}
+                errors={fields.title.errors}
+              />
+
+              <Field
+                className="w-full"
+                labelProps={{ children: 'Link' }}
+                inputProps={{
+                  placeholder: 'https://amazon.com/',
+                  ...getInputProps(fields.url, {
+                    type: 'url',
+                    ariaAttributes: true,
+                  }),
+                }}
+                errors={fields.url.errors}
+              />
+
+              <TextareaField
+                className="w-full"
+                labelProps={{ children: 'Description' }}
+                textareaProps={{
+                  placeholder: 'Describe the item...',
+                  rows: 3,
+                  ...getInputProps(fields.note, {
+                    type: 'text',
+                    ariaAttributes: true,
+                  }),
+                }}
+                errors={[]}
+              />
+
+              <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
+                <DialogClose asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                  >
+                    Cancel
+                  </Button>
+                </DialogClose>
+
                 <StatusButton
                   form={form.id}
                   type="submit"
                   disabled={isPending}
                   status={isPending ? 'pending' : 'idle'}
-                  variant="default"
+                  variant="secondary"
                   name="intent"
-                  value="save-add-another"
+                  value="save"
+                  className="w-full sm:w-auto"
                 >
-                  Save & Add Another
+                  Save
                 </StatusButton>
-              ) : null}
-            </DialogFooter>
-          </Form>
-        )}
+
+                {mode === 'create' ? (
+                  <StatusButton
+                    form={form.id}
+                    type="submit"
+                    disabled={isPending}
+                    status={isPending ? 'pending' : 'idle'}
+                    variant="default"
+                    name="intent"
+                    value="save-add-another"
+                    className="col-span-2 w-full sm:col-span-1 sm:w-auto"
+                  >
+                    Save & Add Another
+                  </StatusButton>
+                ) : null}
+              </DialogFooter>
+            </Form>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
