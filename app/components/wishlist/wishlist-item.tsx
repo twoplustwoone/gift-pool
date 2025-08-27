@@ -48,22 +48,22 @@ export const WishlistItem = ({
 
   const editorRef = React.useRef<WishlistItemEditorHandle>(null);
 
-  // Non-owner: simple, tappable row → read-only view
-  if (!isOwner) {
-    const { pressed, rowProps } = usePressFeedback<HTMLDivElement>({
-      onClick: () => editorRef.current?.openView(),
-    });
+  // 🔧 Call hook once, unconditionally
+  const press = usePressFeedback<HTMLDivElement>({
+    onClick: () => editorRef.current?.openView(),
+  });
 
+  // ---------------- Non-owner: simple, tappable row → read-only view
+  if (!isOwner) {
     return (
       <Card
         variant="interactive"
         padding="md"
         role="button"
         className="h-28 cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30 sm:h-auto"
-        data-pressed={pressed ? 'true' : 'false'}
-        {...rowProps}
+        data-pressed={press.pressed ? 'true' : 'false'}
+        {...press.rowProps}
       >
-        {/* One editor instance per row; we open view imperatively */}
         <WishlistItemEditor
           ref={editorRef}
           wishlistItem={{
@@ -92,7 +92,7 @@ export const WishlistItem = ({
     );
   }
 
-  // Owner: desktop trigger keeps click-to-edit behavior
+  // ---------------- Owner: desktop trigger keeps click-to-edit behavior
   const DesktopTrigger = (
     <div className="hidden sm:block">
       <Card variant="interactive" padding="md" className="group h-28">
@@ -116,11 +116,7 @@ export const WishlistItem = ({
     </div>
   );
 
-  // Owner: mobile row (explicit actions + chevron); row tap → read-only view
-  const { pressed, rowProps } = usePressFeedback<HTMLDivElement>({
-    onClick: () => editorRef.current?.openView(),
-  });
-
+  // ---------------- Owner: mobile row (explicit actions + chevron); row tap → read-only view
   return (
     <>
       <WishlistItemEditor
@@ -142,8 +138,8 @@ export const WishlistItem = ({
           padding="md"
           role="button"
           className="h-28 cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30"
-          data-pressed={pressed ? 'true' : 'false'}
-          {...rowProps}
+          data-pressed={press.pressed ? 'true' : 'false'}
+          {...press.rowProps}
         >
           <Flex className="h-full" align="center" justify="between" gap={3}>
             <Box className="min-w-0">
@@ -186,7 +182,7 @@ export const WishlistItem = ({
               <div className="mx-1 h-6 border-l border-border/40" />
               <FaChevronRight
                 className="h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform data-[pressed=true]:translate-x-0.5"
-                data-pressed={pressed ? 'true' : 'false'}
+                data-pressed={press.pressed ? 'true' : 'false'}
               />
             </Flex>
           </Flex>
