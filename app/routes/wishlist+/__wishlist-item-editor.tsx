@@ -1,3 +1,4 @@
+// __wishlist-item-editor.tsx
 import {
   getFormProps,
   getInputProps,
@@ -42,17 +43,36 @@ export const WishlistItemSchema = z.object({
   type: z.enum(['text', 'link', 'wishlist']).default('text'),
 });
 
-export const WishlistItemEditor = ({
-  wishlistItem,
-  trigger,
-}: {
+type EditorProps = {
   wishlistItem?: SerializeFrom<
     Pick<WishlistItem, 'id' | 'title' | 'url' | 'note' | 'type'>
   >;
   trigger?: React.ReactNode;
-}) => {
+};
+
+export type WishlistItemEditorHandle = {
+  open: () => void;
+  close: () => void;
+  toggle: () => void;
+};
+
+export const WishlistItemEditor = React.forwardRef<
+  WishlistItemEditorHandle,
+  EditorProps
+>(({ wishlistItem, trigger }, ref) => {
   const isEditing = Boolean(wishlistItem?.id);
   const [open, setOpen] = React.useState(false);
+
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      open: () => setOpen(true),
+      close: () => setOpen(false),
+      toggle: () => setOpen((o) => !o),
+    }),
+    [],
+  );
+
   const actionData = useActionData<typeof action>() as
     | {
         result: SubmissionResult<z.infer<typeof WishlistItemSchema>>;
@@ -60,6 +80,7 @@ export const WishlistItemEditor = ({
         toast: Toast | null;
       }
     | undefined;
+
   const isPending = useIsPending();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -68,9 +89,7 @@ export const WishlistItemEditor = ({
   React.useEffect(() => {
     if (actionData?.result?.status === 'success') {
       formRef.current?.reset();
-      if (actionData.intent === 'save') {
-        setOpen(false);
-      }
+      if (actionData.intent === 'save') setOpen(false);
     }
   }, [actionData]);
 
@@ -95,6 +114,7 @@ export const WishlistItemEditor = ({
           trigger
         ) : (
           <>
+            {/* Desktop add button */}
             <Button
               className="hidden sm:inline-flex"
               variant="default"
@@ -105,7 +125,7 @@ export const WishlistItemEditor = ({
                 <Text size="sm">Add Wishlist Item</Text>
               </Flex>
             </Button>
-            {/* mobile-only */}
+            {/* Mobile FAB add button */}
             {!open && (
               <Button
                 type="button"
@@ -121,12 +141,14 @@ export const WishlistItemEditor = ({
           </>
         )}
       </DialogTrigger>
+
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
             {wishlistItem ? 'Edit Wishlist Item' : 'Add Wishlist Item'}
           </DialogTitle>
         </DialogHeader>
+
         <Form
           method="POST"
           {...getFormProps(form)}
@@ -134,7 +156,6 @@ export const WishlistItemEditor = ({
           encType="multipart/form-data"
           ref={formRef}
         >
-          {/* Hidden submit for Enter key (creation only) */}
           {!isEditing ? (
             <button
               type="submit"
@@ -143,6 +164,7 @@ export const WishlistItemEditor = ({
               className="hidden"
             />
           ) : null}
+
           {wishlistItem ? (
             <>
               <input type="hidden" name="id" value={wishlistItem.id} />
@@ -151,6 +173,7 @@ export const WishlistItemEditor = ({
               ) : null}
             </>
           ) : null}
+
           <Field
             className="w-80"
             labelProps={{ children: 'Title' }}
@@ -164,6 +187,7 @@ export const WishlistItemEditor = ({
             }}
             errors={fields.title.errors}
           />
+
           <Field
             className="w-80"
             labelProps={{ children: 'Link' }}
@@ -176,6 +200,7 @@ export const WishlistItemEditor = ({
             }}
             errors={fields.url.errors}
           />
+
           <TextareaField
             className="w-80"
             labelProps={{ children: 'Description' }}
@@ -189,6 +214,7 @@ export const WishlistItemEditor = ({
             }}
             errors={[]}
           />
+
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">
@@ -224,16 +250,16 @@ export const WishlistItemEditor = ({
       </DialogContent>
     </Dialog>
   );
-};
+});
 
-export const ErrorBoundary = () => {
-  return (
-    <GeneralErrorBoundary
-      statusHandlers={{
-        404: ({ params }) => (
-          <p>No wishlist item with the id "{params.wishlistId}" exists</p>
-        ),
-      }}
-    />
-  );
-};
+WishlistItemEditor.displayName = 'WishlistItemEditor';
+
+export const ErrorBoundary = () => (
+  <GeneralErrorBoundary
+    statusHandlers={{
+      404: ({ params }) => (
+        <p>No wishlist item with the id "{params.wishlistId}" exists</p>
+      ),
+    }}
+  />
+);
