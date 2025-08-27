@@ -188,7 +188,10 @@ const Document = ({
         <ClientHintCheck nonce={nonce} />
         <Meta />
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <meta
+          name="viewport"
+          content="width=device-width,initial-scale=1,viewport-fit=cover"
+        />
         <Links />
       </head>
       <body className="bg-background text-foreground">
@@ -233,7 +236,7 @@ const App = () => {
       <div className="flex h-screen flex-col justify-between">
         <TopBar />
 
-        <div className="pb-bottom-nav min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto pb-bottom-nav">
           <Outlet />
         </div>
 
