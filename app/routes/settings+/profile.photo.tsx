@@ -32,7 +32,7 @@ import {
 import { type BreadcrumbHandle } from './profile.tsx';
 
 export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: 'Photo',
+  breadcrumb: <Icon name="avatar">Photo</Icon>,
   getSitemapEntries: () => null,
 };
 

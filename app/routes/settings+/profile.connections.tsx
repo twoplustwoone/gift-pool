@@ -5,7 +5,7 @@ import { requireUserId } from '#app/utils/auth.server.ts';
 import { type BreadcrumbHandle } from './profile.tsx';
 
 export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: 'Connections',
+  breadcrumb: <Icon name="link-2">Connections</Icon>,
   getSitemapEntries: () => null,
 };
 

@@ -16,7 +16,7 @@ import { type BreadcrumbHandle } from './profile.tsx';
 import { twoFAVerificationType } from './profile.two-factor.tsx';
 
 export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: 'Disable',
+  breadcrumb: <Icon name="lock-open-1">Disable</Icon>,
   getSitemapEntries: () => null,
 };
 

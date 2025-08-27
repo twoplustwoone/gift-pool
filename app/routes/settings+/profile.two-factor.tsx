@@ -5,7 +5,7 @@ import { type VerificationTypes } from '#app/routes/_auth+/verify.tsx';
 import { type BreadcrumbHandle } from './profile.tsx';
 
 export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: '2FA',
+  breadcrumb: <Icon name="lock-closed">2FA</Icon>,
   getSitemapEntries: () => null,
 };
 

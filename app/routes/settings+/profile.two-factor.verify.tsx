@@ -28,7 +28,7 @@ import { type BreadcrumbHandle } from './profile.tsx';
 import { twoFAVerificationType } from './profile.two-factor.tsx';
 
 export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: 'Verify',
+  breadcrumb: <Icon name="check">Verify</Icon>,
   getSitemapEntries: () => null,
 };
 

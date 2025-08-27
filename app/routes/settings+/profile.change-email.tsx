@@ -26,7 +26,7 @@ import { EmailChangeEmail } from './profile.change-email.server.tsx';
 import { type BreadcrumbHandle } from './profile.tsx';
 
 export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: 'Change Email',
+  breadcrumb: <Icon name="envelope-closed">Change Email</Icon>,
   getSitemapEntries: () => null,
 };
 
