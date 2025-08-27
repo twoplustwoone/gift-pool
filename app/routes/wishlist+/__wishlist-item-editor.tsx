@@ -10,6 +10,7 @@ import { type WishlistItem } from '@prisma/client';
 import { type SerializeFrom } from '@remix-run/node';
 import { Form, useActionData } from '@remix-run/react';
 import React, { useRef } from 'react';
+import { FaExternalLinkAlt, FaLink } from 'react-icons/fa';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Field, TextareaField } from '#app/components/forms.tsx';
@@ -219,7 +220,8 @@ export const WishlistItemEditor = React.forwardRef<
                     >
                       {/* show hostname as primary text; long paths still wrap because of break-all on dd */}
                       {new URL(wishlistItem.url).hostname}
-                      <Icon name="external-link" className="h-3 w-3" />
+                      <FaExternalLinkAlt className="h-3 w-3" />
+                      {/* <Icon name="external-link" className="h-3 w-3" /> */}
                     </a>
                   ) : (
                     <span>—</span>
