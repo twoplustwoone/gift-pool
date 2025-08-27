@@ -3,7 +3,7 @@
  */
 import { createRemixStub } from '@remix-run/testing';
 import { render, screen } from '@testing-library/react';
-import { vi, describe, it } from 'vitest';
+import { vi, describe, it, expect } from 'vitest';
 import { Wishlist } from './index';
 
 vi.mock('#app/utils/user.ts', async () => {
@@ -32,9 +32,31 @@ vi.mock('@remix-run/react', async () => {
   };
 });
 
-vi.mock('#app/routes/wishlist+/__wishlist-item-editor', () => ({
-  WishlistItemEditor: (props: any) => props.trigger ?? <div>editor</div>,
-}));
+vi.mock('#app/routes/wishlist+/__wishlist-item-editor', () => {
+  const React = require('react');
+  const WishlistItemEditor = React.forwardRef((_props: any, ref: any) => {
+    // support trigger passthrough like the real component
+    const { trigger } = _props ?? {};
+
+    // provide a stub handle so calls like editorRef.current?.openView() don't blow up
+    React.useImperativeHandle(
+      ref,
+      () => ({
+        open: () => {},
+        close: () => {},
+        toggle: () => {},
+        openView: () => {},
+        openEdit: () => {},
+        openCreate: () => {},
+      }),
+      [],
+    );
+
+    return trigger ?? React.createElement('div', null, 'editor');
+  });
+
+  return { WishlistItemEditor };
+});
 
 describe('Wishlist components', () => {
   it('renders wishlist with items', async () => {
@@ -67,7 +89,8 @@ describe('Wishlist components', () => {
     render(<App />);
 
     await screen.findByText("Jane's Wishlist");
-    await screen.findByText('Item one');
+    // 2 items: one for the desktop view, one for the mobile view
+    expect(await screen.findAllByText('Item one')).toHaveLength(2);
   });
 
   it('shows empty message for others', async () => {
