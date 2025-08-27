@@ -47,21 +47,23 @@ export const WishlistItem = ({
   );
 
   const editorRef = React.useRef<WishlistItemEditorHandle>(null);
-  const { pressed, rowProps } = usePressFeedback<HTMLDivElement>({
-    onClick: () => editorRef.current?.open(),
-  });
 
-  // ---------------- Non-owner: simple, tappable row + chevron
+  // Non-owner: simple, tappable row → read-only view
   if (!isOwner) {
+    const { pressed, rowProps } = usePressFeedback<HTMLDivElement>({
+      onClick: () => editorRef.current?.openView(),
+    });
+
     return (
       <Card
         variant="interactive"
         padding="md"
-        className="h-28 cursor-pointer transition active:scale-[0.99] active:bg-accent/30 sm:h-auto"
         role="button"
-        onClick={() => editorRef.current?.open()}
+        className="h-28 cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30 sm:h-auto"
+        data-pressed={pressed ? 'true' : 'false'}
+        {...rowProps}
       >
-        {/* Single editor instance to open read-only view */}
+        {/* One editor instance per row; we open view imperatively */}
         <WishlistItemEditor
           ref={editorRef}
           wishlistItem={{
@@ -71,7 +73,8 @@ export const WishlistItem = ({
             note: wishlistItem.note ?? null,
             type: wishlistItem.type,
           }}
-          // no trigger — we open imperatively
+          canEdit={false}
+          initialMode="view"
         />
 
         <Flex justify="between" align="center" className="gap-3">
@@ -83,15 +86,13 @@ export const WishlistItem = ({
               {wishlistItem.note}
             </Text>
           </Box>
-
-          {/* Primary nav cue */}
           <FaChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         </Flex>
       </Card>
     );
   }
 
-  // ---------------- Owner: desktop trigger (row click-to-edit)
+  // Owner: desktop trigger keeps click-to-edit behavior
   const DesktopTrigger = (
     <div className="hidden sm:block">
       <Card variant="interactive" padding="md" className="group h-28">
@@ -115,9 +116,13 @@ export const WishlistItem = ({
     </div>
   );
 
+  // Owner: mobile row (explicit actions + chevron); row tap → read-only view
+  const { pressed, rowProps } = usePressFeedback<HTMLDivElement>({
+    onClick: () => editorRef.current?.openView(),
+  });
+
   return (
     <>
-      {/* One editor instance per row; desktop uses the trigger above */}
       <WishlistItemEditor
         ref={editorRef}
         wishlistItem={{
@@ -127,17 +132,16 @@ export const WishlistItem = ({
           note: wishlistItem.note ?? null,
           type: wishlistItem.type,
         }}
-        trigger={DesktopTrigger}
+        trigger={DesktopTrigger} // desktop: row-as-trigger (edit/create)
+        canEdit={true}
       />
 
-      {/* Mobile row: explicit actions + chevron, whole row also tappable */}
       <div className="sm:hidden">
         <Card
           variant="interactive"
           padding="md"
           role="button"
-          // REMOVE base active:*; use data-pressed instead; keep desktop with sm:active if you want
-          className="h-28 cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30 sm:active:bg-accent/30"
+          className="h-28 cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30"
           data-pressed={pressed ? 'true' : 'false'}
           {...rowProps}
         >
@@ -152,14 +156,16 @@ export const WishlistItem = ({
             </Box>
 
             <Flex align="center" className="flex-shrink-0" gap={1}>
-              {/* EDIT */}
+              {/* EDIT → flip current modal to edit mode */}
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerUp={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
-                  editorRef.current?.open();
+                  editorRef.current?.openEdit();
                 }}
                 aria-label="Edit item"
                 title="Edit"
@@ -180,7 +186,6 @@ export const WishlistItem = ({
               <div className="mx-1 h-6 border-l border-border/40" />
               <FaChevronRight
                 className="h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform data-[pressed=true]:translate-x-0.5"
-                // mirror data-pressed for the chevron micro-motion
                 data-pressed={pressed ? 'true' : 'false'}
               />
             </Flex>
@@ -206,6 +211,7 @@ export const DeleteWishlistItem = ({
       <div
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()} // ADD THIS
         onKeyDown={(e) => e.stopPropagation()}
         onKeyUp={(e) => e.stopPropagation()}
       >
