@@ -195,48 +195,45 @@ export const WishlistItemEditor = React.forwardRef<
         {/* Shared width container for BOTH modes */}
         <div className="mx-auto w-full sm:w-[28rem]">
           {mode === 'view' ? (
-            // === VIEW (read-only) ===
-            <div className="flex flex-col gap-4">
-              <div>
-                <Text size="xs" className="text-muted-foreground">
+            <div className="flex flex-col gap-5">
+              <dl className="grid grid-cols-1 items-start gap-y-4 sm:grid-cols-[7.5rem,1fr] sm:gap-x-4 sm:gap-y-5">
+                {/* Title */}
+                <dt className="text-xs text-muted-foreground sm:text-sm">
                   Title
-                </Text>
-                <Text size="base" weight="medium" className="break-words">
+                </dt>
+                <dd className="break-words text-base font-medium">
                   {wishlistItem?.title ?? '—'}
-                </Text>
-              </div>
+                </dd>
 
-              <div>
-                <Text size="xs" className="text-muted-foreground">
+                {/* Link */}
+                <dt className="text-xs text-muted-foreground sm:text-sm">
                   Link
-                </Text>
-                {wishlistItem?.url ? (
-                  <a
-                    href={wishlistItem.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 break-all text-primary underline decoration-primary/40 underline-offset-4"
-                  >
-                    {new URL(wishlistItem.url).hostname}
-                    <Icon name="external-link" className="h-3 w-3" />
-                  </a>
-                ) : (
-                  <Text size="base">—</Text>
-                )}
-              </div>
+                </dt>
+                <dd className="break-all text-base">
+                  {wishlistItem?.url ? (
+                    <a
+                      href={wishlistItem.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 text-primary underline decoration-primary/40 underline-offset-4"
+                    >
+                      {/* show hostname as primary text; long paths still wrap because of break-all on dd */}
+                      {new URL(wishlistItem.url).hostname}
+                      <Icon name="external-link" className="h-3 w-3" />
+                    </a>
+                  ) : (
+                    <span>—</span>
+                  )}
+                </dd>
 
-              <div>
-                <Text size="xs" className="text-muted-foreground">
+                {/* Description */}
+                <dt className="text-xs text-muted-foreground sm:text-sm">
                   Description
-                </Text>
-                <Text
-                  as="p"
-                  size="sm"
-                  className="whitespace-pre-wrap break-words text-foreground/90"
-                >
+                </dt>
+                <dd className="whitespace-pre-wrap break-words text-sm text-foreground/90">
                   {wishlistItem?.note || '—'}
-                </Text>
-              </div>
+                </dd>
+              </dl>
 
               <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
                 <DialogClose asChild>
