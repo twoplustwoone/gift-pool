@@ -18,5 +18,7 @@ test('users can add wishlist items', async ({ page, login }) => {
   await expect(page.getByText(toastText)).toHaveCount(3);
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByLabel('Title')).toHaveValue('');
-  await expect(page.getByText('Second Item')).toBeVisible();
+  await expect(
+    page.getByText('Second Item').filter({ visible: true }),
+  ).toBeVisible();
 });
