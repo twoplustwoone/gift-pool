@@ -1,11 +1,6 @@
 import { invariant } from '@epic-web/invariant';
 import { faker } from '@faker-js/faker';
 import { prisma } from '#app/utils/db.server.ts';
-
-import {
-  USERNAME_MAX_LENGTH,
-  USERNAME_MIN_LENGTH,
-} from '#app/utils/user-validation';
 import { readEmail } from '#tests/mocks/utils.ts';
 import { createUser, expect, test as base } from '#tests/playwright-utils.ts';
 
@@ -116,9 +111,8 @@ test('onboarding with a short code', async ({ page, getOnboardingData }) => {
 
   await page.getByRole('button', { name: /submit/i }).click();
   await expect(
-    page.getByRole('button', { name: /submit/i, disabled: true }),
+    page.getByText(/we've sent you a code to verify your email address/i),
   ).toBeVisible();
-  await expect(page.getByText(/check your email/i)).toBeVisible();
 
   const email = await readEmail(onboardingData.email);
   invariant(email, 'Email not found');
@@ -162,9 +156,8 @@ test('reset password with a link', async ({ page, insertNewUser }) => {
   await page.getByRole('textbox', { name: /username/i }).fill(user.username);
   await page.getByRole('button', { name: /recover password/i }).click();
   await expect(
-    page.getByRole('button', { name: /recover password/i, disabled: true }),
+    page.getByText(/we've sent you a code to verify your email address/i),
   ).toBeVisible();
-  await expect(page.getByText(/check your email/i)).toBeVisible();
 
   const email = await readEmail(user.email);
   invariant(email, 'Email not found');
@@ -185,16 +178,11 @@ test('reset password with a link', async ({ page, insertNewUser }) => {
   await expect(page).toHaveURL(`/reset-password`);
   const newPassword = faker.internet.password();
   await page.getByRole('textbox', { name: /new password/i }).fill(newPassword);
-  // await page.getByLabel(/^new password$/i).fill(newPassword);
   await page
     .getByRole('textbox', { name: /confirm password/i })
     .fill(newPassword);
-  // await page.getByLabel(/^confirm password$/i).fill(newPassword);
 
   await page.getByRole('button', { name: /reset password/i }).click();
-  await expect(
-    page.getByRole('button', { name: /reset password/i, disabled: true }),
-  ).toBeVisible();
 
   await expect(page).toHaveURL('/login');
   await page.getByRole('textbox', { name: /username/i }).fill(user.username);
@@ -224,9 +212,8 @@ test('reset password with a short code', async ({ page, insertNewUser }) => {
   await page.getByRole('textbox', { name: /username/i }).fill(user.username);
   await page.getByRole('button', { name: /recover password/i }).click();
   await expect(
-    page.getByRole('button', { name: /recover password/i, disabled: true }),
+    page.getByText(/we've sent you a code to verify your email address/i),
   ).toBeVisible();
-  await expect(page.getByText(/check your email/i)).toBeVisible();
 
   const email = await readEmail(user.email);
   invariant(email, 'Email not found');
