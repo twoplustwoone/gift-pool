@@ -89,8 +89,7 @@ export async function prepareVerification({
 
   const { otp, ...verificationConfig } = generateTOTP({
     algorithm: 'SHA256',
-    // Leaving off 0, O, and I on purpose to avoid confusing users.
-    charSet: 'ABCDEFGHJKLMNPQRSTUVWXYZ123456789',
+    charSet: '0123456789',
     period,
   });
   const verificationData = {
