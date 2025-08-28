@@ -33,8 +33,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 
 const Username = () => {
   return (
-    <main className="container flex h-full min-h-[400px] px-0 pb-12 md:px-8">
-      <div className="grid w-full bg-muted pl-2 pr-2 md:container md:rounded-3xl">
+    <main className="container h-full min-h-0 px-0 pb-12 md:px-8">
+      <div className="grid h-full min-h-0 w-full bg-muted pl-2 pr-2 md:container md:rounded-3xl">
         <Outlet />
       </div>
     </main>

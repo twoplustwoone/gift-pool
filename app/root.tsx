@@ -194,7 +194,7 @@ const Document = ({
         />
         <Links />
       </head>
-      <body className="bg-background text-foreground">
+      <body className="h-full bg-background text-foreground">
         {children}
         <script
           nonce={nonce}
@@ -233,10 +233,10 @@ const App = () => {
 
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
-      <div className="flex h-screen flex-col justify-between">
+      <div className="flex h-dvh min-h-0 flex-col">
         <TopBar />
 
-        <div className="min-h-0 flex-1 overflow-y-auto pb-bottom-nav">
+        <div className="min-h-0 flex-1">
           <Outlet />
         </div>
 
