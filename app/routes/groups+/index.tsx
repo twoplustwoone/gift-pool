@@ -27,21 +27,23 @@ const GroupsIndex = () => {
 
   const { user } = data;
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col">
       <SectionTitle>
         <Heading>My Groups</Heading>
         <Button asChild>
           <Link to={`/groups/new`}>Create Group</Link>
         </Button>
       </SectionTitle>
-      <div className="mt-4 space-y-4">
-        {user.giftGroups.map((group) => (
-          <div key={group.giftGroup.id}>
-            <Link to={`/groups/${group.giftGroup.id}`}>
-              {group.giftGroup.name}
-            </Link>
-          </div>
-        ))}
+      <div className="min-h-0 flex-1 overflow-y-auto pb-bottom-nav sm:pb-0">
+        <div className="mt-4 space-y-4">
+          {user.giftGroups.map((group) => (
+            <div key={group.giftGroup.id}>
+              <Link to={`/groups/${group.giftGroup.id}`}>
+                {group.giftGroup.name}
+              </Link>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -9,7 +9,6 @@ import {
   type MetaFunction,
 } from '@remix-run/node';
 import {
-  Link,
   Links,
   LiveReload,
   Meta,
@@ -23,23 +22,17 @@ import {
 import { withSentry } from '@sentry/remix';
 import { HoneypotProvider } from 'remix-utils/honeypot/react';
 import { z } from 'zod';
-import { TopNavItem } from '#app/components/ui/topNavItem.tsx';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx';
 import { ErrorList } from './components/forms.tsx';
+import { Logo } from './components/logo.tsx';
+import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
+import { TopBar } from './components/nav/top-bar.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
 import { useToast } from './components/toaster.tsx';
-import { Button } from './components/ui/button.tsx';
-import {
-  Drawer,
-  DrawerTrigger,
-  DrawerContent,
-  DrawerHeader,
-} from './components/ui/drawer.tsx';
 import { Icon, href as iconsHref } from './components/ui/icon.tsx';
 import { EpicToaster } from './components/ui/sonner.tsx';
-import { UserDropdown } from './components/user-dropdown.tsx';
 import nunitoStyleSheet from './styles/nunito-font.css?url';
 import tailwindStyleSheetUrl from './styles/tailwind.css?url';
 import { getUserId, logout } from './utils/auth.server.ts';
@@ -53,7 +46,6 @@ import { useRequestInfo } from './utils/request-info.ts';
 import { type Theme, setTheme, getTheme } from './utils/theme.server.ts';
 import { makeTimings, time } from './utils/timing.server.ts';
 import { getToast } from './utils/toast.server.ts';
-import { useOptionalUser } from './utils/user.ts';
 
 export const links: LinksFunction = () => {
   return [
@@ -196,10 +188,13 @@ const Document = ({
         <ClientHintCheck nonce={nonce} />
         <Meta />
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <meta
+          name="viewport"
+          content="width=device-width,initial-scale=1,viewport-fit=cover"
+        />
         <Links />
       </head>
-      <body className="bg-background text-foreground">
+      <body className="h-full bg-background text-foreground">
         {children}
         <script
           nonce={nonce}
@@ -215,113 +210,41 @@ const Document = ({
   );
 };
 
+const Footer = () => {
+  const data = useLoaderData<typeof loader>();
+  return (
+    <>
+      <div className="container hidden justify-between pb-5 sm:flex">
+        <Logo />
+        <ThemeSwitch userPreference={data.requestInfo.userPrefs.theme} />
+      </div>
+      <div className="sm:hidden">
+        <BottomNav />
+      </div>
+    </>
+  );
+};
+
 const App = () => {
   const data = useLoaderData<typeof loader>();
   const nonce = useNonce();
-  const user = useOptionalUser();
   const theme = useTheme();
   useToast(data.toast);
 
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
-      <div className="flex h-screen flex-col justify-between">
-        <header className="container py-4 sm:py-6">
-          {/* Desktop/Tablet */}
-          <nav className="hidden items-center justify-between gap-4 sm:flex md:gap-8">
-            <Logo />
-            <div className="flex items-center gap-4">
-              <WishlistNav />
-              <GroupsNav />
-            </div>
-            <div className="flex items-center">
-              {user ? (
-                <UserDropdown />
-              ) : (
-                <Button asChild variant="default" size="lg">
-                  <Link to="/login">Log In</Link>
-                </Button>
-              )}
-            </div>
-          </nav>
-          {/* Mobile */}
-          <nav className="flex items-center justify-between gap-2 sm:hidden">
-            <Drawer>
-              <DrawerTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Open menu">
-                  <Icon size="lg" name="hamburger-menu" />
-                </Button>
-              </DrawerTrigger>
-              <DrawerContent side="left" showHandle={false}>
-                <DrawerHeader className="pb-2 pt-4">
-                  <div className="flex items-center gap-3">
-                    <Icon name="star" />
-                    <span className="text-body-md font-semibold">Menu</span>
-                  </div>
-                </DrawerHeader>
-                <div className="flex flex-col gap-2 p-4">
-                  <TopNavItem to={`/wishlist`} icon="star" label="Wishlist" />
-                  <TopNavItem to={`/groups`} icon="person" label="Groups" />
-                </div>
-              </DrawerContent>
-            </Drawer>
-            <div className="flex-1">
-              <div className="flex justify-center">
-                <Logo />
-              </div>
-            </div>
-            <div className="flex items-center justify-end">
-              {user ? (
-                <UserDropdown />
-              ) : (
-                <Button asChild variant="default" size="sm">
-                  <Link to="/login">Log In</Link>
-                </Button>
-              )}
-            </div>
-          </nav>
-        </header>
+      <div className="flex h-dvh min-h-0 flex-col">
+        <TopBar />
 
-        <div className="flex-1">
+        <div className="min-h-0 flex-1 sm:overflow-y-auto">
           <Outlet />
         </div>
 
-        <div className="container flex justify-between pb-5">
-          <Logo />
-          <ThemeSwitch userPreference={data.requestInfo.userPrefs.theme} />
-        </div>
+        <Footer />
       </div>
       <EpicToaster closeButton position="top-center" theme={theme} />
       <EpicProgress />
     </Document>
-  );
-};
-
-const WishlistNav = () => {
-  const user = useOptionalUser();
-  if (!user) {
-    return null;
-  }
-  return <TopNavItem to={`/wishlist`} icon="star" label="Wishlist" />;
-};
-
-const GroupsNav = () => {
-  const user = useOptionalUser();
-  if (!user) {
-    return null;
-  }
-  return <TopNavItem to={`/groups`} icon="person" label="Groups" />;
-};
-
-const Logo = () => {
-  return (
-    <Link to="/" className="group grid text-2xl leading-snug sm:text-base">
-      <span className="text-gift font-light transition group-hover:-translate-x-1">
-        gift
-      </span>
-      <span className="text-pool font-bold transition group-hover:translate-x-1">
-        pool
-      </span>
-    </Link>
   );
 };
 

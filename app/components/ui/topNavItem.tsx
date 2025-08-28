@@ -1,10 +1,10 @@
 import { NavLink } from '@remix-run/react';
+import { type ReactNode } from 'react';
 import { cn } from '#app/utils/misc.tsx';
-import { Icon, type IconName } from './icon';
 
 type TopNavItemProps = {
   to: string;
-  icon: IconName;
+  icon: ReactNode;
   label: string;
   className?: string;
   end?: boolean;
@@ -33,8 +33,8 @@ export const TopNavItem = ({
         )
       }
     >
-      <Icon name={icon} size="md" className="shrink-0" />
+      {icon}
       <span>{label}</span>
     </NavLink>
   );
-}
+};

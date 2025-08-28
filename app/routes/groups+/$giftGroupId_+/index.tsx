@@ -228,7 +228,7 @@ const GiftGroupIndex = () => {
     useLoaderData<typeof loader>();
 
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col">
       <SectionTitle>
         <div className="flex min-h-10 w-full content-between justify-between">
           <Heading>{giftGroup.name}</Heading>
@@ -244,24 +244,26 @@ const GiftGroupIndex = () => {
           <Subheading>{giftGroup.description}</Subheading>
         </SectionSubtitle>
       </SectionTitle>
-      <div className="text-body-sm"></div>
-      <div>
-        <h2 className="mb-8 text-xl font-bold">Members</h2>
-        <div className="flex flex-col gap-4">
-          {giftGroup.groupMembers.map((groupMember) => (
-            <Link
-              to={`/users/${groupMember.user.username}`}
-              className="flex items-center gap-2 bg-muted"
-              key={groupMember.user.id}
-            >
-              <Avatar
-                size={'s'}
-                image={groupMember.user.image}
-                user={groupMember.user}
-              />
-              <div className="text-body-md">{groupMember.user.username}</div>
-            </Link>
-          ))}
+      <div className="min-h-0 flex-1 overflow-y-auto pb-bottom-nav sm:pb-0">
+        <div className="text-body-sm"></div>
+        <div>
+          <h2 className="mb-8 text-xl font-bold">Members</h2>
+          <div className="flex flex-col gap-4">
+            {giftGroup.groupMembers.map((groupMember) => (
+              <Link
+                to={`/users/${groupMember.user.username}`}
+                className="flex items-center gap-2 bg-muted"
+                key={groupMember.user.id}
+              >
+                <Avatar
+                  size={'s'}
+                  image={groupMember.user.image}
+                  user={groupMember.user}
+                />
+                <div className="text-body-md">{groupMember.user.username}</div>
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
     </div>

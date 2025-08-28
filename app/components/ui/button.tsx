@@ -5,19 +5,36 @@ import * as React from 'react';
 import { cn } from '#app/utils/misc.tsx';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors outline-none focus-visible:ring-2 focus-within:ring-2 ring-ring ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  [
+    // layout/typography
+    'inline-flex select-none items-center justify-center rounded-md text-sm font-medium',
+    // focus
+    'outline-none ring-ring ring-offset-2 ring-offset-background focus-visible:ring-2',
+    // transitions & pressed feel
+    'transition-colors motion-safe:transition-transform motion-safe:duration-100 motion-safe:ease-out',
+    'active:scale-[0.98] active:opacity-95',
+    // touch
+    'touch-manipulation [-webkit-tap-highlight-color:transparent]',
+    // disabled
+    'disabled:pointer-events-none disabled:opacity-50',
+  ].join(' '),
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/80',
+        default:
+          'bg-primary text-primary-foreground hover:bg-primary/80 active:bg-primary/90',
         destructive:
-          'bg-destructive text-destructive-foreground hover:bg-destructive/80',
+          'bg-destructive text-destructive-foreground hover:bg-destructive/80 active:bg-destructive/90',
         outline:
-          'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+          'border border-input bg-background hover:bg-accent hover:text-accent-foreground active:bg-accent/70',
         secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
-        link: 'text-primary underline-offset-4 hover:underline',
+          'bg-secondary text-secondary-foreground hover:bg-secondary/80 active:bg-secondary/90',
+        ghost:
+          // make ghost feel tappable: give it a real background on press
+          'hover:bg-accent hover:text-accent-foreground active:bg-accent/70',
+        link:
+          // links don’t get bg, so give a clear visual press via opacity
+          'text-primary underline-offset-4 hover:underline active:opacity-80',
       },
       size: {
         default: 'h-10 px-4 py-2',
@@ -46,7 +63,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : 'button';
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(buttonVariants({ variant, size }), className)}
         ref={ref}
         {...props}
       />

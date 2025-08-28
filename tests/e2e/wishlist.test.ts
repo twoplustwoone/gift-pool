@@ -10,7 +10,7 @@ test('users can add wishlist items', async ({ page, login }) => {
   await page.getByLabel('Title').fill('First Item');
   await page.getByRole('button', { name: /^save idle$/i }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByText('First Item')).toBeVisible();
+  await expect(page.getByText('First Item').first()).toBeVisible();
 
   await page.getByRole('button', { name: /add wishlist item/i }).click();
   await page.getByLabel('Title').fill('Second Item');
@@ -18,5 +18,7 @@ test('users can add wishlist items', async ({ page, login }) => {
   await expect(page.getByText(toastText)).toHaveCount(3);
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByLabel('Title')).toHaveValue('');
-  await expect(page.getByText('Second Item')).toBeVisible();
+  await expect(
+    page.getByText('Second Item').filter({ visible: true }),
+  ).toBeVisible();
 });
