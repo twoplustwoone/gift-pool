@@ -1,5 +1,5 @@
 import { useInputControl } from '@conform-to/react';
-import { REGEXP_ONLY_DIGITS_AND_CHARS, type OTPInputProps } from 'input-otp';
+import { REGEXP_ONLY_DIGITS, type OTPInputProps } from 'input-otp';
 import React, { useId } from 'react';
 import { Checkbox, type CheckboxProps } from './ui/checkbox.tsx';
 import {
@@ -92,7 +92,7 @@ export const OTPField = ({
     <div className={className}>
       <Label htmlFor={id} {...labelProps} />
       <InputOTP
-        pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
+        pattern={REGEXP_ONLY_DIGITS}
         maxLength={6}
         id={id}
         aria-invalid={errorId ? true : undefined}
