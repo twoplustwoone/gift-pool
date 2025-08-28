@@ -236,7 +236,7 @@ const App = () => {
       <div className="flex h-dvh min-h-0 flex-col">
         <TopBar />
 
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1 sm:overflow-y-auto">
           <Outlet />
         </div>
 
