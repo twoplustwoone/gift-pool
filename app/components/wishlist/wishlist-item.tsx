@@ -82,9 +82,11 @@ export const WishlistItem = ({
             <Text size="base" weight="medium" className="truncate">
               {wishlistItem.title}
             </Text>
-            <Text size="xs" className="line-clamp-2 text-muted-foreground">
-              {wishlistItem.note}
-            </Text>
+            <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
+              <Text size="xs" className="text-muted-foreground break-words">
+                {wishlistItem.note}
+              </Text>
+            </Box>
           </Box>
           <FaChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         </Flex>
@@ -96,8 +98,8 @@ export const WishlistItem = ({
   const DesktopTrigger = (
     <div className="hidden sm:block">
       <Card variant="interactive" padding="md" className="group h-28">
-        <Flex justify="between" align="center">
-          <Text size="base" weight="medium">
+        <Flex justify="between" align="center" className="gap-3">
+          <Text size="base" weight="medium" className="flex-1 truncate">
             {wishlistItem.title}
           </Text>
           {canDelete && (
@@ -107,8 +109,8 @@ export const WishlistItem = ({
             />
           )}
         </Flex>
-        <Box className="overflow-y-hidden">
-          <Text size="xs" className="text-muted-foreground">
+        <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
+          <Text size="xs" className="text-muted-foreground break-words">
             {wishlistItem.note}
           </Text>
         </Box>
@@ -146,9 +148,11 @@ export const WishlistItem = ({
               <Text size="base" weight="medium" className="truncate">
                 {wishlistItem.title}
               </Text>
-              <Text size="xs" className="line-clamp-2 text-muted-foreground">
-                {wishlistItem.note}
-              </Text>
+              <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
+                <Text size="xs" className="text-muted-foreground break-words">
+                  {wishlistItem.note}
+                </Text>
+              </Box>
             </Box>
 
             <Flex align="center" className="flex-shrink-0" gap={1}>
