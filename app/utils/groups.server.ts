@@ -57,16 +57,35 @@ export async function leaveGroup(request: Request, giftGroupId: string) {
     giftGroupId,
     'leaveGroup',
   );
-  await removeUserFromGroup(userId, giftGroupId);
+  await removeUserFromGroup({
+    targetUserId: userId,
+    groupId: giftGroupId,
+    actorId: userId,
+  });
 }
 
-export async function removeUserFromGroup(userId: string, groupId: string) {
-  await prisma.usersInGiftGroups.delete({
+export async function removeUserFromGroup({
+  targetUserId,
+  groupId,
+  actorId,
+  reason,
+}: {
+  targetUserId: string;
+  groupId: string;
+  actorId: string;
+  reason?: string;
+}) {
+  await prisma.usersInGiftGroups.update({
     where: {
       userId_giftGroupId: {
-        userId,
+        userId: targetUserId,
         giftGroupId: groupId,
       },
+    },
+    data: {
+      removedAt: new Date(),
+      removedById: actorId,
+      removedReason: reason,
     },
   });
 }

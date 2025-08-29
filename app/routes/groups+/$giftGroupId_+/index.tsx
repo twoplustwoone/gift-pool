@@ -19,6 +19,8 @@ import { z } from 'zod';
 import { ErrorList } from '#app/components/forms.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
+import { RoleBadge } from '#app/components/groups/role-badge.tsx';
+import { VisibilityHint } from '#app/components/groups/visibility-hint.tsx';
 import {
   Dialog,
   DialogTrigger,
@@ -51,6 +53,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx';
+import { can } from '#app/utils/policies/group.ts';
+
+const formatCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import {
@@ -125,6 +130,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
             },
           },
           role: true,
+          contributionLimit: true,
         },
       },
     },
@@ -133,6 +139,14 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   if (!giftGroup) {
     throw new Response('Group not found', { status: 404 });
   }
+
+  const viewerMembership = giftGroup.groupMembers.find(
+    (m) => m.user.id === userId,
+  );
+  const viewerRole = (viewerMembership?.role?.toUpperCase() as
+    | 'OWNER'
+    | 'ADMIN'
+    | 'MEMBER') ?? 'MEMBER';
 
   const canDelete = await userHasGroupPermission(
     userId,
@@ -160,6 +174,9 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     canInvite,
     canDelete,
     canLeave,
+    viewerRole,
+    groupBudgetVisibility: 'ADMINS' as const,
+    userId,
     inviteLink: existingInvitation
       ? getInviteLink(existingInvitation.code)
       : null,
@@ -224,8 +241,15 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 
 const GiftGroupIndex = () => {
-  const { giftGroup, canInvite, canDelete, canLeave } =
-    useLoaderData<typeof loader>();
+  const {
+    giftGroup,
+    canInvite,
+    canDelete,
+    canLeave,
+    viewerRole,
+    groupBudgetVisibility,
+    userId,
+  } = useLoaderData<typeof loader>();
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -250,18 +274,41 @@ const GiftGroupIndex = () => {
           <h2 className="mb-8 text-xl font-bold">Members</h2>
           <div className="flex flex-col gap-4">
             {giftGroup.groupMembers.map((groupMember) => (
-              <Link
-                to={`/users/${groupMember.user.username}`}
-                className="flex items-center gap-2 bg-muted"
+              <div
                 key={groupMember.user.id}
+                className="flex items-center justify-between gap-4 rounded bg-muted p-2"
               >
-                <Avatar
-                  size={'s'}
-                  image={groupMember.user.image}
-                  user={groupMember.user}
-                />
-                <div className="text-body-md">{groupMember.user.username}</div>
-              </Link>
+                <Link
+                  to={`/users/${groupMember.user.username}`}
+                  className="flex items-center gap-2"
+                >
+                  <Avatar
+                    size="s"
+                    image={groupMember.user.image}
+                    user={groupMember.user}
+                  />
+                  <div className="flex items-center gap-2 text-body-md">
+                    {groupMember.user.username}
+                    <RoleBadge
+                      role={groupMember.role.toUpperCase() as 'OWNER' | 'ADMIN' | 'MEMBER'}
+                    />
+                  </div>
+                </Link>
+                <div className="text-sm" data-testid="budget-value">
+                  {can.viewBudgetValue(
+                    viewerRole,
+                    groupBudgetVisibility,
+                    groupMember.user.id === userId,
+                  ) ? (
+                    formatCents(groupMember.contributionLimit)
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-muted-foreground">
+                      Hidden
+                      <VisibilityHint message="Budgets are hidden" />
+                    </span>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         </div>

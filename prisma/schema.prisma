@@ -55,6 +55,12 @@ model UsersInGiftGroups {
   role              String    @default("member") // owner, admin, member
   joinedAt          DateTime  @default(now())
 
+  // governance fields
+  bannedUntil  DateTime?
+  removedAt    DateTime?
+  removedById  String?
+  removedReason String?
+
   @@id([userId, giftGroupId])
 }
 
