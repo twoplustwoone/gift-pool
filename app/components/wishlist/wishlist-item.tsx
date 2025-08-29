@@ -60,7 +60,7 @@ export const WishlistItem = ({
         variant="interactive"
         padding="md"
         role="button"
-        className="h-28 cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30 sm:h-auto"
+        className="h-28 min-w-0 cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30 sm:h-auto"
         data-pressed={press.pressed ? 'true' : 'false'}
         {...press.rowProps}
       >
@@ -77,9 +77,13 @@ export const WishlistItem = ({
           initialMode="view"
         />
 
-        <Flex justify="between" align="center" className="gap-3">
-          <Box className="min-w-0">
-            <Text size="base" weight="medium" className="truncate">
+        <Flex justify="between" align="center" className="gap-3 min-w-0">
+          <Box className="min-w-0 flex-1 w-0 overflow-hidden">
+            <Text
+              size="base"
+              weight="medium"
+              className="block min-w-0 max-w-full truncate"
+            >
               {wishlistItem.title}
             </Text>
             <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
@@ -97,9 +101,13 @@ export const WishlistItem = ({
   // ---------------- Owner: desktop trigger keeps click-to-edit behavior
   const DesktopTrigger = (
     <div className="hidden sm:block">
-      <Card variant="interactive" padding="md" className="group h-28">
-        <Flex justify="between" align="center" className="gap-3">
-          <Text size="base" weight="medium" className="flex-1 truncate">
+      <Card variant="interactive" padding="md" className="group h-28 min-w-0">
+        <Flex justify="between" align="center" className="gap-3 min-w-0">
+          <Text
+            size="base"
+            weight="medium"
+            className="flex-1 w-0 min-w-0 max-w-full block truncate"
+          >
             {wishlistItem.title}
           </Text>
           {canDelete && (
@@ -139,13 +147,17 @@ export const WishlistItem = ({
           variant="interactive"
           padding="md"
           role="button"
-          className="h-28 cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30"
+          className="h-28 min-w-0 cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30"
           data-pressed={press.pressed ? 'true' : 'false'}
           {...press.rowProps}
         >
-          <Flex className="h-full" align="center" justify="between" gap={3}>
-            <Box className="min-w-0">
-              <Text size="base" weight="medium" className="truncate">
+          <Flex className="h-full min-w-0" align="center" justify="between" gap={3}>
+            <Box className="min-w-0 flex-1 w-0 overflow-hidden">
+              <Text
+                size="base"
+                weight="medium"
+                className="block min-w-0 max-w-full truncate"
+              >
                 {wishlistItem.title}
               </Text>
               <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
