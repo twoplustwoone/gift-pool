@@ -1,28 +1,69 @@
-import { type MetaFunction } from '@remix-run/node';
+import { json, type LoaderFunctionArgs, type MetaFunction } from '@remix-run/node';
+import { useLoaderData, useSearchParams } from '@remix-run/react';
+import { HomeFooterLite } from '#app/components/home/HomeFooterLite';
+import { HomeFeatures } from '#app/components/home/HomeFeatures';
+import { HomeHero } from '#app/components/home/HomeHero';
+import { HomePanels } from '#app/components/home/HomePanels';
+import { HOME_COPY } from '#app/components/home/home-copy';
+import { getUserId } from '#app/utils/auth.server.ts';
+import { prisma } from '#app/utils/db.server.ts';
+import { track } from '#app/utils/analytics.client.ts';
 
-export const meta: MetaFunction = () => [{ title: 'GiftPool' }];
+export const meta: MetaFunction = () => [
+  { title: `GiftPool — ${HOME_COPY.hero.headline}` },
+];
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const url = new URL(request.url);
+  const mockParam = url.searchParams.get('mock');
+  const mock: 'empty' | 'data' | undefined =
+    mockParam === 'empty' || mockParam === 'data' ? (mockParam as any) : undefined;
+
+  const userId = await getUserId(request);
+  let isLoggedIn = Boolean(userId);
+  let wishlistCount = 0;
+  let groupCount = 0;
+
+  if (mock === 'empty') {
+    isLoggedIn = true;
+    wishlistCount = 0;
+    groupCount = 0;
+  } else if (mock === 'data') {
+    isLoggedIn = true;
+    wishlistCount = 2;
+    groupCount = 1;
+  } else if (userId) {
+    // real counts
+    const [wCount, gCount] = await Promise.all([
+      prisma.wishlistItem.count({ where: { ownerId: userId } }),
+      prisma.usersInGiftGroups.count({ where: { userId } }),
+    ]);
+    wishlistCount = wCount;
+    groupCount = gCount;
+  }
+
+  return json({ isLoggedIn, wishlistCount, groupCount, mock });
+}
 
 const Index = () => {
+  const data = useLoaderData<typeof loader>();
+  const [search] = useSearchParams();
+  const mock = (search.get('mock') as 'empty' | 'data' | null) ?? undefined;
+
   return (
-    <main className="font-poppins grid h-full place-items-center">
-      <div className="grid place-items-center px-4 py-16 xl:grid-cols-2 xl:gap-24">
-        <div className="flex max-w-md flex-col items-center text-center xl:order-2 xl:items-start xl:text-left">
-          <h1
-            data-heading
-            className="text-10xl mt-8 animate-slide-top text-foreground [animation-delay:0.3s] [animation-fill-mode:backwards] md:text-5xl xl:mt-4 xl:animate-slide-left xl:text-6xl xl:[animation-delay:0.8s] xl:[animation-fill-mode:backwards]"
-          >
-            <span className="text-gift font-light">gift</span>
-            <span className="text-pool font-bold">pool</span>
-          </h1>
-          <p
-            data-paragraph
-            className="mt-6 animate-slide-top text-xl/7 text-muted-foreground [animation-delay:0.8s] [animation-fill-mode:backwards] xl:mt-8 xl:animate-slide-left xl:text-xl/6 xl:leading-10 xl:[animation-delay:1s] xl:[animation-fill-mode:backwards]"
-          >
-            Where all your dreams.. remain dreams until someone buys them for
-            you.
-          </p>
-        </div>
-      </div>
+    <main role="main">
+      <HomeHero
+        onPrimaryClick={() => track('home.cta.create_wishlist')}
+        onSecondaryClick={() => track('home.cta.start_group')}
+      />
+      <HomeFeatures />
+      <HomePanels
+        isLoggedIn={data.isLoggedIn}
+        wishlistCount={data.wishlistCount}
+        groupCount={data.groupCount}
+        mock={mock ?? data.mock}
+      />
+      <HomeFooterLite />
     </main>
   );
 };
