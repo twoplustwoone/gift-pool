@@ -23,9 +23,11 @@ import {
 import {
   addUserToGroup,
   requireInvitationNotExpired,
+  submitJoinRequest,
 } from '#app/utils/group-invitations.server.ts';
 import { requireUserIdNotInGroup } from '#app/utils/groups.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
+import { prisma } from '#app/utils/db.server.ts';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { code } = params;
@@ -53,7 +55,27 @@ export async function action({ request, params }: ActionFunctionArgs) {
   const invitation = await requireInvitationNotExpired(code);
   const userId = await requireUserIdNotInGroup(request, invitation.giftGroupId);
 
-  await addUserToGroup(userId, invitation.giftGroupId);
+  if (invitation.requireApproval) {
+    await submitJoinRequest({
+      invitationId: invitation.id,
+      userId,
+      groupId: invitation.giftGroupId,
+    });
+    return redirectWithToast(`/groups`, {
+      type: 'success',
+      description: 'Request to join sent for approval.',
+    });
+  }
+
+  await addUserToGroup(
+    userId,
+    invitation.giftGroupId,
+    invitation.roleGranted as 'OWNER' | 'ADMIN' | 'MEMBER',
+  );
+  await prisma.groupInvitation.update({
+    where: { id: invitation.id },
+    data: { usedCount: { increment: 1 } },
+  });
 
   return redirectWithToast(`/groups/${invitation.giftGroupId}`, {
     type: 'success',

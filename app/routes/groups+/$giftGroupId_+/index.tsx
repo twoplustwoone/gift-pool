@@ -63,6 +63,8 @@ import {
   deleteGiftGroup,
   leaveGroup,
   requireUserIdInGroup,
+  createGiftPlan,
+  lockGiftPlan,
 } from '#app/utils/groups.server.ts';
 import { useDebounce, useIsPending } from '#app/utils/misc.tsx';
 import {
@@ -75,6 +77,8 @@ export enum GiftGroupIdFormIntent {
   CreateInviteLink = 'create-invite-link',
   DestroyInviteLink = 'destroy-invite-link',
   LeaveGiftGroup = 'leave-gift-group',
+  PlanGift = 'plan-gift',
+  LockPlan = 'lock-plan',
 }
 
 const DeleteFormSchema = z.object({
@@ -99,6 +103,19 @@ export const LeaveGroupFormSchema = z.object({
   giftGroupId: z.string(),
 });
 
+const PlanGiftFormSchema = z.object({
+  intent: z.literal(GiftGroupIdFormIntent.PlanGift),
+  giftGroupId: z.string(),
+  recipientUserId: z.string(),
+  birthdayDate: z.string(),
+});
+
+const LockPlanFormSchema = z.object({
+  intent: z.literal(GiftGroupIdFormIntent.LockPlan),
+  giftGroupId: z.string(),
+  planId: z.string(),
+});
+
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
   const userId = await requireUserIdInGroup(request, groupId);
@@ -109,6 +126,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       name: true,
       description: true,
       id: true,
+      budgetVisibility: true,
       groupMembers: {
         select: {
           user: {
@@ -116,6 +134,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
               id: true,
               username: true,
               name: true,
+              birthday: true,
               image: {
                 select: {
                   id: true,
@@ -125,6 +144,17 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
             },
           },
           role: true,
+          contributionCents: true,
+          budgetVisibilityOverride: true,
+        },
+      },
+      giftPlans: {
+        select: {
+          id: true,
+          recipientUserId: true,
+          birthdayDate: true,
+          status: true,
+          lockedAt: true,
         },
       },
     },
@@ -139,8 +169,15 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     groupId,
     'deleteGroup',
   );
-  const canInvite = await userHasGroupPermission(userId, groupId, 'addMember');
+  const canInvite = await userHasGroupPermission(userId, groupId, 'manageInvites');
   const canLeave = await userHasGroupPermission(userId, groupId, 'leaveGroup');
+  const canSettings = await userHasGroupPermission(userId, groupId, 'manageSettings');
+  const canLockPlan = await userHasGroupPermission(userId, groupId, 'lockGiftPlan');
+
+  const viewerMembership = await prisma.usersInGiftGroups.findUnique({
+    where: { userId_giftGroupId: { userId, giftGroupId: groupId } },
+    select: { role: true },
+  });
 
   let existingInvitation: GroupInvitation | null = null;
   if (canInvite) {
@@ -148,6 +185,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       where: {
         giftGroupId: groupId,
         expiresAt: { gt: new Date() },
+        revokedAt: null,
       },
       orderBy: {
         createdAt: 'desc',
@@ -155,15 +193,26 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     });
   }
 
+  const activities = await prisma.groupActivity.findMany({
+    where: { giftGroupId: groupId },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+    select: { id: true, type: true, createdAt: true, actor: { select: { username: true } } },
+  });
+
   return json({
     giftGroup,
     canInvite,
     canDelete,
     canLeave,
+    canSettings,
+    canLockPlan,
+    viewer: { userId, role: viewerMembership?.role ?? 'MEMBER' as const },
     inviteLink: existingInvitation
       ? getInviteLink(existingInvitation.code)
       : null,
     groupInvitationId: existingInvitation?.id,
+    activities,
   });
 }
 
@@ -174,7 +223,9 @@ export async function action({ request }: ActionFunctionArgs) {
   const submission = parseWithZod(formData, {
     schema: DeleteFormSchema.or(CreateInviteLinkFormSchema)
       .or(DestroyInviteLinkFormSchema)
-      .or(LeaveGroupFormSchema),
+      .or(LeaveGroupFormSchema)
+      .or(PlanGiftFormSchema)
+      .or(LockPlanFormSchema),
   });
 
   if (submission.status !== 'success') {
@@ -220,11 +271,25 @@ export async function action({ request }: ActionFunctionArgs) {
         title: 'Success',
         description: 'You have left the group.',
       });
+    case GiftGroupIdFormIntent.PlanGift: {
+      const { recipientUserId, birthdayDate } = submission.value;
+      await createGiftPlan(request, giftGroupId, recipientUserId, new Date(birthdayDate));
+      return json(submission.reply(), {
+        headers: await createToastHeaders({ description: 'Gift plan created.', type: 'success' }),
+      });
+    }
+    case GiftGroupIdFormIntent.LockPlan: {
+      const { planId } = submission.value;
+      await lockGiftPlan(request, giftGroupId, planId);
+      return json(submission.reply(), {
+        headers: await createToastHeaders({ description: 'Budget locked for plan.', type: 'success' }),
+      });
+    }
   }
 }
 
 const GiftGroupIndex = () => {
-  const { giftGroup, canInvite, canDelete, canLeave } =
+  const { giftGroup, canInvite, canDelete, canLeave, canSettings, viewer } =
     useLoaderData<typeof loader>();
 
   return (
@@ -232,9 +297,16 @@ const GiftGroupIndex = () => {
       <SectionTitle>
         <div className="flex min-h-10 w-full content-between justify-between">
           <Heading>{giftGroup.name}</Heading>
-          {(canInvite || canDelete || canLeave) && (
+          {(canInvite || canDelete || canLeave || canSettings) && (
             <div className="flex gap-1">
               {canInvite && <CreateInviteLinkDialog />}
+              {canSettings && (
+                <Button asChild variant={'secondary'}>
+                  <Link to={`/groups/${giftGroup.id}/settings`}>
+                    <Icon name="pencil-1">Settings</Icon>
+                  </Link>
+                </Button>
+              )}
               {canDelete && <DeleteGroupDialog id={giftGroup.id} />}
               {canLeave && <LeaveGroupDialog id={giftGroup.id} />}
             </div>
@@ -245,25 +317,20 @@ const GiftGroupIndex = () => {
         </SectionSubtitle>
       </SectionTitle>
       <div className="min-h-0 flex-1 overflow-y-auto pb-bottom-nav sm:pb-0">
-        <div className="text-body-sm"></div>
-        <div>
-          <h2 className="mb-8 text-xl font-bold">Members</h2>
-          <div className="flex flex-col gap-4">
-            {giftGroup.groupMembers.map((groupMember) => (
-              <Link
-                to={`/users/${groupMember.user.username}`}
-                className="flex items-center gap-2 bg-muted"
-                key={groupMember.user.id}
-              >
-                <Avatar
-                  size={'s'}
-                  image={groupMember.user.image}
-                  user={groupMember.user}
-                />
-                <div className="text-body-md">{groupMember.user.username}</div>
-              </Link>
-            ))}
+        <div className="grid gap-6 md:grid-cols-[1fr_320px]">
+          <div className="space-y-8">
+            <section>
+              <h2 className="mb-4 text-xl font-bold">Upcoming Birthdays</h2>
+              <UpcomingBirthdays />
+            </section>
+            <section>
+              <h2 className="mb-4 text-xl font-bold">Members & Budgets</h2>
+              <MembersAndBudgets />
+            </section>
           </div>
+          <aside className="hidden md:block md:pl-4">
+            <RightRail />
+          </aside>
         </div>
       </div>
     </div>
@@ -271,6 +338,121 @@ const GiftGroupIndex = () => {
 };
 
 export default GiftGroupIndex;
+
+function UpcomingBirthdays() {
+  const { giftGroup, canLockPlan } = useLoaderData<typeof loader>();
+  const items = giftGroup.groupMembers
+    .filter((m) => !!m.user.birthday)
+    .map((m) => {
+      const bday = new Date(m.user.birthday as unknown as string);
+      const today = new Date();
+      const thisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
+      const next = thisYear >= new Date(today.getFullYear(), today.getMonth(), today.getDate())
+        ? thisYear
+        : new Date(today.getFullYear() + 1, bday.getMonth(), bday.getDate());
+      const plan = giftGroup.giftPlans.find((p) => p.recipientUserId === m.user.id);
+      return { user: m.user, nextDate: next, plan };
+    })
+    .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())
+    .slice(0, 5);
+
+  if (!items.length) {
+    return <div className="text-sm text-muted-foreground">No upcoming birthdays. Create a gift plan from Settings.</div>;
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      {items.map(({ user, nextDate, plan }) => (
+        <div key={user.id} className="flex items-center gap-3 rounded-md border p-3">
+          <Avatar user={user} image={user.image} size="s" />
+          <div className="flex-1">
+            <div className="font-medium">{user.username}</div>
+            <div className="text-xs text-muted-foreground">{nextDate.toLocaleDateString()}</div>
+          </div>
+          {plan ? (
+            plan.status === 'PLANNING' && canLockPlan ? (
+              <Form method="post" className="flex items-center gap-2">
+                <input type="hidden" name="giftGroupId" value={giftGroup.id} />
+                <input type="hidden" name="planId" value={plan.id} />
+                <StatusButton status="idle" name="intent" value={GiftGroupIdFormIntent.LockPlan} variant="secondary">Lock</StatusButton>
+              </Form>
+            ) : (
+              <div className="text-xs rounded bg-muted px-2 py-0.5">{plan.status}</div>
+            )
+          ) : (
+            <Form method="post" className="flex items-center gap-2">
+              <input type="hidden" name="giftGroupId" value={giftGroup.id} />
+              <input type="hidden" name="recipientUserId" value={user.id} />
+              <input type="hidden" name="birthdayDate" value={nextDate.toISOString()} />
+              <StatusButton status="idle" name="intent" value={GiftGroupIdFormIntent.PlanGift}>Plan Gift</StatusButton>
+            </Form>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MembersAndBudgets() {
+  const { giftGroup, viewer } = useLoaderData<typeof loader>();
+  return (
+    <div className="flex flex-col gap-4">
+      {giftGroup.groupMembers.map((groupMember) => {
+        const isSelf = groupMember.user.id === viewer.userId;
+        const effectiveVisibility =
+          groupMember.budgetVisibilityOverride || giftGroup.budgetVisibility;
+        const isAdminViewer = viewer.role === 'OWNER' || viewer.role === 'ADMIN';
+        const visible =
+          effectiveVisibility === 'EVERYONE' ||
+          (effectiveVisibility === 'ADMINS' && (isAdminViewer || isSelf)) ||
+          (effectiveVisibility === 'ONLY_SELF' && isSelf);
+        return (
+          <Link
+            to={`/users/${groupMember.user.username}`}
+            className="flex items-center gap-2 rounded-md border p-2"
+            key={groupMember.user.id}
+          >
+            <Avatar size={'s'} image={groupMember.user.image} user={groupMember.user} />
+            <div className="text-body-md">{groupMember.user.username}</div>
+            <div className="ml-auto text-sm text-muted-foreground">
+              {visible ? `$${(groupMember.contributionCents / 100).toFixed(2)}` : 'Hidden'}
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function RightRail() {
+  const { canInvite, inviteLink, activities } = useLoaderData<typeof loader>();
+  return (
+    <div className="space-y-6">
+      {canInvite ? (
+        <div className="rounded-md border p-3">
+          <div className="mb-2 font-semibold">Invite</div>
+          {inviteLink ? (
+            <div className="space-y-2">
+              <div className="text-sm">Use this link to invite others:</div>
+              <Input readOnly value={inviteLink} onClick={(e) => (e.currentTarget as HTMLInputElement).select()} />
+            </div>
+          ) : (
+            <div className="text-sm">Use the Invite button in the header to create a link.</div>
+          )}
+        </div>
+      ) : null}
+      <div className="rounded-md border p-3" data-testid="panel-activity">
+        <div className="mb-2 font-semibold">Recent Activity</div>
+        <ul className="space-y-1 text-sm">
+          {activities.map((a) => (
+            <li key={a.id}>
+              <span className="text-muted-foreground">[{new Date(a.createdAt).toLocaleString()}]</span> {a.actor.username} {a.type}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
 
 const CreateInviteLinkDialog = () => {
   const { inviteLink, giftGroup } = useLoaderData<typeof loader>();

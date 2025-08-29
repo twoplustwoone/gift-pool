@@ -23,7 +23,7 @@ export async function action({ request }: ActionFunctionArgs) {
         where: {
           id: data.id,
           groupMembers: {
-            some: { userId, OR: [{ role: 'owner' }, { role: 'admin' }] },
+            some: { userId, OR: [{ role: 'OWNER' }, { role: 'ADMIN' }] },
           },
         },
       });
@@ -67,7 +67,7 @@ export async function action({ request }: ActionFunctionArgs) {
       groupMembers: {
         create: {
           userId,
-          role: 'owner',
+          role: 'OWNER',
         },
       },
     },

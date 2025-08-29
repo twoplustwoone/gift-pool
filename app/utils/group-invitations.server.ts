@@ -1,7 +1,9 @@
 import { invariantResponse } from '@epic-web/invariant';
 import { json } from '@remix-run/node';
+// Using string literals for roles/status to support SQLite
 import { nanoid } from 'nanoid';
 import { prisma } from './db.server';
+import { logGroupActivity } from './group-activity.server';
 import { requireUserWithGroupPermission } from './group-permissions.server';
 import { createToastHeaders } from './toast.server';
 
@@ -14,7 +16,18 @@ export const createInviteLink = async (
   {
     giftGroupId,
     expiresInDays,
-  }: { giftGroupId: string; expiresInDays: string },
+    label,
+    roleGranted,
+    maxUses,
+    requireApproval,
+  }: {
+    giftGroupId: string;
+    expiresInDays: string;
+    label?: string;
+    roleGranted?: string;
+    maxUses?: string;
+    requireApproval?: string;
+  },
 ) => {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + parseInt(expiresInDays, 10));
@@ -22,7 +35,7 @@ export const createInviteLink = async (
   const userId = await requireUserWithGroupPermission(
     request,
     giftGroupId,
-    'addMember',
+    'manageInvites',
   );
 
   await prisma.groupInvitation.create({
@@ -31,15 +44,34 @@ export const createInviteLink = async (
       code: nanoid(),
       expiresAt,
       createdById: userId,
+      label: label ?? '',
+      roleGranted: (roleGranted as 'OWNER' | 'ADMIN' | 'MEMBER' | undefined) ?? 'MEMBER',
+      maxUses: maxUses ? parseInt(maxUses, 10) : null,
+      requireApproval: requireApproval === 'on' ? true : false,
     },
+  });
+  await logGroupActivity(giftGroupId, userId, 'invite.create', {
+    label,
+    roleGranted,
+    maxUses,
+    requireApproval,
+    expiresInDays,
   });
 };
 
 export const requireInvitationNotExpired = async (code: string) => {
-  const invitation = await prisma.groupInvitation.findFirst({
-    where: { code, expiresAt: { gte: new Date() } },
+  let invitation = await prisma.groupInvitation.findFirst({
+    where: {
+      code,
+      expiresAt: { gte: new Date() },
+      revokedAt: null,
+    },
     include: { giftGroup: true },
   });
+
+  if (invitation?.maxUses != null && invitation.usedCount >= invitation.maxUses) {
+    invitation = null as any;
+  }
 
   invariantResponse(invitation, 'Invalid or expired invite link.', {
     status: 400,
@@ -48,7 +80,11 @@ export const requireInvitationNotExpired = async (code: string) => {
   return invitation;
 };
 
-export const addUserToGroup = async (userId: string, groupId: string) => {
+export const addUserToGroup = async (
+  userId: string,
+  groupId: string,
+  role: 'OWNER' | 'ADMIN' | 'MEMBER' = 'MEMBER',
+) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
   });
@@ -94,7 +130,7 @@ export const addUserToGroup = async (userId: string, groupId: string) => {
     data: {
       userId,
       giftGroupId: groupId,
-      role: 'member',
+      role,
     },
   });
   return json({ userInGiftGroup });
@@ -105,6 +141,30 @@ export const destroyInviteLink = async (
   giftGroupId: string,
   { groupInvitationId }: { groupInvitationId: string },
 ) => {
-  await requireUserWithGroupPermission(request, giftGroupId, 'addMember');
-  await prisma.groupInvitation.delete({ where: { id: groupInvitationId } });
+  await requireUserWithGroupPermission(request, giftGroupId, 'manageInvites');
+  await prisma.groupInvitation.update({
+    where: { id: groupInvitationId },
+    data: { revokedAt: new Date() },
+  });
+  const inv = await prisma.groupInvitation.findUnique({ where: { id: groupInvitationId } });
+  if (inv) await logGroupActivity(giftGroupId, (await requireUserWithGroupPermission(request, giftGroupId, 'manageInvites')), 'invite.revoke', { groupInvitationId });
 };
+
+export async function submitJoinRequest({
+  invitationId,
+  userId,
+  groupId,
+}: {
+  invitationId: string;
+  userId: string;
+  groupId: string;
+}) {
+  return prisma.joinRequest.create({
+    data: {
+      invitationId,
+      userId,
+      giftGroupId: groupId,
+      status: 'PENDING',
+    },
+  });
+}
