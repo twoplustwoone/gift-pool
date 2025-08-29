@@ -1,18 +1,24 @@
-name: 🚀 Deploy
+name: Deploy
 
 on:
   push:
     branches:
-      - dev
       - main
+      - 'codex/**'
+      - 'feature/**'
+  workflow_dispatch:
 
 permissions:
   actions: write
   contents: read
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy:
-    name: 🚀 Deploy
+    name: Deploy
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -27,18 +33,20 @@ jobs:
 
       - uses: superfly/flyctl-actions/setup-flyctl@1.5
 
-      - name: 🚀 Deploy Staging
-        if: ${{ github.ref == 'refs/heads/dev' }}
-        run: |
-          flyctl deploy --remote-only --build-arg COMMIT_SHA=${{ github.sha }} \
-            --app ${{ steps.app_name.outputs.value }}-staging
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-      - name: 🚀 Deploy Production
+      # Production (main)
+      - name: Deploy Production (main branch)
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           flyctl deploy --remote-only --build-arg COMMIT_SHA=${{ github.sha }} \
             --build-secret SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # Staging / Secondary (any codex/* or feature/* branch)
+      - name: Deploy Staging (codex/* or feature/*)
+        if: ${{ startsWith(github.ref, 'refs/heads/codex/') || startsWith(github.ref, 'refs/heads/feature/') }}
+        run: |
+          flyctl deploy --remote-only --build-arg COMMIT_SHA=${{ github.sha }} \
+            --app ${{ steps.app_name.outputs.value }}-staging
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
