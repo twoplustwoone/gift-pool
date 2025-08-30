@@ -3,12 +3,26 @@ import { json } from '@remix-run/node';
 // Using string literals for roles/status to support SQLite
 import { nanoid } from 'nanoid';
 import { prisma } from './db.server';
+import { getDomainUrl } from './misc.tsx';
 import { logGroupActivity } from './group-activity.server';
 import { requireUserWithGroupPermission } from './group-permissions.server';
 import { createToastHeaders } from './toast.server';
 
-export const getInviteLink = (code: string) => {
-  return `${process.env.BASE_URL}/groups/join/${code}`;
+/**
+ * Returns an absolute invite URL for the given code.
+ * Prefers the current request origin; falls back to BASE_URL if provided.
+ */
+export const getInviteLink = (code: string, request?: Request) => {
+  try {
+    const origin = request ? getDomainUrl(request) : process.env.BASE_URL;
+    if (!origin) {
+      // Last-resort relative URL (never includes undefined in string)
+      return `/groups/join/${code}`;
+    }
+    return `${origin}/groups/join/${code}`;
+  } catch {
+    return `/groups/join/${code}`;
+  }
 };
 
 export const createInviteLink = async (

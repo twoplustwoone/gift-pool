@@ -16,10 +16,10 @@ export const SectionTitle = ({ children }: { children?: React.ReactNode }) => {
 
   return (
     <div className="pb-4">
-      <div className="flex flex-row items-center justify-start gap-4 bg-muted pr-4 pt-12">
+      <div className="flex flex-row items-center justify-start gap-4 pr-4 pt-12">
         {childrenWithoutSubtitle}
       </div>
       {subtitle}
     </div>
   );
-}
+};

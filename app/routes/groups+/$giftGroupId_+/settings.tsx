@@ -41,7 +41,8 @@ import {
 } from '#app/utils/groups.server.ts';
 import { CopyableField } from '#app/components/ui/copyable-field.tsx';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
-import { createInviteLink, destroyInviteLink } from '#app/utils/group-invitations.server.ts';
+import { createInviteLink, destroyInviteLink, getInviteLink } from '#app/utils/group-invitations.server.ts';
+import { createToastHeaders } from '#app/utils/toast.server.ts';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
@@ -105,7 +106,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     ...giftGroupRaw,
     groupInvitations: giftGroupRaw.groupInvitations.map((inv) => ({
       ...inv,
-      url: `${process.env.BASE_URL}/groups/join/${inv.code}`,
+      url: getInviteLink(inv.code, request),
     })),
   };
 
@@ -386,7 +387,13 @@ export async function action({ request }: ActionFunctionArgs) {
         shareWishlist: v.shareWishlist === 'on' ? true : undefined,
         shareBirthday: v.shareBirthday === 'on' ? true : undefined,
       });
-      return json(submission.reply());
+      return json(submission.reply(), {
+        headers: await createToastHeaders({
+          type: 'success',
+          title: 'Saved',
+          description: 'Your preferences have been saved.',
+        }),
+      });
     }
     case SettingsIntent.DeleteGroup: {
       await deleteGiftGroup(request, { giftGroupId: v.giftGroupId });

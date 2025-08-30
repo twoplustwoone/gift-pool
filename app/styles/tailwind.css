@@ -42,10 +42,20 @@
 
     --radius: 0.5rem;
 
-    /* page → surface → card */
+    /* Elevation tokens: E0→E5 */
     --surface: 210 40% 96%; /* slightly tinted panel */
     --surface-foreground: var(--foreground);
     --surface-border: 214 25% 90%; /* a hair darker than --border for contrast */
+
+    /* E3 subcard rows/pills */
+    --subcard: 0 0% 100%;
+    --subcard-foreground: 222.2 84% 4.9%;
+    --subcard-border: 214 25% 92%;
+
+    /* E5 modal and scrim */
+    --modal: 0 0% 100%;
+    --modal-border: 214.3 31.8% 91.4%;
+    --scrim: 0 0% 0% / 0.8;
 
     --gift: 0 100% 68%; /* #FF5D5D in HSL */
     --gift-foreground: 0 0% 100%;
@@ -66,10 +76,10 @@
     --muted: 217.2 32.6% 12%;
     --muted-foreground: 215 20.2% 65.1%;
 
-    --popover: 222.2 84% 4.9%;
+    --popover: 222.2 84% 6.8%;
     --popover-foreground: 210 40% 98%;
 
-    --card: 222.2 84% 4.9%;
+    --card: 222.2 84% 6.8%;
     --card-foreground: 210 40% 98%;
 
     --border: 217.2 32.6% 17.5%;
@@ -93,5 +103,13 @@
     --surface: 224 20% 12%;
     --surface-foreground: var(--foreground);
     --surface-border: 224 12% 20%;
+
+    --subcard: 217.2 32.6% 14%;
+    --subcard-foreground: 210 40% 95%;
+    --subcard-border: 217.2 25% 22%;
+
+    --modal: 222.2 84% 8%;
+    --modal-border: 217.2 32.6% 20%;
+    --scrim: 0 0% 0% / 0.7;
   }
 }
