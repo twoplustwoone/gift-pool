@@ -17,20 +17,27 @@ export const GroupHeaderCard = ({
 }) => {
   return (
     <Card padding="lg">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <Heading>{name}</Heading>
           {description ? (
             <div className="text-sm text-muted-foreground">{description}</div>
           ) : null}
         </div>
-        {actions ? <div className="flex gap-2 self-start">{actions}</div> : null}
+        {actions ? (
+          <div className="flex gap-2 self-start">{actions}</div>
+        ) : null}
       </div>
       <div className="mt-4 grid grid-cols-3 gap-3 sm:max-w-md">
         {stats.map((s, i) => (
-          <div key={i} className="rounded-xl border border-subcard-border bg-subcard p-3 text-center">
+          <div
+            key={i}
+            className="border-subcard-border bg-subcard flex flex-col rounded-xl border p-3 text-center"
+          >
             <div className="text-xs text-muted-foreground">{s.label}</div>
-            <div className="text-base font-semibold">{s.value}</div>
+            <div className="flex grow items-center justify-center text-base font-semibold">
+              {s.value}
+            </div>
           </div>
         ))}
       </div>

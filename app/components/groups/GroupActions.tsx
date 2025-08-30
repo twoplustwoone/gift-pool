@@ -10,17 +10,22 @@ import {
 } from '#app/components/ui/dropdown-menu.tsx';
 import { Link, useFetcher } from '@remix-run/react';
 import React from 'react';
+import { Flex } from '../ui-kit';
+import { FaPencilAlt, FaTrashAlt } from 'react-icons/fa';
+import { RxExit } from 'react-icons/rx';
 
 export const GroupActions = ({
   giftGroupId,
   canSettings,
   canLeave,
   canDelete,
+  extraItems,
 }: {
   giftGroupId: string;
   canSettings: boolean;
   canLeave: boolean;
   canDelete: boolean;
+  extraItems?: React.ReactNode;
 }) => {
   const fetcher = useFetcher();
   const submitting = fetcher.state !== 'idle';
@@ -44,7 +49,9 @@ export const GroupActions = ({
         {canSettings && (
           <DropdownMenuItem asChild>
             <Link to={`/groups/${giftGroupId}/settings`}>
-              <Icon name="pencil-1" /> Settings
+              <Flex gap={2}>
+                <FaPencilAlt size={10} /> Settings
+              </Flex>
             </Link>
           </DropdownMenuItem>
         )}
@@ -56,8 +63,11 @@ export const GroupActions = ({
               e.preventDefault();
               submitIntent('leave-gift-group');
             }}
+            className="cursor-pointer"
           >
-            <Icon name="exit" /> Leave group
+            <Flex gap={2}>
+              <RxExit size={10} /> Leave group
+            </Flex>
           </DropdownMenuItem>
         )}
         {canDelete && (
@@ -67,12 +77,20 @@ export const GroupActions = ({
               e.preventDefault();
               submitIntent('delete-gift-group');
             }}
+            className="cursor-pointer"
           >
-            <Icon name="trash" /> Delete group
+            <Flex gap={2}>
+              <FaTrashAlt size={10} /> Delete group
+            </Flex>
           </DropdownMenuItem>
         )}
+        {extraItems ? (
+          <>
+            <DropdownMenuSeparator />
+            {extraItems}
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 };
-

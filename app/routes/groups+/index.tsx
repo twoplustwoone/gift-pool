@@ -2,7 +2,9 @@ import { invariantResponse } from '@epic-web/invariant';
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { Link, useLoaderData, useNavigate } from '@remix-run/react';
 import { useState } from 'react';
-import { usePressFeedback } from '#app/components/wishlist/hooks/use-press-feedback.ts';
+import { Avatar } from '#app/components/ui/avatar.tsx';
+import { Button } from '#app/components/ui/button.tsx';
+import { Card } from '#app/components/ui/card.tsx';
 import {
   Dialog,
   DialogTrigger,
@@ -12,14 +14,12 @@ import {
   DialogFooter,
   DialogClose,
 } from '#app/components/ui/dialog.tsx';
-import { Input } from '#app/components/ui/input.tsx';
-import { Label } from '#app/components/ui/label.tsx';
-import { Avatar } from '#app/components/ui/avatar.tsx';
-import { Button } from '#app/components/ui/button.tsx';
-import { Card } from '#app/components/ui/card.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
+import { Input } from '#app/components/ui/input.tsx';
+import { Label } from '#app/components/ui/label.tsx';
 import { SectionTitle } from '#app/components/ui/sectionTitle.tsx';
+import { usePressFeedback } from '#app/components/wishlist/hooks/use-press-feedback.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 
@@ -53,26 +53,39 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const today = new Date();
   const data = groups.map((g) => {
     const members = g.groupMembers.map((m) => m.user);
-    const upcoming = members
-      .filter((u) => !!u.birthday)
-      .map((u) => {
-        const bday = new Date(u.birthday as unknown as string);
-        const thisYear = new Date(
-          today.getFullYear(),
-          bday.getMonth(),
-          bday.getDate(),
-        );
-        const next =
-          thisYear >= new Date(today.getFullYear(), today.getMonth(), today.getDate())
-            ? thisYear
-            : new Date(today.getFullYear() + 1, bday.getMonth(), bday.getDate());
-        const inDays = Math.ceil(
-          (next.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) /
-            (1000 * 60 * 60 * 24),
-        );
-        return { user: u, date: next.toISOString(), inDays };
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] ?? null;
+    const upcoming =
+      members
+        .filter((u) => !!u.birthday)
+        .map((u) => {
+          const bday = new Date(u.birthday as unknown as string);
+          const thisYear = new Date(
+            today.getFullYear(),
+            bday.getMonth(),
+            bday.getDate(),
+          );
+          const next =
+            thisYear >=
+            new Date(today.getFullYear(), today.getMonth(), today.getDate())
+              ? thisYear
+              : new Date(
+                  today.getFullYear() + 1,
+                  bday.getMonth(),
+                  bday.getDate(),
+                );
+          const inDays = Math.ceil(
+            (next.getTime() -
+              new Date(
+                today.getFullYear(),
+                today.getMonth(),
+                today.getDate(),
+              ).getTime()) /
+              (1000 * 60 * 60 * 24),
+          );
+          return { user: u, date: next.toISOString(), inDays };
+        })
+        .sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+        )[0] ?? null;
     return {
       id: g.id,
       name: g.name,
@@ -90,7 +103,9 @@ const GroupsIndex = () => {
 
   const EmptyState = (
     <Card padding="lg" className="rounded-2xl text-center">
-      <div className="text-lg font-semibold">You don’t have any groups yet.</div>
+      <div className="text-lg font-semibold">
+        You don’t have any groups yet.
+      </div>
       <div className="mt-2 text-sm text-muted-foreground">
         Create your first group to start planning together.
       </div>
@@ -106,7 +121,7 @@ const GroupsIndex = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="container mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <div className="container mx-auto max-w-5xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="mb-4 flex items-center justify-between">
           <Heading>My Groups</Heading>
           <CreateGroupDialog>
@@ -121,15 +136,19 @@ const GroupsIndex = () => {
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {groups.map((g) => (
-              <GroupCard key={g.id} g={g} onOpen={() => navigate(`/groups/${g.id}`)} />
+              <GroupCard
+                key={g.id}
+                g={g}
+                onOpen={() => navigate(`/groups/${g.id}`)}
+              />
             ))}
           </div>
         )}
       </div>
 
-      <div className="fixed bottom-5 right-4 z-20 sm:hidden">
+      <div className="fixed bottom-[calc(theme(spacing.4)+env(safe-area-inset-bottom)+4rem)] right-4 z-40 sm:hidden">
         <CreateGroupDialog>
-          <Button size="icon" className="rounded-full shadow-lg" aria-label="Create Group">
+          <Button type="button" size="icon" aria-label="Create Group" title="Create Group" className="h-14 w-14 rounded-full border bg-primary text-primary-foreground shadow-lg">
             <Icon name="plus" />
           </Button>
         </CreateGroupDialog>
@@ -138,7 +157,7 @@ const GroupsIndex = () => {
   );
 };
 
-function CreateGroupDialog({ children }: { children: React.ReactNode }) {
+const CreateGroupDialog = ({ children }: { children: React.ReactNode }) => {
   return (
     <Dialog>
       <DialogTrigger asChild>{children}</DialogTrigger>
@@ -149,15 +168,29 @@ function CreateGroupDialog({ children }: { children: React.ReactNode }) {
         <form method="post" action="/groups/new" className="grid gap-3">
           <div className="grid gap-1">
             <Label htmlFor="group-name">Name</Label>
-            <Input id="group-name" name="name" required minLength={1} maxLength={100} />
+            <Input
+              id="group-name"
+              name="name"
+              required
+              minLength={1}
+              maxLength={100}
+            />
           </div>
           <div className="grid gap-1">
             <Label htmlFor="group-description">Description</Label>
-            <Input id="group-description" name="description" required minLength={1} maxLength={1000} />
+            <Input
+              id="group-description"
+              name="description"
+              required
+              minLength={1}
+              maxLength={1000}
+            />
           </div>
-          <DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
             <DialogClose asChild>
-              <Button type="button" variant="secondary">Cancel</Button>
+              <Button type="button" variant="secondary">
+                Cancel
+              </Button>
             </DialogClose>
             <Button type="submit">Create</Button>
           </DialogFooter>
@@ -165,22 +198,28 @@ function CreateGroupDialog({ children }: { children: React.ReactNode }) {
       </DialogContent>
     </Dialog>
   );
-}
+};
 
-function GroupCard({ g, onOpen }: { g: {
-  id: string;
-  name: string;
-  description?: string | null;
-  memberCount: number;
-  nextBirthday: null | { user: any; date: string; inDays: number };
-}; onOpen: () => void }) {
+const GroupCard = ({
+  g,
+  onOpen,
+}: {
+  g: {
+    id: string;
+    name: string;
+    description?: string | null;
+    memberCount: number;
+    nextBirthday: null | { user: any; date: string; inDays: number };
+  };
+  onOpen: () => void;
+}) => {
   const press = usePressFeedback<HTMLDivElement>({ onClick: onOpen });
 
   return (
     <Card
       padding="lg"
       className={
-        'rounded-2xl h-full cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+        'h-full cursor-pointer touch-pan-y rounded-2xl transition [-webkit-tap-highlight-color:transparent] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30'
       }
       role="link"
       tabIndex={0}
@@ -207,36 +246,49 @@ function GroupCard({ g, onOpen }: { g: {
           </Link>
         </div>
         {g.description ? (
-          <div className="text-sm text-muted-foreground line-clamp-2">{g.description}</div>
+          <div className="line-clamp-2 text-sm text-muted-foreground">
+            {g.description}
+          </div>
         ) : null}
-        <div className="rounded-xl border border-subcard-border bg-subcard p-2 text-sm flex items-center gap-2">
+        <div className="border-subcard-border bg-subcard flex items-center gap-2 rounded-xl border p-2 text-sm">
           <Icon name="person" className="text-muted-foreground" />
-          <div className="text-muted-foreground">{g.memberCount} {g.memberCount === 1 ? 'member' : 'members'}</div>
+          <div className="text-muted-foreground">
+            {g.memberCount} {g.memberCount === 1 ? 'member' : 'members'}
+          </div>
         </div>
         {g.nextBirthday ? (
           <Link
             to={`/users/${g.nextBirthday.user.username}/wishlist`}
-            className="rounded-xl border border-subcard-border bg-subcard p-2 flex items-center gap-3 hover:border-accent"
+            className="border-subcard-border bg-subcard flex items-center gap-3 rounded-xl border p-2 hover:border-accent"
             aria-label={`View ${g.nextBirthday.user.username}'s wishlist`}
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             onPointerUp={(e) => e.stopPropagation()}
           >
-            <Avatar size="s" user={g.nextBirthday.user} image={g.nextBirthday.user.image} />
+            <Avatar
+              size="s"
+              user={g.nextBirthday.user}
+              image={g.nextBirthday.user.image}
+            />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{g.nextBirthday.user.username}</div>
+              <div className="truncate text-sm font-medium">
+                {g.nextBirthday.user.username}
+              </div>
               <div className="text-xs text-muted-foreground">
-                {new Date(g.nextBirthday.date).toLocaleDateString()} • in {g.nextBirthday.inDays} days
+                {new Date(g.nextBirthday.date).toLocaleDateString()} • in{' '}
+                {g.nextBirthday.inDays} days
               </div>
             </div>
             <Icon name="chevron-right" className="text-muted-foreground" />
           </Link>
         ) : (
-          <div className="rounded-xl border border-subcard-border bg-subcard p-2 text-sm text-muted-foreground">No upcoming birthdays</div>
+          <div className="border-subcard-border bg-subcard rounded-xl border p-2 text-sm text-muted-foreground">
+            No upcoming birthdays
+          </div>
         )}
       </div>
     </Card>
   );
-}
+};
 
 export default GroupsIndex;

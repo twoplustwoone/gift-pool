@@ -14,11 +14,11 @@ import {
   useLoaderData,
   useNavigation,
 } from '@remix-run/react';
-import { useState } from 'react';
-
+import { useRef, useState } from 'react';
+import { FaLink } from 'react-icons/fa';
 import { z } from 'zod';
+
 import { ErrorList } from '#app/components/forms.tsx';
-import { ActivityFeedCard } from '#app/components/groups/ActivityFeedCard.tsx';
 import { GroupActions } from '#app/components/groups/GroupActions.tsx';
 import { GroupHeaderCard } from '#app/components/groups/GroupHeaderCard.tsx';
 import { InviteCard } from '#app/components/groups/InviteCard.tsx';
@@ -35,6 +35,7 @@ import {
   DialogFooter,
   DialogClose,
 } from '#app/components/ui/dialog.tsx';
+import { DropdownMenuItem } from '#app/components/ui/dropdown-menu.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
@@ -55,6 +56,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx';
+import { Flex } from '#app/components/ui-kit';
 import { track } from '#app/utils/analytics.client.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
@@ -215,17 +217,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     Math.max(parseInt(url.searchParams.get('activity_take') ?? '10', 10), 1),
     50,
   );
-  const activities = await prisma.groupActivity.findMany({
-    where: { giftGroupId: groupId },
-    orderBy: { createdAt: 'desc' },
-    take: activityTake,
-    select: {
-      id: true,
-      type: true,
-      createdAt: true,
-      actor: { select: { username: true } },
-    },
-  });
+  // Temporarily disable activity feed
+  const activities: Array<any> = [];
 
   return json({
     giftGroup,
@@ -334,7 +327,14 @@ const GiftGroupIndex = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="space-y-6 p-4 sm:space-y-8 sm:p-6">
+      <div className="space-y-3 p-3 sm:space-y-8 sm:p-6">
+        <div className="sm:hidden">
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/groups">
+              <Icon name="arrow-left" /> Back
+            </Link>
+          </Button>
+        </div>
         <GroupHeaderCard
           name={giftGroup.name}
           description={giftGroup.description}
@@ -352,26 +352,57 @@ const GiftGroupIndex = () => {
           actions={
             canInvite || canDelete || canLeave || canSettings ? (
               <div className="flex items-center gap-2">
-                {canInvite && <CreateInviteLinkDialog />}
+                {canInvite ? (
+                  <div className="hidden sm:block">
+                    <CreateInviteLinkDialog />
+                  </div>
+                ) : null}
                 <GroupActions
                   giftGroupId={giftGroup.id}
                   canSettings={canSettings}
                   canLeave={canLeave}
                   canDelete={canDelete}
+                  extraItems={
+                    canInvite ? (
+                      <CreateInviteLinkDialog
+                        trigger={
+                          <DropdownMenuItem asChild className="sm:hidden">
+                            <Button
+                              variant={'ghost'}
+                              size={'sm'}
+                              className="w-full text-left"
+                            >
+                              <Flex gap={2}>
+                                <FaLink size={10} /> Invite
+                              </Flex>
+                            </Button>
+                          </DropdownMenuItem>
+                        }
+                      />
+                    ) : null
+                  }
                 />
               </div>
             ) : null
           }
         />
-        <div className="grid gap-6 md:grid-cols-[1fr_320px]">
-          <div className="space-y-6">
-            <Card padding="lg" data-testid="panel-birthdays">
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-[1fr_320px]">
+          <div className="space-y-3 sm:space-y-6">
+            <Card
+              padding="lg"
+              className="p-4 sm:p-6"
+              data-testid="panel-birthdays"
+            >
               <h2 className="mb-4 text-lg font-semibold tracking-tight sm:text-xl">
                 Upcoming Birthdays
               </h2>
               {isLoading ? <BirthdaysSkeleton /> : <UpcomingBirthdays />}
             </Card>
-            <Card padding="lg" data-testid="panel-members">
+            <Card
+              padding="lg"
+              className="p-4 sm:p-6"
+              data-testid="panel-members"
+            >
               <h2 className="mb-4 text-lg font-semibold tracking-tight sm:text-xl">
                 Members & Budgets
               </h2>
@@ -385,7 +416,7 @@ const GiftGroupIndex = () => {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto pb-bottom-nav sm:pb-0">
         {canInvite ? (
-          <div className="fixed bottom-5 right-4 z-20 md:hidden">
+          <div className="fixed bottom-[calc(theme(spacing.4)+env(safe-area-inset-bottom)+4rem)] right-4 z-20 md:hidden">
             <CreateInviteLinkDialog asFab />
           </div>
         ) : null}
@@ -393,7 +424,6 @@ const GiftGroupIndex = () => {
     </div>
   );
 };
-
 export default GiftGroupIndex;
 
 const QuickStat = ({
@@ -456,7 +486,7 @@ const UpcomingBirthdays = () => {
   }
   return (
     <div className="flex flex-col gap-3">
-      {items.map(({ user, nextDate, plan }) => (
+      {items.map(({ user, nextDate }) => (
         <div
           key={user.id}
           className="border-subcard-border bg-subcard flex items-center gap-3 rounded-xl border p-3"
@@ -473,52 +503,6 @@ const UpcomingBirthdays = () => {
               ) : null}
             </div>
           </div>
-          {plan ? (
-            plan.status === 'PLANNING' && canLockPlan ? (
-              <Form method="post" className="flex items-center gap-2">
-                <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-                <input type="hidden" name="planId" value={plan.id} />
-                <StatusButton
-                  status="idle"
-                  name="intent"
-                  value={GiftGroupIdFormIntent.LockPlan}
-                  variant="secondary"
-                >
-                  Lock
-                </StatusButton>
-              </Form>
-            ) : (
-              <div className="rounded bg-muted px-2 py-0.5 text-xs">
-                {plan.status}
-              </div>
-            )
-          ) : (
-            <Form
-              method="post"
-              className="flex items-center gap-2"
-              onSubmit={() =>
-                track('group_plan_gift_clicked', {
-                  groupId: giftGroup.id,
-                  memberId: user.id,
-                })
-              }
-            >
-              <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-              <input type="hidden" name="recipientUserId" value={user.id} />
-              <input
-                type="hidden"
-                name="birthdayDate"
-                value={nextDate.toISOString()}
-              />
-              <StatusButton
-                status="idle"
-                name="intent"
-                value={GiftGroupIdFormIntent.PlanGift}
-              >
-                Plan Gift
-              </StatusButton>
-            </Form>
-          )}
         </div>
       ))}
     </div>
@@ -527,6 +511,14 @@ const UpcomingBirthdays = () => {
 
 const MembersAndBudgets = () => {
   const { giftGroup, viewer } = useLoaderData<typeof loader>();
+  const totalCents = giftGroup.groupMembers.reduce(
+    (sum: number, gm: any) => sum + (gm.contributionCents || 0),
+    0,
+  );
+  const memberCount = giftGroup.groupMembers.length || 1;
+  const perTargetAvgCents = Math.round(
+    (totalCents * (memberCount - 1)) / memberCount,
+  );
   return (
     <div className="flex flex-col gap-3">
       {giftGroup.groupMembers.map((groupMember) => {
@@ -553,9 +545,12 @@ const MembersAndBudgets = () => {
                 image={groupMember.user.image}
                 user={groupMember.user}
               />
-              <div className="text-body-md">{groupMember.user.username}</div>
+              <div className="text-body-md">
+                {groupMember.user.username}
+                {isSelf ? ' (You)' : ''}
+              </div>
             </Link>
-            <div className="ml-auto text-sm text-muted-foreground">
+            <div className="ml-auto text-sm">
               {visible ? (
                 isSelf ? (
                   <InlineBudgetEditor
@@ -563,7 +558,9 @@ const MembersAndBudgets = () => {
                     initialCents={groupMember.contributionCents}
                   />
                 ) : (
-                  `$${(groupMember.contributionCents / 100).toFixed(2)}`
+                  <span className="text-foreground">
+                    ${(groupMember.contributionCents / 100).toFixed(2)}
+                  </span>
                 )
               ) : (
                 'Hidden'
@@ -572,12 +569,16 @@ const MembersAndBudgets = () => {
           </div>
         );
       })}
+      <div className="mt-2 text-xs text-muted-foreground">
+        Total pledged: ${(totalCents / 100).toFixed(2)} · Avg. per recipient: $
+        {(perTargetAvgCents / 100).toFixed(2)}
+      </div>
     </div>
   );
 };
 
 const RightRail = () => {
-  const { canInvite, inviteLink, activities, giftGroup, viewer } =
+  const { canInvite, inviteLink, giftGroup, viewer } =
     useLoaderData<typeof loader>();
   return (
     <div className="space-y-6">
@@ -593,26 +594,18 @@ const RightRail = () => {
           }
         />
       ) : null}
-      <ActivityFeedCard
-        items={activities.map((a) => ({
-          id: a.id,
-          icon: activityIcon(a.type),
-          text: humanizeActivity(a.type, a.actor.username),
-          timestamp: new Date(a.createdAt).toLocaleString(),
-        }))}
-        loadMore={
-          <Button asChild variant="secondary" size="sm">
-            <Link to={`?activity_take=20`} prefetch="intent">
-              Load more
-            </Link>
-          </Button>
-        }
-      />
+      {/* activity panel temporarily hidden */}
     </div>
   );
 };
 
-const CreateInviteLinkDialog = ({ asFab = false }: { asFab?: boolean }) => {
+const CreateInviteLinkDialog = ({
+  asFab = false,
+  trigger,
+}: {
+  asFab?: boolean;
+  trigger?: React.ReactNode;
+}) => {
   const { inviteLink, giftGroup, viewer } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
@@ -650,11 +643,15 @@ const CreateInviteLinkDialog = ({ asFab = false }: { asFab?: boolean }) => {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        {asFab ? (
+        {trigger ? (
+          trigger
+        ) : asFab ? (
           <Button
-            variant="default"
-            size="sm"
-            className="rounded-full shadow-lg"
+            type="button"
+            size="icon"
+            aria-label="Invite"
+            title="Invite"
+            className="h-14 w-14 rounded-full border bg-primary text-primary-foreground shadow-lg"
           >
             <Icon name="link-2" className="scale-150" />
             <span className="sr-only">Invite</span>
@@ -744,7 +741,7 @@ const CreateInviteLinkDialog = ({ asFab = false }: { asFab?: boolean }) => {
               </div>
             </Form>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex-row justify-end gap-2 sm:gap-2">
             <DialogClose asChild>
               <Button variant={'secondary'} type="button">
                 Cancel
@@ -760,7 +757,7 @@ const CreateInviteLinkDialog = ({ asFab = false }: { asFab?: boolean }) => {
                 variant="default"
                 status={isPending ? 'pending' : (actionData?.status ?? 'idle')}
                 disabled={isPending}
-                className="max-md:aspect-square max-md:px-0"
+                className=""
                 form={form.id}
                 onClick={() =>
                   track('group_invite_regenerated', {
@@ -791,7 +788,11 @@ const DestroyInviteLinkButton = () => {
     constraint: getZodConstraint(DestroyInviteLinkFormSchema),
   });
   return (
-    <fetcher.Form method="POST" {...getFormProps(form)}>
+    <fetcher.Form
+      method="POST"
+      {...getFormProps(form)}
+      className="inline-block"
+    >
       <input type="hidden" name="giftGroupId" value={giftGroup.id} />
       <input type="hidden" name="groupInvitationId" value={groupInvitationId} />
       <StatusButton
@@ -944,8 +945,6 @@ const MembersSkeleton = () => (
   </div>
 );
 
-import { type IconName } from '@/icon-name';
-
 const EmptyState = ({
   title,
   description,
@@ -953,7 +952,7 @@ const EmptyState = ({
 }: {
   title: string;
   description?: string;
-  icon?: IconName;
+  icon?: any;
 }) => (
   <Card padding="md" className="rounded-xl border-dashed bg-muted/20">
     <CardContent className="flex items-center gap-3 text-sm">
@@ -982,37 +981,7 @@ function daysUntil(date: Date) {
   return Math.max(diff, 0);
 }
 
-function humanizeActivity(type: string, actor: string) {
-  const map: Record<string, string> = {
-    'invite.create': 'created an invite link',
-    'invite.revoke': 'revoked an invite link',
-    'group.delete': 'deleted the group',
-    'member.remove': 'removed a member',
-    'member.promote': 'promoted a member to admin',
-    'member.demote': 'demoted an admin to member',
-    'reminder.add': 'added a reminder',
-    'reminder.remove': 'removed a reminder',
-    'giftplan.create': 'created a gift plan',
-    'giftplan.lock': 'locked a gift plan',
-    'giftplan.unlock': 'unlocked a gift plan',
-    'settings.update': 'updated settings',
-    'member.update-self': 'updated their preferences',
-    'join.approve': 'approved a join request',
-    'join.reject': 'rejected a join request',
-  };
-  return `${actor} ${map[type] ?? type}`;
-}
-
-function activityIcon(type: string): IconName {
-  if (type.startsWith('invite.')) return 'link-2';
-  if (type.startsWith('giftplan.lock')) return 'lock-closed';
-  if (type.startsWith('giftplan.')) return 'check';
-  if (type.startsWith('member.')) return 'person';
-  if (type.startsWith('group.delete')) return 'trash';
-  if (type.startsWith('settings.')) return 'pencil-1';
-  if (type.startsWith('join.')) return 'avatar';
-  return 'update';
-}
+// activity helpers removed while activity is disabled
 
 const InlineBudgetEditor = ({
   giftGroupId,
@@ -1022,53 +991,172 @@ const InlineBudgetEditor = ({
   initialCents: number;
 }) => {
   const fetcher = useFetcher();
-  const [value, setValue] = useState<string>((initialCents / 100).toFixed(2));
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState<number>(initialCents);
+  const dollars = (value / 100).toFixed(2);
   const pending = fetcher.state !== 'idle';
+
+  const submit = (next: number) => {
+    const cents = Math.max(0, Math.round(next));
+    setValue(cents); // optimistic
+    const fd = new FormData();
+    fd.set('intent', 'member-update-self');
+    fd.set('giftGroupId', giftGroupId);
+    fd.set('contributionCents', String(cents));
+    fetcher.submit(fd, {
+      method: 'post',
+      action: `/groups/${giftGroupId}/settings`,
+    });
+    track('group_budget_saved', { groupId: giftGroupId });
+  };
+
+  const selectOnceRef = useRef(false);
+  const handleFocusSelectAll = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (!selectOnceRef.current) {
+      e.currentTarget.select();
+      selectOnceRef.current = true;
+    }
+  };
+  const handleMouseUpPreserve = (e: React.MouseEvent<HTMLInputElement>) => {
+    if (selectOnceRef.current) return;
+    e.preventDefault();
+  };
+
+  // Mobile: open modal instead of inline edit
+  const MobileButton = (
+    <Dialog>
+      <DialogTrigger asChild>
+        {value > 0 ? (
+          <Button variant="ghost" size="sm">
+            ${dollars} <Icon name="pencil-1" className="ml-1" />
+          </Button>
+        ) : (
+          <Button>Set your budget</Button>
+        )}
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Set your budget</DialogTitle>
+        </DialogHeader>
+        <fetcher.Form
+          method="post"
+          action={`/groups/${giftGroupId}/settings`}
+          className="grid gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const input = e.currentTarget.querySelector(
+              'input[name="dollars"]',
+            ) as HTMLInputElement;
+            const next = Math.max(
+              0,
+              Math.round(parseFloat(input.value || '0') * 100),
+            );
+            submit(next);
+          }}
+        >
+          <input type="hidden" name="intent" value="member-update-self" />
+          <input type="hidden" name="giftGroupId" value={giftGroupId} />
+          <Label htmlFor="budget-mobile">Amount</Label>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+              $
+            </span>
+            <Input
+              id="budget-mobile"
+              name="dollars"
+              defaultValue={dollars}
+              inputMode="decimal"
+              className="border-input bg-input pl-5 text-foreground"
+              onFocus={handleFocusSelectAll}
+              onMouseUp={handleMouseUpPreserve}
+            />
+          </div>
+          <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={pending}>
+              Save
+            </Button>
+          </DialogFooter>
+        </fetcher.Form>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="sm:hidden">{MobileButton}</span>
+        <span className="hidden sm:inline-flex">
+          {value > 0 ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditing(true)}
+              aria-label="Edit your budget"
+            >
+              ${dollars} <Icon name="pencil-1" className="ml-1" />
+            </Button>
+          ) : (
+            <Button onClick={() => setEditing(true)}>Set your budget</Button>
+          )}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <fetcher.Form
       method="post"
       action={`/groups/${giftGroupId}/settings`}
-      className="flex items-center gap-2"
+      className="hidden items-center gap-2 sm:flex"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const input = e.currentTarget.querySelector(
+          'input[name="dollars"]',
+        ) as HTMLInputElement;
+        const next = Math.max(
+          0,
+          Math.round(parseFloat(input.value || '0') * 100),
+        );
+        submit(next);
+        setEditing(false);
+      }}
     >
       <input type="hidden" name="intent" value="member-update-self" />
       <input type="hidden" name="giftGroupId" value={giftGroupId} />
-      <label className="sr-only" htmlFor="budget-input">
-        Budget
-      </label>
       <div className="relative">
         <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
           $
         </span>
         <Input
-          id="budget-input"
-          name="contributionCents"
+          name="dollars"
+          defaultValue={dollars}
           inputMode="decimal"
-          aria-label="Set your budget"
-          value={value}
-          onChange={(e) => setValue(e.currentTarget.value)}
-          className="w-24 pl-5"
+          className="w-28 border-input bg-input pl-5 text-foreground"
+          aria-label="Your budget"
+          onFocus={handleFocusSelectAll}
+          onMouseUp={handleMouseUpPreserve}
           onBlur={(e) => {
-            // Convert dollars to cents for server
-            const dollars = parseFloat(e.currentTarget.value || '0');
-            const cents = Math.round(dollars * 100);
-            // replace value with dollars fixed
-            setValue((cents / 100).toFixed(2));
+            const v = Math.max(0, parseFloat(e.currentTarget.value || '0'));
+            e.currentTarget.value = v.toFixed(2);
           }}
         />
       </div>
-      {Math.round(parseFloat(value || '0') * 100) !== initialCents ? (
-        <Button
-          type="submit"
-          size="sm"
-          variant="secondary"
-          name="contributionCents"
-          value={String(Math.round(parseFloat(value || '0') * 100))}
-          disabled={pending}
-          onClick={() => track('group_budget_saved', { groupId: giftGroupId })}
-        >
-          Save
-        </Button>
-      ) : null}
+      <Button type="submit" size="sm" variant="secondary" disabled={pending}>
+        Save
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={() => setEditing(false)}
+      >
+        Cancel
+      </Button>
     </fetcher.Form>
   );
 };
