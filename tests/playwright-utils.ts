@@ -1,13 +1,7 @@
 import { test as base } from '@playwright/test';
 import { type User as UserModel } from '@prisma/client';
-import * as setCookieParser from 'set-cookie-parser';
-import {
-  getPasswordHash,
-  getSessionExpirationDate,
-  sessionKey,
-} from '#app/utils/auth.server.ts';
+import { getPasswordHash } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import { authSessionStorage } from '#app/utils/session.server.ts';
 import { createUser } from './db-utils.ts';
 
 export * from './db-utils.ts';
@@ -74,26 +68,14 @@ export const test = base.extend<{
     await use(async (options) => {
       const user = await getOrInsertUser(options);
       userId = user.id;
-      const session = await prisma.session.create({
-        data: {
-          expirationDate: getSessionExpirationDate(),
-          userId: user.id,
-        },
-        select: { id: true },
-      });
 
-      const authSession = await authSessionStorage.getSession();
-      authSession.set(sessionKey, session.id);
-      const cookieConfig = setCookieParser.parseString(
-        await authSessionStorage.commitSession(authSession),
-      );
-      const newConfig = {
-        ...cookieConfig,
-        domain: 'localhost',
-        expires: cookieConfig.expires?.getTime(),
-        sameSite: cookieConfig.sameSite as 'Strict' | 'Lax' | 'None',
-      };
-      await page.context().addCookies([newConfig]);
+      // Prefer logging in through the UI to ensure cookies/sessions match server env
+      await page.goto('/login');
+      await page.getByLabel('Username').fill(user.username);
+      await page.getByLabel('Password').fill(user.username);
+      await page.getByRole('button', { name: /log in/i }).click();
+      // Wait for navigation to complete
+      await page.waitForLoadState('networkidle');
       return user;
     });
     await prisma.user.deleteMany({ where: { id: userId } });

@@ -10,7 +10,7 @@ import { type WishlistItem } from '@prisma/client';
 import { type SerializeFrom } from '@remix-run/node';
 import { Form, useActionData } from '@remix-run/react';
 import React, { useRef } from 'react';
-import { FaExternalLinkAlt, FaLink } from 'react-icons/fa';
+import { FaExternalLinkAlt } from 'react-icons/fa';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Field, TextareaField } from '#app/components/forms.tsx';

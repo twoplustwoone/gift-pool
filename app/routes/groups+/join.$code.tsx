@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#app/components/ui/dialog.tsx';
+import { prisma } from '#app/utils/db.server.ts';
 import {
   addUserToGroup,
   requireInvitationNotExpired,
@@ -27,7 +28,6 @@ import {
 } from '#app/utils/group-invitations.server.ts';
 import { requireUserIdNotInGroup } from '#app/utils/groups.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
-import { prisma } from '#app/utils/db.server.ts';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { code } = params;

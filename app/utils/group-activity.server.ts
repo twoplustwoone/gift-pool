@@ -15,7 +15,7 @@ export async function logGroupActivity(
         payload: JSON.stringify(payload ?? {}),
       },
     });
-  } catch (e) {
+  } catch {
     // Best effort logging; swallow errors
   }
 }

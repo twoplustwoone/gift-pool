@@ -437,7 +437,8 @@ export async function action({ request }: ActionFunctionArgs) {
         contributionCents: v.contributionCents
           ? parseInt(v.contributionCents, 10)
           : undefined,
-        budgetVisibilityOverride: (v.budgetVisibilityOverride ?? 'INHERIT') as any,
+        budgetVisibilityOverride: (v.budgetVisibilityOverride ??
+          'INHERIT') as any,
         shareWishlist: v.shareWishlist === 'on' ? true : undefined,
         shareBirthday: v.shareBirthday === 'on' ? true : undefined,
       });
@@ -485,7 +486,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
-export default function GroupSettingsRoute() {
+const GroupSettingsRoute = () => {
   const {
     giftGroup,
     canManageInvites,
@@ -787,7 +788,9 @@ export default function GroupSettingsRoute() {
       </div>
     </div>
   );
-}
+};
+
+export default GroupSettingsRoute;
 
 const SettingsForm = ({
   giftGroup,
@@ -1013,67 +1016,7 @@ const RemindersSection = ({ giftGroup }: { giftGroup: any }) => {
   );
 };
 
-const GiftPlansSection = ({ giftGroup }: { giftGroup: any }) => {
-  return (
-    <div className="space-y-4">
-      <Form method="post" className="grid gap-2 rounded-md border p-3">
-        <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-        <Label>Recipient username</Label>
-        <Input name="recipientUsername" placeholder="e.g. alice" />
-        <Label>Birthday date</Label>
-        <Input name="birthdayDate" type="date" />
-        <Button
-          name="intent"
-          value={SettingsIntent.GiftPlanCreate}
-          type="submit"
-        >
-          Create Plan
-        </Button>
-      </Form>
-      <ul className="space-y-2">
-        {giftGroup.giftPlans.map((p: any) => (
-          <li
-            key={p.id}
-            className="flex items-center justify-between rounded-md border p-2 text-sm"
-          >
-            <div className="space-y-0.5">
-              <div className="font-medium">{p.recipient.username}</div>
-              <div className="text-muted-foreground">
-                {new Date(p.birthdayDate).toLocaleDateString()} · {p.status}
-              </div>
-            </div>
-            {p.status === 'PLANNING' ? (
-              <Form method="post">
-                <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-                <input type="hidden" name="planId" value={p.id} />
-                <Button
-                  name="intent"
-                  value={SettingsIntent.GiftPlanLock}
-                  variant="secondary"
-                >
-                  Lock Budget
-                </Button>
-              </Form>
-            ) : (
-              <Form method="post" className="flex items-center gap-2">
-                <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-                <input type="hidden" name="planId" value={p.id} />
-                <Input name="reason" placeholder="Reason" />
-                <Button
-                  name="intent"
-                  value={SettingsIntent.GiftPlanUnlock}
-                  variant="secondary"
-                >
-                  Unlock
-                </Button>
-              </Form>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-};
+// GiftPlansSection removed (unused)
 
 const MemberPreferencesForm = ({
   giftGroupId,
@@ -1110,7 +1053,10 @@ const MemberPreferencesForm = ({
         defaultValue={String(prefs?.contributionCents ?? 0)}
       />
       <Label>Budget visibility override</Label>
-      <Select name="budgetVisibilityOverride" defaultValue={prefs?.budgetVisibilityOverride ?? 'INHERIT'}>
+      <Select
+        name="budgetVisibilityOverride"
+        defaultValue={prefs?.budgetVisibilityOverride ?? 'INHERIT'}
+      >
         <SelectTrigger>
           <SelectValue placeholder="Inherit group setting" />
         </SelectTrigger>

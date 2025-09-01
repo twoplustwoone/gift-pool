@@ -1,6 +1,6 @@
+import React from 'react';
 import { Card } from '#app/components/ui/card.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
-import React from 'react';
 
 type QuickStat = { label: string; value: React.ReactNode };
 

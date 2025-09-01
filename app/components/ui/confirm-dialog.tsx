@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Button } from './button';
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './dialog';
 

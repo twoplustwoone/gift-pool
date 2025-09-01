@@ -29,7 +29,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: process.env.CI ? 'npm run start:mocks' : 'npm run dev',
+    // Always use dev server for tests to avoid production cookie/security diffs
+    command: 'npm run dev',
     port: Number(PORT),
     reuseExistingServer: true,
     stdout: 'pipe',
@@ -39,6 +40,12 @@ export default defineConfig({
       NODE_ENV: 'test',
       // Ensure MSW mocks are enabled even when running locally (non-CI)
       MOCKS: 'true',
+      // Propagate DB/session env so server + tests share the same state
+      DATABASE_URL: process.env.DATABASE_URL,
+      DATABASE_PATH: process.env.DATABASE_PATH,
+      CACHE_DATABASE_PATH: process.env.CACHE_DATABASE_PATH,
+      SESSION_SECRET: process.env.SESSION_SECRET,
+      INTERNAL_COMMAND_TOKEN: process.env.INTERNAL_COMMAND_TOKEN,
     },
   },
 });

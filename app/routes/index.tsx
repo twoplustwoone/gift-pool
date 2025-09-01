@@ -1,13 +1,13 @@
 import { json, type LoaderFunctionArgs, type MetaFunction } from '@remix-run/node';
 import { useLoaderData, useSearchParams } from '@remix-run/react';
-import { HomeFooterLite } from '#app/components/home/HomeFooterLite';
+import { HOME_COPY } from '#app/components/home/home-copy';
 import { HomeFeatures } from '#app/components/home/HomeFeatures';
+import { HomeFooterLite } from '#app/components/home/HomeFooterLite';
 import { HomeHero } from '#app/components/home/HomeHero';
 import { HomePanels } from '#app/components/home/HomePanels';
-import { HOME_COPY } from '#app/components/home/home-copy';
+import { track } from '#app/utils/analytics.client.ts';
 import { getUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import { track } from '#app/utils/analytics.client.ts';
 
 export const meta: MetaFunction = () => [
   { title: `GiftPool — ${HOME_COPY.hero.headline}` },

@@ -1,7 +1,7 @@
+import React from 'react';
 import { Card } from '#app/components/ui/card.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
-import type { IconName } from '@/icon-name';
-import React from 'react';
+import  { type IconName } from '@/icon-name';
 
 export type ActivityItem = {
   id: string;

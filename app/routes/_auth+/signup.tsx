@@ -8,7 +8,7 @@ import {
   type ActionFunctionArgs,
   type MetaFunction,
 } from '@remix-run/node';
-import { Form, useActionData, useSearchParams } from '@remix-run/react';
+import { Form, useActionData } from '@remix-run/react';
 import { HoneypotInputs } from 'remix-utils/honeypot/react';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
@@ -120,8 +120,7 @@ export const meta: MetaFunction = () => {
 const SignupRoute = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
-  const [searchParams] = useSearchParams();
-  const redirectTo = searchParams.get('redirectTo');
+  // No redirect param used on signup currently
 
   const [form, fields] = useForm({
     id: 'signup-form',

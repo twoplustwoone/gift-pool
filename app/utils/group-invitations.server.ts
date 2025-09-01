@@ -3,9 +3,9 @@ import { json } from '@remix-run/node';
 // Using string literals for roles/status to support SQLite
 import { nanoid } from 'nanoid';
 import { prisma } from './db.server';
-import { getDomainUrl } from './misc.tsx';
 import { logGroupActivity } from './group-activity.server';
 import { requireUserWithGroupPermission } from './group-permissions.server';
+import { getDomainUrl } from './misc.tsx';
 import { createToastHeaders } from './toast.server';
 
 /**

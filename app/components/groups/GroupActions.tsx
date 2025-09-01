@@ -1,5 +1,8 @@
+import { Link, useFetcher } from '@remix-run/react';
+import React from 'react';
+import { FaPencilAlt, FaTrashAlt } from 'react-icons/fa';
+import { RxExit } from 'react-icons/rx';
 import { Button } from '#app/components/ui/button.tsx';
-import { Icon } from '#app/components/ui/icon.tsx';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,11 +11,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx';
-import { Link, useFetcher } from '@remix-run/react';
-import React from 'react';
+import { Icon } from '#app/components/ui/icon.tsx';
 import { Flex } from '../ui-kit';
-import { FaPencilAlt, FaTrashAlt } from 'react-icons/fa';
-import { RxExit } from 'react-icons/rx';
 
 export const GroupActions = ({
   giftGroupId,

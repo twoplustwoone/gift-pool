@@ -1,8 +1,8 @@
 import { Link } from '@remix-run/react';
 import * as React from 'react';
 import { Button } from '#app/components/ui/button.tsx';
-import { HomepageMockup } from './HomepageMockup';
 import { HOME_COPY } from './home-copy';
+import { HomepageMockup } from './HomepageMockup';
 
 type HomeHeroProps = {
   onPrimaryClick?: () => void;

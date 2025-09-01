@@ -212,11 +212,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     });
   }
 
-  const url = new URL(request.url);
-  const activityTake = Math.min(
-    Math.max(parseInt(url.searchParams.get('activity_take') ?? '10', 10), 1),
-    50,
-  );
+  // Activity feed disabled; pagination param ignored for now
   // Temporarily disable activity feed
   const activities: Array<any> = [];
 
@@ -432,18 +428,18 @@ const GiftGroupIndex = () => {
 };
 export default GiftGroupIndex;
 
-const QuickStat = ({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) => (
-  <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-center">
-    <div className="text-xs text-muted-foreground">{label}</div>
-    <div className="text-base font-semibold">{value}</div>
-  </div>
-);
+// const QuickStat = ({
+//   label,
+//   value,
+// }: {
+//   label: string;
+//   value: React.ReactNode;
+// }) => (
+//   <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-center">
+//     <div className="text-xs text-muted-foreground">{label}</div>
+//     <div className="text-base font-semibold">{value}</div>
+//   </div>
+// );
 
 function countBirthdaysThisMonth(giftGroup: any) {
   const now = new Date();
@@ -457,7 +453,7 @@ function countBirthdaysThisMonth(giftGroup: any) {
 }
 
 const UpcomingBirthdays = () => {
-  const { giftGroup, canLockPlan } = useLoaderData<typeof loader>();
+  const { giftGroup } = useLoaderData<typeof loader>();
   const items = giftGroup.groupMembers
     .filter((m) => !!m.user.birthday)
     .map((m) => {
@@ -517,14 +513,7 @@ const UpcomingBirthdays = () => {
 
 const MembersAndBudgets = () => {
   const { giftGroup, viewer } = useLoaderData<typeof loader>();
-  const totalCents = giftGroup.groupMembers.reduce(
-    (sum: number, gm: any) => sum + (gm.contributionCents || 0),
-    0,
-  );
-  const memberCount = giftGroup.groupMembers.length || 1;
-  const perTargetAvgCents = Math.round(
-    (totalCents * (memberCount - 1)) / memberCount,
-  );
+  // Aggregate totals not currently displayed
   return (
     <div className="flex flex-col gap-3">
       {giftGroup.groupMembers.map((groupMember) => {
@@ -821,7 +810,7 @@ const DestroyInviteLinkButton = () => {
   );
 };
 
-const DeleteGroupDialog = ({ id }: { id: string }) => {
+/* const DeleteGroupDialog = ({ id }: { id: string }) => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
   const [form] = useForm({
@@ -876,9 +865,9 @@ const DeleteGroupDialog = ({ id }: { id: string }) => {
       </DialogContent>
     </Dialog>
   );
-};
+}; */
 
-const LeaveGroupDialog = ({ id }: { id: string }) => {
+/* const LeaveGroupDialog = ({ id }: { id: string }) => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
   const [form] = useForm({
@@ -929,7 +918,7 @@ const LeaveGroupDialog = ({ id }: { id: string }) => {
       </DialogContent>
     </Dialog>
   );
-};
+}; */
 
 const BirthdaysSkeleton = () => (
   <div className="space-y-3">

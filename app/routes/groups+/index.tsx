@@ -1,7 +1,5 @@
-import { invariantResponse } from '@epic-web/invariant';
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { Link, useLoaderData, useNavigate } from '@remix-run/react';
-import { useState } from 'react';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
@@ -18,7 +16,6 @@ import { Heading } from '#app/components/ui/heading.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
-import { SectionTitle } from '#app/components/ui/sectionTitle.tsx';
 import { usePressFeedback } from '#app/components/wishlist/hooks/use-press-feedback.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
