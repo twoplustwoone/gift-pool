@@ -71,11 +71,20 @@ export const test = base.extend<{
 
       // Prefer logging in through the UI to ensure cookies/sessions match server env
       await page.goto('/login');
-      await page.getByLabel('Username').fill(user.username);
-      await page.getByLabel('Password').fill(user.username);
+      await page
+        .getByRole('textbox', { name: /username/i })
+        .fill(user.username);
+      const passwordToUse = options?.password ?? user.username;
+      await page
+        .getByRole('textbox', { name: /password/i })
+        .fill(passwordToUse);
       await page.getByRole('button', { name: /log in/i }).click();
-      // Wait for navigation to complete
-      await page.waitForLoadState('networkidle');
+
+      // Wait for a meaningful UI signal of login success (avoid networkidle)
+      await base
+        .expect(page.getByRole('link', { name: user.name ?? user.username }))
+        .toBeVisible();
+
       return user;
     });
     await prisma.user.deleteMany({ where: { id: userId } });
