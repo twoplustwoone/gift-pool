@@ -195,7 +195,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 
   const viewerMembership = await prisma.usersInGiftGroups.findUnique({
     where: { userId_giftGroupId: { userId, giftGroupId: groupId } },
-    select: { role: true },
+    select: { role: true, contributionCents: true },
   });
 
   let existingInvitation: GroupInvitation | null = null;
@@ -227,7 +227,11 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     canLeave,
     canSettings,
     canLockPlan,
-    viewer: { userId, role: viewerMembership?.role ?? ('MEMBER' as const) },
+    viewer: {
+      userId,
+      role: viewerMembership?.role ?? ('MEMBER' as const),
+      contributionCents: viewerMembership?.contributionCents,
+    },
     inviteLink: existingInvitation
       ? getInviteLink(existingInvitation.code, request)
       : null,
@@ -345,8 +349,10 @@ const GiftGroupIndex = () => {
               value: countBirthdaysThisMonth(giftGroup),
             },
             {
-              label: 'Total pledged',
-              value: `$${(giftGroup.groupMembers.reduce((s, m) => s + m.contributionCents, 0) / 100).toFixed(2)}`,
+              label: 'Your budget',
+              value: viewer.contributionCents
+                ? `$${(viewer.contributionCents / 100).toFixed(2)}`
+                : 'Not set',
             },
           ]}
           actions={
@@ -569,10 +575,6 @@ const MembersAndBudgets = () => {
           </div>
         );
       })}
-      <div className="mt-2 text-xs text-muted-foreground">
-        Total pledged: ${(totalCents / 100).toFixed(2)} · Avg. per recipient: $
-        {(perTargetAvgCents / 100).toFixed(2)}
-      </div>
     </div>
   );
 };

@@ -104,18 +104,19 @@ const JoinGroupPage = () => {
             You were invited to join the group{' '}
             <span className="font-extrabold">{giftGroupName}</span>! 🎉
           </p>
-          <DialogFooter>
+          <DialogFooter className="flex-row justify-end gap-2 sm:gap-2">
             <DialogClose asChild>
               <Button
                 onClick={() => navigate('/groups')}
                 variant={'secondary'}
                 type="button"
+                className="min-w-28"
               >
                 Cancel
               </Button>
             </DialogClose>
-            <Form method="post">
-              <Button>Join Group</Button>
+            <Form method="post" className="inline-block">
+              <Button className="min-w-28">Join Group</Button>
             </Form>
           </DialogFooter>
         </DialogContent>
