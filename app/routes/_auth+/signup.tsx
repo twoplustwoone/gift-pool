@@ -1,7 +1,6 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
-import * as E from '@react-email/components';
 import {
   json,
   redirect,
@@ -59,6 +58,8 @@ export async function action({ request }: ActionFunctionArgs) {
     );
   }
   const { email } = submission.value;
+  // Import the email template server-side only to avoid bundling it for the browser.
+  const { SignupEmail } = await import('#app/emails/signup-email.tsx');
   const { verifyUrl, redirectTo, otp } = await prepareVerification({
     period: 10 * 60,
     request,
@@ -85,33 +86,6 @@ export async function action({ request }: ActionFunctionArgs) {
     );
   }
 }
-
-export const SignupEmail = ({
-  onboardingUrl,
-  otp,
-}: {
-  onboardingUrl: string;
-  otp: string;
-}) => {
-  return (
-    <E.Html lang="en" dir="ltr">
-      <E.Container>
-        <h1>
-          <E.Text>Welcome to GiftPool!</E.Text>
-        </h1>
-        <p>
-          <E.Text>
-            Here's your verification code: <strong>{otp}</strong>
-          </E.Text>
-        </p>
-        <p>
-          <E.Text>Or click the link to get started:</E.Text>
-        </p>
-        <E.Link href={onboardingUrl}>{onboardingUrl}</E.Link>
-      </E.Container>
-    </E.Html>
-  );
-};
 
 export const meta: MetaFunction = () => {
   return [{ title: 'Sign Up | GiftPool' }];
