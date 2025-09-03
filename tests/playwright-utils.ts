@@ -1,7 +1,13 @@
 import { test as base } from '@playwright/test';
 import { type User as UserModel } from '@prisma/client';
-import { getPasswordHash } from '#app/utils/auth.server.ts';
+import * as setCookieParser from 'set-cookie-parser';
+import {
+  getPasswordHash,
+  getSessionExpirationDate,
+  sessionKey,
+} from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { authSessionStorage } from '#app/utils/session.server.ts';
 import { createUser } from './db-utils.ts';
 
 export * from './db-utils.ts';
@@ -68,22 +74,26 @@ export const test = base.extend<{
     await use(async (options) => {
       const user = await getOrInsertUser(options);
       userId = user.id;
+      const session = await prisma.session.create({
+        data: {
+          expirationDate: getSessionExpirationDate(),
+          userId: user.id,
+        },
+        select: { id: true },
+      });
 
-      // Prefer logging in through the UI to ensure cookies/sessions match server env
-      await page.goto('/login');
-      await page
-        .getByRole('textbox', { name: /username/i })
-        .fill(user.username);
-      const passwordToUse = options?.password ?? user.username;
-      await page
-        .getByRole('textbox', { name: /password/i })
-        .fill(passwordToUse);
-      await page.getByRole('button', { name: /log in/i }).click();
-
-      await base
-        .expect(page.getByRole('link', { name: user.name ?? user.username }))
-        .toBeVisible();
-
+      const authSession = await authSessionStorage.getSession();
+      authSession.set(sessionKey, session.id);
+      const cookieConfig = setCookieParser.parseString(
+        await authSessionStorage.commitSession(authSession),
+      );
+      const newConfig = {
+        ...cookieConfig,
+        domain: 'localhost',
+        expires: cookieConfig.expires?.getTime(),
+        sameSite: cookieConfig.sameSite as 'Strict' | 'Lax' | 'None',
+      };
+      await page.context().addCookies([newConfig]);
       return user;
     });
     await prisma.user.deleteMany({ where: { id: userId } });
