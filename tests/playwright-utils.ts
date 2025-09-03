@@ -80,7 +80,6 @@ export const test = base.extend<{
         .fill(passwordToUse);
       await page.getByRole('button', { name: /log in/i }).click();
 
-      // Wait for a meaningful UI signal of login success (avoid networkidle)
       await base
         .expect(page.getByRole('link', { name: user.name ?? user.username }))
         .toBeVisible();
