@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import 'dotenv/config';
 import fs from 'node:fs';
+import { execSync } from 'node:child_process';
 import path from 'node:path';
 
 // Ensure required env + test DB defaults so `npx playwright test` works standalone
@@ -26,8 +27,11 @@ try {
     // Always start from a clean copy for reliability
     fs.copyFileSync(BASE_DB_PATH, DATA_DB_PATH);
   } else {
-    // If base.db is missing, ensure the target file at least exists
-    fs.writeFileSync(DATA_DB_PATH, '');
+    // If base.db is missing, initialize the schema via migrations
+    execSync('npx prisma migrate reset --force --skip-seed --skip-generate', {
+      stdio: 'inherit',
+      env: { ...process.env, DATABASE_URL: `file:${DATA_DB_PATH}` },
+    });
   }
   // Touch the cache DB file
   if (!fs.existsSync(CACHE_DB_PATH)) {
