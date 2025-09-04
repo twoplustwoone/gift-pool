@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Home page', () => {
-  test('hero headline visible on mobile and desktop', async ({ page, browserName }) => {
+  test('hero headline visible on mobile and desktop', async ({ page, browserName: _browserName }) => {
     await page.goto('/');
 
     const hero = page.getByRole('heading', { name: /Group gifting, simplified\./i });

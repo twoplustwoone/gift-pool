@@ -4,21 +4,62 @@ import { json } from '@remix-run/node';
 import { requireUserId } from './auth.server';
 import { prisma } from './db.server';
 
-export type GroupRole = 'owner' | 'admin' | 'member';
+export type GroupRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 
 export type GroupPermission =
   | 'deleteGroup'
-  | 'addMember'
+  | 'transferOwnership'
+  | 'promoteAdmin'
+  | 'demoteAdmin'
+  | 'removeAdmin'
   | 'removeMember'
-  | 'leaveGroup';
+  | 'banMember'
+  | 'unbanMember'
+  | 'manageInvites'
+  | 'manageReminders'
+  | 'manageSettings'
+  | 'lockGiftPlan'
+  | 'unlockGiftPlan'
+  | 'leaveGroup'
+  | 'editOwnBudget'
+  | 'setOwnPreferences';
 
 export const groupRolePermissions: Record<
   GroupRole,
   ReadonlyArray<GroupPermission>
 > = {
-  owner: ['deleteGroup', 'addMember', 'removeMember'],
-  admin: ['addMember', 'removeMember', 'leaveGroup'],
-  member: ['leaveGroup'],
+  OWNER: [
+    'deleteGroup',
+    'transferOwnership',
+    'promoteAdmin',
+    'demoteAdmin',
+    'removeAdmin',
+    'removeMember',
+    'banMember',
+    'unbanMember',
+    'manageInvites',
+    'manageReminders',
+    'manageSettings',
+    'lockGiftPlan',
+    'unlockGiftPlan',
+    'leaveGroup',
+    'editOwnBudget',
+    'setOwnPreferences',
+  ],
+  ADMIN: [
+    'removeMember',
+    'banMember',
+    'unbanMember',
+    'manageInvites',
+    'manageReminders',
+    'manageSettings',
+    'lockGiftPlan',
+    'unlockGiftPlan',
+    'leaveGroup',
+    'editOwnBudget',
+    'setOwnPreferences',
+  ],
+  MEMBER: ['leaveGroup', 'editOwnBudget', 'setOwnPreferences'],
 };
 
 export async function requireUserWithGroupRole(

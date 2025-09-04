@@ -1,7 +1,7 @@
 import * as React from 'react';
+import { FaBell, FaMoneyBillWave, FaRegHeart, FaUsers } from 'react-icons/fa';
 import { Card, CardContent } from '#app/components/ui/card.tsx';
 import { HOME_COPY, type HomeFeature } from './home-copy';
-import { FaBell, FaMoneyBillWave, FaRegHeart, FaUsers } from 'react-icons/fa';
 
 const iconForKey: Record<HomeFeature['key'], React.ReactNode> = {
   'wishlists-simple': <FaRegHeart className="h-5 w-5" aria-hidden />,

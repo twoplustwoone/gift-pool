@@ -40,6 +40,11 @@ export const extendedTheme = {
       DEFAULT: 'hsl(var(--popover))',
       foreground: 'hsl(var(--popover-foreground))',
     },
+    modal: {
+      DEFAULT: 'hsl(var(--modal))',
+      foreground: 'hsl(var(--foreground))',
+      border: 'hsl(var(--modal-border))',
+    },
     card: {
       DEFAULT: 'hsl(var(--card))',
       foreground: 'hsl(var(--card-foreground))',
@@ -49,6 +54,11 @@ export const extendedTheme = {
       DEFAULT: 'hsl(var(--surface))',
       foreground: 'hsl(var(--surface-foreground))',
       border: 'hsl(var(--surface-border))',
+    },
+    subcard: {
+      DEFAULT: 'hsl(var(--subcard))',
+      foreground: 'hsl(var(--subcard-foreground))',
+      border: 'hsl(var(--subcard-border))',
     },
     gift: {
       DEFAULT: 'hsl(var(--gift))',

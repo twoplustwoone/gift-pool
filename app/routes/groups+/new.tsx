@@ -1,5 +1,4 @@
 import { GroupEditor } from './__group-editor';
-import { action } from './__group-editor.server';
-
-export { action };
+// Re-export server action without importing it in the client bundle
+export { action } from './__group-editor.server';
 export default GroupEditor;

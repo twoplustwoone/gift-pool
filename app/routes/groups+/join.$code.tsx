@@ -20,9 +20,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#app/components/ui/dialog.tsx';
+import { prisma } from '#app/utils/db.server.ts';
 import {
   addUserToGroup,
   requireInvitationNotExpired,
+  submitJoinRequest,
 } from '#app/utils/group-invitations.server.ts';
 import { requireUserIdNotInGroup } from '#app/utils/groups.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
@@ -53,7 +55,27 @@ export async function action({ request, params }: ActionFunctionArgs) {
   const invitation = await requireInvitationNotExpired(code);
   const userId = await requireUserIdNotInGroup(request, invitation.giftGroupId);
 
-  await addUserToGroup(userId, invitation.giftGroupId);
+  if (invitation.requireApproval) {
+    await submitJoinRequest({
+      invitationId: invitation.id,
+      userId,
+      groupId: invitation.giftGroupId,
+    });
+    return redirectWithToast(`/groups`, {
+      type: 'success',
+      description: 'Request to join sent for approval.',
+    });
+  }
+
+  await addUserToGroup(
+    userId,
+    invitation.giftGroupId,
+    invitation.roleGranted as 'OWNER' | 'ADMIN' | 'MEMBER',
+  );
+  await prisma.groupInvitation.update({
+    where: { id: invitation.id },
+    data: { usedCount: { increment: 1 } },
+  });
 
   return redirectWithToast(`/groups/${invitation.giftGroupId}`, {
     type: 'success',
@@ -82,18 +104,19 @@ const JoinGroupPage = () => {
             You were invited to join the group{' '}
             <span className="font-extrabold">{giftGroupName}</span>! 🎉
           </p>
-          <DialogFooter>
+          <DialogFooter className="flex-row justify-end gap-2 sm:gap-2">
             <DialogClose asChild>
               <Button
                 onClick={() => navigate('/groups')}
                 variant={'secondary'}
                 type="button"
+                className="min-w-28"
               >
                 Cancel
               </Button>
             </DialogClose>
-            <Form method="post">
-              <Button>Join Group</Button>
+            <Form method="post" className="inline-block">
+              <Button className="min-w-28">Join Group</Button>
             </Form>
           </DialogFooter>
         </DialogContent>

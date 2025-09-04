@@ -1,14 +1,13 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
-import * as E from '@react-email/components';
 import {
   json,
   redirect,
   type ActionFunctionArgs,
   type MetaFunction,
 } from '@remix-run/node';
-import { Form, useActionData, useSearchParams } from '@remix-run/react';
+import { Form, useActionData } from '@remix-run/react';
 import { HoneypotInputs } from 'remix-utils/honeypot/react';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
@@ -59,6 +58,8 @@ export async function action({ request }: ActionFunctionArgs) {
     );
   }
   const { email } = submission.value;
+  // Import the email template server-side only to avoid bundling it for the browser.
+  const { SignupEmail } = await import('#app/emails/signup-email.tsx');
   const { verifyUrl, redirectTo, otp } = await prepareVerification({
     period: 10 * 60,
     request,
@@ -86,33 +87,6 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
-export const SignupEmail = ({
-  onboardingUrl,
-  otp,
-}: {
-  onboardingUrl: string;
-  otp: string;
-}) => {
-  return (
-    <E.Html lang="en" dir="ltr">
-      <E.Container>
-        <h1>
-          <E.Text>Welcome to GiftPool!</E.Text>
-        </h1>
-        <p>
-          <E.Text>
-            Here's your verification code: <strong>{otp}</strong>
-          </E.Text>
-        </p>
-        <p>
-          <E.Text>Or click the link to get started:</E.Text>
-        </p>
-        <E.Link href={onboardingUrl}>{onboardingUrl}</E.Link>
-      </E.Container>
-    </E.Html>
-  );
-};
-
 export const meta: MetaFunction = () => {
   return [{ title: 'Sign Up | GiftPool' }];
 };
@@ -120,8 +94,7 @@ export const meta: MetaFunction = () => {
 const SignupRoute = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
-  const [searchParams] = useSearchParams();
-  const redirectTo = searchParams.get('redirectTo');
+  // No redirect param used on signup currently
 
   const [form, fields] = useForm({
     id: 'signup-form',
