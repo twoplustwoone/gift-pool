@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type GiftGroup } from '@prisma/client';
 import { type SerializeFrom } from '@remix-run/node';
@@ -31,12 +32,12 @@ export const GroupEditor = ({
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
 
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.input<typeof GroupEditorSchema>>({
     id: 'group-editor',
     constraint: getZodConstraint(GroupEditorSchema),
-    lastResult: actionData,
+    lastResult: actionData as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: GroupEditorSchema });
+      return parseWithZod(formData, { schema: GroupEditorSchema }) as any;
     },
     defaultValue: {
       name: group?.name ?? '',

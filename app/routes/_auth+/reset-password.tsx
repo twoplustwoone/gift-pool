@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
@@ -76,15 +77,17 @@ const ResetPasswordPage = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
 
-  const [form, fields] = useForm({
-    id: 'reset-password',
-    constraint: getZodConstraint(ResetPasswordSchema),
-    lastResult: actionData?.result,
-    onValidate({ formData }) {
-      return parseWithZod(formData, { schema: ResetPasswordSchema });
+  const [form, fields] = useForm<{ password: string; confirmPassword: string}>(
+    {
+      id: 'reset-password',
+      constraint: getZodConstraint(ResetPasswordSchema),
+      lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
+      onValidate({ formData }) {
+        return parseWithZod(formData, { schema: ResetPasswordSchema }) as any;
+      },
+      shouldRevalidate: 'onBlur',
     },
-    shouldRevalidate: 'onBlur',
-  });
+  );
 
   return (
     <div className="container flex flex-col justify-center pb-32 pt-20">

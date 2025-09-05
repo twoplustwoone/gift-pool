@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
@@ -108,12 +109,12 @@ const ChangeEmailIndex = () => {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.input<typeof ChangeEmailSchema>>({
     id: 'change-email-form',
     constraint: getZodConstraint(ChangeEmailSchema),
-    lastResult: actionData?.result,
+    lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: ChangeEmailSchema });
+      return parseWithZod(formData, { schema: ChangeEmailSchema }) as any;
     },
   });
 

@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
@@ -81,15 +82,17 @@ const CreatePasswordRoute = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
 
-  const [form, fields] = useForm({
-    id: 'password-create-form',
-    constraint: getZodConstraint(CreatePasswordForm),
-    lastResult: actionData?.result,
-    onValidate({ formData }) {
-      return parseWithZod(formData, { schema: CreatePasswordForm });
+  const [form, fields] = useForm<{ password: string; confirmPassword: string}>(
+    {
+      id: 'password-create-form',
+      constraint: getZodConstraint(CreatePasswordForm),
+      lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
+      onValidate({ formData }) {
+        return parseWithZod(formData, { schema: CreatePasswordForm }) as any;
+      },
+      shouldRevalidate: 'onBlur',
     },
-    shouldRevalidate: 'onBlur',
-  });
+  );
 
   return (
     <Form method="POST" {...getFormProps(form)} className="mx-auto max-w-md">

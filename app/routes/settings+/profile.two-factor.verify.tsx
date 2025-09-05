@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
@@ -139,12 +140,12 @@ const TwoFactorRoute = () => {
   const isPending = useIsPending();
   const pendingIntent = isPending ? navigation.formData?.get('intent') : null;
 
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.input<typeof ActionSchema>>({
     id: 'verify-form',
     constraint: getZodConstraint(ActionSchema),
-    lastResult: actionData?.result,
+    lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: ActionSchema });
+      return parseWithZod(formData, { schema: ActionSchema }) as any;
     },
   });
   const lastSubmissionIntent = fields.intent.value;

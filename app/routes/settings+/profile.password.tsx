@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
@@ -125,12 +126,12 @@ const ChangePasswordRoute = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
 
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.input<typeof ChangePasswordForm>>({
     id: 'password-change-form',
     constraint: getZodConstraint(ChangePasswordForm),
-    lastResult: actionData?.result,
+    lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: ChangePasswordForm });
+      return parseWithZod(formData, { schema: ChangePasswordForm }) as any;
     },
     shouldRevalidate: 'onBlur',
   });

@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import * as E from '@react-email/components';
@@ -123,14 +124,14 @@ export const meta: MetaFunction = () => {
 };
 
 const ForgotPasswordRoute = () => {
-  const forgotPassword = useFetcher<typeof action>();
+  const forgotPassword = useFetcher<{ result: SubmissionResult<string[]> }>();
 
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.input<typeof ForgotPasswordSchema>>({
     id: 'forgot-password-form',
     constraint: getZodConstraint(ForgotPasswordSchema),
     lastResult: forgotPassword.data?.result,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: ForgotPasswordSchema });
+      return parseWithZod(formData, { schema: ForgotPasswordSchema }) as any;
     },
     shouldRevalidate: 'onBlur',
   });
