@@ -56,9 +56,10 @@ test('Users can update their profile photo', async ({ page, login }) => {
   const user = await login();
   await page.goto('/settings/profile');
 
-  const beforeSrc = page.getByRole('img', { name: user.name ?? user.username });
-  await page.getByRole('link', { name: /change profile photo/i }).click();
+  const avatar = page.getByRole('img', { name: user.name ?? user.username });
+  const beforeSrc = await avatar.getAttribute('src');
 
+  await page.getByRole('link', { name: /change profile photo/i }).click();
   await expect(page).toHaveURL(`/settings/profile/photo`);
 
   await page
@@ -72,11 +73,7 @@ test('Users can update their profile photo', async ({ page, login }) => {
     'Was not redirected after saving the profile photo',
   ).toHaveURL(`/settings/profile`);
 
-  const afterSrc = await page
-    .getByRole('img', { name: user.name ?? user.username })
-    .getAttribute('src');
-
-  await expect(beforeSrc).not.toHaveAttribute('src', afterSrc ?? '');
+  await expect(avatar).not.toHaveAttribute('src', beforeSrc ?? '');
 });
 
 test('Users can change their email address', async ({ page, login }) => {
