@@ -62,6 +62,7 @@ export const test = base.extend<{
 }>({
   insertNewUser: async ({}, use) => {
     let userId: string | undefined = undefined;
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(async (options) => {
       const user = await getOrInsertUser(options);
       userId = user.id;
@@ -71,6 +72,7 @@ export const test = base.extend<{
   },
   login: async ({ page }, use) => {
     let userId: string | undefined = undefined;
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(async (options) => {
       const user = await getOrInsertUser(options);
       userId = user.id;
