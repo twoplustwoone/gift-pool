@@ -45,7 +45,7 @@ test('Users can update their password', async ({ page, login }) => {
   expect(
     await verifyUserPassword({ username }, oldPassword),
     'Old password still works',
-  ).toEqual(null);
+  ).toBeNull();
   expect(
     await verifyUserPassword({ username }, newPassword),
     'New password does not work',
@@ -56,12 +56,10 @@ test('Users can update their profile photo', async ({ page, login }) => {
   const user = await login();
   await page.goto('/settings/profile');
 
-  const beforeSrc = await page
-    .getByRole('img', { name: user.name ?? user.username })
-    .getAttribute('src');
+  const avatar = page.getByRole('img', { name: user.name ?? user.username });
+  const beforeSrc = await avatar.getAttribute('src');
 
   await page.getByRole('link', { name: /change profile photo/i }).click();
-
   await expect(page).toHaveURL(`/settings/profile/photo`);
 
   await page
@@ -75,11 +73,7 @@ test('Users can update their profile photo', async ({ page, login }) => {
     'Was not redirected after saving the profile photo',
   ).toHaveURL(`/settings/profile`);
 
-  const afterSrc = await page
-    .getByRole('img', { name: user.name ?? user.username })
-    .getAttribute('src');
-
-  expect(beforeSrc).not.toEqual(afterSrc);
+  await expect(avatar).not.toHaveAttribute('src', beforeSrc ?? '');
 });
 
 test('Users can change their email address', async ({ page, login }) => {
