@@ -76,7 +76,7 @@ test('Users can update their profile photo', async ({ page, login }) => {
     .getByRole('img', { name: user.name ?? user.username })
     .getAttribute('src');
 
-  await expect(beforeSrc).not.toHaveAttribute('src', afterSrc);
+  await expect(beforeSrc).not.toHaveAttribute('src', afterSrc ?? '');
 });
 
 test('Users can change their email address', async ({ page, login }) => {
