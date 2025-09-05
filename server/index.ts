@@ -25,6 +25,10 @@ const viteDevServer = IS_PROD
   : await import('vite').then((vite) =>
       vite.createServer({
         server: { middlewareMode: true },
+        // Force dependency optimization during Playwright runs to avoid
+        // stale node_modules/.vite metadata pointing to outdated paths.
+        // This prevents errors like missing "@conform-to/react/index.mjs".
+        optimizeDeps: { force: process.env.NODE_ENV === 'test' },
       }),
     );
 

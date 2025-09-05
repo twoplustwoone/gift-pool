@@ -8,6 +8,7 @@
     "#tests/*": "./tests/*"
   },
   "scripts": {
+    "clean:vite": "node -e \"try{require('fs').rmSync('node_modules/.vite',{recursive:true,force:true})}catch(e){}\"",
     "build": "run-s build:*",
     "build:icons": "tsx ./other/build-icons.ts",
     "build:remix": "remix vite:build",
@@ -26,6 +27,7 @@
     "test": "vitest",
     "coverage": "vitest run --coverage",
     "test:e2e": "npm run test:e2e:dev --silent",
+    "pretest:e2e:dev": "npm run clean:vite",
     "test:e2e:dev": "playwright test --ui",
     "e2e:prepare-db": "cp tests/prisma/base.db tests/prisma/data.1.db && touch tests/prisma/cache.db",
     "pretest:e2e:run": "run-s build prisma:generate e2e:prepare-db",
