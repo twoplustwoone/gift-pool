@@ -97,7 +97,7 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
   await expect(page).toHaveURL('/me');
 
   await page.getByRole('link', { name: onboardingData.name }).click();
-  await page.getByRole('menuitem', { name: /logout/i }).click();
+  await page.getByRole('menuitem', { name: /log out/i }).click();
   await expect(page).toHaveURL(`/`);
 });
 
