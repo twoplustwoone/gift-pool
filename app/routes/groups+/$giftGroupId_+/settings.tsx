@@ -1,5 +1,4 @@
-import { getFormProps, useForm } from '@conform-to/react';
-import type { SubmissionResult } from '@conform-to/react';
+import { getFormProps, useForm, type SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 // Using string literal types for roles/visibility to support SQLite
 import {
