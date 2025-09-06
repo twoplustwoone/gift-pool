@@ -41,12 +41,14 @@ test.describe('Home page', () => {
     }
   });
 
-  test('empty states when mocking no data', async ({ page }) => {
+  test('panels render empty messages when mocked without data', async ({ page }) => {
     await page.goto('/?mock=empty');
-    await expect(page.getByRole('heading', { name: /Your wishlist is empty/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /No groups yet/i })).toBeVisible();
-    await expect(page.getByTestId('empty-wishlist-cta')).toHaveAttribute('href', '/wishlist');
-    await expect(page.getByTestId('empty-groups-cta')).toHaveAttribute('href', '/groups/new');
+    const birthdaysPanel = page.getByTestId('panel-birthdays');
+    const activityPanel = page.getByTestId('panel-activity');
+    await expect(birthdaysPanel).toBeVisible();
+    await expect(activityPanel).toBeVisible();
+    await expect(birthdaysPanel.getByText(/No upcoming birthdays/i)).toBeVisible();
+    await expect(activityPanel.getByText(/Nothing new yet/i)).toBeVisible();
   });
 
   test('panels render with data when mocked', async ({ page }) => {
@@ -57,14 +59,15 @@ test.describe('Home page', () => {
     await expect(activityPanel).toBeVisible();
     await expect(birthdaysPanel.getByRole('listitem').first()).toBeVisible();
     await expect(activityPanel.getByRole('listitem').first()).toBeVisible();
+    await expect(page.getByTestId('plan-gift-u_mock_1')).toHaveAttribute('href', '/groups/g_mock_1');
   });
 
-  test('keyboard navigation focuses CTAs and feature links', async ({ page }) => {
-    await page.goto('/');
+  test('keyboard navigation focuses CTAs and plan gift', async ({ page }) => {
+    await page.goto('/?mock=data');
     await page.keyboard.press('Tab'); // focus first focusable in page (likely logo)
     // Advance until primary CTA
     let attempts = 0;
-    while (attempts++ < 10) {
+    while (attempts++ < 20) {
       const active = await page.evaluate(() => (document.activeElement as HTMLElement | null)?.textContent || '');
       if (active?.includes('Create Your Wishlist')) break;
       await page.keyboard.press('Tab');
@@ -72,14 +75,14 @@ test.describe('Home page', () => {
     const primaryActive = await page.evaluate(() => (document.activeElement as HTMLElement | null)?.textContent || '');
     expect(primaryActive).toContain('Create Your Wishlist');
 
-    // Tab to a feature card link
-    while (attempts++ < 20) {
+    // Tab to plan gift button
+    while (attempts++ < 40) {
       const activeText = await page.evaluate(() => (document.activeElement as HTMLElement | null)?.textContent || '');
-      if (activeText?.includes('Learn more')) break;
+      if (activeText?.includes('Plan gift')) break;
       await page.keyboard.press('Tab');
     }
     const linkActive = await page.evaluate(() => (document.activeElement as HTMLElement | null)?.textContent || '');
-    expect(linkActive).toContain('Learn more');
+    expect(linkActive).toContain('Plan gift');
   });
 
   // Snapshot tests can be enabled later once baselines are established
