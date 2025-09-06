@@ -125,8 +125,10 @@ export const WishlistItemEditor = React.forwardRef<
     }
   }, [actionData]);
 
+  const formId = React.useId();
+
   const [form, fields] = useForm<z.input<typeof WishlistItemSchema>>({
-    id: 'wishlist-item-editor',
+    id: formId,
     constraint: getZodConstraint(WishlistItemSchema),
     lastResult: actionData?.result as any,
     onValidate({ formData }) {
