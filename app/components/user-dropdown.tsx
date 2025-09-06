@@ -1,5 +1,7 @@
 import { Form, Link } from '@remix-run/react';
 import { useRef } from 'react';
+import { FaCog, FaUser } from 'react-icons/fa';
+import { IoIosLogOut } from 'react-icons/io';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useUser } from '#app/utils/user.ts';
 import {
@@ -8,8 +10,10 @@ import {
   DropdownMenuPortal,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from './ui/dropdown-menu';
-import { Icon } from './ui/icon';
+import { Flex, Text } from './ui-kit';
 
 export const UserDropdown = () => {
   const user = useUser();
@@ -21,35 +25,52 @@ export const UserDropdown = () => {
           to={`/me`}
           // this is for progressive enhancement
           onClick={(e) => e.preventDefault()}
-          className="inline-flex items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-11 sm:bg-secondary sm:px-4 sm:text-secondary-foreground sm:hover:bg-secondary/80"
+          className="inline-flex items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <img
-            className="size-10 rounded-full object-cover sm:size-8"
+            className="size-8 rounded-full object-cover"
             alt={user.name ?? user.username}
             src={getUserImgSrc(user.image?.id)}
             width={256}
             height={256}
           />
-          <span className="hidden text-body-sm font-bold sm:inline">
-            {user.name ?? user.username}
-          </span>
         </Link>
       </DropdownMenuTrigger>
       <DropdownMenuPortal>
-        <DropdownMenuContent sideOffset={8} align="end">
+        <DropdownMenuContent sideOffset={8} align="end" className="sm:w-56">
+          <DropdownMenuLabel className="flex flex-col">
+            <span className="text-sm font-bold">
+              {user.name ?? user.username}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {user.username}
+            </span>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <Link prefetch="intent" to={`/me`}>
-              <Icon className="text-body-md" name="avatar">
-                Profile
-              </Icon>
+              <Flex gap={2}>
+                <FaUser className="h-3 w-3" />
+                <Text>Profile</Text>
+              </Flex>
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link prefetch="intent" to={`/settings/profile`}>
+              <Flex gap={2}>
+                <FaCog className="h-3 w-3" />
+                <Text>Settings</Text>
+              </Flex>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <Form action="/logout" method="POST" ref={formRef}>
             <DropdownMenuItem asChild>
-              <button type="submit" className="w-full">
-                <Icon className="text-body-md" name="exit">
-                  Logout
-                </Icon>
+              <button type="submit" className="w-full text-left">
+                <Flex gap={2}>
+                  <IoIosLogOut className="h-3 w-3" />
+                  <Text>Log out</Text>
+                </Flex>
               </button>
             </DropdownMenuItem>
           </Form>
