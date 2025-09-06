@@ -168,6 +168,7 @@ const Document = ({
           name="viewport"
           content="width=device-width,initial-scale=1,viewport-fit=cover"
         />
+        <meta name="csp-nonce" content={nonce} />
         <Links />
       </head>
       <body className="h-full bg-background text-foreground">
