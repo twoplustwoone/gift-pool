@@ -26,14 +26,20 @@
     --input: 214.3 31.8% 91.4%;
     --input-invalid: 0 84.2% 60.2%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 0 100% 68%;
+    /* --primary: 222.2 47.4% 11.2%; */
+    --primary-foreground: 0 0% 100%;
+    /* --primary-foreground: 210 40% 98%; */
 
     --secondary: 210 20% 83%;
     --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --accent: 210 40% 90%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* rgb(255, 92, 92) */
+    /* --accent: 0 100% 68%; */
+    --accent: 220 14.3% 95.9%;
+    /* --accent: 210 40% 90%; */
+    --accent-foreground: 0 100% 68%;
+    /* --accent-foreground: 222.2 47.4% 11.2%; */
 
     --destructive: 0 70% 50%;
     --destructive-foreground: 210 40% 98%;
@@ -43,7 +49,8 @@
     --radius: 0.5rem;
 
     /* Elevation tokens: E0→E5 */
-    --surface: 210 40% 96%; /* slightly tinted panel */
+    --surface: 0 0% 100%; /* slightly tinted panel */
+    /* --surface: 210 40% 96%; */
     --surface-foreground: var(--foreground);
     --surface-border: 214 25% 90%; /* a hair darker than --border for contrast */
 
@@ -64,6 +71,7 @@
     --pool-foreground: 0 0% 100%;
     /* Height of bottom nav including safe area for PWAs/iOS */
     --bottom-nav-height: calc(4rem + env(safe-area-inset-bottom));
+    --header-height: 4rem;
   }
 
   .dark {
@@ -86,14 +94,17 @@
     --input: 217.2 32.6% 17.5%;
     --input-invalid: 0 62.8% 30.6%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 0 100% 68%;
+    --primary-foreground: 0 0% 100%;
+    /* --primary: 210 40% 98%; */
+    /* --primary-foreground: 222.2 47.4% 11.2%; */
 
     --secondary: 217.2 20% 24%;
     --secondary-foreground: 210 40% 98%;
 
-    --accent: 217.2 32.6% 10%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 0 0% 100%;
+    /* --accent: 217.2 32.6% 10%; */
+    --accent-foreground: 0 100% 68%;
 
     --destructive: 0 60% 40%;
     --destructive-foreground: 0 85.7% 97.3%;
