@@ -1,4 +1,5 @@
 import { getFormProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 // Using string literal types for roles/visibility to support SQLite
 import {
@@ -799,12 +800,12 @@ const SettingsForm = ({
   giftGroup: any;
   lastResult: any;
 }) => {
-  const [form] = useForm({
+  const [form] = useForm<z.input<typeof UpdateSettingsSchema>>({
     id: 'settings-form',
-    lastResult,
+    lastResult: lastResult as unknown as SubmissionResult<string[]>,
     constraint: getZodConstraint(UpdateSettingsSchema),
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: UpdateSettingsSchema });
+      return parseWithZod(formData, { schema: UpdateSettingsSchema }) as any;
     },
     defaultValue: {
       name: giftGroup.name,
@@ -850,12 +851,12 @@ const InviteCreateForm = ({
   giftGroupId: string;
   lastResult: any;
 }) => {
-  const [form] = useForm({
+  const [form] = useForm<z.input<typeof InviteCreateSchema>>({
     id: 'invite-create',
-    lastResult,
+    lastResult: lastResult as unknown as SubmissionResult<string[]>,
     constraint: getZodConstraint(InviteCreateSchema),
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: InviteCreateSchema });
+      return parseWithZod(formData, { schema: InviteCreateSchema }) as any;
     },
     defaultValue: { expiresInDays: '7' },
   });

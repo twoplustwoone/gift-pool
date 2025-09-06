@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
@@ -83,13 +84,13 @@ const LoginPage = () => {
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirectTo');
 
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.input<typeof LoginFormSchema>>({
     id: 'login-form',
     constraint: getZodConstraint(LoginFormSchema),
     defaultValue: { redirectTo },
-    lastResult: actionData?.result,
+    lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: LoginFormSchema });
+      return parseWithZod(formData, { schema: LoginFormSchema }) as any;
     },
     shouldRevalidate: 'onBlur',
   });

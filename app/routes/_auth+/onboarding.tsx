@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import {
   json,
@@ -140,13 +141,13 @@ const OnboardingRoute = () => {
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirectTo');
 
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.input<typeof SignupFormSchema>>({
     id: 'onboarding-form',
     constraint: getZodConstraint(SignupFormSchema),
     defaultValue: { redirectTo },
-    lastResult: actionData?.result,
+    lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: SignupFormSchema });
+      return parseWithZod(formData, { schema: SignupFormSchema }) as any;
     },
     shouldRevalidate: 'onBlur',
   });

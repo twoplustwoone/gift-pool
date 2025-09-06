@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import { type ActionFunctionArgs } from '@remix-run/node';
@@ -70,12 +71,12 @@ const VerifyRoute = () => {
     ),
   };
 
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.input<typeof VerifySchema>>({
     id: 'verify-form',
     constraint: getZodConstraint(VerifySchema),
-    lastResult: actionData?.result,
+    lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: VerifySchema });
+      return parseWithZod(formData, { schema: VerifySchema }) as any;
     },
     defaultValue: {
       code: searchParams.get(codeQueryParam),

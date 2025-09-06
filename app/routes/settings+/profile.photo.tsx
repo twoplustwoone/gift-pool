@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
@@ -128,12 +129,12 @@ const PhotoRoute = () => {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
 
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.input<typeof PhotoFormSchema>>({
     id: 'profile-photo',
     constraint: getZodConstraint(PhotoFormSchema),
-    lastResult: actionData?.result,
+    lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: PhotoFormSchema });
+      return parseWithZod(formData, { schema: PhotoFormSchema }) as any;
     },
     shouldRevalidate: 'onBlur',
   });

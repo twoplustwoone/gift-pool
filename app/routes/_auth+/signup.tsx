@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
@@ -96,13 +97,13 @@ const SignupRoute = () => {
   const isPending = useIsPending();
   // No redirect param used on signup currently
 
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.input<typeof SignupSchema>>({
     id: 'signup-form',
     constraint: getZodConstraint(SignupSchema),
-    lastResult: actionData?.result,
+    lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
       const result = parseWithZod(formData, { schema: SignupSchema });
-      return result;
+      return result as any;
     },
     shouldRevalidate: 'onBlur',
   });

@@ -125,12 +125,14 @@ export const WishlistItemEditor = React.forwardRef<
     }
   }, [actionData]);
 
-  const [form, fields] = useForm<z.infer<typeof WishlistItemSchema>>({
-    id: 'wishlist-item-editor',
+  const formId = React.useId();
+
+  const [form, fields] = useForm<z.input<typeof WishlistItemSchema>>({
+    id: formId,
     constraint: getZodConstraint(WishlistItemSchema),
     lastResult: actionData?.result as any,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: WishlistItemSchema });
+      return parseWithZod(formData, { schema: WishlistItemSchema }) as any;
     },
     defaultValue: {
       title: wishlistItem?.title ?? '',

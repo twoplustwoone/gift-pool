@@ -1,4 +1,5 @@
-import { type Submission } from '@conform-to/react';
+// Avoid strict coupling to a specific Conform Submission type instance.
+// We only depend on the minimal shape used by handlers.
 import { parseWithZod } from '@conform-to/zod';
 import { json } from '@remix-run/node';
 import { z } from 'zod';
@@ -27,11 +28,7 @@ import {
 
 export type VerifyFunctionArgs = {
   request: Request;
-  submission: Submission<
-    z.input<typeof VerifySchema>,
-    string[],
-    z.output<typeof VerifySchema>
-  >;
+  submission: any;
   body: FormData | URLSearchParams;
 };
 

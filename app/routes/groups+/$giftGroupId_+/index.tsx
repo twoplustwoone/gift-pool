@@ -1,4 +1,5 @@
 import { getFormProps, useForm, useInputControl } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type GroupInvitation } from '@prisma/client';
 import {
@@ -600,12 +601,12 @@ const CreateInviteLinkDialog = ({
   const { inviteLink, giftGroup, viewer } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.input<typeof CreateInviteLinkFormSchema>>({
     id: GiftGroupIdFormIntent.CreateInviteLink,
-    lastResult: actionData,
+    lastResult: actionData as unknown as SubmissionResult<string[]>,
     constraint: getZodConstraint(CreateInviteLinkFormSchema),
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: CreateInviteLinkFormSchema });
+      return parseWithZod(formData, { schema: CreateInviteLinkFormSchema }) as any;
     },
     defaultValue: {
       expiresInDays: '7',
@@ -773,9 +774,9 @@ const DestroyInviteLinkButton = () => {
   const { giftGroup, groupInvitationId, viewer } =
     useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
-  const [form] = useForm({
+  const [form] = useForm<z.input<typeof DestroyInviteLinkFormSchema>>({
     id: GiftGroupIdFormIntent.DestroyInviteLink,
-    lastResult: fetcher.data,
+    lastResult: fetcher.data as unknown as SubmissionResult<string[]>,
     constraint: getZodConstraint(DestroyInviteLinkFormSchema),
   });
   return (

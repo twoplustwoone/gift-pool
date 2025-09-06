@@ -1,4 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
@@ -223,12 +224,12 @@ const UpdateProfile = () => {
 
   const fetcher = useFetcher<typeof profileUpdateAction>();
 
-  const [form, fields] = useForm({
+  const [form, fields] = useForm<z.input<typeof ProfileFormSchema>>({
     id: 'edit-profile',
     constraint: getZodConstraint(ProfileFormSchema),
-    lastResult: fetcher.data?.result,
+    lastResult: fetcher.data?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: ProfileFormSchema });
+      return parseWithZod(formData, { schema: ProfileFormSchema }) as any;
     },
     defaultValue: {
       username: data.user.username,

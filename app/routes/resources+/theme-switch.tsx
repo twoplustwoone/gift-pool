@@ -1,4 +1,5 @@
 import { useForm, getFormProps } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
 import { json, type ActionFunctionArgs } from '@remix-run/node';
@@ -44,9 +45,9 @@ export const ThemeSwitch = ({
   const fetcher = useFetcher<typeof action>();
   const requestInfo = useRequestInfo();
 
-  const [form] = useForm({
+  const [form] = useForm<z.input<typeof ThemeFormSchema>>({
     id: 'theme-switch',
-    lastResult: fetcher.data?.result,
+    lastResult: fetcher.data?.result as unknown as SubmissionResult<string[]>,
   });
 
   const optimisticMode = useOptimisticThemeMode();

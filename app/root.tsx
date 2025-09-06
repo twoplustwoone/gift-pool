@@ -1,4 +1,5 @@
 import { getFormProps, useForm } from '@conform-to/react';
+import type { SubmissionResult } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 import {
   json,
@@ -293,9 +294,9 @@ export function useOptimisticThemeMode() {
 const ThemeSwitch = ({ userPreference }: { userPreference?: Theme | null }) => {
   const fetcher = useFetcher<typeof action>();
 
-  const [form] = useForm({
+  const [form] = useForm<z.input<typeof ThemeFormSchema>>({
     id: 'theme-switch',
-    lastResult: fetcher.data,
+    lastResult: fetcher.data as unknown as SubmissionResult<string[]>,
   });
 
   const optimisticMode = useOptimisticThemeMode();
