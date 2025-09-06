@@ -1,5 +1,9 @@
-import { getFormProps, useForm, useInputControl } from '@conform-to/react';
-import type { SubmissionResult } from '@conform-to/react';
+import {
+  getFormProps,
+  useForm,
+  useInputControl,
+  type SubmissionResult,
+} from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type GroupInvitation } from '@prisma/client';
 import {
