@@ -46,11 +46,13 @@ export const WishlistItemSchema = z.object({
 
 type EditorProps = {
   wishlistItem?: SerializeFrom<
-    Pick<WishlistItem, 'id' | 'title' | 'url' | 'note' | 'type'>
+    Pick<WishlistItem, 'id' | 'title' | 'url' | 'note' | 'type' | 'categoryId'>
   >;
   trigger?: React.ReactNode;
   initialMode?: 'auto' | 'view' | 'edit' | 'create';
   canEdit?: boolean;
+  categories?: { id: string; name: string }[];
+  defaultCategoryId?: string | null;
 };
 
 export type WishlistItemEditorHandle = {
@@ -65,7 +67,18 @@ export type WishlistItemEditorHandle = {
 export const WishlistItemEditor = React.forwardRef<
   WishlistItemEditorHandle,
   EditorProps
->(({ wishlistItem, trigger, initialMode = 'auto', canEdit = false }, ref) => {
+>(
+  (
+    {
+      wishlistItem,
+      trigger,
+      initialMode = 'auto',
+      canEdit = false,
+      categories = [],
+      defaultCategoryId = null,
+    },
+    ref,
+  ) => {
   const hasId = Boolean(wishlistItem?.id);
   const computedInitial: 'view' | 'edit' | 'create' =
     initialMode === 'auto'
@@ -138,6 +151,7 @@ export const WishlistItemEditor = React.forwardRef<
       title: wishlistItem?.title ?? '',
       url: wishlistItem?.url ?? '',
       note: wishlistItem?.note ?? '',
+      categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
     },
   });
 
@@ -333,6 +347,24 @@ export const WishlistItemEditor = React.forwardRef<
                 }}
                 errors={[]}
               />
+
+              <div className="flex flex-col gap-2">
+                <label htmlFor={fields.categoryId.id}>Category</label>
+                <select
+                  {...getInputProps(fields.categoryId, {
+                    type: 'text',
+                    ariaAttributes: true,
+                  })}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Default (Uncategorized)</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
                 <DialogClose asChild>

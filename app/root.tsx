@@ -22,7 +22,6 @@ import { z } from 'zod';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx';
-import { Logo } from './components/logo.tsx';
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
@@ -188,14 +187,9 @@ const Document = ({
 
 const Footer = () => {
   return (
-    <>
-      <div className="container hidden justify-between pb-5 sm:flex">
-        <Logo />
-      </div>
-      <div className="sm:hidden">
-        <BottomNav />
-      </div>
-    </>
+    <div className="sm:hidden">
+      <BottomNav />
+    </div>
   );
 };
 

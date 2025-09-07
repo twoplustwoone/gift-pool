@@ -32,12 +32,14 @@ export const DeleteFormSchema = z.object({
 export const WishlistItem = ({
   wishlistItem,
   isOwner = false,
+  categories = [],
 }: {
   wishlistItem: Pick<
     WishlistItemType,
-    'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type'
+    'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId'
   >;
   isOwner?: boolean;
+  categories?: { id: string; name: string; order: number }[];
 }) => {
   const user = useOptionalUser();
   const isOwnerByUser = user?.id === wishlistItem.ownerId;
@@ -72,9 +74,11 @@ export const WishlistItem = ({
             url: wishlistItem.url ?? null,
             note: wishlistItem.note ?? null,
             type: wishlistItem.type,
+            categoryId: wishlistItem.categoryId ?? null,
           }}
           canEdit={false}
           initialMode="view"
+          categories={categories}
         />
 
         <Flex justify="between" align="center" className="gap-3 min-w-0">
@@ -137,9 +141,11 @@ export const WishlistItem = ({
           url: wishlistItem.url ?? null,
           note: wishlistItem.note ?? null,
           type: wishlistItem.type,
+          categoryId: wishlistItem.categoryId ?? null,
         }}
         trigger={DesktopTrigger} // desktop: row-as-trigger (edit/create)
         canEdit={true}
+        categories={categories}
       />
 
       <div className="sm:hidden">

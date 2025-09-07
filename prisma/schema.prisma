@@ -28,6 +28,7 @@ model User {
   image             UserImage?
   giftGroups        UsersInGiftGroups[]
   wishlistItems     WishlistItem[]
+  wishlistCategories WishlistCategory[]
   roles             Role[]              @relation("RoleToUser")
 }
 
@@ -154,6 +155,17 @@ model Address {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model WishlistCategory {
+  id        String   @id @default(cuid())
+  ownerId   String
+  name      String
+  order     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  items     WishlistItem[]
+}
+
 model WishlistItem {
   id         String   @id @default(cuid())
   ownerId    String
@@ -165,6 +177,7 @@ model WishlistItem {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   owner      User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  category   WishlistCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 }
 
 model UserImage {

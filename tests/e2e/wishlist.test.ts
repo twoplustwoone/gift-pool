@@ -22,3 +22,28 @@ test('users can add wishlist items', async ({ page, login }) => {
     page.getByText('Second Item').filter({ visible: true }),
   ).toBeVisible();
 });
+
+test('users can create categories and assign items', async ({ page, login }) => {
+  await login();
+  await page.goto('/wishlist');
+
+  await page.getByRole('button', { name: /add category/i }).click();
+  await page.getByPlaceholder('Category name').fill('Books');
+  await page.getByRole('button', { name: /create/i }).click();
+  await expect(page.getByText('Category added')).toBeVisible();
+  await expect(page.getByPlaceholder('Category name')).toHaveValue('');
+  await expect(page.getByText('Books')).toBeVisible();
+
+  await page.getByRole('button', { name: /close/i }).click();
+
+  await expect(page.getByRole('heading', { name: /books \(0\)/i })).toBeVisible();
+
+  await page.getByRole('button', { name: /add item to books/i }).click();
+  await expect(
+    page.getByRole('option', { name: 'Books', selected: true }),
+  ).toBeVisible();
+  await page.getByLabel('Title').fill('Book One');
+  await page.getByRole('button', { name: /^save idle$/i }).click();
+  await expect(page.getByRole('heading', { name: /books \(1\)/i })).toBeVisible();
+  await expect(page.getByText('Book One')).toBeVisible();
+});

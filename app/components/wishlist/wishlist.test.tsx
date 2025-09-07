@@ -58,6 +58,10 @@ vi.mock('#app/routes/wishlist+/__wishlist-item-editor', () => {
   return { WishlistItemEditor };
 });
 
+vi.mock('./category-manager', () => ({
+  CategoryManager: () => <div />,
+}));
+
 describe('Wishlist components', () => {
   it('renders wishlist with items', async () => {
     const App = createRemixStub([
@@ -78,8 +82,10 @@ describe('Wishlist components', () => {
                   note: null,
                   url: null,
                   type: 'text',
+                  categoryId: null,
                 },
               ],
+              wishlistCategories: [],
             }}
           />
         ),
@@ -105,6 +111,7 @@ describe('Wishlist components', () => {
               name: 'Jim',
               image: { id: 'img1' },
               wishlistItems: [],
+              wishlistCategories: [],
             }}
           />
         ),
@@ -116,5 +123,31 @@ describe('Wishlist components', () => {
     await screen.findByText(
       "Jim doesn't have any items in their wishlist yet!",
     );
+  });
+
+  it('renders empty categories', async () => {
+    const App = createRemixStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={true}
+            user={{
+              username: 'jane',
+              name: 'Jane',
+              image: { id: 'img1' },
+              wishlistItems: [],
+              wishlistCategories: [
+                { id: 'cat1', name: 'Books', order: 0 },
+              ],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: /books \(0\)/i });
   });
 });
