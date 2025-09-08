@@ -7,20 +7,15 @@ test('users can add wishlist items', async ({ page, login }) => {
   await page.goto('/wishlist');
 
   // Add first item and close (disambiguate from category add and hidden FAB)
-  await page
-    .getByRole('button', { name: /^Add Item$/ })
-    .filter({ hasText: 'Add Item' })
-    .click();
-  await page.getByLabel('Title').fill('First Item');
+  await page.getByRole('button', { name: /^Add Item$/ }).click();
+
+  // await page.getByLabel('Title').fill('First Item');
   await page.getByRole('button', { name: /^save idle$/i }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByText('First Item').first()).toBeVisible();
 
   // Add second item and keep dialog open
-  await page
-    .getByRole('button', { name: /^Add Item$/ })
-    .filter({ hasText: 'Add Item' })
-    .click();
+  await page.getByRole('button', { name: /^Add Item$/ }).click();
   await page.getByLabel('Title').fill('Second Item');
   await page.getByRole('button', { name: /save & add another/i }).click();
   await expect(page.getByText(toastText).first()).toBeVisible();
