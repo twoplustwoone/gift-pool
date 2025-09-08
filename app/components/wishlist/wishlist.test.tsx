@@ -100,7 +100,7 @@ describe('Wishlist components', () => {
 
     render(<App />);
 
-    await screen.findByText("Jane's Wishlist");
+    await screen.findByText('My Wishlist');
     // 2 items: one for the desktop view, one for the mobile view
     expect(await screen.findAllByText('Item one')).toHaveLength(2);
   });
@@ -143,9 +143,7 @@ describe('Wishlist components', () => {
               name: 'Jane',
               image: { id: 'img1' },
               wishlistItems: [],
-              wishlistCategories: [
-                { id: 'cat1', name: 'Books', order: 0 },
-              ],
+              wishlistCategories: [{ id: 'cat1', name: 'Books', order: 0 }],
             }}
           />
         ),
