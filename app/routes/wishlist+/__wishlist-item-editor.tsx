@@ -174,13 +174,13 @@ export const WishlistItemEditor = React.forwardRef<
               className="hidden sm:inline-flex"
               variant="default"
               onClick={() => {
-                setMode('create');
-                setOpen(true);
+                setMode('create')
+                setOpen(true)
               }}
             >
               <Flex gap={1}>
                 <Icon name="plus" />
-                <Text size="sm">Add Wishlist Item</Text>
+                <Text size="sm">Add Item</Text>
               </Flex>
             </Button>
             {/* Mobile FAB add button */}
@@ -192,8 +192,8 @@ export const WishlistItemEditor = React.forwardRef<
                   setMode('create');
                   setOpen(true);
                 }}
-                aria-label="Add Wishlist Item"
-                title="Add Wishlist Item"
+                aria-label="Add Item"
+                title="Add Item"
                 className="fixed bottom-[calc(theme(spacing.4)+env(safe-area-inset-bottom)+4rem)] right-4 z-40 h-14 w-14 rounded-full border bg-primary text-primary-foreground shadow-lg sm:hidden"
               >
                 <Icon name="plus" />

@@ -114,12 +114,26 @@ export const WishlistItem = ({
           >
             {wishlistItem.title}
           </Text>
-          {canDelete && (
-            <DeleteWishlistItem
-              id={wishlistItem.id}
-              className="items-center justify-center text-red-600 opacity-0 transition-opacity duration-200 ease-in-out hover:text-red-800 group-hover:opacity-100"
-            />
-          )}
+          <div className="flex items-center gap-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label="Edit item"
+              onClick={(e) => {
+                e.stopPropagation()
+                editorRef.current?.openEdit()
+              }}
+            >
+              <FaPencilAlt className="h-4 w-4" />
+            </Button>
+            {canDelete && (
+              <DeleteWishlistItem
+                id={wishlistItem.id}
+                className="items-center justify-center text-red-600 hover:text-red-800"
+              />
+            )}
+          </div>
         </Flex>
         <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
           <Text size="xs" className="text-muted-foreground break-words">

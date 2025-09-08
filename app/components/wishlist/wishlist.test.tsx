@@ -28,7 +28,13 @@ vi.mock('@remix-run/react', async () => {
   return {
     ...actual,
     useActionData: () => undefined,
-    useFetcher: () => ({ Form: (props: any) => <form {...props} /> }),
+    useFetcher: () => ({
+      Form: (props: any) => <form {...props} />,
+      submit: () => {},
+      state: 'idle',
+      data: undefined,
+    }),
+    useRevalidator: () => ({ revalidate: () => {} }),
   };
 });
 
