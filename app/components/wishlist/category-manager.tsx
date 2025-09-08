@@ -1,42 +1,45 @@
-import { useFetcher, useRevalidator } from '@remix-run/react'
-import { useEffect, useRef, useState } from 'react'
-import { useToast } from '#app/components/toaster.tsx'
-import { Button } from '#app/components/ui/button'
-import { Icon } from '#app/components/ui/icon'
-import { Input } from '#app/components/ui/input'
+import { useFetcher, useRevalidator } from '@remix-run/react';
+import { useEffect, useRef, useState } from 'react';
+import { FaPlus } from 'react-icons/fa';
+import { FaGear } from 'react-icons/fa6';
+import { useToast } from '#app/components/toaster.tsx';
+import { Button } from '#app/components/ui/button';
+import { Icon } from '#app/components/ui/icon';
+import { Input } from '#app/components/ui/input';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '#app/components/ui/popover'
+} from '#app/components/ui/popover';
+import { Flex, Text } from '../ui-kit';
 
-export type WishlistCategory = { id: string; name: string; order: number }
+export type WishlistCategory = { id: string; name: string; order: number };
 
 export const CategoryManager = ({
   categories,
 }: {
-  categories: WishlistCategory[]
+  categories: WishlistCategory[];
 }) => {
-  const [open, setOpen] = useState(false)
-  const createFetcher = useFetcher()
-  const actionFetcher = useFetcher()
-  const revalidator = useRevalidator()
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const formRef = useRef<HTMLFormElement>(null)
+  const [open, setOpen] = useState(false);
+  const createFetcher = useFetcher();
+  const actionFetcher = useFetcher();
+  const revalidator = useRevalidator();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useToast(
     (createFetcher.data as any)?.toast ?? (actionFetcher.data as any)?.toast,
-  )
+  );
 
   useEffect(() => {
     if (
       (createFetcher.state === 'idle' && (createFetcher.data as any)?.ok) ||
       (actionFetcher.state === 'idle' && (actionFetcher.data as any)?.ok)
     ) {
-      revalidator.revalidate()
-      setEditingId(null)
+      revalidator.revalidate();
+      setEditingId(null);
       if ((createFetcher.data as any)?.ok) {
-        formRef.current?.reset()
+        formRef.current?.reset();
       }
     }
   }, [
@@ -45,14 +48,16 @@ export const CategoryManager = ({
     actionFetcher.state,
     actionFetcher.data,
     revalidator,
-  ])
+  ]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="secondary">
-          <Icon name="gear" className="mr-2 h-4 w-4" />
-          Add Category
+        <Button type="button" variant="outline">
+          <Flex gap={1.5}>
+            <FaGear />
+            <Text size="sm">Add Category</Text>
+          </Flex>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="flex flex-col gap-4" align="end">
@@ -67,14 +72,10 @@ export const CategoryManager = ({
           <Input
             name="name"
             placeholder="Category name"
-            className="flex-1 h-8"
+            className="h-8 flex-1"
           />
-          <Button
-            type="submit"
-            size="icon"
-            aria-label="Create category"
-          >
-            <Icon name="plus" className="h-4 w-4" />
+          <Button type="submit" size="icon" aria-label="Create category">
+            <FaPlus />
           </Button>
         </createFetcher.Form>
         <ul className="flex flex-col gap-2">
@@ -94,7 +95,7 @@ export const CategoryManager = ({
                   <Input
                     name="name"
                     defaultValue={cat.name}
-                    className="flex-1 h-8"
+                    className="h-8 flex-1"
                   />
                   <Button
                     type="submit"
@@ -177,5 +178,5 @@ export const CategoryManager = ({
         </ul>
       </PopoverContent>
     </Popover>
-  )
-}
+  );
+};

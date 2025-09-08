@@ -2,20 +2,22 @@ import {
   type User,
   type UserImage,
   type WishlistItem as WishlistItemType,
-} from '@prisma/client'
-import { Link, useFetcher, useRevalidator } from '@remix-run/react'
-import { useEffect, useState } from 'react'
+} from '@prisma/client';
+import { Link, useFetcher, useRevalidator } from '@remix-run/react';
+import { useEffect, useState } from 'react';
 
-import { Button } from '#app/components/ui/button'
-import { ConfirmDialog } from '#app/components/ui/confirm-dialog'
-import { Icon } from '#app/components/ui/icon'
-import { Input } from '#app/components/ui/input'
-import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor'
-import { getUserImgSrc } from '#app/utils/misc.tsx'
-import { useToast } from '#app/components/toaster.tsx'
-import { Grid, Stack } from '../ui-kit'
-import { CategoryManager } from './category-manager'
-import { WishlistItem } from './wishlist-item'
+import { FaCheck, FaPencilAlt, FaTimes, FaTrashAlt } from 'react-icons/fa';
+import { FaPlus } from 'react-icons/fa6';
+import { useToast } from '#app/components/toaster.tsx';
+import { Button } from '#app/components/ui/button';
+import { ConfirmDialog } from '#app/components/ui/confirm-dialog';
+import { Icon } from '#app/components/ui/icon';
+import { Input } from '#app/components/ui/input';
+import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
+import { getUserImgSrc } from '#app/utils/misc.tsx';
+import { Flex, Grid, Stack, Text } from '../ui-kit';
+import { CategoryManager } from './category-manager';
+import { WishlistItem } from './wishlist-item';
 
 export const Wishlist = ({
   user,
@@ -31,70 +33,83 @@ export const Wishlist = ({
   };
   isOwner: boolean;
 }) => {
-  const displayName = user.name ?? user.username
+  const displayName = user.name ?? user.username;
   const categories = [
     { id: null, name: 'Default (Uncategorized)', order: -1 },
     ...user.wishlistCategories,
-  ]
+  ];
 
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const actionFetcher = useFetcher()
-  const revalidator = useRevalidator()
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const actionFetcher = useFetcher();
+  const revalidator = useRevalidator();
 
-  useToast((actionFetcher.data as any)?.toast)
+  useToast((actionFetcher.data as any)?.toast);
 
   useEffect(() => {
     if (actionFetcher.state === 'idle' && (actionFetcher.data as any)?.ok) {
-      revalidator.revalidate()
-      setEditingId(null)
+      revalidator.revalidate();
+      setEditingId(null);
     }
-  }, [actionFetcher.state, actionFetcher.data, revalidator])
+  }, [actionFetcher.state, actionFetcher.data, revalidator]);
 
   const toggle = (id: string | null) => {
-    setCollapsed((prev) => ({ ...prev, [id ?? 'default']: !prev[id ?? 'default'] }))
-  }
+    setCollapsed((prev) => ({
+      ...prev,
+      [id ?? 'default']: !prev[id ?? 'default'],
+    }));
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="px-4 py-4 sm:px-8 sm:pt-8">
-        <div className="flex flex-col items-center justify-between gap-2 lg:flex-row">
-          <Link
-            to={`/users/${user.username}`}
-            className="flex flex-col items-center justify-center gap-2 lg:flex-row lg:justify-start lg:gap-4"
-          >
-            <img
-              src={getUserImgSrc(user.image?.id)}
-              alt={displayName}
-              className="h-12 w-12 rounded-full object-cover lg:h-16 lg:w-16"
-            />
-            <h1 className="text-center text-lg font-bold lg:text-left">
-              {displayName}'s Wishlist
-            </h1>
-          </Link>
-          {isOwner && (
-            <div className="flex gap-2">
-              <WishlistItemEditor categories={user.wishlistCategories} />
-              <CategoryManager categories={user.wishlistCategories} />
-            </div>
+      <div className="border-b px-4 py-4 shadow">
+        <div className="container flex flex-col items-center justify-between gap-2 lg:flex-row">
+          {!isOwner ? (
+            <Link
+              to={`/users/${user.username}`}
+              className="flex flex-col items-center justify-center gap-2 lg:flex-row lg:justify-start lg:gap-4"
+            >
+              <img
+                src={getUserImgSrc(user.image?.id)}
+                alt={displayName}
+                className="h-6 w-6 rounded-full object-cover lg:h-10 lg:w-10"
+              />
+              <Text size="xl" weight="bold">
+                {/* <h1 className="text-center text-lg font-bold lg:text-left"> */}
+                {displayName}'s Wishlist
+                {/* </h1> */}
+              </Text>
+            </Link>
+          ) : (
+            <>
+              {/* <Text weight="bold"> */}
+              <Text size="xl" weight="bold">
+                My Wishlist
+              </Text>
+              <div className="flex gap-2">
+                <WishlistItemEditor categories={user.wishlistCategories} />
+                <CategoryManager categories={user.wishlistCategories} />
+              </div>
+            </>
           )}
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto pb-bottom-nav sm:pb-0">
+      <div className="container min-h-0 flex-1 py-8 pb-bottom-nav sm:pb-0">
         <Stack gap={4}>
           {categories.map((category) => {
             const items = user.wishlistItems.filter(
               (item) => item.categoryId === category.id,
-            )
-            const key = category.id ?? 'default'
-            const isCollapsed = collapsed[key]
+            );
+            const key = category.id ?? 'default';
+            const isCollapsed = collapsed[key];
+            const isEditing = category.id !== null && editingId === category.id;
             return (
               <div
                 key={key}
-                className="rounded-xl border border-border bg-background"
+                className="rounded-xl border border-border bg-background shadow"
               >
                 <div
-                  className="flex items-center justify-between rounded-t-xl bg-muted px-4 py-2 hover:bg-muted/80"
+                  className="flex cursor-pointer items-center justify-between rounded-t-xl bg-muted px-4 py-2 hover:bg-muted/80"
                   onClick={() => toggle(category.id)}
                 >
                   <div className="flex items-center gap-2">
@@ -102,7 +117,7 @@ export const Wishlist = ({
                       name={isCollapsed ? 'chevron-right' : 'chevron-down'}
                       className="h-4 w-4"
                     />
-                    {editingId === category.id ? (
+                    {isEditing ? (
                       <actionFetcher.Form
                         method="post"
                         action="/wishlist/categories"
@@ -110,7 +125,11 @@ export const Wishlist = ({
                         onClick={(e) => e.stopPropagation()}
                       >
                         <input type="hidden" name="intent" value="rename" />
-                        <input type="hidden" name="id" value={category.id ?? ''} />
+                        <input
+                          type="hidden"
+                          name="id"
+                          value={category.id ?? ''}
+                        />
                         <Input
                           name="name"
                           defaultValue={category.name}
@@ -123,7 +142,7 @@ export const Wishlist = ({
                           aria-label="Save category"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <Icon name="check" className="h-4 w-4" />
+                          <FaCheck />
                         </Button>
                         <Button
                           type="button"
@@ -131,17 +150,24 @@ export const Wishlist = ({
                           variant="ghost"
                           aria-label="Cancel"
                           onClick={(e) => {
-                            e.stopPropagation()
-                            setEditingId(null)
+                            e.stopPropagation();
+                            setEditingId(null);
                           }}
                         >
-                          <Icon name="x" className="h-4 w-4" />
+                          <FaTimes />
                         </Button>
                       </actionFetcher.Form>
                     ) : (
-                      <h2 className="text-sm font-semibold">
-                        {category.name} ({items.length})
-                      </h2>
+                      <Flex align="center" gap={2}>
+                        <Text weight="bold">{category.name}</Text>
+                        <Text
+                          className="text-muted-foreground"
+                          size="xs"
+                          weight="bold"
+                        >
+                          ({items.length})
+                        </Text>
+                      </Flex>
                     )}
                   </div>
                   {isOwner && (
@@ -159,7 +185,10 @@ export const Wishlist = ({
                             variant="ghost"
                             aria-label={`Add item to ${category.name}`}
                           >
-                            + Item
+                            <Flex gap={1}>
+                              <FaPlus size={12} />
+                              <Text>Item</Text>
+                            </Flex>
                           </Button>
                         }
                       />
@@ -172,7 +201,7 @@ export const Wishlist = ({
                             aria-label="Edit category"
                             onClick={() => setEditingId(category.id)}
                           >
-                            <Icon name="pencil" className="h-4 w-4" />
+                            <FaPencilAlt />
                           </Button>
                           <ConfirmDialog
                             title="Delete category"
@@ -193,7 +222,7 @@ export const Wishlist = ({
                               variant="ghost"
                               aria-label="Delete category"
                             >
-                              <Icon name="trash" className="h-4 w-4" />
+                              <FaTrashAlt />
                             </Button>
                           </ConfirmDialog>
                         </>
@@ -216,7 +245,7 @@ export const Wishlist = ({
                   </div>
                 )}
               </div>
-            )
+            );
           })}
 
           {user.wishlistItems.length === 0 ? (
