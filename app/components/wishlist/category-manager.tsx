@@ -1,7 +1,7 @@
 import { useFetcher, useRevalidator } from '@remix-run/react';
 import { useEffect, useRef, useState } from 'react';
-import { FaPlus } from 'react-icons/fa';
-import { FaGear } from 'react-icons/fa6';
+import { FaPencilAlt, FaPlus, FaTimes } from 'react-icons/fa';
+import { FaCheck, FaGear, FaPencil } from 'react-icons/fa6';
 import { useToast } from '#app/components/toaster.tsx';
 import { Button } from '#app/components/ui/button';
 import { Icon } from '#app/components/ui/icon';
@@ -97,23 +97,25 @@ export const CategoryManager = ({
                     defaultValue={cat.name}
                     className="h-8 flex-1"
                   />
-                  <Button
-                    type="submit"
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Save"
-                  >
-                    <Icon name="check" className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Cancel"
-                    onClick={() => setEditingId(null)}
-                  >
-                    <Icon name="x" className="h-4 w-4" />
-                  </Button>
+                  <Flex>
+                    <Button
+                      type="submit"
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Save"
+                    >
+                      <FaCheck />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Cancel"
+                      onClick={() => setEditingId(null)}
+                    >
+                      <FaTimes className="h-4 w-4" />
+                    </Button>
+                  </Flex>
                 </actionFetcher.Form>
               ) : (
                 <>
@@ -148,29 +150,31 @@ export const CategoryManager = ({
                   >
                     <Icon name="chevron-down" className="h-4 w-4" />
                   </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Edit category"
-                    onClick={() => setEditingId(cat.id)}
-                  >
-                    <Icon name="pencil" className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Delete category"
-                    onClick={() =>
-                      actionFetcher.submit(
-                        { intent: 'delete', id: cat.id },
-                        { method: 'post', action: '/wishlist/categories' },
-                      )
-                    }
-                  >
-                    <Icon name="trash" className="h-4 w-4" />
-                  </Button>
+                  <Flex>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Edit category"
+                      onClick={() => setEditingId(cat.id)}
+                    >
+                      <FaPencilAlt />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Delete category"
+                      onClick={() =>
+                        actionFetcher.submit(
+                          { intent: 'delete', id: cat.id },
+                          { method: 'post', action: '/wishlist/categories' },
+                        )
+                      }
+                    >
+                      <Icon name="trash" className="h-4 w-4" />
+                    </Button>
+                  </Flex>
                 </>
               )}
             </li>

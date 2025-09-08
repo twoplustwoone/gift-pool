@@ -3,6 +3,7 @@ import { type WishlistItem as WishlistItemType } from '@prisma/client';
 import { useFetcher } from '@remix-run/react';
 import * as React from 'react';
 import { FaPencilAlt, FaTrashAlt, FaChevronRight } from 'react-icons/fa';
+import { FaPencil } from 'react-icons/fa6';
 import { z } from 'zod';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
@@ -81,8 +82,8 @@ export const WishlistItem = ({
           categories={categories}
         />
 
-        <Flex justify="between" align="center" className="gap-3 min-w-0">
-          <Box className="min-w-0 flex-1 w-0 overflow-hidden">
+        <Flex justify="between" align="center" className="min-w-0 gap-3">
+          <Box className="w-0 min-w-0 flex-1 overflow-hidden">
             <Text
               size="base"
               weight="medium"
@@ -91,7 +92,7 @@ export const WishlistItem = ({
               {wishlistItem.title}
             </Text>
             <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-              <Text size="xs" className="text-muted-foreground break-words">
+              <Text size="xs" className="break-words text-muted-foreground">
                 {wishlistItem.note}
               </Text>
             </Box>
@@ -106,37 +107,39 @@ export const WishlistItem = ({
   const DesktopTrigger = (
     <div className="hidden sm:block">
       <Card variant="interactive" padding="md" className="group h-28 min-w-0">
-        <Flex justify="between" align="center" className="gap-3 min-w-0">
+        <Flex justify="between" align="center" className="min-w-0 gap-3">
           <Text
             size="base"
             weight="medium"
-            className="flex-1 w-0 min-w-0 max-w-full block truncate"
+            className="block w-0 min-w-0 max-w-full flex-1 truncate"
           >
             {wishlistItem.title}
           </Text>
-          <div className="flex items-center gap-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              aria-label="Edit item"
-              onClick={(e) => {
-                e.stopPropagation()
-                editorRef.current?.openEdit()
-              }}
-            >
-              <FaPencilAlt className="h-4 w-4" />
-            </Button>
-            {canDelete && (
-              <DeleteWishlistItem
-                id={wishlistItem.id}
-                className="items-center justify-center text-red-600 hover:text-red-800"
-              />
-            )}
+          <div className="flex items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <Flex>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label="Edit item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  editorRef.current?.openEdit();
+                }}
+              >
+                <FaPencil className="h-4 w-4" />
+              </Button>
+              {canDelete && (
+                <DeleteWishlistItem
+                  id={wishlistItem.id}
+                  className="items-center justify-center text-red-600 hover:text-red-800"
+                />
+              )}
+            </Flex>
           </div>
         </Flex>
         <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-          <Text size="xs" className="text-muted-foreground break-words">
+          <Text size="xs" className="break-words text-muted-foreground">
             {wishlistItem.note}
           </Text>
         </Box>
@@ -171,8 +174,13 @@ export const WishlistItem = ({
           data-pressed={press.pressed ? 'true' : 'false'}
           {...press.rowProps}
         >
-          <Flex className="h-full min-w-0" align="center" justify="between" gap={3}>
-            <Box className="min-w-0 flex-1 w-0 overflow-hidden">
+          <Flex
+            className="h-full min-w-0"
+            align="center"
+            justify="between"
+            gap={3}
+          >
+            <Box className="w-0 min-w-0 flex-1 overflow-hidden">
               <Text
                 size="base"
                 weight="medium"
@@ -181,7 +189,7 @@ export const WishlistItem = ({
                 {wishlistItem.title}
               </Text>
               <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-                <Text size="xs" className="text-muted-foreground break-words">
+                <Text size="xs" className="break-words text-muted-foreground">
                   {wishlistItem.note}
                 </Text>
               </Box>

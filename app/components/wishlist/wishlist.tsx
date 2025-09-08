@@ -6,8 +6,8 @@ import {
 import { Link, useFetcher, useRevalidator } from '@remix-run/react';
 import { useEffect, useState } from 'react';
 
-import { FaCheck, FaPencilAlt, FaTimes, FaTrashAlt } from 'react-icons/fa';
-import { FaPlus } from 'react-icons/fa6';
+import { FaPencilAlt, FaTimes, FaTrashAlt } from 'react-icons/fa';
+import { FaCheck, FaPlus } from 'react-icons/fa6';
 import { useToast } from '#app/components/toaster.tsx';
 import { Button } from '#app/components/ui/button';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog';
