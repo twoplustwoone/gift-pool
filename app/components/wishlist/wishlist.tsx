@@ -3,8 +3,8 @@ import {
   type UserImage,
   type WishlistItem as WishlistItemType,
 } from '@prisma/client';
-import { Link, useFetcher, useRevalidator } from '@remix-run/react';
-import { useEffect, useState } from 'react';
+import { Link, useFetcher } from '@remix-run/react';
+import { useEffect, useRef, useState } from 'react';
 
 import { FaPencilAlt, FaTimes, FaTrashAlt } from 'react-icons/fa';
 import { FaCheck, FaPlus } from 'react-icons/fa6';
@@ -43,16 +43,20 @@ export const Wishlist = ({
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const actionFetcher = useFetcher();
-  const revalidator = useRevalidator();
 
   useToast((actionFetcher.data as any)?.toast);
 
+  const handledRef = useRef(false);
   useEffect(() => {
-    if (actionFetcher.state === 'idle' && (actionFetcher.data as any)?.ok) {
-      revalidator.revalidate();
+    const ok = (actionFetcher.data as any)?.ok;
+    if (actionFetcher.state === 'idle' && ok && !handledRef.current) {
+      handledRef.current = true;
       setEditingId(null);
     }
-  }, [actionFetcher.state, actionFetcher.data, revalidator]);
+    if (actionFetcher.state !== 'idle') {
+      handledRef.current = false;
+    }
+  }, [actionFetcher.state, actionFetcher.data]);
 
   const toggle = (id: string | null) => {
     setCollapsed((prev) => ({

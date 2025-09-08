@@ -1,7 +1,7 @@
-import { useFetcher, useRevalidator } from '@remix-run/react';
+import { useFetcher } from '@remix-run/react';
 import { useEffect, useRef, useState } from 'react';
 import { FaPencilAlt, FaPlus, FaTimes } from 'react-icons/fa';
-import { FaCheck, FaGear, FaPencil } from 'react-icons/fa6';
+import { FaCheck, FaGear } from 'react-icons/fa6';
 import { useToast } from '#app/components/toaster.tsx';
 import { Button } from '#app/components/ui/button';
 import { Icon } from '#app/components/ui/icon';
@@ -23,7 +23,6 @@ export const CategoryManager = ({
   const [open, setOpen] = useState(false);
   const createFetcher = useFetcher();
   const actionFetcher = useFetcher();
-  const revalidator = useRevalidator();
   const [editingId, setEditingId] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -31,23 +30,28 @@ export const CategoryManager = ({
     (createFetcher.data as any)?.toast ?? (actionFetcher.data as any)?.toast,
   );
 
+  const handledRef = useRef(false);
   useEffect(() => {
-    if (
-      (createFetcher.state === 'idle' && (createFetcher.data as any)?.ok) ||
-      (actionFetcher.state === 'idle' && (actionFetcher.data as any)?.ok)
-    ) {
-      revalidator.revalidate();
+    const createdOk = (createFetcher.data as any)?.ok;
+    const actionOk = (actionFetcher.data as any)?.ok;
+    const anyIdleOk =
+      (createFetcher.state === 'idle' && createdOk) ||
+      (actionFetcher.state === 'idle' && actionOk);
+
+    if (anyIdleOk && !handledRef.current) {
+      handledRef.current = true;
       setEditingId(null);
-      if ((createFetcher.data as any)?.ok) {
-        formRef.current?.reset();
-      }
+      if (createdOk) formRef.current?.reset();
+    }
+
+    if (createFetcher.state !== 'idle' || actionFetcher.state !== 'idle') {
+      handledRef.current = false;
     }
   }, [
     createFetcher.state,
     createFetcher.data,
     actionFetcher.state,
     actionFetcher.data,
-    revalidator,
   ]);
 
   return (
