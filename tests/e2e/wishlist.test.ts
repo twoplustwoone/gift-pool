@@ -1,25 +1,31 @@
 import { expect, test } from '#tests/playwright-utils.ts';
 
-const toastText = 'Wishlist item added.';
-
 test('users can add wishlist items', async ({ page, login }) => {
   await login();
   await page.goto('/wishlist');
+  await page.waitForLoadState('networkidle');
 
-  // Add first item and close (disambiguate from category add and hidden FAB)
-  await page.getByRole('button', { name: /^Add Item$/ }).click();
+  const addItemButton = page.getByRole('button', { name: /^Add Item$/ });
+  await expect(addItemButton).toBeVisible();
+  await addItemButton.click();
 
-  // await page.getByLabel('Title').fill('First Item');
-  await page.getByRole('button', { name: /^save idle$/i }).click();
+  // Wait for the dialog rather than jumping straight to Save
+  await expect(page.getByRole('dialog')).toBeVisible();
+
+  // Create first item
+  await page.getByLabel('Title').fill('First Item');
+  await page.getByRole('button', { name: /^save$/i }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByText('First Item').first()).toBeVisible();
 
   // Add second item and keep dialog open
   await page.getByRole('button', { name: /^Add Item$/ }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByLabel('Title').fill('Second Item');
   await page.getByRole('button', { name: /save & add another/i }).click();
-  await expect(page.getByText(toastText).first()).toBeVisible();
-  await expect(page.getByRole('dialog')).toBeVisible();
+
+  await expect(page.getByText('Wishlist item added.').first()).toBeVisible();
+  await expect(page.getByRole('dialog')).toBeVisible(); // still open
   await expect(page.getByLabel('Title')).toHaveValue('');
   await expect(page.getByText('Second Item').first()).toBeVisible();
 });
