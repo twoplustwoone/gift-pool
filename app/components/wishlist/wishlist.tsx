@@ -15,6 +15,7 @@ import { Icon } from '#app/components/ui/icon';
 import { Input } from '#app/components/ui/input';
 import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
+import { Heading } from '../ui/heading.tsx';
 import { Flex, Grid, Stack, Text } from '../ui-kit';
 import { CategoryManager } from './category-manager';
 import { WishlistItem } from './wishlist-item';
@@ -158,16 +159,18 @@ export const Wishlist = ({
                         </Button>
                       </actionFetcher.Form>
                     ) : (
-                      <Flex align="center" gap={2}>
-                        <Text weight="bold">{category.name}</Text>
-                        <Text
-                          className="text-muted-foreground"
-                          size="xs"
-                          weight="bold"
-                        >
-                          ({items.length})
-                        </Text>
-                      </Flex>
+                      <Heading>
+                        <Flex align="center" gap={2}>
+                          <Text weight="bold">{category.name}</Text>
+                          <Text
+                            className="text-muted-foreground"
+                            size="xs"
+                            weight="bold"
+                          >
+                            ({items.length})
+                          </Text>
+                        </Flex>
+                      </Heading>
                     )}
                   </div>
                   {isOwner && (

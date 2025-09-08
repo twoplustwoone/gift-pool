@@ -165,44 +165,40 @@ export const WishlistItemEditor = React.forwardRef<
 
     return (
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          {trigger ? (
-            trigger
-          ) : (
-            <>
-              {/* Desktop add button */}
+        {trigger ? (
+          <DialogTrigger asChild>{trigger}</DialogTrigger>
+        ) : (
+          <>
+            {/* Desktop add button */}
+            <DialogTrigger asChild>
               <Button
                 className="hidden sm:inline-flex"
                 variant="outline"
-                onClick={() => {
-                  setMode('create');
-                  setOpen(true);
-                }}
+                onClick={() => setMode('create')}
               >
                 <Flex gap={1}>
                   <FaPlus />
                   <Text size="sm">Add Item</Text>
                 </Flex>
               </Button>
-              {/* Mobile FAB add button */}
-              {!open && (
+            </DialogTrigger>
+            {/* Mobile FAB add button */}
+            {!open && (
+              <DialogTrigger asChild>
                 <Button
                   type="button"
                   size="icon"
-                  onClick={() => {
-                    setMode('create');
-                    setOpen(true);
-                  }}
+                  onClick={() => setMode('create')}
                   aria-label="Add Item"
                   title="Add Item"
                   className="fixed bottom-[calc(theme(spacing.4)+env(safe-area-inset-bottom)+4rem)] right-4 z-40 h-14 w-14 rounded-full border bg-primary text-primary-foreground shadow-lg sm:hidden"
                 >
                   <Icon name="plus" />
                 </Button>
-              )}
-            </>
-          )}
-        </DialogTrigger>
+              </DialogTrigger>
+            )}
+          </>
+        )}
 
         {/* Optional: ensure dialog can fit our inner width comfortably */}
         <DialogContent className="sm:max-w-[36rem]">
