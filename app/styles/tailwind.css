@@ -44,7 +44,8 @@
     --destructive: 0 70% 50%;
     --destructive-foreground: 210 40% 98%;
 
-    --ring: 215 20.2% 65.1%;
+    --ring: 0 100% 68%;
+    /* --ring: 215 20.2% 65.1%; */
 
     --radius: 0.5rem;
 
@@ -109,7 +110,8 @@
     --destructive: 0 60% 40%;
     --destructive-foreground: 0 85.7% 97.3%;
 
-    --ring: 217.2 32.6% 60%;
+    /* --ring: 217.2 32.6% 60%; */
+    --ring: 0 100% 68%;
 
     --surface: 224 20% 12%;
     --surface-foreground: var(--foreground);

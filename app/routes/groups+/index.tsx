@@ -11,17 +11,14 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  DialogClose,
 } from '#app/components/ui/dialog.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
-import { Input } from '#app/components/ui/input.tsx';
-import { Label } from '#app/components/ui/label.tsx';
 import { Flex, Stack, Text } from '#app/components/ui-kit';
 import { usePressFeedback } from '#app/components/wishlist/hooks/use-press-feedback.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { CreateGroupCompactForm } from './__group-editor.tsx';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
@@ -49,6 +46,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   return json({ groups: data });
 }
+
+export { action } from './__group-editor.server';
 
 const GroupsIndex = () => {
   const { groups } = useLoaderData<typeof loader>();
@@ -136,38 +135,14 @@ const CreateGroupDialog = ({ children }: { children: React.ReactNode }) => {
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create Group</DialogTitle>
+          <DialogTitle>
+            <Flex gap={2}>
+              <FaUsers className="fill-primary" />{' '}
+              <Text weight="bold">Create New Group</Text>
+            </Flex>
+          </DialogTitle>
         </DialogHeader>
-        <form method="post" action="/groups/new" className="grid gap-3">
-          <div className="grid gap-1">
-            <Label htmlFor="group-name">Name</Label>
-            <Input
-              id="group-name"
-              name="name"
-              required
-              minLength={1}
-              maxLength={100}
-            />
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="group-description">Description</Label>
-            <Input
-              id="group-description"
-              name="description"
-              required
-              minLength={1}
-              maxLength={1000}
-            />
-          </div>
-          <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
-            <DialogClose asChild>
-              <Button type="button" variant="secondary">
-                Cancel
-              </Button>
-            </DialogClose>
-            <Button type="submit">Create</Button>
-          </DialogFooter>
-        </form>
+        <CreateGroupCompactForm />
       </DialogContent>
     </Dialog>
   );
