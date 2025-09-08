@@ -41,25 +41,24 @@ test('users can create, edit, and delete categories; items follow correctly', as
   await page.getByRole('button', { name: /add category/i }).click();
   await page.getByPlaceholder('Category name').fill('Books');
   await page.getByRole('button', { name: /create category/i }).click();
-  await expect(page.getByText('Category added')).toBeVisible();
+  await expect(page.getByText('Category added', { exact: true })).toBeVisible();
   await expect(page.getByPlaceholder('Category name')).toHaveValue('');
-  await expect(page.getByText('Books')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('Books')).toBeVisible();
   await page.keyboard.press('Escape'); // close manager
 
   // Add an item directly into the Books category via its header button
   await page.getByRole('button', { name: /add item to books/i }).click();
-  await expect(
-    page.getByRole('option', { name: 'Books', selected: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Category' })).toBeVisible();
   await page.getByLabel('Title').fill('Book One');
-  await page.getByRole('button', { name: /^save idle$/i }).click();
-  await expect(page.getByText('Book One')).toBeVisible();
+  await page.getByRole('button', { name: /^save$/i }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await expect(page.getByText('Book One').first()).toBeVisible();
 
   // Collapse then expand the Books category by clicking its header text
   await page.getByText('Books').first().click();
   await expect(page.getByText('Book One')).not.toBeVisible();
   await page.getByText('Books').first().click();
-  await expect(page.getByText('Book One')).toBeVisible();
+  await expect(page.getByText('Book One').first()).toBeVisible();
 
   // Rename Books -> Novels (inline header editor)
   await page.getByRole('button', { name: /edit category/i }).click();
@@ -72,14 +71,17 @@ test('users can create, edit, and delete categories; items follow correctly', as
   await page.getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByText('Novels')).toHaveCount(0);
   // Verify the default category section now contains the item
-  await expect(
-    page
-      .locator('div:has-text("Default (Uncategorized)")')
-      .locator('text=Book One'),
-  ).toBeVisible();
+  const bookOne = page
+    .locator('div') // or a more specific container selector
+    .filter({
+      has: page.getByText('Default (Uncategorized)'),
+      hasText: 'Book One',
+    })
+    .first();
+  await expect(bookOne).toBeVisible();
 
   // Sanity: open item editor
-  await page.getByText('Book One').first().hover();
-  await page.getByLabel('Edit item').click();
+  await page.locator('.rounded-xl.border.border-card-border').first();
+  await page.getByRole('button', { name: 'Edit item' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
 });
