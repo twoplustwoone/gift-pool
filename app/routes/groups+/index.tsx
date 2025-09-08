@@ -1,6 +1,8 @@
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { Link, useLoaderData, useNavigate } from '@remix-run/react';
-import { Avatar } from '#app/components/ui/avatar.tsx';
+import { FaUsers } from 'react-icons/fa';
+import { FaGear, FaPlus } from 'react-icons/fa6';
+import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import {
@@ -16,6 +18,7 @@ import { Heading } from '#app/components/ui/heading.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
+import { Flex, Stack, Text } from '#app/components/ui-kit';
 import { usePressFeedback } from '#app/components/wishlist/hooks/use-press-feedback.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
@@ -23,74 +26,26 @@ import { prisma } from '#app/utils/db.server.ts';
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   const groups = await prisma.giftGroup.findMany({
-    where: {
-      groupMembers: { some: { userId } },
-    },
+    where: { groupMembers: { some: { userId } } },
     select: {
       id: true,
       name: true,
       description: true,
-      groupMembers: {
-        select: {
-          user: {
-            select: {
-              id: true,
-              username: true,
-              name: true,
-              birthday: true,
-              image: { select: { id: true, altText: true } },
-            },
-          },
-        },
-      },
+      createdAt: true,
+      _count: { select: { groupMembers: true } },
+      groupMembers: { where: { userId }, select: { role: true } },
     },
     orderBy: { name: 'asc' },
   });
 
-  const today = new Date();
-  const data = groups.map((g) => {
-    const members = g.groupMembers.map((m) => m.user);
-    const upcoming =
-      members
-        .filter((u) => !!u.birthday)
-        .map((u) => {
-          const bday = new Date(u.birthday as unknown as string);
-          const thisYear = new Date(
-            today.getFullYear(),
-            bday.getMonth(),
-            bday.getDate(),
-          );
-          const next =
-            thisYear >=
-            new Date(today.getFullYear(), today.getMonth(), today.getDate())
-              ? thisYear
-              : new Date(
-                  today.getFullYear() + 1,
-                  bday.getMonth(),
-                  bday.getDate(),
-                );
-          const inDays = Math.ceil(
-            (next.getTime() -
-              new Date(
-                today.getFullYear(),
-                today.getMonth(),
-                today.getDate(),
-              ).getTime()) /
-              (1000 * 60 * 60 * 24),
-          );
-          return { user: u, date: next.toISOString(), inDays };
-        })
-        .sort(
-          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-        )[0] ?? null;
-    return {
-      id: g.id,
-      name: g.name,
-      description: g.description,
-      memberCount: members.length,
-      nextBirthday: upcoming,
-    };
-  });
+  const data = groups.map((g) => ({
+    id: g.id,
+    name: g.name,
+    description: g.description,
+    createdAt: g.createdAt,
+    memberCount: g._count.groupMembers,
+    myRole: g.groupMembers[0]?.role ?? 'MEMBER',
+  }));
 
   return json({ groups: data });
 }
@@ -118,16 +73,30 @@ const GroupsIndex = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="container mx-auto max-w-5xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-        <div className="mb-4 flex items-center justify-between">
-          <Heading>My Groups</Heading>
+      {/* Header bar (mirrors Wishlist header style) */}
+      <div className="border-b px-4 py-4 shadow">
+        <div className="container flex items-center justify-between gap-2">
+          <Heading>
+            <Flex gap={2} align="center">
+              <FaUsers className="fill-primary" />
+              <Text size="xl" weight="bold">
+                Groups
+              </Text>
+            </Flex>
+          </Heading>
           <CreateGroupDialog>
             <Button>
-              <Icon name="plus" /> Create Group
+              <Flex gap={1}>
+                <FaPlus />
+                <Text>Create Group</Text>
+              </Flex>
             </Button>
           </CreateGroupDialog>
         </div>
+      </div>
 
+      {/* Content */}
+      <div className="container min-h-0 flex-1 py-8 pb-bottom-nav sm:pb-0">
         {groups.length === 0 ? (
           <div className="mx-auto max-w-lg">{EmptyState}</div>
         ) : (
@@ -143,9 +112,16 @@ const GroupsIndex = () => {
         )}
       </div>
 
+      {/* Floating create button for mobile */}
       <div className="fixed bottom-[calc(theme(spacing.4)+env(safe-area-inset-bottom)+4rem)] right-4 z-40 sm:hidden">
         <CreateGroupDialog>
-          <Button type="button" size="icon" aria-label="Create Group" title="Create Group" className="h-14 w-14 rounded-full border bg-primary text-primary-foreground shadow-lg">
+          <Button
+            type="button"
+            size="icon"
+            aria-label="Create Group"
+            title="Create Group"
+            className="h-14 w-14 rounded-full border bg-primary text-primary-foreground shadow-lg"
+          >
             <Icon name="plus" />
           </Button>
         </CreateGroupDialog>
@@ -206,7 +182,8 @@ const GroupCard = ({
     name: string;
     description?: string | null;
     memberCount: number;
-    nextBirthday: null | { user: any; date: string; inDays: number };
+    createdAt: string | Date;
+    myRole: 'OWNER' | 'ADMIN' | 'MEMBER' | string;
   };
   onOpen: () => void;
 }) => {
@@ -216,7 +193,7 @@ const GroupCard = ({
     <Card
       padding="lg"
       className={
-        'h-full cursor-pointer touch-pan-y rounded-2xl transition [-webkit-tap-highlight-color:transparent] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30'
+        'h-full cursor-pointer touch-pan-y rounded-2xl shadow transition [-webkit-tap-highlight-color:transparent] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30'
       }
       role="link"
       tabIndex={0}
@@ -228,61 +205,50 @@ const GroupCard = ({
       data-pressed={press.pressed ? 'true' : 'false'}
       {...press.rowProps}
     >
-      <div className="space-y-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="text-base font-semibold">{g.name}</div>
-          <Link
-            to={`/groups/${g.id}`}
-            aria-label={`View ${g.name}`}
-            className="text-muted-foreground transition-transform data-[pressed=true]:translate-x-0.5"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerUp={(e) => e.stopPropagation()}
-          >
-            <Icon name="chevron-right" />
-          </Link>
-        </div>
-        {g.description ? (
-          <div className="line-clamp-2 text-sm text-muted-foreground">
-            {g.description}
+      <Stack gap={6}>
+        {/* Title + role badge */}
+        <Stack gap={1}>
+          <div className="flex items-start justify-between gap-3">
+            <Text weight="bold" size="lg">
+              {g.name}
+            </Text>
+            <RoleBadge role={g.myRole} />
           </div>
-        ) : null}
-        <div className="border-subcard-border bg-subcard flex items-center gap-2 rounded-xl border p-2 text-sm">
-          <Icon name="person" className="text-muted-foreground" />
-          <div className="text-muted-foreground">
-            {g.memberCount} {g.memberCount === 1 ? 'member' : 'members'}
-          </div>
-        </div>
-        {g.nextBirthday ? (
-          <Link
-            to={`/users/${g.nextBirthday.user.username}/wishlist`}
-            className="border-subcard-border bg-subcard flex items-center gap-3 rounded-xl border p-2 hover:border-accent"
-            aria-label={`View ${g.nextBirthday.user.username}'s wishlist`}
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerUp={(e) => e.stopPropagation()}
-          >
-            <Avatar
-              size="s"
-              user={g.nextBirthday.user}
-              image={g.nextBirthday.user.image}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">
-                {g.nextBirthday.user.username}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {new Date(g.nextBirthday.date).toLocaleDateString()} • in{' '}
-                {g.nextBirthday.inDays} days
-              </div>
+
+          {g.description ? (
+            <div className="line-clamp-2 text-sm text-muted-foreground">
+              {g.description}
             </div>
-            <Icon name="chevron-right" className="text-muted-foreground" />
-          </Link>
-        ) : (
-          <div className="border-subcard-border bg-subcard rounded-xl border p-2 text-sm text-muted-foreground">
-            No upcoming birthdays
+          ) : null}
+        </Stack>
+
+        {/* Stats */}
+        <Stack gap={1} className="border-b pb-3">
+          <div className="h-px w-full" />
+          <div className="flex items-center justify-between text-sm">
+            <div className="text-muted-foreground">Members</div>
+            <div className="font-medium">{g.memberCount}</div>
           </div>
-        )}
+          <div className="h-px w-full" />
+          <div className="flex items-center justify-between text-sm">
+            <div className="text-muted-foreground">Created</div>
+            <div className="font-medium">
+              {new Date(g.createdAt).toLocaleDateString()}
+            </div>
+          </div>
+        </Stack>
+
+        {/* Manage action */}
+      </Stack>
+      <div className="pt-3">
+        <Link
+          to={`/groups/${g.id}/settings`}
+          className="flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm hover:bg-muted"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <FaGear />
+          Manage Group
+        </Link>
       </div>
     </Card>
   );
