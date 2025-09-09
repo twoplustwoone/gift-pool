@@ -5,12 +5,6 @@ import {
   type SubmissionResult,
 } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
-import { type GroupInvitation } from '@prisma/client';
-import {
-  type ActionFunctionArgs,
-  json,
-  type LoaderFunctionArgs,
-} from '@remix-run/node';
 import {
   Form,
   Link,
@@ -21,7 +15,7 @@ import {
 } from '@remix-run/react';
 import { useRef, useState } from 'react';
 import { FaLink } from 'react-icons/fa';
-import { z } from 'zod';
+import { type z } from 'zod';
 
 import { ErrorList } from '#app/components/forms.tsx';
 import { GroupActions } from '#app/components/groups/GroupActions.tsx';
@@ -63,270 +57,22 @@ import {
 } from '#app/components/ui/tooltip.tsx';
 import { Flex } from '#app/components/ui-kit';
 import { track } from '#app/utils/analytics.client.ts';
-import { requireUserId } from '#app/utils/auth.server.ts';
-import { prisma } from '#app/utils/db.server.ts';
-import {
-  createInviteLink,
-  destroyInviteLink,
-  getInviteLink,
-} from '#app/utils/group-invitations.server.ts';
-import { userHasGroupPermission } from '#app/utils/group-permissions.server.ts';
-import {
-  deleteGiftGroup,
-  leaveGroup,
-  requireUserIdInGroup,
-  createGiftPlan,
-  lockGiftPlan,
-} from '#app/utils/groups.server.ts';
 import { useDebounce, useIsPending } from '#app/utils/misc.tsx';
 import {
-  createToastHeaders,
-  redirectWithToast,
-} from '#app/utils/toast.server.ts';
+  type loader as routeLoader,
+  type action as routeAction,
+} from './__route.server';
+import {
+  GiftGroupIdFormIntent,
+  CreateInviteLinkFormSchema,
+  DestroyInviteLinkFormSchema,
+} from './__route.shared';
 
-export enum GiftGroupIdFormIntent {
-  DeleteGiftGroup = 'delete-gift-group',
-  CreateInviteLink = 'create-invite-link',
-  DestroyInviteLink = 'destroy-invite-link',
-  LeaveGiftGroup = 'leave-gift-group',
-  PlanGift = 'plan-gift',
-  LockPlan = 'lock-plan',
-}
-
-const DeleteFormSchema = z.object({
-  intent: z.literal(GiftGroupIdFormIntent.DeleteGiftGroup),
-  giftGroupId: z.string(),
-});
-
-export const CreateInviteLinkFormSchema = z.object({
-  intent: z.literal(GiftGroupIdFormIntent.CreateInviteLink),
-  giftGroupId: z.string(),
-  expiresInDays: z.string(),
-});
-
-export const DestroyInviteLinkFormSchema = z.object({
-  intent: z.literal(GiftGroupIdFormIntent.DestroyInviteLink),
-  giftGroupId: z.string(),
-  groupInvitationId: z.string(),
-});
-
-export const LeaveGroupFormSchema = z.object({
-  intent: z.literal(GiftGroupIdFormIntent.LeaveGiftGroup),
-  giftGroupId: z.string(),
-});
-
-const PlanGiftFormSchema = z.object({
-  intent: z.literal(GiftGroupIdFormIntent.PlanGift),
-  giftGroupId: z.string(),
-  recipientUserId: z.string(),
-  birthdayDate: z.string(),
-});
-
-const LockPlanFormSchema = z.object({
-  intent: z.literal(GiftGroupIdFormIntent.LockPlan),
-  giftGroupId: z.string(),
-  planId: z.string(),
-});
-
-export async function loader({ params, request }: LoaderFunctionArgs) {
-  const groupId = params.giftGroupId!;
-  const userId = await requireUserIdInGroup(request, groupId);
-
-  const giftGroup = await prisma.giftGroup.findUnique({
-    where: { id: groupId },
-    select: {
-      name: true,
-      description: true,
-      id: true,
-      budgetVisibility: true,
-      groupMembers: {
-        select: {
-          user: {
-            select: {
-              id: true,
-              username: true,
-              name: true,
-              birthday: true,
-              image: {
-                select: {
-                  id: true,
-                  altText: true,
-                },
-              },
-            },
-          },
-          role: true,
-          contributionCents: true,
-          budgetVisibilityOverride: true,
-        },
-      },
-      giftPlans: {
-        select: {
-          id: true,
-          recipientUserId: true,
-          birthdayDate: true,
-          status: true,
-          lockedAt: true,
-        },
-      },
-    },
-  });
-
-  if (!giftGroup) {
-    throw new Response('Group not found', { status: 404 });
-  }
-
-  const canDelete = await userHasGroupPermission(
-    userId,
-    groupId,
-    'deleteGroup',
-  );
-  const canInvite = await userHasGroupPermission(
-    userId,
-    groupId,
-    'manageInvites',
-  );
-  const canLeave = await userHasGroupPermission(userId, groupId, 'leaveGroup');
-  const canSettings = await userHasGroupPermission(
-    userId,
-    groupId,
-    'manageSettings',
-  );
-  const canLockPlan = await userHasGroupPermission(
-    userId,
-    groupId,
-    'lockGiftPlan',
-  );
-
-  const viewerMembership = await prisma.usersInGiftGroups.findUnique({
-    where: { userId_giftGroupId: { userId, giftGroupId: groupId } },
-    select: { role: true, contributionCents: true },
-  });
-
-  let existingInvitation: GroupInvitation | null = null;
-  if (canInvite) {
-    existingInvitation = await prisma.groupInvitation.findFirst({
-      where: {
-        giftGroupId: groupId,
-        expiresAt: { gt: new Date() },
-        revokedAt: null,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-  }
-
-  // Activity feed disabled; pagination param ignored for now
-  // Temporarily disable activity feed
-  const activities: Array<any> = [];
-
-  return json({
-    giftGroup,
-    canInvite,
-    canDelete,
-    canLeave,
-    canSettings,
-    canLockPlan,
-    viewer: {
-      userId,
-      role: viewerMembership?.role ?? ('MEMBER' as const),
-      contributionCents: viewerMembership?.contributionCents,
-    },
-    inviteLink: existingInvitation
-      ? getInviteLink(existingInvitation.code, request)
-      : null,
-    groupInvitationId: existingInvitation?.id,
-    activities,
-  });
-}
-
-export async function action({ request }: ActionFunctionArgs) {
-  await requireUserId(request);
-  const formData = await request.formData();
-
-  const submission = parseWithZod(formData, {
-    schema: DeleteFormSchema.or(CreateInviteLinkFormSchema)
-      .or(DestroyInviteLinkFormSchema)
-      .or(LeaveGroupFormSchema)
-      .or(PlanGiftFormSchema)
-      .or(LockPlanFormSchema),
-  });
-
-  if (submission.status !== 'success') {
-    return json(submission.reply(), {
-      status: submission.status === 'error' ? 400 : 200,
-    });
-  }
-
-  const { giftGroupId } = submission.value;
-
-  switch (submission.value.intent) {
-    case GiftGroupIdFormIntent.DeleteGiftGroup:
-      await deleteGiftGroup(request, submission.value);
-      return redirectWithToast('/groups', {
-        type: 'success',
-        title: 'Success',
-        description: 'Group has been deleted.',
-      });
-
-    case GiftGroupIdFormIntent.CreateInviteLink:
-      await createInviteLink(request, submission.value);
-      return json(submission.reply(), {
-        headers: await createToastHeaders({
-          description: 'Invite link has been created.',
-          type: 'success',
-        }),
-      });
-
-    case GiftGroupIdFormIntent.DestroyInviteLink:
-      await destroyInviteLink(request, giftGroupId, submission.value);
-      return json(submission.reply(), {
-        headers: await createToastHeaders({
-          description: 'Invite link has been destroyed.',
-          type: 'success',
-        }),
-      });
-
-    case GiftGroupIdFormIntent.LeaveGiftGroup:
-      await leaveGroup(request, giftGroupId);
-
-      return redirectWithToast('/groups', {
-        type: 'success',
-        title: 'Success',
-        description: 'You have left the group.',
-      });
-    case GiftGroupIdFormIntent.PlanGift: {
-      const { recipientUserId, birthdayDate } = submission.value;
-      await createGiftPlan(
-        request,
-        giftGroupId,
-        recipientUserId,
-        new Date(birthdayDate),
-      );
-      return json(submission.reply(), {
-        headers: await createToastHeaders({
-          description: 'Gift plan created.',
-          type: 'success',
-        }),
-      });
-    }
-    case GiftGroupIdFormIntent.LockPlan: {
-      const { planId } = submission.value;
-      await lockGiftPlan(request, giftGroupId, planId);
-      return json(submission.reply(), {
-        headers: await createToastHeaders({
-          description: 'Budget locked for plan.',
-          type: 'success',
-        }),
-      });
-    }
-  }
-}
+export { loader, action } from './__route.server';
 
 const GiftGroupIndex = () => {
   const { giftGroup, canInvite, canDelete, canLeave, canSettings, viewer } =
-    useLoaderData<typeof loader>();
+    useLoaderData<typeof routeLoader>();
   const navigation = useNavigation();
   const isLoading = navigation.state !== 'idle';
 
@@ -433,19 +179,6 @@ const GiftGroupIndex = () => {
 };
 export default GiftGroupIndex;
 
-// const QuickStat = ({
-//   label,
-//   value,
-// }: {
-//   label: string;
-//   value: React.ReactNode;
-// }) => (
-//   <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-center">
-//     <div className="text-xs text-muted-foreground">{label}</div>
-//     <div className="text-base font-semibold">{value}</div>
-//   </div>
-// );
-
 function countBirthdaysThisMonth(giftGroup: any) {
   const now = new Date();
   const m = now.getMonth();
@@ -458,7 +191,7 @@ function countBirthdaysThisMonth(giftGroup: any) {
 }
 
 const UpcomingBirthdays = () => {
-  const { giftGroup } = useLoaderData<typeof loader>();
+  const { giftGroup } = useLoaderData<typeof routeLoader>();
   const items = giftGroup.groupMembers
     .filter((m) => !!m.user.birthday)
     .map((m) => {
@@ -496,7 +229,7 @@ const UpcomingBirthdays = () => {
       {items.map(({ user, nextDate }) => (
         <div
           key={user.id}
-          className="border-subcard-border bg-subcard flex items-center gap-3 rounded-xl border p-3"
+          className="flex items-center gap-3 rounded-xl border border-subcard-border bg-subcard p-3"
         >
           <Avatar user={user} image={user.image} size="s" />
           <div className="flex-1">
@@ -517,7 +250,7 @@ const UpcomingBirthdays = () => {
 };
 
 const MembersAndBudgets = () => {
-  const { giftGroup, viewer } = useLoaderData<typeof loader>();
+  const { giftGroup, viewer } = useLoaderData<typeof routeLoader>();
   // Aggregate totals not currently displayed
   return (
     <div className="flex flex-col gap-3">
@@ -533,7 +266,7 @@ const MembersAndBudgets = () => {
           (effectiveVisibility === 'ONLY_SELF' && isSelf);
         return (
           <div
-            className="border-subcard-border bg-subcard flex items-center gap-3 rounded-xl border p-2"
+            className="flex items-center gap-3 rounded-xl border border-subcard-border bg-subcard p-2"
             key={groupMember.user.id}
           >
             <Link
@@ -575,7 +308,7 @@ const MembersAndBudgets = () => {
 
 const RightRail = () => {
   const { canInvite, inviteLink, giftGroup, viewer } =
-    useLoaderData<typeof loader>();
+    useLoaderData<typeof routeLoader>();
   return (
     <div className="space-y-6">
       {canInvite ? (
@@ -602,7 +335,7 @@ const CreateInviteLinkDialog = ({
   asFab?: boolean;
   trigger?: React.ReactNode;
 }) => {
-  const { inviteLink, giftGroup, viewer } = useLoaderData<typeof loader>();
+  const { inviteLink, giftGroup, viewer } = useLoaderData<typeof routeLoader>();
 
   // Local copy-ui state only used when we already have a link
   const [hasCopied, setHasCopied] = useState(false);
@@ -712,15 +445,17 @@ const CreateInviteLinkDialog = ({
 
 // Separate component so hooks only run when the form actually renders.
 const CreateInviteForm = () => {
-  const { giftGroup, viewer } = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
+  const { giftGroup, viewer } = useLoaderData<typeof routeLoader>();
+  const actionData = useActionData<typeof routeAction>();
   const isPending = useIsPending();
   const [form, fields] = useForm<z.input<typeof CreateInviteLinkFormSchema>>({
     id: GiftGroupIdFormIntent.CreateInviteLink,
     lastResult: actionData as unknown as SubmissionResult<string[]>,
     constraint: getZodConstraint(CreateInviteLinkFormSchema),
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: CreateInviteLinkFormSchema }) as any;
+      return parseWithZod(formData, {
+        schema: CreateInviteLinkFormSchema,
+      }) as any;
     },
     defaultValue: { expiresInDays: '7' },
   });
@@ -744,7 +479,10 @@ const CreateInviteForm = () => {
                 <SelectValue placeholder="Select an expiration time" />
               </SelectTrigger>
               <SelectContent>
-                <SelectGroup onFocus={expiresInDays.focus} onBlur={expiresInDays.blur}>
+                <SelectGroup
+                  onFocus={expiresInDays.focus}
+                  onBlur={expiresInDays.blur}
+                >
                   <SelectItem value="1">1 day</SelectItem>
                   <SelectItem value="3">3 days</SelectItem>
                   <SelectItem value="7">7 days</SelectItem>
@@ -789,8 +527,8 @@ const CreateInviteForm = () => {
 
 const DestroyInviteLinkButton = () => {
   const { giftGroup, groupInvitationId, viewer } =
-    useLoaderData<typeof loader>();
-  const fetcher = useFetcher<typeof action>();
+    useLoaderData<typeof routeLoader>();
+  const fetcher = useFetcher<typeof routeAction>();
   const [form] = useForm<z.input<typeof DestroyInviteLinkFormSchema>>({
     id: GiftGroupIdFormIntent.DestroyInviteLink,
     lastResult: fetcher.data as unknown as SubmissionResult<string[]>,
