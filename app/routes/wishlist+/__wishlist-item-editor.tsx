@@ -84,7 +84,9 @@ export const WishlistItemEditor = React.forwardRef<
     const computedInitial: 'view' | 'edit' | 'create' =
       initialMode === 'auto'
         ? hasId
-          ? 'edit'
+          ? canEdit
+            ? 'edit'
+            : 'view'
           : 'create'
         : initialMode === 'view'
           ? 'view'
@@ -108,6 +110,11 @@ export const WishlistItemEditor = React.forwardRef<
           setOpen(true);
         },
         openEdit: () => {
+          if (!canEdit) {
+            setMode('view');
+            setOpen(true);
+            return;
+          }
           setMode(hasId ? 'edit' : 'create');
           setOpen(true);
         },
@@ -116,7 +123,7 @@ export const WishlistItemEditor = React.forwardRef<
           setOpen(true);
         },
       }),
-      [hasId],
+      [hasId, canEdit],
     );
 
     const actionData = useActionData<typeof action>() as
@@ -167,7 +174,7 @@ export const WishlistItemEditor = React.forwardRef<
       <Dialog open={open} onOpenChange={setOpen}>
         {trigger ? (
           <DialogTrigger asChild>{trigger}</DialogTrigger>
-        ) : (
+        ) : !wishlistItem ? (
           <>
             {/* Desktop add button */}
             <DialogTrigger asChild>
@@ -198,7 +205,7 @@ export const WishlistItemEditor = React.forwardRef<
               </DialogTrigger>
             )}
           </>
-        )}
+        ) : null}
 
         {/* Optional: ensure dialog can fit our inner width comfortably */}
         <DialogContent className="sm:max-w-[36rem]">
