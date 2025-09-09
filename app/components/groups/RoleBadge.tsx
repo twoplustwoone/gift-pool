@@ -1,13 +1,12 @@
 import { AiOutlineUser } from 'react-icons/ai';
 import { FiShield } from 'react-icons/fi';
 import { LuCrown } from 'react-icons/lu';
+import { type GroupRole } from '#app/utils/group-role.ts';
 import { cn } from '#app/utils/misc.tsx';
 import { Flex, Text } from '../ui-kit';
 
-type Role = 'OWNER' | 'ADMIN' | 'MEMBER';
-
 const roleMeta: Record<
-  Role,
+  GroupRole,
   { label: string; icon: React.ReactNode; bg: string; text: string }
 > = {
   OWNER: {
@@ -30,7 +29,7 @@ const roleMeta: Record<
   },
 };
 
-export function RoleBadge({ role }: { role: Role }) {
+export function RoleBadge({ role }: { role: GroupRole }) {
   const meta = roleMeta[role];
 
   return (

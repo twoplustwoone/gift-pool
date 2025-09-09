@@ -18,6 +18,7 @@ import { Flex, Stack, Text } from '#app/components/ui-kit';
 import { usePressFeedback } from '#app/components/wishlist/hooks/use-press-feedback.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { GroupRoleSchema, type GroupRole } from '#app/utils/group-role.ts';
 import { CreateGroupCompactForm } from './__group-editor.tsx';
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -35,14 +36,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
     orderBy: { name: 'asc' },
   });
 
-  const data = groups.map((g) => ({
-    id: g.id,
-    name: g.name,
-    description: g.description,
-    createdAt: g.createdAt,
-    memberCount: g._count.groupMembers,
-    myRole: g.groupMembers[0]?.role ?? 'MEMBER',
-  }));
+  const data = groups.map((g) => {
+    const rawRole = g.groupMembers[0]?.role ?? 'MEMBER';
+    const parsedRole = GroupRoleSchema.catch('MEMBER').parse(rawRole);
+    return {
+      id: g.id,
+      name: g.name,
+      description: g.description,
+      createdAt: g.createdAt,
+      memberCount: g._count.groupMembers,
+      myRole: parsedRole as GroupRole,
+    };
+  });
 
   return json({ groups: data });
 }
@@ -163,7 +168,7 @@ const GroupCard = ({
     description?: string | null;
     memberCount: number;
     createdAt: string | Date;
-    myRole: 'OWNER' | 'ADMIN' | 'MEMBER' | string;
+    myRole: GroupRole;
   };
   onOpen: () => void;
 }) => {
