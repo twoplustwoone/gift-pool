@@ -603,37 +603,23 @@ const CreateInviteLinkDialog = ({
   trigger?: React.ReactNode;
 }) => {
   const { inviteLink, giftGroup, viewer } = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
-  const isPending = useIsPending();
-  const [form, fields] = useForm<z.input<typeof CreateInviteLinkFormSchema>>({
-    id: GiftGroupIdFormIntent.CreateInviteLink,
-    lastResult: actionData as unknown as SubmissionResult<string[]>,
-    constraint: getZodConstraint(CreateInviteLinkFormSchema),
-    onValidate({ formData }) {
-      return parseWithZod(formData, { schema: CreateInviteLinkFormSchema }) as any;
-    },
-    defaultValue: {
-      expiresInDays: '7',
-    },
-  });
 
-  const expiresInDays = useInputControl(fields.expiresInDays);
-
+  // Local copy-ui state only used when we already have a link
   const [hasCopied, setHasCopied] = useState(false);
-
   const debouncedReset = useDebounce(() => setHasCopied(false), 2000);
 
-  const copyLink = () => {
+  const copyExistingLink = () => {
+    if (!inviteLink) return;
     setHasCopied(true);
     debouncedReset();
-    void navigator.clipboard.writeText(inviteLink!);
+    void navigator.clipboard.writeText(inviteLink);
   };
 
   const handleInputClick = (
     event: React.MouseEvent<HTMLInputElement, MouseEvent>,
   ) => {
     event.currentTarget.select();
-    copyLink();
+    copyExistingLink();
   };
 
   return (
@@ -669,108 +655,135 @@ const CreateInviteLinkDialog = ({
         </DialogHeader>
         <div className="grid gap-4 py-4">
           {inviteLink ? (
-            <div className="flex items-center space-x-2">
-              <div className="grid flex-1 gap-2">
-                <Label htmlFor="link" className="sr-only">
-                  Link
-                </Label>
-                <Input
-                  id="link"
-                  defaultValue={inviteLink}
-                  readOnly
-                  onClick={handleInputClick}
-                />
-              </div>
-              <TooltipProvider>
-                <Tooltip open={hasCopied}>
-                  <TooltipTrigger asChild className="h-full">
-                    <Button
-                      onClick={() => {
-                        copyLink();
-                        track('group_invite_copied', {
-                          groupId: giftGroup.id,
-                          actorRole: viewer.role,
-                          surface: 'modal',
-                        });
-                      }}
-                      size="sm"
-                      className="px-3"
-                      aria-label="Copy invite link"
-                    >
-                      <span className="sr-only">Copy</span>
-                      <Icon name="copy" className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Copied to clipboard</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          ) : (
-            <Form method="POST" {...getFormProps(form)}>
-              <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-              <div className="flex items-center">
-                <div className="w-1/2">Link expires after</div>
-                <div className="w-1/2">
-                  <Select
-                    value={expiresInDays.value}
-                    onValueChange={expiresInDays.change}
-                    defaultValue={fields.expiresInDays.initialValue}
-                    name={fields.expiresInDays.name}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select an expiration time" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup
-                        onFocus={expiresInDays.focus}
-                        onBlur={expiresInDays.blur}
-                      >
-                        <SelectItem value="1">1 day</SelectItem>
-                        <SelectItem value="3">3 days</SelectItem>
-                        <SelectItem value="7">7 days</SelectItem>
-                        <SelectItem value="14">14 days</SelectItem>
-                        <SelectItem value="30">30 days</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
+            <>
+              <div className="flex items-center space-x-2">
+                <div className="grid flex-1 gap-2">
+                  <Label htmlFor="link" className="sr-only">
+                    Link
+                  </Label>
+                  <Input
+                    id="link"
+                    defaultValue={inviteLink}
+                    readOnly
+                    onClick={handleInputClick}
+                  />
                 </div>
+                <TooltipProvider>
+                  <Tooltip open={hasCopied}>
+                    <TooltipTrigger asChild className="h-full">
+                      <Button
+                        onClick={() => {
+                          copyExistingLink();
+                          track('group_invite_copied', {
+                            groupId: giftGroup.id,
+                            actorRole: viewer.role,
+                            surface: 'modal',
+                          });
+                        }}
+                        size="sm"
+                        className="px-3"
+                        aria-label="Copy invite link"
+                      >
+                        <span className="sr-only">Copy</span>
+                        <Icon name="copy" className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Copied to clipboard</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
-            </Form>
+              <DialogFooter className="flex-row justify-end gap-2 sm:gap-2">
+                <DialogClose asChild>
+                  <Button variant={'secondary'} type="button">
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <DestroyInviteLinkButton />
+              </DialogFooter>
+            </>
+          ) : (
+            <CreateInviteForm />
           )}
-          <DialogFooter className="flex-row justify-end gap-2 sm:gap-2">
-            <DialogClose asChild>
-              <Button variant={'secondary'} type="button">
-                Cancel
-              </Button>
-            </DialogClose>
-            {inviteLink ? (
-              <DestroyInviteLinkButton />
-            ) : (
-              <StatusButton
-                type="submit"
-                name="intent"
-                value={GiftGroupIdFormIntent.CreateInviteLink}
-                variant="default"
-                status={isPending ? 'pending' : (actionData?.status ?? 'idle')}
-                disabled={isPending}
-                className=""
-                form={form.id}
-                onClick={() =>
-                  track('group_invite_regenerated', {
-                    groupId: giftGroup.id,
-                    actorRole: viewer.role,
-                    surface: 'modal',
-                  })
-                }
-              >
-                Create link
-              </StatusButton>
-            )}
-            <ErrorList errors={form.errors} id={form.errorId} />
-          </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>
+  );
+};
+
+// Separate component so hooks only run when the form actually renders.
+const CreateInviteForm = () => {
+  const { giftGroup, viewer } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
+  const isPending = useIsPending();
+  const [form, fields] = useForm<z.input<typeof CreateInviteLinkFormSchema>>({
+    id: GiftGroupIdFormIntent.CreateInviteLink,
+    lastResult: actionData as unknown as SubmissionResult<string[]>,
+    constraint: getZodConstraint(CreateInviteLinkFormSchema),
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: CreateInviteLinkFormSchema }) as any;
+    },
+    defaultValue: { expiresInDays: '7' },
+  });
+
+  const expiresInDays = useInputControl(fields.expiresInDays);
+
+  return (
+    <>
+      <Form method="POST" {...getFormProps(form)}>
+        <input type="hidden" name="giftGroupId" value={giftGroup.id} />
+        <div className="flex items-center">
+          <div className="w-1/2">Link expires after</div>
+          <div className="w-1/2">
+            <Select
+              value={expiresInDays.value}
+              onValueChange={expiresInDays.change}
+              defaultValue={fields.expiresInDays.initialValue}
+              name={fields.expiresInDays.name}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select an expiration time" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup onFocus={expiresInDays.focus} onBlur={expiresInDays.blur}>
+                  <SelectItem value="1">1 day</SelectItem>
+                  <SelectItem value="3">3 days</SelectItem>
+                  <SelectItem value="7">7 days</SelectItem>
+                  <SelectItem value="14">14 days</SelectItem>
+                  <SelectItem value="30">30 days</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </Form>
+      <DialogFooter className="flex-row justify-end gap-2 sm:gap-2">
+        <DialogClose asChild>
+          <Button variant={'secondary'} type="button">
+            Cancel
+          </Button>
+        </DialogClose>
+        <StatusButton
+          type="submit"
+          name="intent"
+          value={GiftGroupIdFormIntent.CreateInviteLink}
+          variant="default"
+          status={isPending ? 'pending' : (actionData?.status ?? 'idle')}
+          disabled={isPending}
+          className=""
+          form={form.id}
+          onClick={() =>
+            track('group_invite_regenerated', {
+              groupId: giftGroup.id,
+              actorRole: viewer.role,
+              surface: 'modal',
+            })
+          }
+        >
+          Create link
+        </StatusButton>
+        <ErrorList errors={form.errors} id={form.errorId} />
+      </DialogFooter>
+    </>
   );
 };
 
