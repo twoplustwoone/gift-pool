@@ -1,9 +1,8 @@
 // For more info, see https://github.com/storybookjs/eslint-plugin-storybook#configuration-flat-config-format
-import storybook from 'eslint-plugin-storybook';
-
 import { default as defaultConfig } from '@epic-web/config/eslint';
 import filenames from 'eslint-plugin-filenames';
 import react from 'eslint-plugin-react';
+import storybook from 'eslint-plugin-storybook';
 import unicorn from 'eslint-plugin-unicorn';
 
 /** @type {import("eslint").Linter.Config} */
@@ -17,6 +16,7 @@ export default [
       '**/*.prisma',
       '**/*.db',
       'tsconfig*.json',
+      '.storybook/**',
     ],
   }, // Base
   {

@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react-vite';
 import { RoleBadge } from '../app/components/groups/RoleBadge';
-import type { GroupRole } from '../app/utils/group-role';
+import { type GroupRole } from '../app/utils/group-role';
 
 const meta = {
   title: 'Groups/RoleBadge',
@@ -35,4 +35,3 @@ export const Admin: Story = {
 export const Owner: Story = {
   args: { role: 'OWNER' },
 };
-

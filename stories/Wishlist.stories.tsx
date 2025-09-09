@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react-vite';
 import { Wishlist } from '#app/components/wishlist/wishlist';
 
 const baseUser = {
@@ -89,4 +89,3 @@ export const Viewer: Story = {
     },
   },
 };
-
