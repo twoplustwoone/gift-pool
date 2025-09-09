@@ -10,8 +10,7 @@ import { type WishlistItem } from '@prisma/client';
 import { type SerializeFrom } from '@remix-run/node';
 import { Form, useActionData } from '@remix-run/react';
 import React, { useRef } from 'react';
-import { FaExternalLinkAlt } from 'react-icons/fa';
-import { FaPlus } from 'react-icons/fa6';
+import { LuExternalLink, LuPlus } from 'react-icons/lu';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Field, TextareaField } from '#app/components/forms.tsx';
@@ -184,7 +183,7 @@ export const WishlistItemEditor = React.forwardRef<
                 onClick={() => setMode('create')}
               >
                 <Flex gap={1}>
-                  <FaPlus />
+                  <LuPlus />
                   <Text size="sm">Add Item</Text>
                 </Flex>
               </Button>
@@ -240,7 +239,7 @@ export const WishlistItemEditor = React.forwardRef<
                       >
                         {/* show hostname as primary text; long paths still wrap because of break-all on dd */}
                         {new URL(wishlistItem.url).hostname}
-                        <FaExternalLinkAlt className="h-3 w-3" />
+                        <LuExternalLink className="h-3 w-3" />
                         {/* <Icon name="external-link" className="h-3 w-3" /> */}
                       </a>
                     ) : (

@@ -130,4 +130,8 @@ export const extendedTheme = {
     'bottom-nav': 'var(--bottom-nav-height)',
     header: 'var(--header-height)',
   },
+  backgroundImage: {
+    'brand-gradient':
+      'linear-gradient(135deg, hsl(var(--brand-gradient-start)), hsl(var(--brand-gradient-end)))',
+  },
 } satisfies Config['theme'];

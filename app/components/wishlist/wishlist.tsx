@@ -6,8 +6,7 @@ import {
 import { Link, useFetcher } from '@remix-run/react';
 import { useEffect, useRef, useState } from 'react';
 
-import { FaPencilAlt, FaTimes, FaTrashAlt } from 'react-icons/fa';
-import { FaCheck, FaPlus } from 'react-icons/fa6';
+import { LuCheck, LuPencil, LuPlus, LuTrash, LuX } from 'react-icons/lu';
 import { useToast } from '#app/components/toaster.tsx';
 import { Button } from '#app/components/ui/button';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog';
@@ -19,6 +18,7 @@ import { Heading } from '../ui/heading.tsx';
 import { Flex, Grid, Stack, Text } from '../ui-kit';
 import { CategoryManager } from './category-manager';
 import { WishlistItem } from './wishlist-item';
+ 
 
 export const Wishlist = ({
   user,
@@ -149,7 +149,7 @@ export const Wishlist = ({
                           aria-label="Save category"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <FaCheck />
+                          <LuCheck />
                         </Button>
                         <Button
                           type="button"
@@ -161,7 +161,7 @@ export const Wishlist = ({
                             setEditingId(null);
                           }}
                         >
-                          <FaTimes />
+                          <LuX />
                         </Button>
                       </actionFetcher.Form>
                     ) : (
@@ -195,7 +195,7 @@ export const Wishlist = ({
                             aria-label={`Add item to ${category.name}`}
                           >
                             <Flex gap={1}>
-                              <FaPlus size={12} />
+                              <LuPlus size={12} />
                               <Text>Item</Text>
                             </Flex>
                           </Button>
@@ -210,7 +210,7 @@ export const Wishlist = ({
                             aria-label="Edit category"
                             onClick={() => setEditingId(category.id)}
                           >
-                            <FaPencilAlt />
+                            <LuPencil />
                           </Button>
                           <ConfirmDialog
                             title="Delete category"
@@ -231,7 +231,7 @@ export const Wishlist = ({
                               variant="ghost"
                               aria-label="Delete category"
                             >
-                              <FaTrashAlt />
+                              <LuTrash />
                             </Button>
                           </ConfirmDialog>
                         </>

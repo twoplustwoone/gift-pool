@@ -1,7 +1,6 @@
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { Link, useLoaderData, useNavigate } from '@remix-run/react';
-import { FaUsers } from 'react-icons/fa';
-import { FaGear, FaPlus } from 'react-icons/fa6';
+import { LuPlus, LuSettings, LuUsers } from 'react-icons/lu';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
@@ -69,7 +68,7 @@ const GroupsIndex = () => {
         <CreateGroupDialog>
           <Button>
             <Flex gap={1}>
-              <FaPlus />
+              <LuPlus />
               <Text>Create your first group</Text>
             </Flex>
           </Button>
@@ -87,19 +86,19 @@ const GroupsIndex = () => {
         <div className="container flex items-center justify-between gap-2">
           <Heading>
             <Flex gap={2} align="center">
-              <FaUsers className="fill-primary" />
+              <LuUsers className="text-primary" />
               <Text size="xl" weight="bold">
                 Groups
               </Text>
             </Flex>
           </Heading>
           <CreateGroupDialog>
-            <Button>
-              <Flex gap={1}>
-                <FaPlus />
-                <Text>Create Group</Text>
-              </Flex>
-            </Button>
+          <Button>
+            <Flex gap={1}>
+              <LuPlus />
+              <Text>Create Group</Text>
+            </Flex>
+          </Button>
           </CreateGroupDialog>
         </div>
       </div>
@@ -147,7 +146,7 @@ const CreateGroupDialog = ({ children }: { children: React.ReactNode }) => {
         <DialogHeader>
           <DialogTitle>
             <Flex gap={2}>
-              <FaUsers className="fill-primary" />{' '}
+              <LuUsers className="text-primary" />{' '}
               <Text weight="bold">Create New Group</Text>
             </Flex>
           </DialogTitle>
@@ -231,7 +230,7 @@ const GroupCard = ({
           className="flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm hover:bg-muted"
           onClick={(e) => e.stopPropagation()}
         >
-          <FaGear />
+          <LuSettings />
           Manage Group
         </Link>
       </div>

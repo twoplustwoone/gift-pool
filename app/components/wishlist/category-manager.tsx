@@ -1,7 +1,6 @@
 import { useFetcher } from '@remix-run/react';
 import { useEffect, useRef, useState } from 'react';
-import { FaPencilAlt, FaPlus, FaTimes } from 'react-icons/fa';
-import { FaCheck, FaGear } from 'react-icons/fa6';
+import { LuCheck, LuPencil, LuPlus, LuSettings, LuX } from 'react-icons/lu';
 import { useToast } from '#app/components/toaster.tsx';
 import { Button } from '#app/components/ui/button';
 import { Icon } from '#app/components/ui/icon';
@@ -59,7 +58,7 @@ export const CategoryManager = ({
       <PopoverTrigger asChild>
         <Button type="button" variant="outline">
           <Flex gap={1.5}>
-            <FaGear />
+            <LuSettings />
             <Text size="sm">Add Category</Text>
           </Flex>
         </Button>
@@ -77,9 +76,10 @@ export const CategoryManager = ({
             name="name"
             placeholder="Category name"
             className="h-8 flex-1"
+            autoComplete="off"
           />
           <Button type="submit" size="icon" aria-label="Create category">
-            <FaPlus />
+            <LuPlus />
           </Button>
         </createFetcher.Form>
         <ul className="flex flex-col gap-2">
@@ -108,7 +108,7 @@ export const CategoryManager = ({
                       variant="ghost"
                       aria-label="Save"
                     >
-                      <FaCheck />
+                      <LuCheck />
                     </Button>
                     <Button
                       type="button"
@@ -117,7 +117,7 @@ export const CategoryManager = ({
                       aria-label="Cancel"
                       onClick={() => setEditingId(null)}
                     >
-                      <FaTimes className="h-4 w-4" />
+                      <LuX className="h-4 w-4" />
                     </Button>
                   </Flex>
                 </actionFetcher.Form>
@@ -162,7 +162,7 @@ export const CategoryManager = ({
                       aria-label="Edit category"
                       onClick={() => setEditingId(cat.id)}
                     >
-                      <FaPencilAlt />
+                      <LuPencil />
                     </Button>
                     <Button
                       type="button"

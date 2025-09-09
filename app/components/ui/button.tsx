@@ -7,7 +7,7 @@ import { cn } from '#app/utils/misc.tsx';
 const buttonVariants = cva(
   [
     // layout/typography
-    'inline-flex select-none items-center justify-center rounded-md text-sm font-medium',
+    'inline-flex select-none items-center justify-center rounded-full text-sm font-medium',
     // focus
     'outline-none ring-ring ring-offset-2 ring-offset-background focus-visible:ring-2',
     // transitions & pressed feel
@@ -39,10 +39,10 @@ const buttonVariants = cva(
       size: {
         default: 'h-10 px-4 py-2',
         wide: 'px-24 py-5',
-        sm: 'h-9 rounded-md px-3',
-        lg: 'h-11 rounded-md px-8',
+        sm: 'h-9 px-3',
+        lg: 'h-11 px-8',
         pill: 'px-12 py-3 leading-3',
-        icon: 'h-10 w-10',
+        icon: 'h-8 w-8 rounded-xl',
       },
     },
     defaultVariants: {

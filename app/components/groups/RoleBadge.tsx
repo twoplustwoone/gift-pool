@@ -1,6 +1,4 @@
-import { AiOutlineUser } from 'react-icons/ai';
-import { FiShield } from 'react-icons/fi';
-import { LuCrown } from 'react-icons/lu';
+import { LuCrown, LuShield, LuUser } from 'react-icons/lu';
 import { type GroupRole } from '#app/utils/group-role.ts';
 import { cn } from '#app/utils/misc.tsx';
 import { Flex, Text } from '../ui-kit';
@@ -17,13 +15,13 @@ const roleMeta: Record<
   },
   ADMIN: {
     label: 'admin',
-    icon: <FiShield className="text-blue-500" />,
+    icon: <LuShield className="text-blue-500" />,
     bg: 'bg-muted',
     text: 'text-muted-foreground',
   },
   MEMBER: {
     label: 'member',
-    icon: <AiOutlineUser />,
+    icon: <LuUser />,
     bg: 'bg-muted',
     text: 'text-muted-foreground',
   },

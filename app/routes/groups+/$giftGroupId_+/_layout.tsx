@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useLoaderData } from '@remix-run/react';
-import { FaUsers } from 'react-icons/fa';
+import { LuUsers } from 'react-icons/lu';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
@@ -28,7 +28,7 @@ const GroupLayout = () => {
                 </Link>
               </Button>
               <div className="flex items-center gap-3">
-                <FaUsers size={24} className="fill-primary" />
+                <LuUsers size={24} className="text-primary" />
                 <div className="leading-tight">
                   <div className="text-md font-extrabold sm:text-xl">
                     {giftGroup.name}
