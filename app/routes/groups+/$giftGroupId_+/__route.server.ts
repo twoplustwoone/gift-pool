@@ -35,6 +35,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       name: true,
       description: true,
       id: true,
+      createdAt: true,
       budgetVisibility: true,
       groupMembers: {
         select: {
@@ -176,14 +177,30 @@ export async function action({ request }: ActionFunctionArgs) {
         description: 'Group has been deleted.',
       });
 
-    case GiftGroupIdFormIntent.CreateInviteLink:
+    case GiftGroupIdFormIntent.CreateInviteLink: {
       await createInviteLink(request, submission.value);
-      return json(submission.reply(), {
+      // Fetch the latest active invitation and return its absolute URL so the
+      // client can copy it without a full reload.
+      const { prisma } = await import('#app/utils/db.server.ts');
+      const { getInviteLink } = await import(
+        '#app/utils/group-invitations.server.ts'
+      );
+      const latest = await prisma.groupInvitation.findFirst({
+        where: {
+          giftGroupId,
+          expiresAt: { gt: new Date() },
+          revokedAt: null,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      const inviteUrl = latest ? getInviteLink(latest.code, request) : null;
+      return json({ ...submission.reply(), inviteUrl }, {
         headers: await createToastHeaders({
           description: 'Invite link has been created.',
           type: 'success',
         }),
       });
+    }
 
     case GiftGroupIdFormIntent.DestroyInviteLink:
       await destroyInviteLink(request, giftGroupId, submission.value);
