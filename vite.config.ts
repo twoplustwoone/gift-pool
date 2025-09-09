@@ -15,6 +15,10 @@ export default defineConfig({
       '#app': path.resolve(__dirname, 'app'),
       '#tests': path.resolve(__dirname, 'tests'),
     },
+    // Prevent multiple React copies in dev which can cause
+    // "Invalid hook call. Hooks can only be called inside of the body of a function component"
+    // when HMR loads modules from different dependency graphs.
+    dedupe: ['react', 'react-dom'],
   },
   build: {
     cssMinify: MODE === 'production',
