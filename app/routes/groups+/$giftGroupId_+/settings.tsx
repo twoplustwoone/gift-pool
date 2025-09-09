@@ -1,4 +1,8 @@
-import { getFormProps, useForm, type SubmissionResult } from '@conform-to/react';
+import {
+  getFormProps,
+  useForm,
+  type SubmissionResult,
+} from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 // Using string literal types for roles/visibility to support SQLite
 import {
@@ -34,6 +38,7 @@ import {
   getInviteLink,
 } from '#app/utils/group-invitations.server.ts';
 import { userHasGroupPermission } from '#app/utils/group-permissions.server.ts';
+import { GroupRoleSchema, type GroupRole } from '#app/utils/group-role.ts';
 import {
   requireUserIdInGroup,
   addReminder,
@@ -114,8 +119,15 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   if (!giftGroupRaw) throw new Response('Group not found', { status: 404 });
   const giftGroup = {
     ...giftGroupRaw,
+    groupMembers: giftGroupRaw.groupMembers.map((m) => ({
+      ...m,
+      role: GroupRoleSchema.catch('MEMBER').parse(m.role) as GroupRole,
+    })),
     groupInvitations: giftGroupRaw.groupInvitations.map((inv) => ({
       ...inv,
+      roleGranted: GroupRoleSchema.catch('MEMBER').parse(
+        inv.roleGranted,
+      ) as GroupRole,
       url: getInviteLink(inv.code, request),
     })),
   };
@@ -172,7 +184,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     },
   });
 
-  const viewerMember = await prisma.usersInGiftGroups.findUnique({
+  const viewerMemberRaw = await prisma.usersInGiftGroups.findUnique({
     where: { userId_giftGroupId: { userId, giftGroupId: groupId } },
     select: {
       userId: true,
@@ -183,6 +195,14 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       shareBirthday: true,
     },
   });
+  const viewerMember = viewerMemberRaw
+    ? ({
+        ...viewerMemberRaw,
+        role: GroupRoleSchema.catch('MEMBER').parse(
+          viewerMemberRaw.role,
+        ) as GroupRole,
+      } as const)
+    : null;
 
   const activities = await prisma.groupActivity.findMany({
     where: { giftGroupId: groupId },
@@ -246,7 +266,7 @@ const InviteCreateSchema = z.object({
   intent: z.literal(SettingsIntent.InviteCreate),
   giftGroupId: z.string(),
   label: z.string().optional(),
-  roleGranted: z.enum(['OWNER', 'ADMIN', 'MEMBER']).optional(),
+  roleGranted: GroupRoleSchema.optional(),
   expiresInDays: z.string(),
   maxUses: z.string().optional(),
   requireApproval: z.string().optional(),
