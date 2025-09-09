@@ -14,7 +14,7 @@ import { ConfirmDialog } from '#app/components/ui/confirm-dialog';
 import { Icon } from '#app/components/ui/icon';
 import { Input } from '#app/components/ui/input';
 import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
-import { getUserImgSrc } from '#app/utils/misc.tsx';
+import { cn, getUserImgSrc } from '#app/utils/misc.tsx';
 import { Heading } from '../ui/heading.tsx';
 import { Flex, Grid, Stack, Text } from '../ui-kit';
 import { CategoryManager } from './category-manager';
@@ -67,7 +67,7 @@ export const Wishlist = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b px-4 py-4 shadow">
+      <div className="border-b bg-surface px-4 py-4">
         <div className="container flex flex-col items-center justify-between gap-2 lg:flex-row">
           {!isOwner ? (
             <Link
@@ -111,10 +111,12 @@ export const Wishlist = ({
             return (
               <div
                 key={key}
-                className="rounded-xl border border-border bg-background shadow"
+                className="group overflow-hidden rounded-xl border border-border bg-surface shadow-sm"
               >
                 <div
-                  className="flex cursor-pointer items-center justify-between rounded-t-xl bg-muted px-4 py-2 hover:bg-muted/80"
+                  className={cn(
+                    'flex cursor-pointer items-center justify-between rounded-t-xl bg-surface px-4 py-2 hover:bg-muted',
+                  )}
                   onClick={() => toggle(category.id)}
                 >
                   <div className="flex items-center gap-2">
@@ -238,7 +240,7 @@ export const Wishlist = ({
                   )}
                 </div>
                 {!isCollapsed && (
-                  <div className="p-4">
+                  <div className="border-t border-card-border p-4">
                     <Grid columns={{ sm: 2, md: 3, lg: 4 }} gap={4}>
                       {items.map((item) => (
                         <WishlistItem

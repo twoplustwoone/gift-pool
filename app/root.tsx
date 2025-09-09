@@ -170,7 +170,7 @@ const Document = ({
         <meta name="csp-nonce" content={nonce} />
         <Links />
       </head>
-      <body className="h-full bg-background text-foreground">
+      <body className="h-full text-foreground">
         {children}
         <script
           nonce={nonce}
@@ -204,7 +204,7 @@ const App = () => {
       <div className="flex h-dvh min-h-0 flex-col">
         <TopBar />
 
-        <div className="min-h-0 flex-1 sm:overflow-y-auto">
+        <div className="to-background-muted min-h-0 flex-1 bg-gradient-to-br from-background sm:overflow-y-auto">
           <Outlet />
         </div>
 
