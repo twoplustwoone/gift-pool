@@ -411,7 +411,13 @@ export async function action({ request }: ActionFunctionArgs) {
         description: v.description,
         budgetVisibility: v.budgetVisibility,
       });
-      return json(submission.reply());
+      return json(submission.reply(), {
+        headers: await createToastHeaders({
+          type: 'success',
+          title: 'Saved',
+          description: 'Group settings updated.',
+        }),
+      });
     }
     case SettingsIntent.InviteCreate: {
       await createInviteLink(request, v);

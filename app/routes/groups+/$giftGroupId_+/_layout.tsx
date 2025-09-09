@@ -4,7 +4,10 @@ import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { cn } from '#app/utils/misc.tsx';
-import { type loader as routeLoader, type action as routeAction } from './__route.server';
+import {
+  type loader as routeLoader,
+  type action as routeAction,
+} from './__route.server';
 import { type GroupRole } from '#app/utils/group-role.ts';
 
 // Re-export so children can share the same data/actions
@@ -24,10 +27,10 @@ const GroupLayout = () => {
                   <Icon name="arrow-left" className="mr-1" /> Back to Groups
                 </Link>
               </Button>
-              <div className="flex items-center gap-2">
-                <FaUsers className="text-muted-foreground" />
+              <div className="flex items-center gap-3">
+                <FaUsers size={24} className="fill-primary" />
                 <div className="leading-tight">
-                  <div className="text-xl font-semibold sm:text-2xl">
+                  <div className="text-md font-extrabold sm:text-xl">
                     {giftGroup.name}
                   </div>
                   <div className="text-sm text-muted-foreground">
@@ -75,7 +78,7 @@ const TabBar = ({ giftGroupId }: { giftGroupId: string }) => {
             cn(
               'px-4 py-1.5 text-center text-sm font-medium text-muted-foreground',
               'rounded-full transition-colors',
-              isActive && 'bg-background text-foreground shadow'
+              isActive && 'bg-background text-foreground shadow',
             )
           }
         >
