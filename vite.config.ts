@@ -3,11 +3,19 @@ import { sentryVitePlugin } from '@sentry/vite-plugin';
 import { glob } from 'glob';
 import { flatRoutes } from 'remix-flat-routes';
 import { defineConfig } from 'vite';
+import path from 'path';
 import { envOnlyMacros } from 'vite-env-only';
 
 const MODE = process.env.NODE_ENV;
+const IS_STORYBOOK = Boolean(process.env.STORYBOOK);
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '#app': path.resolve(__dirname, 'app'),
+      '#tests': path.resolve(__dirname, 'tests'),
+    },
+  },
   build: {
     cssMinify: MODE === 'production',
 
@@ -36,7 +44,7 @@ export default defineConfig({
     envOnlyMacros(),
     // it would be really nice to have this enabled in tests, but we'll have to
     // wait until https://github.com/remix-run/remix/issues/9871 is fixed
-    process.env.NODE_ENV === 'test'
+    process.env.NODE_ENV === 'test' || IS_STORYBOOK
       ? null
       : remix({
           ignoredRouteFiles: ['**/*'],
