@@ -61,9 +61,14 @@ const GroupsIndex = () => {
         Create your first group to start planning together.
       </div>
       <div className="mt-4">
-        <Button asChild>
-          <Link to="/groups/new">Create your first group</Link>
-        </Button>
+        <CreateGroupDialog>
+          <Button>
+            <Flex gap={1}>
+              <FaPlus />
+              <Text>Create your first group</Text>
+            </Flex>
+          </Button>
+        </CreateGroupDialog>
       </div>
     </Card>
   );
