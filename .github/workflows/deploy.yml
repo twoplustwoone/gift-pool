@@ -43,8 +43,8 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       # Staging / Secondary (any codex/* or feature/* branch)
-      - name: Deploy Staging (codex/* or feature/*)
-        if: ${{ startsWith(github.ref, 'refs/heads/codex/') || startsWith(github.ref, 'refs/heads/feature/') }}
+      - name: Deploy Staging (codex/*, feature/*, or fix/*)
+        if: ${{ startsWith(github.ref, 'refs/heads/codex/') || startsWith(github.ref, 'refs/heads/feature/') || startsWith(github.ref, 'refs/heads/fix/') }}
         run: |
           flyctl deploy --remote-only --build-arg COMMIT_SHA=${{ github.sha }} \
             --app ${{ steps.app_name.outputs.value }}-staging
