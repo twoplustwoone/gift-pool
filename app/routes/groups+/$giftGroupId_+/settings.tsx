@@ -1,5 +1,8 @@
-import { getFormProps, useForm } from '@conform-to/react';
-import type { SubmissionResult } from '@conform-to/react';
+import {
+  getFormProps,
+  useForm,
+  type SubmissionResult,
+} from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 // Using string literal types for roles/visibility to support SQLite
 import {
@@ -16,6 +19,7 @@ import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
 import { CopyableField } from '#app/components/ui/copyable-field.tsx';
+import { Icon } from '#app/components/ui/icon.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
@@ -35,6 +39,7 @@ import {
   getInviteLink,
 } from '#app/utils/group-invitations.server.ts';
 import { userHasGroupPermission } from '#app/utils/group-permissions.server.ts';
+import { GroupRoleSchema, type GroupRole } from '#app/utils/group-role.ts';
 import {
   requireUserIdInGroup,
   addReminder,
@@ -54,6 +59,8 @@ import {
   deleteGiftGroup,
 } from '#app/utils/groups.server.ts';
 import { createToastHeaders } from '#app/utils/toast.server.ts';
+import { cn } from '#app/utils/misc.tsx';
+import { Textarea } from '#app/components/ui/textarea.tsx';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
@@ -115,8 +122,15 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   if (!giftGroupRaw) throw new Response('Group not found', { status: 404 });
   const giftGroup = {
     ...giftGroupRaw,
+    groupMembers: giftGroupRaw.groupMembers.map((m) => ({
+      ...m,
+      role: GroupRoleSchema.catch('MEMBER').parse(m.role) as GroupRole,
+    })),
     groupInvitations: giftGroupRaw.groupInvitations.map((inv) => ({
       ...inv,
+      roleGranted: GroupRoleSchema.catch('MEMBER').parse(
+        inv.roleGranted,
+      ) as GroupRole,
       url: getInviteLink(inv.code, request),
     })),
   };
@@ -147,6 +161,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     'removeMember',
   );
   const canBan = await userHasGroupPermission(userId, groupId, 'banMember');
+  const canLeave = await userHasGroupPermission(userId, groupId, 'leaveGroup');
   const canTransfer = await userHasGroupPermission(
     userId,
     groupId,
@@ -173,7 +188,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     },
   });
 
-  const viewerMember = await prisma.usersInGiftGroups.findUnique({
+  const viewerMemberRaw = await prisma.usersInGiftGroups.findUnique({
     where: { userId_giftGroupId: { userId, giftGroupId: groupId } },
     select: {
       userId: true,
@@ -184,6 +199,14 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       shareBirthday: true,
     },
   });
+  const viewerMember = viewerMemberRaw
+    ? ({
+        ...viewerMemberRaw,
+        role: GroupRoleSchema.catch('MEMBER').parse(
+          viewerMemberRaw.role,
+        ) as GroupRole,
+      } as const)
+    : null;
 
   const activities = await prisma.groupActivity.findMany({
     where: { giftGroupId: groupId },
@@ -208,6 +231,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     canBan,
     canTransfer,
     canDelete,
+    canLeave,
     joinRequests,
     viewerMember,
     activities,
@@ -239,7 +263,7 @@ const UpdateSettingsSchema = z.object({
   intent: z.literal(SettingsIntent.UpdateSettings),
   giftGroupId: z.string(),
   name: z.string().min(1).max(100),
-  description: z.string().min(1).max(1000),
+  description: z.string().max(1000),
   budgetVisibility: z.enum(['EVERYONE', 'ADMINS', 'ONLY_SELF']),
 });
 
@@ -247,7 +271,7 @@ const InviteCreateSchema = z.object({
   intent: z.literal(SettingsIntent.InviteCreate),
   giftGroupId: z.string(),
   label: z.string().optional(),
-  roleGranted: z.enum(['OWNER', 'ADMIN', 'MEMBER']).optional(),
+  roleGranted: GroupRoleSchema.optional(),
   expiresInDays: z.string(),
   maxUses: z.string().optional(),
   requireApproval: z.string().optional(),
@@ -387,7 +411,13 @@ export async function action({ request }: ActionFunctionArgs) {
         description: v.description,
         budgetVisibility: v.budgetVisibility,
       });
-      return json(submission.reply());
+      return json(submission.reply(), {
+        headers: await createToastHeaders({
+          type: 'success',
+          title: 'Saved',
+          description: 'Group settings updated.',
+        }),
+      });
     }
     case SettingsIntent.InviteCreate: {
       await createInviteLink(request, v);
@@ -488,305 +518,89 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 
 const GroupSettingsRoute = () => {
-  const {
-    giftGroup,
-    canManageInvites,
-    canManageSettings,
-    joinRequests,
-    canPromote,
-    canDemote,
-    canRemove,
-    canBan,
-    canTransfer,
-    canDelete,
-    viewerMember,
-    activities,
-  } = useLoaderData<typeof loader>();
+  const { giftGroup, canDelete, canLeave } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-  const [activeTab, setActiveTab] = React.useState<
-    'members' | 'privacy' | 'reminders' | 'invites' | 'danger'
-  >('members');
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <SectionTitle>
-        <Heading>Settings — {giftGroup.name}</Heading>
-        <Button asChild>
-          <Link to={`/groups/${giftGroup.id}`}>Back to Group</Link>
-        </Button>
-      </SectionTitle>
-
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <div className="mb-4 flex gap-2">
-          {(
-            [
-              ['members', 'Members'],
-              ['privacy', 'Permissions & Privacy'],
-              ['reminders', 'Reminders'],
-              ['invites', 'Invite Links'],
-              ['danger', 'Danger Zone'],
-            ] as const
-          ).map(([id, label]) => (
-            <Button
-              key={id}
-              variant={activeTab === id ? 'default' : 'secondary'}
-              onClick={() => setActiveTab(id)}
-            >
-              {label}
-            </Button>
-          ))}
+    <div className="space-y-6">
+      <div className="rounded-2xl border bg-card p-4 sm:p-6">
+        <div className="mb-1 text-lg font-semibold">Group Settings</div>
+        <div className="mb-4 text-sm text-muted-foreground">
+          Configure how the group operates
         </div>
-
-        {activeTab === 'members' && (
-          <>
-            <h2 className="mb-2 text-lg font-bold">Members</h2>
-            <ul className="divide-y divide-border rounded-md border">
-              {giftGroup.groupMembers.map((m) => (
-                <li key={m.userId} className="flex items-center gap-3 p-3">
-                  <Avatar user={m.user} image={m.user.image} size="s" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 font-medium">
-                      {m.user.username}
-                      <RoleBadge role={m.role} />
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Budget ${(m.contributionCents / 100).toFixed(2)}
-                    </div>
-                  </div>
-                  {canPromote && m.role === 'MEMBER' && (
-                    <Form method="post">
-                      <input
-                        type="hidden"
-                        name="giftGroupId"
-                        value={giftGroup.id}
-                      />
-                      <input
-                        type="hidden"
-                        name="memberUserId"
-                        value={m.userId}
-                      />
-                      <Button
-                        name="intent"
-                        value={SettingsIntent.MemberPromoteAdmin}
-                      >
-                        Promote to Admin
-                      </Button>
-                    </Form>
-                  )}
-                  {canDemote && m.role === 'ADMIN' && (
-                    <Form method="post">
-                      <input
-                        type="hidden"
-                        name="giftGroupId"
-                        value={giftGroup.id}
-                      />
-                      <input
-                        type="hidden"
-                        name="memberUserId"
-                        value={m.userId}
-                      />
-                      <Button
-                        variant="secondary"
-                        name="intent"
-                        value={SettingsIntent.MemberDemoteMember}
-                      >
-                        Demote
-                      </Button>
-                    </Form>
-                  )}
-                  {(canRemove || canBan) && (
-                    <MemberActions
-                      giftGroupId={giftGroup.id}
-                      memberUserId={m.userId}
-                      bannedUntil={m.bannedUntil}
-                      canRemove={canRemove}
-                      canBan={canBan}
-                    />
-                  )}
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-6">
-              <h3 className="mb-2 text-base font-semibold">Your Preferences</h3>
-              <MemberPreferencesForm
-                giftGroupId={giftGroup.id}
-                prefs={viewerMember}
-              />
-            </div>
-
-            <div className="mt-6">
-              <h3 className="mb-2 text-base font-semibold">Recent Activity</h3>
-              <ul className="space-y-1 text-sm">
-                {activities.map((a) => (
-                  <li key={a.id}>
-                    <span className="text-muted-foreground">
-                      [{new Date(a.createdAt).toLocaleString()}]
-                    </span>{' '}
-                    <span className="font-medium">{a.actor.username}</span>{' '}
-                    {a.type}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </>
-        )}
-
-        {activeTab === 'privacy' && canManageSettings && (
-          <>
-            <h2 className="mb-2 text-lg font-bold">Permissions & Privacy</h2>
-            <SettingsForm giftGroup={giftGroup} lastResult={actionData} />
-          </>
-        )}
-
-        {activeTab === 'reminders' && (
-          <>
-            <h2 className="mb-2 text-lg font-bold">Reminders</h2>
-            <RemindersSection giftGroup={giftGroup} />
-          </>
-        )}
-
-        {activeTab === 'invites' && canManageInvites && (
-          <>
-            <h2 className="mb-2 text-lg font-bold">Invite Links</h2>
-            <InviteCreateForm
-              giftGroupId={giftGroup.id}
-              lastResult={actionData}
-            />
-            <div className="mt-4 space-y-2">
-              {giftGroup.groupInvitations.map((inv) => (
-                <div key={inv.id} className="flex items-center gap-2">
-                  <div className="flex-1">
-                    <div className="font-medium">{inv.label || 'Invite'}</div>
-                    <div className="text-sm text-muted-foreground">
-                      Role {inv.roleGranted} · Uses {inv.usedCount}
-                      {inv.maxUses ? ` / ${inv.maxUses}` : ''} ·{' '}
-                      {inv.requireApproval ? 'Requires approval' : 'Auto-join'}
-                    </div>
-                    <CopyableField value={inv.url} />
-                  </div>
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="giftGroupId"
-                      value={giftGroup.id}
-                    />
-                    <input
-                      type="hidden"
-                      name="groupInvitationId"
-                      value={inv.id}
-                    />
-                    <Button
-                      type="submit"
-                      name="intent"
-                      value={SettingsIntent.InviteRevoke}
-                      variant="destructive"
-                    >
-                      Revoke
-                    </Button>
-                  </Form>
-                </div>
-              ))}
-            </div>
-
-            {joinRequests.length ? (
-              <div className="mt-8">
-                <h3 className="mb-2 text-base font-semibold">
-                  Pending Join Requests
-                </h3>
-                <ul className="space-y-2">
-                  {joinRequests.map((jr) => (
-                    <li
-                      key={jr.id}
-                      className="flex items-center gap-2 rounded-md border p-2"
-                    >
-                      <Avatar user={jr.user} image={jr.user.image} size="s" />
-                      <div className="flex-1 text-sm">{jr.user.username}</div>
-                      <Form method="post" className="flex items-center gap-2">
-                        <input
-                          type="hidden"
-                          name="giftGroupId"
-                          value={giftGroup.id}
-                        />
-                        <input
-                          type="hidden"
-                          name="joinRequestId"
-                          value={jr.id}
-                        />
-                        <Button
-                          name="intent"
-                          value={SettingsIntent.JoinApprove}
-                          variant="default"
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          name="intent"
-                          value={SettingsIntent.JoinReject}
-                          variant="secondary"
-                        >
-                          Reject
-                        </Button>
-                      </Form>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </>
-        )}
-
-        {activeTab === 'danger' && (
-          <>
-            <h2 className="mb-2 text-lg font-bold text-destructive">
-              Danger Zone
-            </h2>
-            {canTransfer ? (
-              <section className="mb-6 rounded-md border p-3">
-                <h3 className="mb-2 font-semibold">Transfer Ownership</h3>
-                <TransferOwnershipForm giftGroup={giftGroup} />
-              </section>
-            ) : null}
-            {canDelete ? (
-              <section className="rounded-md border p-3">
-                <h3 className="mb-2 font-semibold">Delete Group</h3>
-                <p className="mb-3 text-sm text-muted-foreground">
-                  Deleting a group permanently removes all memberships, invite
-                  links, reminders and gift plans. This action cannot be undone.
-                </p>
-                <Form method="post" id="delete-group-form">
-                  <input
-                    type="hidden"
-                    name="giftGroupId"
-                    value={giftGroup.id}
-                  />
-                  <input
-                    type="hidden"
-                    name="intent"
-                    value={SettingsIntent.DeleteGroup}
-                  />
-                </Form>
-                <ConfirmDialog
-                  title="Delete Group"
-                  description={
-                    <div>Type DELETE to confirm. This cannot be undone.</div>
-                  }
-                  confirmText="Delete"
-                  requireText="DELETE"
-                  onConfirm={() => {
-                    const form = document.getElementById(
-                      'delete-group-form',
-                    ) as HTMLFormElement;
-                    form?.requestSubmit();
-                  }}
-                >
-                  <Button variant="destructive">Delete Group</Button>
-                </ConfirmDialog>
-              </section>
-            ) : null}
-          </>
-        )}
+        <SettingsForm giftGroup={giftGroup} lastResult={actionData} />
+        <div className="my-4 h-px w-full bg-border" />
+        <RemindersSection giftGroup={giftGroup} />
       </div>
+
+      {canDelete ? (
+        <div className="rounded-2xl border bg-card p-4 sm:p-6">
+          <div className="rounded-md bg-destructive/10 p-4">
+            <div className="mb-1 font-semibold text-destructive">
+              Danger Zone
+            </div>
+            <div className="mb-3 text-sm text-destructive/80">
+              These actions cannot be undone. Please be careful.
+            </div>
+            <Form method="post" id="delete-group-form">
+              <input type="hidden" name="giftGroupId" value={giftGroup.id} />
+              <input
+                type="hidden"
+                name="intent"
+                value={SettingsIntent.DeleteGroup}
+              />
+            </Form>
+            <ConfirmDialog
+              title="Delete Group"
+              description={
+                <div>Type DELETE to confirm. This cannot be undone.</div>
+              }
+              confirmText="Delete"
+              requireText="DELETE"
+              onConfirm={() => {
+                const form = document.getElementById(
+                  'delete-group-form',
+                ) as HTMLFormElement;
+                form?.requestSubmit();
+              }}
+            >
+              <Button variant="destructive">
+                <Icon name="trash" className="mr-2" /> Delete Group
+              </Button>
+            </ConfirmDialog>
+          </div>
+        </div>
+      ) : null}
+
+      {canLeave ? (
+        <div className="rounded-2xl border bg-card p-4 sm:p-6">
+          <div className="mb-2 font-semibold">Leave Group</div>
+          <div className="mb-3 text-sm text-muted-foreground">
+            You will lose access to this group and its gift plans.
+          </div>
+          <Form
+            method="post"
+            action={`/groups/${giftGroup.id}`}
+            id="leave-group-form"
+          >
+            <input type="hidden" name="giftGroupId" value={giftGroup.id} />
+            <input type="hidden" name="intent" value="leave-gift-group" />
+          </Form>
+          <ConfirmDialog
+            title="Leave Group"
+            description={<div>Are you sure you want to leave this group?</div>}
+            confirmText="Leave"
+            onConfirm={() => {
+              const form = document.getElementById(
+                'leave-group-form',
+              ) as HTMLFormElement;
+              form?.requestSubmit();
+            }}
+          >
+            <Button variant="destructive">Leave Group</Button>
+          </ConfirmDialog>
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -815,30 +629,27 @@ const SettingsForm = ({
   });
 
   return (
-    <Form
-      method="post"
-      {...getFormProps(form)}
-      className="grid gap-3 rounded-md border p-3"
-    >
+    <Form method="post" {...getFormProps(form)} className="grid gap-3">
       <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-      <Label htmlFor="name">Name</Label>
+      {/* keep budget visibility using hidden to satisfy schema */}
+      <input
+        type="hidden"
+        name="budgetVisibility"
+        value={giftGroup.budgetVisibility}
+      />
+      <Label htmlFor="name">Group Name</Label>
       <Input name="name" defaultValue={giftGroup.name} />
       <Label htmlFor="description">Description</Label>
-      <Input name="description" defaultValue={giftGroup.description} />
-      <Label>Budget Visibility</Label>
-      <Select name="budgetVisibility" defaultValue={giftGroup.budgetVisibility}>
-        <SelectTrigger>
-          <SelectValue placeholder="Select" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="EVERYONE">Everyone</SelectItem>
-          <SelectItem value="ADMINS">Admins</SelectItem>
-          <SelectItem value="ONLY_SELF">Only self</SelectItem>
-        </SelectContent>
-      </Select>
-      <Button name="intent" value={SettingsIntent.UpdateSettings} type="submit">
-        Save
-      </Button>
+      <Textarea name="description" defaultValue={giftGroup.description ?? ''} />
+      <div className="flex items-center justify-end">
+        <Button
+          name="intent"
+          value={SettingsIntent.UpdateSettings}
+          type="submit"
+        >
+          Save
+        </Button>
+      </div>
       <ErrorList errors={form.errors} id={form.errorId} />
     </Form>
   );
@@ -978,18 +789,100 @@ const MemberActions = ({
 };
 
 const RemindersSection = ({ giftGroup }: { giftGroup: any }) => {
+  const [emailOn, setEmailOn] = React.useState<boolean>(true);
+  const [pushOn, setPushOn] = React.useState<boolean>(false);
+
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
-        {[30, 14, 7, 3, 1].map((d) => (
-          <Form key={d} method="post">
+    <div className="space-y-4">
+      <div>
+        <div className="mb-2 font-semibold">Birthday Reminders</div>
+        <div className="flex flex-wrap items-center gap-2">
+          {[30, 14, 7, 3, 1].map((d) => (
+            <Form key={d} method="post">
+              <input type="hidden" name="giftGroupId" value={giftGroup.id} />
+              <input type="hidden" name="offsetDays" value={String(d)} />
+              <Button
+                size="sm"
+                name="intent"
+                value={SettingsIntent.ReminderAdd}
+              >
+                {d} days
+              </Button>
+            </Form>
+          ))}
+          <Form method="post" className="flex items-center gap-2">
             <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-            <input type="hidden" name="offsetDays" value={String(d)} />
+            <Label htmlFor="custom-reminder" className="sr-only">
+              Custom days
+            </Label>
+            <Input
+              id="custom-reminder"
+              name="offsetDays"
+              placeholder="e.g. 30"
+              inputMode="numeric"
+              className="w-24"
+            />
             <Button size="sm" name="intent" value={SettingsIntent.ReminderAdd}>
-              +{d} days
+              Add
             </Button>
           </Form>
-        ))}
+        </div>
+        <div className="mt-2 text-xs text-muted-foreground">
+          Reminders will trigger when a member's birthday is within any of these
+          day thresholds
+        </div>
+      </div>
+      <div className="grid gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-medium">Email Reminders</div>
+            <div className="text-sm text-muted-foreground">
+              Send email notifications for upcoming birthdays
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={emailOn}
+            onClick={() => setEmailOn((v) => !v)}
+            className={cn(
+              'h-6 w-11 rounded-full p-0.5 transition-colors',
+              emailOn ? 'bg-primary' : 'bg-muted',
+            )}
+          >
+            <span
+              className={cn(
+                'block h-5 w-5 rounded-full bg-background transition-transform',
+                emailOn ? 'translate-x-5' : 'translate-x-0',
+              )}
+            />
+          </button>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-medium">Push Notifications</div>
+            <div className="text-sm text-muted-foreground">
+              Send push notifications for upcoming birthdays
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={pushOn}
+            onClick={() => setPushOn((v) => !v)}
+            className={cn(
+              'h-6 w-11 rounded-full p-0.5 transition-colors',
+              pushOn ? 'bg-primary' : 'bg-muted',
+            )}
+          >
+            <span
+              className={cn(
+                'block h-5 w-5 rounded-full bg-background transition-transform',
+                pushOn ? 'translate-x-5' : 'translate-x-0',
+              )}
+            />
+          </button>
+        </div>
       </div>
       <ul className="space-y-1">
         {giftGroup.reminders.map((r: any) => (

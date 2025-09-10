@@ -2,7 +2,7 @@ import { TopNav } from '#app/components/nav/top/top-nav';
 
 export const TopBar = () => {
   return (
-    <header className="container py-4 sm:py-6">
+    <header className="h-header border-b border-surface-border bg-surface">
       <TopNav />
     </header>
   );

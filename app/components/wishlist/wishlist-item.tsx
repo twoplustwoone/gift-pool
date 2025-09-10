@@ -2,7 +2,7 @@
 import { type WishlistItem as WishlistItemType } from '@prisma/client';
 import { useFetcher } from '@remix-run/react';
 import * as React from 'react';
-import { FaPencilAlt, FaTrashAlt, FaChevronRight } from 'react-icons/fa';
+import { LuChevronRight, LuPencil, LuTrash } from 'react-icons/lu';
 import { z } from 'zod';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
@@ -23,6 +23,7 @@ import { useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
 import { Box, Text, Flex } from '../ui-kit';
 import { usePressFeedback } from './hooks/use-press-feedback.ts';
+ 
 
 export const DeleteFormSchema = z.object({
   intent: z.literal('delete-wishlist-item'),
@@ -32,12 +33,14 @@ export const DeleteFormSchema = z.object({
 export const WishlistItem = ({
   wishlistItem,
   isOwner = false,
+  categories = [],
 }: {
   wishlistItem: Pick<
     WishlistItemType,
-    'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type'
+    'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId'
   >;
   isOwner?: boolean;
+  categories?: { id: string; name: string; order: number }[];
 }) => {
   const user = useOptionalUser();
   const isOwnerByUser = user?.id === wishlistItem.ownerId;
@@ -72,13 +75,15 @@ export const WishlistItem = ({
             url: wishlistItem.url ?? null,
             note: wishlistItem.note ?? null,
             type: wishlistItem.type,
+            categoryId: wishlistItem.categoryId ?? null,
           }}
           canEdit={false}
           initialMode="view"
+          categories={categories}
         />
 
-        <Flex justify="between" align="center" className="gap-3 min-w-0">
-          <Box className="min-w-0 flex-1 w-0 overflow-hidden">
+        <Flex justify="between" align="center" className="min-w-0 gap-3">
+          <Box className="w-0 min-w-0 flex-1 overflow-hidden">
             <Text
               size="base"
               weight="medium"
@@ -87,12 +92,12 @@ export const WishlistItem = ({
               {wishlistItem.title}
             </Text>
             <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-              <Text size="xs" className="text-muted-foreground break-words">
+              <Text size="xs" className="break-words text-muted-foreground">
                 {wishlistItem.note}
               </Text>
             </Box>
           </Box>
-          <FaChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         </Flex>
       </Card>
     );
@@ -102,23 +107,39 @@ export const WishlistItem = ({
   const DesktopTrigger = (
     <div className="hidden sm:block">
       <Card variant="interactive" padding="md" className="group h-28 min-w-0">
-        <Flex justify="between" align="center" className="gap-3 min-w-0">
+        <Flex justify="between" align="center" className="min-w-0 gap-3">
           <Text
             size="base"
             weight="medium"
-            className="flex-1 w-0 min-w-0 max-w-full block truncate"
+            className="block w-0 min-w-0 max-w-full flex-1 truncate"
           >
             {wishlistItem.title}
           </Text>
-          {canDelete && (
-            <DeleteWishlistItem
-              id={wishlistItem.id}
-              className="items-center justify-center text-red-600 opacity-0 transition-opacity duration-200 ease-in-out hover:text-red-800 group-hover:opacity-100"
-            />
-          )}
+          <div className="flex items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <Flex>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label="Edit item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  editorRef.current?.openEdit();
+                }}
+              >
+                <LuPencil className="h-4 w-4" />
+              </Button>
+              {canDelete && (
+                <DeleteWishlistItem
+                  id={wishlistItem.id}
+                  className="items-center justify-center text-red-600 hover:text-red-800"
+                />
+              )}
+            </Flex>
+          </div>
         </Flex>
         <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-          <Text size="xs" className="text-muted-foreground break-words">
+          <Text size="xs" className="break-words text-muted-foreground">
             {wishlistItem.note}
           </Text>
         </Box>
@@ -137,9 +158,11 @@ export const WishlistItem = ({
           url: wishlistItem.url ?? null,
           note: wishlistItem.note ?? null,
           type: wishlistItem.type,
+          categoryId: wishlistItem.categoryId ?? null,
         }}
         trigger={DesktopTrigger} // desktop: row-as-trigger (edit/create)
         canEdit={true}
+        categories={categories}
       />
 
       <div className="sm:hidden">
@@ -151,8 +174,13 @@ export const WishlistItem = ({
           data-pressed={press.pressed ? 'true' : 'false'}
           {...press.rowProps}
         >
-          <Flex className="h-full min-w-0" align="center" justify="between" gap={3}>
-            <Box className="min-w-0 flex-1 w-0 overflow-hidden">
+          <Flex
+            className="h-full min-w-0"
+            align="center"
+            justify="between"
+            gap={3}
+          >
+            <Box className="w-0 min-w-0 flex-1 overflow-hidden">
               <Text
                 size="base"
                 weight="medium"
@@ -161,7 +189,7 @@ export const WishlistItem = ({
                 {wishlistItem.title}
               </Text>
               <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-                <Text size="xs" className="text-muted-foreground break-words">
+                <Text size="xs" className="break-words text-muted-foreground">
                   {wishlistItem.note}
                 </Text>
               </Box>
@@ -183,7 +211,7 @@ export const WishlistItem = ({
                 title="Edit"
                 className="h-9 w-9 text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:opacity-80"
               >
-                <FaPencilAlt className="h-4 w-4" />
+                <LuPencil className="h-4 w-4" />
               </Button>
 
               {/* DELETE */}
@@ -196,7 +224,7 @@ export const WishlistItem = ({
 
               {/* Divider + Chevron */}
               <div className="mx-1 h-6 border-l border-border/40" />
-              <FaChevronRight
+              <LuChevronRight
                 className="h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform data-[pressed=true]:translate-x-0.5"
                 data-pressed={press.pressed ? 'true' : 'false'}
               />
@@ -236,7 +264,7 @@ export const DeleteWishlistItem = ({
             aria-label="Delete item"
             title="Delete"
           >
-            <FaTrashAlt className="h-4 w-4" />
+            <LuTrash className="h-4 w-4" />
           </Button>
         </DialogTrigger>
       </div>

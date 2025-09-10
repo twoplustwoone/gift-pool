@@ -1,3 +1,4 @@
+import path from 'path';
 import { vitePlugin as remix } from '@remix-run/dev';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 import { glob } from 'glob';
@@ -6,8 +7,19 @@ import { defineConfig } from 'vite';
 import { envOnlyMacros } from 'vite-env-only';
 
 const MODE = process.env.NODE_ENV;
+const IS_STORYBOOK = Boolean(process.env.STORYBOOK);
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '#app': path.resolve(__dirname, 'app'),
+      '#tests': path.resolve(__dirname, 'tests'),
+    },
+    // Prevent multiple React copies in dev which can cause
+    // "Invalid hook call. Hooks can only be called inside of the body of a function component"
+    // when HMR loads modules from different dependency graphs.
+    dedupe: ['react', 'react-dom'],
+  },
   build: {
     cssMinify: MODE === 'production',
 
@@ -36,7 +48,7 @@ export default defineConfig({
     envOnlyMacros(),
     // it would be really nice to have this enabled in tests, but we'll have to
     // wait until https://github.com/remix-run/remix/issues/9871 is fixed
-    process.env.NODE_ENV === 'test'
+    process.env.NODE_ENV === 'test' || IS_STORYBOOK
       ? null
       : remix({
           ignoredRouteFiles: ['**/*'],

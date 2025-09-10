@@ -8,9 +8,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 const GroupsRoute = () => {
+  // Mirror the Wishlist route shell so child routes can render their own headers
   return (
-    <main className="container h-full min-h-0 px-0 md:px-8 md:pb-12">
-      <div className="grid h-full min-h-0 w-full overflow-y-auto rounded-none border border-surface-border bg-surface px-2 pb-4 text-surface-foreground shadow-sm md:container md:rounded-3xl">
+    <main className="h-full min-h-0 overflow-y-auto">
+      <div className="grid h-full min-h-0 w-full rounded-none text-surface-foreground shadow-sm">
         <Outlet />
       </div>
     </main>

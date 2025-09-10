@@ -27,6 +27,10 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
           categoryId: true,
         },
       },
+      wishlistCategories: {
+        select: { id: true, name: true, order: true },
+        orderBy: { order: 'asc' },
+      },
       image: { select: { id: true } },
     },
     where: { username },

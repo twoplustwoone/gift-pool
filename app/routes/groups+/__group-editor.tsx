@@ -1,97 +1,79 @@
-import { getFormProps, getInputProps, useForm } from '@conform-to/react';
-import type { SubmissionResult } from '@conform-to/react';
-import { getZodConstraint, parseWithZod } from '@conform-to/zod';
-import { type GiftGroup } from '@prisma/client';
-import { type SerializeFrom } from '@remix-run/node';
-import { Form, useActionData } from '@remix-run/react';
+import { Form } from '@remix-run/react';
+import { useState } from 'react';
 import { z } from 'zod';
-import { Field, TextareaField } from '#app/components/forms.tsx';
 import { Button } from '#app/components/ui/button.tsx';
-import { Heading } from '#app/components/ui/heading';
-import { SectionTitle } from '#app/components/ui/sectionTitle';
-import { StatusButton } from '#app/components/ui/status-button.tsx';
-import { useIsPending } from '#app/utils/misc.tsx';
-import { type action } from './__group-editor.server';
+import { DialogFooter, DialogClose } from '#app/components/ui/dialog.tsx';
+import { Input } from '#app/components/ui/input.tsx';
+import { Label } from '#app/components/ui/label.tsx';
+import { Textarea } from '#app/components/ui/textarea.tsx';
 
 const nameMinLength = 1;
-const nameMaxLength = 100;
-const descriptionMinLength = 1;
-const descriptionMaxLength = 1000;
+export const nameMaxLength = 100;
+export const descriptionMaxLength = 1000;
 
 export const GroupEditorSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(nameMinLength).max(nameMaxLength),
-  description: z.string().min(descriptionMinLength).max(descriptionMaxLength),
+  description: z
+    .string()
+    .trim()
+    .max(descriptionMaxLength)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
 });
 
-export const GroupEditor = ({
-  group,
-}: {
-  group?: SerializeFrom<Pick<GiftGroup, 'name' | 'id'>>;
-}) => {
-  const actionData = useActionData<typeof action>();
-  const isPending = useIsPending();
-
-  const [form, fields] = useForm<z.input<typeof GroupEditorSchema>>({
-    id: 'group-editor',
-    constraint: getZodConstraint(GroupEditorSchema),
-    lastResult: actionData as unknown as SubmissionResult<string[]>,
-    onValidate({ formData }) {
-      return parseWithZod(formData, { schema: GroupEditorSchema }) as any;
-    },
-    defaultValue: {
-      name: group?.name ?? '',
-    },
-  });
+export const CreateGroupCompactForm = ({ id }: { id?: string }) => {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const formId = id ?? 'create-group-form';
 
   return (
-    <div>
-      <SectionTitle>
-        <Heading>New Group</Heading>
-      </SectionTitle>
-      <Form
-        method="POST"
-        className="flex flex-col gap-y-4 overflow-y-auto overflow-x-hidden px-10 pb-28 pt-12"
-        {...getFormProps(form)}
-        encType="multipart/form-data"
-      >
-        <button type="submit" className="hidden" />
-        {group ? <input type="hidden" name="id" value={group.id} /> : null}
-        <Field
-          labelProps={{ children: 'Name' }}
-          inputProps={{
-            autoFocus: true,
-            ...getInputProps(fields.name, {
-              type: 'text',
-              ariaAttributes: true,
-            }),
-          }}
-          errors={fields.name.errors}
+    <Form id={formId} method="POST" className="grid gap-4">
+      <div className="grid gap-1">
+        <Label htmlFor="group-name">Group Name</Label>
+        <Input
+          id="group-name"
+          name="name"
+          placeholder="e.g., College Friends, Family, Work Team"
+          minLength={1}
+          maxLength={nameMaxLength}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoComplete="off"
+          required
         />
-        <TextareaField
-          labelProps={{ children: 'Description' }}
-          textareaProps={{
-            ...getInputProps(fields.description, {
-              type: 'text',
-              ariaAttributes: true,
-            }),
-          }}
-          errors={fields.description.errors}
-        />
-      </Form>
-      <div className="flex justify-end gap-2 md:gap-4">
-        <Button form={form.id} variant="destructive" type="reset">
-          Reset
-        </Button>
-        <StatusButton
-          form={form.id}
-          type="submit"
-          disabled={isPending}
-          status={isPending ? 'pending' : 'idle'}
-        >
-          Submit
-        </StatusButton>
+        <div className="text-xs text-muted-foreground">
+          {name.length}/{nameMaxLength} characters
+        </div>
       </div>
-    </div>
+      <div className="grid gap-1">
+        <Label htmlFor="group-description">Description</Label>
+        <Textarea
+          id="group-description"
+          name="description"
+          placeholder="What's this group for? Who are the members?"
+          maxLength={descriptionMaxLength}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+        <div className="text-xs text-muted-foreground">
+          {description.length}/{descriptionMaxLength} characters
+        </div>
+      </div>
+      <div className="rounded-2xl border border-accent/30 bg-accent/10 p-3 text-sm">
+        <span className="font-bold">How it works:</span> Create a group to
+        organize gift-giving with friends, family, or colleagues. Members can
+        set contribution limits and pool funds for birthdays and special
+        occasions.
+      </div>
+      <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
+        <DialogClose asChild>
+          <Button type="button" variant="outline">
+            Cancel
+          </Button>
+        </DialogClose>
+        <Button type="submit">Create</Button>
+      </DialogFooter>
+    </Form>
   );
-}
+};

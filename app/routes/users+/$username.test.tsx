@@ -92,7 +92,7 @@ test.skip('The user profile when logged in as self', async () => {
 
   await screen.findByRole('heading', { level: 1, name: user.name! });
   await screen.findByRole('img', { name: user.name! });
-  await screen.findByRole('button', { name: /logout/i });
+  await screen.findByRole('button', { name: /log out/i });
   await screen.findByRole('link', { name: /my wishlist/i });
   await screen.findByRole('link', { name: /edit profile/i });
 });

@@ -1,7 +1,6 @@
 import { Link, useFetcher } from '@remix-run/react';
 import React from 'react';
-import { FaPencilAlt, FaTrashAlt } from 'react-icons/fa';
-import { RxExit } from 'react-icons/rx';
+import { LuLogOut, LuPencil, LuTrash } from 'react-icons/lu';
 import { Button } from '#app/components/ui/button.tsx';
 import {
   DropdownMenu,
@@ -50,7 +49,7 @@ export const GroupActions = ({
           <DropdownMenuItem asChild>
             <Link to={`/groups/${giftGroupId}/settings`}>
               <Flex gap={2}>
-                <FaPencilAlt size={10} /> Settings
+                <LuPencil size={10} /> Settings
               </Flex>
             </Link>
           </DropdownMenuItem>
@@ -66,7 +65,7 @@ export const GroupActions = ({
             className="cursor-pointer"
           >
             <Flex gap={2}>
-              <RxExit size={10} /> Leave group
+              <LuLogOut size={10} /> Leave group
             </Flex>
           </DropdownMenuItem>
         )}
@@ -80,7 +79,7 @@ export const GroupActions = ({
             className="cursor-pointer"
           >
             <Flex gap={2}>
-              <FaTrashAlt size={10} /> Delete group
+              <LuTrash size={10} /> Delete group
             </Flex>
           </DropdownMenuItem>
         )}

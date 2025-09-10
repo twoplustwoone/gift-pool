@@ -1,5 +1,8 @@
-import { useForm, getFormProps } from '@conform-to/react';
-import type { SubmissionResult } from '@conform-to/react';
+import {
+  useForm,
+  getFormProps,
+  type SubmissionResult,
+} from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
 import { json, type ActionFunctionArgs } from '@remix-run/node';
@@ -94,7 +97,7 @@ export const ThemeSwitch = ({
       </div>
     </fetcher.Form>
   );
-}
+};
 
 /**
  * If the user's changing their theme mode preference, this will return the

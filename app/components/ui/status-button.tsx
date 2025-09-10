@@ -21,6 +21,8 @@ export const StatusButton = React.forwardRef<
   { message, status, children, className, spinDelay, ...props },
   ref,
 ) {
+  const labelId = React.useId();
+  const statusId = React.useId();
   const delayedPending = useSpinDelay(status === 'pending', {
     delay: 400,
     minDuration: 300,
@@ -39,41 +41,66 @@ export const StatusButton = React.forwardRef<
     idle: null,
   }[status];
 
-  const badgeNode = message ? (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>{badge}</TooltipTrigger>
-        <TooltipContent>{message}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  ) : (
-    badge
-  );
+  const badgeNode = badge
+    ? message
+      ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>{badge}</TooltipTrigger>
+              <TooltipContent>{message}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )
+      : (
+          badge
+        )
+    : null;
+
+  // Only describe status to AT when meaningful (not idle)
+  const shouldDescribe = status !== 'idle';
+
+  // Merge any consumer-provided aria-describedby with our status id
+  const describedBy = [
+    props['aria-describedby'],
+    shouldDescribe ? statusId : undefined,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .trim() || undefined;
+
+  // Respect consumer-provided aria-labelledby; otherwise, label only the primary text
+  const labelledBy = props['aria-labelledby'] ?? labelId;
 
   return (
     <Button
       ref={ref}
       className={cn(
-        'inline-flex h-10 items-center gap-2 px-4 text-sm font-medium',
+        'inline-flex h-10 items-center px-4 text-sm font-medium',
         'ring-ring ring-offset-2 ring-offset-background transition-colors focus-visible:ring-2',
         'disabled:pointer-events-none disabled:opacity-50',
         className,
       )}
       {...props}
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
     >
-      {children}
+      {/* Primary button label (used for accessible name) */}
+      <span id={labelId}>{children}</span>
       {/* fade badge in/out without overlap */}
       <span
         role="status"
         aria-live="polite"
-        aria-label={status}
+        aria-atomic="true"
+        id={statusId}
         className={cn(
           'flex items-center transition-opacity',
-          badge ? 'opacity-100' : 'opacity-0',
+          badge ? 'opacity-100 ml-2' : 'opacity-0',
         )}
       >
         {badgeNode}
-        <span className="sr-only">{status}</span>
+        {status !== 'idle' ? (
+          <span className="sr-only">{message ?? status}</span>
+        ) : null}
       </span>
     </Button>
   );

@@ -38,6 +38,20 @@ export async function action({ request }: ActionFunctionArgs) {
           message: 'Wishlist item not found',
         });
       }
+
+      if (data.categoryId) {
+        const category = await prisma.wishlistCategory.findFirst({
+          select: { id: true },
+          where: { id: data.categoryId, ownerId: userId },
+        });
+        if (!category) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['categoryId'],
+            message: 'Category not found',
+          });
+        }
+      }
     }),
     async: true,
   });
@@ -48,12 +62,16 @@ export async function action({ request }: ActionFunctionArgs) {
     });
   }
 
-  const { id: wishlistItemId, ...data } = submission.value;
+  const { id: wishlistItemId, categoryId, ...data } = submission.value;
 
   await prisma.wishlistItem.upsert({
     where: { id: wishlistItemId ?? '__new_wishlist_item__' },
-    create: { ownerId: userId, ...data },
-    update: data,
+    create: {
+      ownerId: userId,
+      categoryId: categoryId || null,
+      ...data,
+    },
+    update: { ...data, categoryId: categoryId || null },
   });
 
   const toast =

@@ -3,6 +3,8 @@ import * as React from 'react';
 import { Button } from '#app/components/ui/button.tsx';
 import { HOME_COPY } from './home-copy';
 import { HomepageMockup } from './HomepageMockup';
+import { LuHeart, LuUsers } from 'react-icons/lu';
+import { Flex, Text } from '../ui-kit';
 
 type HomeHeroProps = {
   onPrimaryClick?: () => void;
@@ -14,10 +16,16 @@ export const HomeHero: React.FC<HomeHeroProps> = ({
   onSecondaryClick,
 }) => {
   return (
-    <section aria-labelledby="home-hero-heading" className="container pt-2 pb-8 md:pb-12">
+    <section
+      aria-labelledby="home-hero-heading"
+      className="container pb-8 pt-2 md:pb-12"
+    >
       <div className="grid items-center gap-8 md:grid-cols-2 md:gap-12">
         <div>
-          <h1 id="home-hero-heading" className="text-3xl font-bold tracking-tight md:text-5xl">
+          <h1
+            id="home-hero-heading"
+            className="text-3xl font-bold tracking-tight md:text-5xl"
+          >
             {HOME_COPY.hero.headline}
           </h1>
           <p className="mt-3 text-base text-muted-foreground md:text-lg">
@@ -25,9 +33,17 @@ export const HomeHero: React.FC<HomeHeroProps> = ({
           </p>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="lg" onClick={onPrimaryClick} data-testid="home-cta-wishlist">
+            <Button
+              asChild
+              size="lg"
+              onClick={onPrimaryClick}
+              data-testid="home-cta-wishlist"
+            >
               <Link to="/wishlist" prefetch="intent">
-                {HOME_COPY.hero.primaryCta}
+                <Flex gap={2}>
+                  <LuHeart size={16} />
+                  <Text weight="bold">{HOME_COPY.hero.primaryCta}</Text>
+                </Flex>
               </Link>
             </Button>
             <Button
@@ -38,7 +54,10 @@ export const HomeHero: React.FC<HomeHeroProps> = ({
               data-testid="home-cta-group"
             >
               <Link to="/groups/new" prefetch="intent">
-                {HOME_COPY.hero.secondaryCta}
+                <Flex gap={2}>
+                  <LuUsers size={16} />
+                  <Text weight="bold">{HOME_COPY.hero.secondaryCta}</Text>
+                </Flex>
               </Link>
             </Button>
           </div>
@@ -51,4 +70,3 @@ export const HomeHero: React.FC<HomeHeroProps> = ({
     </section>
   );
 };
-

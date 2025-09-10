@@ -3,6 +3,8 @@ import * as React from 'react';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { HOME_COPY } from './home-copy';
+import { LuActivity, LuCalendar } from 'react-icons/lu';
+import { Flex } from '../ui-kit/flex.tsx';
 
 export type UpcomingBirthday = {
   id: string;
@@ -52,7 +54,10 @@ export const HomePanels: React.FC<HomePanelsProps> = ({
   if (!isLoggedIn) return null;
 
   return (
-    <section aria-labelledby="home-panels-heading" className="container pb-8 md:pb-12">
+    <section
+      aria-labelledby="home-panels-heading"
+      className="container pb-8 md:pb-12"
+    >
       <h2 id="home-panels-heading" className="sr-only">
         Personalized panels
       </h2>
@@ -62,7 +67,10 @@ export const HomePanels: React.FC<HomePanelsProps> = ({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {showEmptyWishlist && (
             <Card padding="lg" role="region" aria-labelledby="empty-wishlist">
-              <h3 id="empty-wishlist" className="text-base font-medium md:text-lg">
+              <h3
+                id="empty-wishlist"
+                className="text-base font-medium md:text-lg"
+              >
                 {HOME_COPY.panels.emptyWishlistTitle}
               </h3>
               <div className="mt-3">
@@ -77,11 +85,19 @@ export const HomePanels: React.FC<HomePanelsProps> = ({
 
           {showEmptyGroups && (
             <Card padding="lg" role="region" aria-labelledby="empty-groups">
-              <h3 id="empty-groups" className="text-base font-medium md:text-lg">
+              <h3
+                id="empty-groups"
+                className="text-base font-medium md:text-lg"
+              >
                 {HOME_COPY.panels.emptyGroupsTitle}
               </h3>
               <div className="mt-3">
-                <Button asChild size="lg" variant="outline" data-testid="empty-groups-cta">
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  data-testid="empty-groups-cta"
+                >
                   <Link to="/groups/new" prefetch="intent">
                     {HOME_COPY.panels.emptyGroupsCta}
                   </Link>
@@ -97,16 +113,27 @@ export const HomePanels: React.FC<HomePanelsProps> = ({
               aria-labelledby="upcoming-birthdays"
               data-testid="panel-birthdays"
             >
-              <h3 id="upcoming-birthdays" className="text-base font-medium md:text-lg">
-                {HOME_COPY.panels.birthdaysHeading}
-              </h3>
+              <Flex gap={2}>
+                <LuCalendar size={20} className="text-blue-500" />
+                <h3
+                  id="upcoming-birthdays"
+                  className="text-base font-medium md:text-2xl"
+                >
+                  {HOME_COPY.panels.birthdaysHeading}
+                </h3>
+              </Flex>
               <ul className="mt-3 space-y-2">
                 {fetcher.data?.birthdays?.length ? (
                   fetcher.data.birthdays.map((b) => (
-                    <li key={b.id} className="flex items-center justify-between gap-3">
+                    <li
+                      key={b.id}
+                      className="flex items-center justify-between gap-3"
+                    >
                       <div>
                         <p className="text-sm font-medium">{b.name}</p>
-                        <p className="text-xs text-muted-foreground">{b.dateLabel}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {b.dateLabel}
+                        </p>
                       </div>
                       {b.groupId ? (
                         <Button
@@ -123,7 +150,9 @@ export const HomePanels: React.FC<HomePanelsProps> = ({
                     </li>
                   ))
                 ) : (
-                  <li className="text-sm text-muted-foreground">No upcoming birthdays</li>
+                  <li className="text-sm text-muted-foreground">
+                    No upcoming birthdays
+                  </li>
                 )}
               </ul>
             </Card>
@@ -136,9 +165,15 @@ export const HomePanels: React.FC<HomePanelsProps> = ({
               aria-labelledby="recent-activity"
               data-testid="panel-activity"
             >
-              <h3 id="recent-activity" className="text-base font-medium md:text-lg">
-                {HOME_COPY.panels.recentActivityHeading}
-              </h3>
+              <Flex gap={2}>
+                <LuActivity size={20} className="text-green-500" />
+                <h3
+                  id="recent-activity"
+                  className="text-base font-medium md:text-2xl"
+                >
+                  {HOME_COPY.panels.recentActivityHeading}
+                </h3>
+              </Flex>
               <ul className="mt-3 space-y-2">
                 {fetcher.data?.activity?.length ? (
                   fetcher.data.activity.map((a) => (
@@ -147,7 +182,9 @@ export const HomePanels: React.FC<HomePanelsProps> = ({
                     </li>
                   ))
                 ) : (
-                  <li className="text-sm text-muted-foreground">Nothing new yet</li>
+                  <li className="text-sm text-muted-foreground">
+                    Nothing new yet
+                  </li>
                 )}
               </ul>
             </Card>

@@ -1,10 +1,8 @@
-import { getFormProps, useForm } from '@conform-to/react';
-import type { SubmissionResult } from '@conform-to/react';
+// form utilities are not needed here anymore
 import { parseWithZod } from '@conform-to/zod';
 import {
   json,
   type LoaderFunctionArgs,
-  type ActionFunctionArgs,
   type HeadersFunction,
   type LinksFunction,
   type MetaFunction,
@@ -15,7 +13,6 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
-  useFetcher,
   useFetchers,
   useLoaderData,
 } from '@remix-run/react';
@@ -25,13 +22,11 @@ import { z } from 'zod';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx';
-import { ErrorList } from './components/forms.tsx';
-import { Logo } from './components/logo.tsx';
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
 import { useToast } from './components/toaster.tsx';
-import { Icon, href as iconsHref } from './components/ui/icon.tsx';
+import { href as iconsHref } from './components/ui/icon.tsx';
 import { EpicToaster } from './components/ui/sonner.tsx';
 import nunitoStyleSheet from './styles/nunito-font.css?url';
 import tailwindStyleSheetUrl from './styles/tailwind.css?url';
@@ -43,7 +38,7 @@ import { honeypot } from './utils/honeypot.server.ts';
 import { combineHeaders, getDomainUrl } from './utils/misc.tsx';
 import { useNonce } from './utils/nonce-provider.ts';
 import { useRequestInfo } from './utils/request-info.ts';
-import { type Theme, setTheme, getTheme } from './utils/theme.server.ts';
+import { type Theme, getTheme } from './utils/theme.server.ts';
 import { makeTimings, time } from './utils/timing.server.ts';
 import { getToast } from './utils/toast.server.ts';
 
@@ -151,26 +146,6 @@ const ThemeFormSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']),
 });
 
-export async function action({ request }: ActionFunctionArgs) {
-  const formData = await request.formData();
-  const submission = parseWithZod(formData, {
-    schema: ThemeFormSchema,
-  });
-
-  if (submission.status !== 'success') {
-    return json(submission.reply(), {
-      status: submission.status === 'error' ? 400 : 200,
-    });
-  }
-
-  const { theme } = submission.value;
-
-  const responseInit = {
-    headers: { 'set-cookie': setTheme(theme) },
-  };
-  return json(submission.reply(), responseInit);
-}
-
 const Document = ({
   children,
   nonce,
@@ -192,9 +167,10 @@ const Document = ({
           name="viewport"
           content="width=device-width,initial-scale=1,viewport-fit=cover"
         />
+        <meta name="csp-nonce" content={nonce} />
         <Links />
       </head>
-      <body className="h-full bg-background text-foreground">
+      <body className="h-full text-foreground">
         {children}
         <script
           nonce={nonce}
@@ -210,17 +186,10 @@ const Document = ({
 };
 
 const Footer = () => {
-  const data = useLoaderData<typeof loader>();
   return (
-    <>
-      <div className="container hidden justify-between pb-5 sm:flex">
-        <Logo />
-        <ThemeSwitch userPreference={data.requestInfo.userPrefs.theme} />
-      </div>
-      <div className="sm:hidden">
-        <BottomNav />
-      </div>
-    </>
+    <div className="sm:hidden">
+      <BottomNav />
+    </div>
   );
 };
 
@@ -235,7 +204,7 @@ const App = () => {
       <div className="flex h-dvh min-h-0 flex-col">
         <TopBar />
 
-        <div className="min-h-0 flex-1 sm:overflow-y-auto">
+        <div className="to-background-muted min-h-0 flex-1 bg-gradient-to-br from-background sm:overflow-y-auto">
           <Outlet />
         </div>
 
@@ -280,62 +249,17 @@ export function useTheme() {
  */
 export function useOptimisticThemeMode() {
   const fetchers = useFetchers();
-  const themeFetcher = fetchers.find((f) => f.formAction === '/');
+  const themeFetcher = fetchers.find(
+    (f) => f.formAction === '/' || f.formAction === '/resources/theme-switch',
+  );
 
   if (themeFetcher && themeFetcher.formData) {
     const submission = parseWithZod(themeFetcher.formData, {
       schema: ThemeFormSchema,
     });
     return submission.status === 'success' ? submission.value.theme : null;
-    // return submission.value?.theme
   }
 }
-
-const ThemeSwitch = ({ userPreference }: { userPreference?: Theme | null }) => {
-  const fetcher = useFetcher<typeof action>();
-
-  const [form] = useForm<z.input<typeof ThemeFormSchema>>({
-    id: 'theme-switch',
-    lastResult: fetcher.data as unknown as SubmissionResult<string[]>,
-  });
-
-  const optimisticMode = useOptimisticThemeMode();
-  const mode = optimisticMode ?? userPreference ?? 'system';
-  const nextMode =
-    mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system';
-  const modeLabel = {
-    light: (
-      <Icon name="sun">
-        <span className="sr-only">Light</span>
-      </Icon>
-    ),
-    dark: (
-      <Icon name="moon">
-        <span className="sr-only">Dark</span>
-      </Icon>
-    ),
-    system: (
-      <Icon name="laptop">
-        <span className="sr-only">System</span>
-      </Icon>
-    ),
-  };
-
-  return (
-    <fetcher.Form method="POST" {...getFormProps(form)}>
-      <input type="hidden" name="theme" value={nextMode} />
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          className="flex h-8 w-8 cursor-pointer items-center justify-center"
-        >
-          {modeLabel[mode]}
-        </button>
-      </div>
-      <ErrorList errors={form.errors} id={form.errorId} />
-    </fetcher.Form>
-  );
-};
 
 export const ErrorBoundary = () => {
   // the nonce doesn't rely on the loader so we can access that

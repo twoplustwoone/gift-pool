@@ -11,7 +11,10 @@ export const extendedTheme = {
       DEFAULT: 'hsl(var(--ring))',
       invalid: 'hsl(var(--foreground-destructive))',
     },
-    background: 'hsl(var(--background))',
+    background: {
+      DEFAULT: 'hsl(var(--background))',
+      muted: 'hsl(var(--background-muted))',
+    },
     foreground: {
       DEFAULT: 'hsl(var(--foreground))',
       destructive: 'hsl(var(--foreground-destructive))',
@@ -125,5 +128,10 @@ export const extendedTheme = {
   },
   spacing: {
     'bottom-nav': 'var(--bottom-nav-height)',
+    header: 'var(--header-height)',
+  },
+  backgroundImage: {
+    'brand-gradient':
+      'linear-gradient(135deg, hsl(var(--brand-gradient-start)), hsl(var(--brand-gradient-end)))',
   },
 } satisfies Config['theme'];
