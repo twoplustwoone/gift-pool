@@ -6,6 +6,7 @@ on:
       - main
       - 'codex/**'
       - 'feature/**'
+      - 'fix/**'
   workflow_dispatch:
 
 permissions:
