@@ -32,7 +32,10 @@ export function RoleBadge({ role }: { role: GroupRole }) {
 
   return (
     <Text size="xs" weight="extrabold">
-      <Flex className={cn('rounded px-2 py-0.5', meta.bg, meta.text)} gap={1}>
+      <Flex
+        className={cn('rounded-full px-2 py-0.5', meta.bg, meta.text)}
+        gap={1}
+      >
         {meta.icon}
         {meta.label}
       </Flex>

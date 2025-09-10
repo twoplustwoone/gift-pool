@@ -9,16 +9,19 @@ import {
   type action as routeAction,
 } from './__route.server';
 import { type GroupRole } from '#app/utils/group-role.ts';
+import { Flex } from '#app/components/ui-kit/flex.tsx';
+import { Stack } from '#app/components/ui-kit/stack.tsx';
 
 // Re-export so children can share the same data/actions
 export { loader, action } from './__route.server';
 
 const GroupLayout = () => {
-  const { giftGroup, viewer } = useLoaderData<typeof routeLoader>();
+  const { giftGroup, viewer, canSettings } =
+    useLoaderData<typeof routeLoader>();
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="w-full border-b bg-background/60 backdrop-blur">
+      <div className="w-full border-b bg-surface backdrop-blur">
         <div className="mx-auto max-w-6xl px-3 py-3 sm:px-6">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -43,14 +46,14 @@ const GroupLayout = () => {
               <RoleBadge role={viewer.role as GroupRole} />
             </div>
           </div>
-          <div className="mt-4">
-            <TabBar giftGroupId={giftGroup.id} />
-          </div>
         </div>
       </div>
       <main className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl p-3 sm:p-6">
-          <Outlet />
+          <Stack gap={6}>
+            <TabBar giftGroupId={giftGroup.id} canSettings={canSettings} />
+            <Outlet />
+          </Stack>
         </div>
       </main>
     </div>
@@ -59,16 +62,26 @@ const GroupLayout = () => {
 
 export default GroupLayout;
 
-const TabBar = ({ giftGroupId }: { giftGroupId: string }) => {
+const TabBar = ({
+  giftGroupId,
+  canSettings,
+}: {
+  giftGroupId: string;
+  canSettings: boolean;
+}) => {
   const tabs = [
     { to: `/groups/${giftGroupId}`, label: 'Overview', end: true },
     { to: `/groups/${giftGroupId}/members`, label: 'Members' },
-    { to: `/groups/${giftGroupId}/settings`, label: 'Settings' },
+    ...(canSettings
+      ? ([{ to: `/groups/${giftGroupId}/settings`, label: 'Settings' }] as const)
+      : ([] as const)),
     { to: `/groups/${giftGroupId}/activity`, label: 'Activity' },
   ] as const;
 
+  const colsClass = canSettings ? 'grid-cols-4' : 'grid-cols-3';
+
   return (
-    <div className="grid w-full grid-cols-4 rounded-full bg-muted p-1">
+    <div className={`grid w-full ${colsClass} rounded-full bg-muted p-1`}>
       {tabs.map((t) => (
         <NavLink
           key={t.to}
