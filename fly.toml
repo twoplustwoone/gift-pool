@@ -17,6 +17,11 @@ destination = "/data"
 dockerfile = "/other/Dockerfile"
 ignorefile = "/other/Dockerfile.dockerignore"
 
+[deploy]
+  # Runs on each deploy: apply Prisma migrations and then run the backfill.
+  # Assumes your SQLite path in Prisma points to /litefs/... so writes go to the primary.
+  release_command = "bash -lc 'set -euo pipefail; npx prisma migrate deploy && APPLY=1 node ./scripts/backfill-group-roles.js'"
+
 [[services]]
 internal_port = 8080
 processes = [ "app" ]

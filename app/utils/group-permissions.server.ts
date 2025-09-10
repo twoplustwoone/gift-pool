@@ -3,8 +3,7 @@
 import { json } from '@remix-run/node';
 import { requireUserId } from './auth.server';
 import { prisma } from './db.server';
-
-export type GroupRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+import { GroupRoleSchema, type GroupRole } from '#app/utils/group-role.ts';
 
 export type GroupPermission =
   | 'deleteGroup'
@@ -76,7 +75,12 @@ export async function requireUserWithGroupRole(
     select: { role: true },
   });
 
-  if (!userInGroup || !requiredRoles.includes(userInGroup.role as GroupRole)) {
+  const rawRole = userInGroup?.role;
+  const userRole = rawRole
+    ? GroupRoleSchema.catch('MEMBER').parse(rawRole)
+    : undefined;
+
+  if (!userRole || !requiredRoles.includes(userRole)) {
     throw json(
       {
         error: 'Unauthorized',
@@ -104,9 +108,15 @@ export async function requireUserWithGroupPermission(
     select: { role: true },
   });
 
-  const userRole = userInGroup?.role as GroupRole | undefined;
+  const rawRole = userInGroup?.role;
+  const userRole = rawRole
+    ? GroupRoleSchema.catch('MEMBER').parse(rawRole)
+    : undefined;
 
-  if (!userRole || !groupRolePermissions[userRole].includes(permission)) {
+  if (
+    !userRole ||
+    !(groupRolePermissions[userRole]?.includes(permission) ?? false)
+  ) {
     throw json(
       {
         error: 'Unauthorized',
@@ -132,7 +142,12 @@ export async function userHasGroupPermission(
     select: { role: true },
   });
 
-  const userRole = userInGroup?.role as GroupRole | undefined;
+  const rawRole = userInGroup?.role;
+  const userRole = rawRole
+    ? GroupRoleSchema.catch('MEMBER').parse(rawRole)
+    : undefined;
 
-  return userRole ? groupRolePermissions[userRole].includes(permission) : false;
+  return userRole
+    ? groupRolePermissions[userRole]?.includes(permission) ?? false
+    : false;
 }
