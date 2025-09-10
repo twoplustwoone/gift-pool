@@ -69,8 +69,9 @@ npm run typecheck       # TypeScript type checking
 ```bash
 npm test                # Run unit tests (Vitest)
 npm run coverage        # Run tests with coverage
-npm run test:e2e        # Run E2E tests (Playwright UI mode)
-npm run test:e2e:run    # Run E2E tests (headless)
+npm run test:e2e        # Run E2E tests (Playwright, headless, local)
+npm run test:e2e:dev    # Run E2E tests (Playwright UI mode)
+npm run test:e2e:run    # Run E2E tests (headless, CI/CD pipeline only)
 ```
 
 ### Database
@@ -90,6 +91,7 @@ npm run validate        # Run all checks (tests, lint, typecheck, e2e)
 npm run typecheck       # Verify TypeScript compilation
 npm run lint            # Check code style
 npm test -- --run       # Run unit tests once
+npm run test:e2e        # Run e2e tests
 ```
 
 ## Development Conventions
