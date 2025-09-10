@@ -8,27 +8,28 @@ datasource db {
 }
 
 model User {
-  id                String              @id @default(cuid())
-  email             String              @unique
-  username          String              @unique
-  name              String?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  birthday          DateTime?
-  address           Address?
-  connections       Connection[]
-  giftPlansLocked   GiftPlan[]          @relation("GiftPlan_LockedBy")
-  giftPlansReceived GiftPlan[]          @relation("GiftPlan_Recipient")
-  groupActivities   GroupActivity[]     @relation("GroupActivity_Actor")
-  groupInvitations  GroupInvitation[]
-  groupReminders    GroupReminder[]     @relation("GroupReminder_CreatedBy")
-  joinRequests      JoinRequest[]       @relation("JoinRequest_User")
-  password          Password?
-  sessions          Session[]
-  image             UserImage?
-  giftGroups        UsersInGiftGroups[]
-  wishlistItems     WishlistItem[]
-  roles             Role[]              @relation("RoleToUser")
+  id                 String              @id @default(cuid())
+  email              String              @unique
+  username           String              @unique
+  name               String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  birthday           DateTime?
+  address            Address?
+  connections        Connection[]
+  giftPlansLocked    GiftPlan[]          @relation("GiftPlan_LockedBy")
+  giftPlansReceived  GiftPlan[]          @relation("GiftPlan_Recipient")
+  groupActivities    GroupActivity[]     @relation("GroupActivity_Actor")
+  groupInvitations   GroupInvitation[]
+  groupReminders     GroupReminder[]     @relation("GroupReminder_CreatedBy")
+  joinRequests       JoinRequest[]       @relation("JoinRequest_User")
+  password           Password?
+  sessions           Session[]
+  image              UserImage?
+  giftGroups         UsersInGiftGroups[]
+  wishlistItems      WishlistItem[]
+  wishlistCategories WishlistCategory[]
+  roles              Role[]              @relation("RoleToUser")
 }
 
 model GiftGroup {
@@ -36,7 +37,7 @@ model GiftGroup {
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   name             String
-  description      String
+  description      String?
   budgetVisibility String              @default("EVERYONE")
   giftPlans        GiftPlan[]
   activities       GroupActivity[]
@@ -154,17 +155,29 @@ model Address {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model WishlistCategory {
+  id        String         @id @default(cuid())
+  ownerId   String
+  name      String
+  order     Int
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  owner     User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  items     WishlistItem[]
+}
+
 model WishlistItem {
-  id         String   @id @default(cuid())
+  id         String            @id @default(cuid())
   ownerId    String
   categoryId String?
   title      String
   note       String?
   url        String?
   type       String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  owner      User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  owner      User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  category   WishlistCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 }
 
 model UserImage {

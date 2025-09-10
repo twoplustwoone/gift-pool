@@ -26,6 +26,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
           type: true,
         },
       },
+      wishlistCategories: {
+        select: {
+          id: true,
+          name: true,
+          order: true,
+        },
+        orderBy: { order: 'asc' },
+      },
       image: { select: { id: true } },
     },
     where: { id: userId },

@@ -28,7 +28,7 @@ export const TopNavItem = ({
           'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
 
           isActive
-            ? 'bg-primary text-primary-foreground'
+            ? 'bg-brand-gradient text-primary-foreground shadow-md'
             : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
           className,
         )

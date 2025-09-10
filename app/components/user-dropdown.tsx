@@ -1,7 +1,6 @@
 import { Form, Link } from '@remix-run/react';
 import { useRef } from 'react';
-import { FaCog, FaUser } from 'react-icons/fa';
-import { IoIosLogOut } from 'react-icons/io';
+import { LuLogOut, LuSettings, LuUser } from 'react-icons/lu';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useUser } from '#app/utils/user.ts';
 import {
@@ -50,7 +49,7 @@ export const UserDropdown = () => {
           <DropdownMenuItem asChild>
             <Link prefetch="intent" to={`/me`}>
               <Flex gap={2}>
-                <FaUser className="h-3 w-3" />
+                <LuUser className="h-3 w-3" />
                 <Text>Profile</Text>
               </Flex>
             </Link>
@@ -58,7 +57,7 @@ export const UserDropdown = () => {
           <DropdownMenuItem asChild>
             <Link prefetch="intent" to={`/settings/profile`}>
               <Flex gap={2}>
-                <FaCog className="h-3 w-3" />
+                <LuSettings className="h-3 w-3" />
                 <Text>Settings</Text>
               </Flex>
             </Link>
@@ -68,7 +67,7 @@ export const UserDropdown = () => {
             <DropdownMenuItem asChild>
               <button type="submit" className="w-full text-left">
                 <Flex gap={2}>
-                  <IoIosLogOut className="h-3 w-3" />
+                  <LuLogOut className="h-3 w-3" />
                   <Text>Log out</Text>
                 </Flex>
               </button>

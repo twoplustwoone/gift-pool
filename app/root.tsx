@@ -22,7 +22,6 @@ import { z } from 'zod';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx';
-import { Logo } from './components/logo.tsx';
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
@@ -171,7 +170,7 @@ const Document = ({
         <meta name="csp-nonce" content={nonce} />
         <Links />
       </head>
-      <body className="h-full bg-background text-foreground">
+      <body className="h-full text-foreground">
         {children}
         <script
           nonce={nonce}
@@ -188,14 +187,9 @@ const Document = ({
 
 const Footer = () => {
   return (
-    <>
-      <div className="container hidden justify-between pb-5 sm:flex">
-        <Logo />
-      </div>
-      <div className="sm:hidden">
-        <BottomNav />
-      </div>
-    </>
+    <div className="sm:hidden">
+      <BottomNav />
+    </div>
   );
 };
 
@@ -210,7 +204,7 @@ const App = () => {
       <div className="flex h-dvh min-h-0 flex-col">
         <TopBar />
 
-        <div className="min-h-0 flex-1 sm:overflow-y-auto">
+        <div className="to-background-muted min-h-0 flex-1 bg-gradient-to-br from-background sm:overflow-y-auto">
           <Outlet />
         </div>
 

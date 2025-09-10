@@ -28,7 +28,13 @@ vi.mock('@remix-run/react', async () => {
   return {
     ...actual,
     useActionData: () => undefined,
-    useFetcher: () => ({ Form: (props: any) => <form {...props} /> }),
+    useFetcher: () => ({
+      Form: (props: any) => <form {...props} />,
+      submit: () => {},
+      state: 'idle',
+      data: undefined,
+    }),
+    useRevalidator: () => ({ revalidate: () => {} }),
   };
 });
 
@@ -58,6 +64,10 @@ vi.mock('#app/routes/wishlist+/__wishlist-item-editor', () => {
   return { WishlistItemEditor };
 });
 
+vi.mock('./category-manager', () => ({
+  CategoryManager: () => <div />,
+}));
+
 describe('Wishlist components', () => {
   it('renders wishlist with items', async () => {
     const App = createRemixStub([
@@ -78,8 +88,10 @@ describe('Wishlist components', () => {
                   note: null,
                   url: null,
                   type: 'text',
+                  categoryId: null,
                 },
               ],
+              wishlistCategories: [],
             }}
           />
         ),
@@ -88,7 +100,7 @@ describe('Wishlist components', () => {
 
     render(<App />);
 
-    await screen.findByText("Jane's Wishlist");
+    await screen.findByText('My Wishlist');
     // 2 items: one for the desktop view, one for the mobile view
     expect(await screen.findAllByText('Item one')).toHaveLength(2);
   });
@@ -105,6 +117,7 @@ describe('Wishlist components', () => {
               name: 'Jim',
               image: { id: 'img1' },
               wishlistItems: [],
+              wishlistCategories: [],
             }}
           />
         ),
@@ -116,5 +129,29 @@ describe('Wishlist components', () => {
     await screen.findByText(
       "Jim doesn't have any items in their wishlist yet!",
     );
+  });
+
+  it('renders empty categories', async () => {
+    const App = createRemixStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={true}
+            user={{
+              username: 'jane',
+              name: 'Jane',
+              image: { id: 'img1' },
+              wishlistItems: [],
+              wishlistCategories: [{ id: 'cat1', name: 'Books', order: 0 }],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: /books \(0\)/i });
   });
 });
