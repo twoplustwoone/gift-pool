@@ -1,4 +1,4 @@
-import { Link, useFetcher, useRouteLoaderData } from '@remix-run/react';
+import { useFetcher, useRouteLoaderData } from '@remix-run/react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
@@ -15,11 +15,15 @@ import { Icon } from '#app/components/ui/icon.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
 import { track } from '#app/utils/analytics.client.ts';
-import { type loader as routeLoader, type action as routeAction } from './__route.server';
+import {
+  type loader as routeLoader,
+  type action as routeAction,
+} from './__route.server';
 
 const GiftGroupOverview = () => {
-  const { giftGroup, inviteLink, viewer, canInvite } =
-    useRouteLoaderData<typeof routeLoader>('routes/groups+/$giftGroupId_+/_layout')!;
+  const { giftGroup, inviteLink, viewer, canInvite } = useRouteLoaderData<
+    typeof routeLoader
+  >('routes/groups+/$giftGroupId_+/_layout')!;
   const createFetcher = useFetcher<typeof routeAction>();
 
   useEffect(() => {
@@ -47,7 +51,9 @@ const GiftGroupOverview = () => {
           <div>
             <div className="text-muted-foreground">Created</div>
             <div className="text-foreground">
-              {new Date(giftGroup.createdAt as unknown as string).toLocaleDateString()}
+              {new Date(
+                giftGroup.createdAt as unknown as string,
+              ).toLocaleDateString()}
             </div>
           </div>
           <div>
@@ -71,20 +77,34 @@ const GiftGroupOverview = () => {
           Share this link to invite new members to the group
         </div>
         {inviteLink ? (
-          <Button className="w-full" onClick={async () => { await navigator.clipboard.writeText(inviteLink); }}>
+          <Button
+            className="w-full"
+            onClick={async () => {
+              await navigator.clipboard.writeText(inviteLink);
+            }}
+          >
             <Icon name="copy" className="mr-2" /> Copy Invite Link
           </Button>
         ) : canInvite ? (
-          <createFetcher.Form method="post" action={`/groups/${giftGroup.id}`} className="w-full">
+          <createFetcher.Form
+            method="post"
+            action={`/groups/${giftGroup.id}`}
+            className="w-full"
+          >
             <input type="hidden" name="giftGroupId" value={giftGroup.id} />
             <input type="hidden" name="intent" value="create-invite-link" />
             <input type="hidden" name="expiresInDays" value="7" />
-            <Button className="w-full" disabled={createFetcher.state !== 'idle'}>
+            <Button
+              className="w-full"
+              disabled={createFetcher.state !== 'idle'}
+            >
               <Icon name="link-2" className="mr-2" /> Create & Copy Invite Link
             </Button>
           </createFetcher.Form>
         ) : (
-          <div className="text-sm text-muted-foreground">No active invite link. Ask an admin to create one.</div>
+          <div className="text-sm text-muted-foreground">
+            No active invite link. Ask an admin to create one.
+          </div>
         )}
       </Card>
     </div>
@@ -315,10 +335,12 @@ const InlineBudgetEditor = ({
     return (
       <div className="flex items-center gap-2">
         <span className="sm:hidden">{MobileButton}</span>
-        <span className="hidden sm:inline-flex items-center gap-2">
+        <span className="hidden items-center gap-2 sm:inline-flex">
           {value > 0 ? (
             <>
-              <span className="text-xl font-bold text-foreground">${dollars}</span>
+              <span className="text-xl font-bold text-foreground">
+                ${dollars}
+              </span>
               <Button
                 variant="ghost"
                 size="icon"
