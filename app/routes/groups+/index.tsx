@@ -1,6 +1,7 @@
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { useLoaderData, useNavigate } from '@remix-run/react';
 import { LuPlus, LuUsers } from 'react-icons/lu';
+import { GroupCard } from '#app/components/groups/GroupCard.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import {
@@ -17,7 +18,6 @@ import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { GroupRoleSchema, type GroupRole } from '#app/utils/group-role.ts';
 import { CreateGroupCompactForm } from './__group-editor.tsx';
-import { GroupCard } from '#app/components/groups/GroupCard.tsx';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);

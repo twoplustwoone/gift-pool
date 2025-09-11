@@ -1,10 +1,10 @@
 import { Link, useFetcher } from '@remix-run/react';
 import * as React from 'react';
+import { LuActivity, LuCalendar } from 'react-icons/lu';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
-import { HOME_COPY } from './home-copy';
-import { LuActivity, LuCalendar } from 'react-icons/lu';
 import { Flex } from '../ui-kit/flex.tsx';
+import { HOME_COPY } from './home-copy';
 
 export type UpcomingBirthday = {
   id: string;

@@ -1,8 +1,8 @@
 import * as React from 'react';
 import { LuBell, LuDollarSign, LuHeart, LuUsers } from 'react-icons/lu';
 import { Card, CardContent } from '#app/components/ui/card.tsx';
-import { HOME_COPY, type HomeFeature } from './home-copy';
 import { cn } from '#app/utils/misc.tsx';
+import { HOME_COPY, type HomeFeature } from './home-copy';
 
 const meta: Record<
   HomeFeature['key'],

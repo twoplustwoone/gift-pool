@@ -3,14 +3,14 @@ import { LuUsers } from 'react-icons/lu';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
+import { Flex } from '#app/components/ui-kit/flex.tsx';
+import { Stack } from '#app/components/ui-kit/stack.tsx';
+import { type GroupRole } from '#app/utils/group-role.ts';
 import { cn } from '#app/utils/misc.tsx';
 import {
   type loader as routeLoader,
   type action as routeAction,
 } from './__route.server';
-import { type GroupRole } from '#app/utils/group-role.ts';
-import { Flex } from '#app/components/ui-kit/flex.tsx';
-import { Stack } from '#app/components/ui-kit/stack.tsx';
 
 // Re-export so children can share the same data/actions
 export { loader, action } from './__route.server';

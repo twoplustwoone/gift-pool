@@ -19,8 +19,8 @@ import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
 import { CopyableField } from '#app/components/ui/copyable-field.tsx';
-import { Icon } from '#app/components/ui/icon.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
+import { Icon } from '#app/components/ui/icon.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
 import { SectionTitle } from '#app/components/ui/sectionTitle.tsx';
@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '#app/components/ui/select.tsx';
 // import { StatusButton } from '#app/components/ui/status-button.tsx';
+import { Textarea } from '#app/components/ui/textarea.tsx';
 import { prisma } from '#app/utils/db.server.ts';
 import {
   createInviteLink,
@@ -58,9 +59,8 @@ import {
   updateOwnPreferences,
   deleteGiftGroup,
 } from '#app/utils/groups.server.ts';
-import { createToastHeaders } from '#app/utils/toast.server.ts';
 import { cn } from '#app/utils/misc.tsx';
-import { Textarea } from '#app/components/ui/textarea.tsx';
+import { createToastHeaders } from '#app/utils/toast.server.ts';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;

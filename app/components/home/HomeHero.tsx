@@ -1,10 +1,10 @@
 import { Link } from '@remix-run/react';
 import * as React from 'react';
+import { LuHeart, LuUsers } from 'react-icons/lu';
 import { Button } from '#app/components/ui/button.tsx';
+import { Flex, Text } from '../ui-kit';
 import { HOME_COPY } from './home-copy';
 import { HomepageMockup } from './HomepageMockup';
-import { LuHeart, LuUsers } from 'react-icons/lu';
-import { Flex, Text } from '../ui-kit';
 
 type HomeHeroProps = {
   onPrimaryClick?: () => void;

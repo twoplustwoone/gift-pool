@@ -3,10 +3,10 @@ import { LuUsers } from 'react-icons/lu';
 import { RoleBadge } from '#app/components/groups/RoleBadge';
 import { Button } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
-import { cn } from '#app/utils/misc.tsx';
 import { Flex } from '#app/components/ui-kit/flex';
 import { Stack } from '#app/components/ui-kit/stack';
-import type { GroupRole } from '#app/utils/group-role.ts';
+import  { type GroupRole } from '#app/utils/group-role.ts';
+import { cn } from '#app/utils/misc.tsx';
 
 type ActiveTab = 'overview' | 'members' | 'settings' | 'activity';
 

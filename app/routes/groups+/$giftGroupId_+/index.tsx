@@ -1,10 +1,7 @@
 import { Link, useFetcher, useRouteLoaderData } from '@remix-run/react';
 import { useEffect, useRef, useState } from 'react';
-import { Card } from '#app/components/ui/card.tsx';
 import { Button } from '#app/components/ui/button.tsx';
-import { Icon } from '#app/components/ui/icon.tsx';
-import { Input } from '#app/components/ui/input.tsx';
-import { Label } from '#app/components/ui/label.tsx';
+import { Card } from '#app/components/ui/card.tsx';
 import {
   Dialog,
   DialogTrigger,
@@ -14,8 +11,11 @@ import {
   DialogFooter,
   DialogClose,
 } from '#app/components/ui/dialog.tsx';
-import { type loader as routeLoader, type action as routeAction } from './__route.server';
+import { Icon } from '#app/components/ui/icon.tsx';
+import { Input } from '#app/components/ui/input.tsx';
+import { Label } from '#app/components/ui/label.tsx';
 import { track } from '#app/utils/analytics.client.ts';
+import { type loader as routeLoader, type action as routeAction } from './__route.server';
 
 const GiftGroupOverview = () => {
   const { giftGroup, inviteLink, viewer, canInvite } =
