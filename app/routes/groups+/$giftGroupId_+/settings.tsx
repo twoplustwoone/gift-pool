@@ -588,7 +588,9 @@ const GroupSettingsRoute = () => {
                     </div>
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
                       <RoleBadge role={m.role} />
-                      {m.bannedUntil ? <span className="text-destructive">Banned</span> : null}
+                      {m.bannedUntil ? (
+                        <span className="text-destructive">Banned</span>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -596,43 +598,60 @@ const GroupSettingsRoute = () => {
                   {/* Promote / Demote (owner only) */}
                   {canPromote && m.role === 'MEMBER' && !isViewer ? (
                     <Form method="post">
-                      <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-                      <input type="hidden" name="memberUserId" value={m.userId} />
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      name="intent"
-                      value={SettingsIntent.MemberPromoteAdmin}
-                    >
-                      Promote to Admin
-                    </Button>
-                  </Form>
-                ) : null}
-                {canDemote && m.role === 'ADMIN' && !isViewer ? (
-                  <Form method="post">
-                    <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-                    <input type="hidden" name="memberUserId" value={m.userId} />
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      name="intent"
-                      value={SettingsIntent.MemberDemoteMember}
-                    >
-                      Demote to Member
-                    </Button>
-                  </Form>
-                ) : null}
+                      <input
+                        type="hidden"
+                        name="giftGroupId"
+                        value={giftGroup.id}
+                      />
+                      <input
+                        type="hidden"
+                        name="memberUserId"
+                        value={m.userId}
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        name="intent"
+                        value={SettingsIntent.MemberPromoteAdmin}
+                      >
+                        Promote to Admin
+                      </Button>
+                    </Form>
+                  ) : null}
+                  {canDemote && m.role === 'ADMIN' && !isViewer ? (
+                    <Form method="post">
+                      <input
+                        type="hidden"
+                        name="giftGroupId"
+                        value={giftGroup.id}
+                      />
+                      <input
+                        type="hidden"
+                        name="memberUserId"
+                        value={m.userId}
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        name="intent"
+                        value={SettingsIntent.MemberDemoteMember}
+                      >
+                        Demote to Member
+                      </Button>
+                    </Form>
+                  ) : null}
 
-                <MemberActions
-                  giftGroupId={giftGroup.id}
-                  memberUserId={m.userId}
-                  bannedUntil={m.bannedUntil}
-                  canRemove={canRemove && !isViewer}
-                  canBan={canBan && !isViewer}
-                />
-              </div>
-            </li>
-          );})}
+                  <MemberActions
+                    giftGroupId={giftGroup.id}
+                    memberUserId={m.userId}
+                    bannedUntil={m.bannedUntil}
+                    canRemove={canRemove && !isViewer}
+                    canBan={canBan && !isViewer}
+                  />
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </div>
 
@@ -754,75 +773,6 @@ const SettingsForm = ({
         </Button>
       </div>
       <ErrorList errors={form.errors} id={form.errorId} />
-    </Form>
-  );
-};
-
-const InviteCreateForm = ({
-  giftGroupId,
-  lastResult,
-}: {
-  giftGroupId: string;
-  lastResult: any;
-}) => {
-  const [form] = useForm<z.input<typeof InviteCreateSchema>>({
-    id: 'invite-create',
-    lastResult: lastResult as unknown as SubmissionResult<string[]>,
-    constraint: getZodConstraint(InviteCreateSchema),
-    onValidate({ formData }) {
-      return parseWithZod(formData, { schema: InviteCreateSchema }) as any;
-    },
-    defaultValue: { expiresInDays: '7' },
-  });
-  return (
-    <Form
-      method="post"
-      {...getFormProps(form)}
-      className="grid gap-2 rounded-md border p-3"
-    >
-      <input type="hidden" name="giftGroupId" value={giftGroupId} />
-      <div className="grid gap-1">
-        <Label>Label</Label>
-        <Input name="label" placeholder="e.g. Family group link" />
-      </div>
-      <div className="grid gap-1">
-        <Label>Role</Label>
-        <Select name="roleGranted" defaultValue={'MEMBER'}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="MEMBER">Member</SelectItem>
-            <SelectItem value="ADMIN">Admin</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid gap-1">
-        <Label>Expires in</Label>
-        <Select name="expiresInDays" defaultValue={'7'}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1">1 day</SelectItem>
-            <SelectItem value="3">3 days</SelectItem>
-            <SelectItem value="7">7 days</SelectItem>
-            <SelectItem value="14">14 days</SelectItem>
-            <SelectItem value="30">30 days</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid gap-1">
-        <Label>Max uses (optional)</Label>
-        <Input name="maxUses" placeholder="e.g. 10" />
-      </div>
-      <div className="flex items-center gap-2">
-        <input type="checkbox" id="requireApproval" name="requireApproval" />
-        <Label htmlFor="requireApproval">Require approval</Label>
-      </div>
-      <Button name="intent" value={SettingsIntent.InviteCreate} type="submit">
-        Create Invite
-      </Button>
     </Form>
   );
 };
