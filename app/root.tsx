@@ -33,7 +33,6 @@ import tailwindStyleSheetUrl from './styles/tailwind.css?url';
 import { getUserId, logout } from './utils/auth.server.ts';
 import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx';
 import { prisma } from './utils/db.server.ts';
-import { getEnv } from './utils/env.server.ts';
 import { honeypot } from './utils/honeypot.server.ts';
 import { combineHeaders, getDomainUrl } from './utils/misc.tsx';
 import { useNonce } from './utils/nonce-provider.ts';
@@ -122,7 +121,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
           theme: getTheme(request),
         },
       },
-      ENV: getEnv(),
+      ENV: {
+        MODE: process.env.NODE_ENV,
+        SENTRY_DSN: process.env.SENTRY_DSN,
+        ALLOW_INDEXING: process.env.ALLOW_INDEXING,
+      },
       toast,
       honeyProps,
     },

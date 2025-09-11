@@ -1,5 +1,5 @@
 import { Form } from '@remix-run/react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { z } from 'zod';
 import { Button } from '#app/components/ui/button.tsx';
 import { DialogFooter, DialogClose } from '#app/components/ui/dialog.tsx';
@@ -22,7 +22,13 @@ export const GroupEditorSchema = z.object({
     .transform((v) => (v && v.length > 0 ? v : undefined)),
 });
 
-export const CreateGroupCompactForm = ({ id }: { id?: string }) => {
+export const CreateGroupForm = ({
+  id,
+  footer,
+}: {
+  id?: string;
+  footer: ReactNode;
+}) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const formId = id ?? 'create-group-form';
@@ -66,6 +72,15 @@ export const CreateGroupCompactForm = ({ id }: { id?: string }) => {
         set contribution limits and pool funds for birthdays and special
         occasions.
       </div>
+      {footer}
+    </Form>
+  );
+};
+
+export const CreateGroupCompactForm = ({ id }: { id?: string }) => (
+  <CreateGroupForm
+    id={id}
+    footer={
       <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
         <DialogClose asChild>
           <Button type="button" variant="outline">
@@ -74,6 +89,6 @@ export const CreateGroupCompactForm = ({ id }: { id?: string }) => {
         </DialogClose>
         <Button type="submit">Create</Button>
       </DialogFooter>
-    </Form>
-  );
-};
+    }
+  />
+);

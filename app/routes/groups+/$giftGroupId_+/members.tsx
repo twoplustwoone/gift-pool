@@ -1,9 +1,9 @@
 import { Link, useFetcher, useRouteLoaderData } from '@remix-run/react';
+import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
-import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { type loader as routeLoader } from './__route.server';
 
 const GroupMembersRoute = () => {

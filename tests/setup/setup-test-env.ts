@@ -9,7 +9,6 @@ process.env.CACHE_DATABASE_PATH ??= `./tests/prisma/cache.${process.env.VITEST_P
 
 await import('dotenv/config');
 await import('./db-setup.ts');
-await import('#app/utils/env.server.ts');
 // we need these to be imported first 👆
 
 const { cleanup } = await import('@testing-library/react');

@@ -10,7 +10,7 @@ import {
   json,
   type LoaderFunctionArgs,
 } from '@remix-run/node';
-import { Form, Link, useActionData, useLoaderData } from '@remix-run/react';
+import { Form, useActionData, useLoaderData } from '@remix-run/react';
 import * as React from 'react';
 import { z } from 'zod';
 import { ErrorList } from '#app/components/forms.tsx';
@@ -18,12 +18,9 @@ import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
-import { CopyableField } from '#app/components/ui/copyable-field.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
-import { Heading } from '#app/components/ui/heading.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
-import { SectionTitle } from '#app/components/ui/sectionTitle.tsx';
 import {
   Select,
   SelectContent,
@@ -32,6 +29,7 @@ import {
   SelectValue,
 } from '#app/components/ui/select.tsx';
 // import { StatusButton } from '#app/components/ui/status-button.tsx';
+import { Textarea } from '#app/components/ui/textarea.tsx';
 import { prisma } from '#app/utils/db.server.ts';
 import {
   createInviteLink,
@@ -58,9 +56,8 @@ import {
   updateOwnPreferences,
   deleteGiftGroup,
 } from '#app/utils/groups.server.ts';
-import { createToastHeaders } from '#app/utils/toast.server.ts';
 import { cn } from '#app/utils/misc.tsx';
-import { Textarea } from '#app/components/ui/textarea.tsx';
+import { createToastHeaders } from '#app/utils/toast.server.ts';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
@@ -518,7 +515,17 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 
 const GroupSettingsRoute = () => {
-  const { giftGroup, canDelete, canLeave } = useLoaderData<typeof loader>();
+  const {
+    giftGroup,
+    canDelete,
+    canLeave,
+    canPromote,
+    canDemote,
+    canRemove,
+    canBan,
+    canTransfer,
+    viewerMember,
+  } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
   return (
@@ -531,6 +538,121 @@ const GroupSettingsRoute = () => {
         <SettingsForm giftGroup={giftGroup} lastResult={actionData} />
         <div className="my-4 h-px w-full bg-border" />
         <RemindersSection giftGroup={giftGroup} />
+      </div>
+
+      {/* Member preferences (self) */}
+      {viewerMember ? (
+        <div className="rounded-2xl border bg-card p-4 sm:p-6">
+          <div className="mb-1 text-lg font-semibold">Your Preferences</div>
+          <div className="mb-4 text-sm text-muted-foreground">
+            Control your budget visibility and sharing settings for this group
+          </div>
+          <MemberPreferencesForm
+            giftGroupId={giftGroup.id}
+            prefs={viewerMember}
+          />
+        </div>
+      ) : null}
+
+      {/* Transfer ownership */}
+      {canTransfer ? (
+        <div className="rounded-2xl border bg-card p-4 sm:p-6">
+          <div className="mb-1 text-lg font-semibold">Transfer Ownership</div>
+          <div className="mb-4 text-sm text-muted-foreground">
+            Make another admin the owner of this group
+          </div>
+          <TransferOwnershipForm giftGroup={giftGroup} />
+        </div>
+      ) : null}
+
+      {/* Member management */}
+      <div className="rounded-2xl border bg-card p-4 sm:p-6">
+        <div className="mb-1 text-lg font-semibold">Member Actions</div>
+        <div className="mb-4 text-sm text-muted-foreground">
+          Promote or demote admins, remove or ban members
+        </div>
+        <ul className="divide-y divide-border rounded-md border">
+          {giftGroup.groupMembers.map((m: any) => {
+            const isViewer = m.userId === viewerMember?.userId;
+            return (
+              <li
+                key={m.userId}
+                className="flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap"
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <Avatar size="s" image={m.user.image} user={m.user} />
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">
+                      {m.user.username}
+                      {isViewer ? ' (You)' : ''}
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                      <RoleBadge role={m.role} />
+                      {m.bannedUntil ? (
+                        <span className="text-destructive">Banned</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Promote / Demote (owner only) */}
+                  {canPromote && m.role === 'MEMBER' && !isViewer ? (
+                    <Form method="post">
+                      <input
+                        type="hidden"
+                        name="giftGroupId"
+                        value={giftGroup.id}
+                      />
+                      <input
+                        type="hidden"
+                        name="memberUserId"
+                        value={m.userId}
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        name="intent"
+                        value={SettingsIntent.MemberPromoteAdmin}
+                      >
+                        Promote to Admin
+                      </Button>
+                    </Form>
+                  ) : null}
+                  {canDemote && m.role === 'ADMIN' && !isViewer ? (
+                    <Form method="post">
+                      <input
+                        type="hidden"
+                        name="giftGroupId"
+                        value={giftGroup.id}
+                      />
+                      <input
+                        type="hidden"
+                        name="memberUserId"
+                        value={m.userId}
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        name="intent"
+                        value={SettingsIntent.MemberDemoteMember}
+                      >
+                        Demote to Member
+                      </Button>
+                    </Form>
+                  ) : null}
+
+                  <MemberActions
+                    giftGroupId={giftGroup.id}
+                    memberUserId={m.userId}
+                    bannedUntil={m.bannedUntil}
+                    canRemove={canRemove && !isViewer}
+                    canBan={canBan && !isViewer}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </div>
 
       {canDelete ? (
@@ -651,75 +773,6 @@ const SettingsForm = ({
         </Button>
       </div>
       <ErrorList errors={form.errors} id={form.errorId} />
-    </Form>
-  );
-};
-
-const InviteCreateForm = ({
-  giftGroupId,
-  lastResult,
-}: {
-  giftGroupId: string;
-  lastResult: any;
-}) => {
-  const [form] = useForm<z.input<typeof InviteCreateSchema>>({
-    id: 'invite-create',
-    lastResult: lastResult as unknown as SubmissionResult<string[]>,
-    constraint: getZodConstraint(InviteCreateSchema),
-    onValidate({ formData }) {
-      return parseWithZod(formData, { schema: InviteCreateSchema }) as any;
-    },
-    defaultValue: { expiresInDays: '7' },
-  });
-  return (
-    <Form
-      method="post"
-      {...getFormProps(form)}
-      className="grid gap-2 rounded-md border p-3"
-    >
-      <input type="hidden" name="giftGroupId" value={giftGroupId} />
-      <div className="grid gap-1">
-        <Label>Label</Label>
-        <Input name="label" placeholder="e.g. Family group link" />
-      </div>
-      <div className="grid gap-1">
-        <Label>Role</Label>
-        <Select name="roleGranted" defaultValue={'MEMBER'}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="MEMBER">Member</SelectItem>
-            <SelectItem value="ADMIN">Admin</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid gap-1">
-        <Label>Expires in</Label>
-        <Select name="expiresInDays" defaultValue={'7'}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1">1 day</SelectItem>
-            <SelectItem value="3">3 days</SelectItem>
-            <SelectItem value="7">7 days</SelectItem>
-            <SelectItem value="14">14 days</SelectItem>
-            <SelectItem value="30">30 days</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid gap-1">
-        <Label>Max uses (optional)</Label>
-        <Input name="maxUses" placeholder="e.g. 10" />
-      </div>
-      <div className="flex items-center gap-2">
-        <input type="checkbox" id="requireApproval" name="requireApproval" />
-        <Label htmlFor="requireApproval">Require approval</Label>
-      </div>
-      <Button name="intent" value={SettingsIntent.InviteCreate} type="submit">
-        Create Invite
-      </Button>
     </Form>
   );
 };

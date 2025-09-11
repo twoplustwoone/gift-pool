@@ -1,9 +1,9 @@
 // utils/group-permissions.server.ts
 
 import { json } from '@remix-run/node';
+import { GroupRoleSchema, type GroupRole } from '#app/utils/group-role.ts';
 import { requireUserId } from './auth.server';
 import { prisma } from './db.server';
-import { GroupRoleSchema, type GroupRole } from '#app/utils/group-role.ts';
 
 export type GroupPermission =
   | 'deleteGroup'

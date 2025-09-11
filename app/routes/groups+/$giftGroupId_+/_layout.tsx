@@ -3,14 +3,10 @@ import { LuUsers } from 'react-icons/lu';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
-import { cn } from '#app/utils/misc.tsx';
-import {
-  type loader as routeLoader,
-  type action as routeAction,
-} from './__route.server';
-import { type GroupRole } from '#app/utils/group-role.ts';
-import { Flex } from '#app/components/ui-kit/flex.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
+import { type GroupRole } from '#app/utils/group-role.ts';
+import { cn } from '#app/utils/misc.tsx';
+import { type loader as routeLoader } from './__route.server';
 
 // Re-export so children can share the same data/actions
 export { loader, action } from './__route.server';
@@ -73,7 +69,9 @@ const TabBar = ({
     { to: `/groups/${giftGroupId}`, label: 'Overview', end: true },
     { to: `/groups/${giftGroupId}/members`, label: 'Members' },
     ...(canSettings
-      ? ([{ to: `/groups/${giftGroupId}/settings`, label: 'Settings' }] as const)
+      ? ([
+          { to: `/groups/${giftGroupId}/settings`, label: 'Settings' },
+        ] as const)
       : ([] as const)),
     { to: `/groups/${giftGroupId}/activity`, label: 'Activity' },
   ] as const;

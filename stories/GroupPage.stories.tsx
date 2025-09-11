@@ -3,10 +3,9 @@ import { LuUsers } from 'react-icons/lu';
 import { RoleBadge } from '#app/components/groups/RoleBadge';
 import { Button } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
-import { cn } from '#app/utils/misc.tsx';
-import { Flex } from '#app/components/ui-kit/flex';
 import { Stack } from '#app/components/ui-kit/stack';
-import type { GroupRole } from '#app/utils/group-role.ts';
+import { type GroupRole } from '#app/utils/group-role.ts';
+import { cn } from '#app/utils/misc.tsx';
 
 type ActiveTab = 'overview' | 'members' | 'settings' | 'activity';
 
@@ -20,12 +19,30 @@ function TabBarDemo({
   active: ActiveTab;
 }) {
   const tabs = [
-    { to: `/groups/${giftGroupId}`, label: 'Overview', key: 'overview' as const },
-    { to: `/groups/${giftGroupId}/members`, label: 'Members', key: 'members' as const },
+    {
+      to: `/groups/${giftGroupId}`,
+      label: 'Overview',
+      key: 'overview' as const,
+    },
+    {
+      to: `/groups/${giftGroupId}/members`,
+      label: 'Members',
+      key: 'members' as const,
+    },
     ...(canSettings
-      ? ([{ to: `/groups/${giftGroupId}/settings`, label: 'Settings', key: 'settings' as const }] as const)
+      ? ([
+          {
+            to: `/groups/${giftGroupId}/settings`,
+            label: 'Settings',
+            key: 'settings' as const,
+          },
+        ] as const)
       : ([] as const)),
-    { to: `/groups/${giftGroupId}/activity`, label: 'Activity', key: 'activity' as const },
+    {
+      to: `/groups/${giftGroupId}/activity`,
+      label: 'Activity',
+      key: 'activity' as const,
+    },
   ];
 
   const colsClass = canSettings ? 'grid-cols-4' : 'grid-cols-3';
@@ -77,7 +94,9 @@ function GroupPageDemo({
               <div className="flex items-center gap-3">
                 <LuUsers size={24} className="text-primary" />
                 <div className="leading-tight">
-                  <div className="text-md font-extrabold sm:text-xl">{group.name}</div>
+                  <div className="text-md font-extrabold sm:text-xl">
+                    {group.name}
+                  </div>
                   <div className="text-sm text-muted-foreground">
                     {group.memberCount} members
                   </div>
@@ -93,7 +112,11 @@ function GroupPageDemo({
       <main className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl p-3 sm:p-6">
           <Stack gap={6}>
-            <TabBarDemo giftGroupId={group.id} canSettings={canSettings} active={activeTab} />
+            <TabBarDemo
+              giftGroupId={group.id}
+              canSettings={canSettings}
+              active={activeTab}
+            />
             <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
               {children ?? 'Page content goes here.'}
             </div>
@@ -162,4 +185,3 @@ export const SettingsTabVisible: Story = {
     activeTab: 'settings',
   },
 };
-
