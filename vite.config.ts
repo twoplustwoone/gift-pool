@@ -10,6 +10,19 @@ const MODE = process.env.NODE_ENV;
 const IS_STORYBOOK = Boolean(process.env.STORYBOOK);
 
 export default defineConfig({
+  optimizeDeps: {
+    // Pre-bundle Radix Popover and related deps to avoid
+    // Vite's runtime re-optimization causing 504 (Outdated Optimize Dep)
+    include: [
+      '@radix-ui/react-popover',
+      '@radix-ui/react-popper',
+      '@radix-ui/react-portal',
+      '@radix-ui/react-dismissable-layer',
+      '@radix-ui/react-primitive',
+      '@floating-ui/react-dom',
+      '@floating-ui/dom',
+    ],
+  },
   resolve: {
     alias: {
       '#app': path.resolve(__dirname, 'app'),
