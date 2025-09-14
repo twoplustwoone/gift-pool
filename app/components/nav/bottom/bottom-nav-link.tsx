@@ -3,9 +3,9 @@ import { type ReactNode } from 'react';
 import { cn } from '#app/utils/misc.tsx';
 
 const activeClassName =
-  'shadow-inner ring-2 ring-inset ring-accent text-foreground bg-accent/50';
+  'bg-brand-gradient text-primary-foreground shadow-inner';
 const inactiveClassName =
-  'text-muted-foreground hover:bg-muted hover:text-foreground';
+  'text-muted-foreground hover:bg-accent hover:text-accent-foreground';
 
 export const BottomNavLink = ({
   to,
@@ -23,7 +23,7 @@ export const BottomNavLink = ({
       aria-label={label}
       className={({ isActive }) =>
         cn(
-          'flex h-full w-full items-center justify-center hover:bg-accent hover:text-foreground',
+          'inline-flex h-full w-full items-center justify-center p-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           isActive ? activeClassName : inactiveClassName,
         )
       }
