@@ -5,7 +5,7 @@
 import { createRemixStub } from '@remix-run/testing';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
-import { vi, describe, test, expect } from 'vitest';
+import { afterEach, vi, describe, test, expect } from 'vitest';
 
 // Mock UI primitives so tests are resilient and focused on semantics
 vi.mock('../ui/button.tsx', () => ({
@@ -23,9 +23,19 @@ vi.mock('../ui/icon.tsx', () => ({
   ),
 }));
 
+vi.mock('#app/utils/user.ts', () => ({
+  useOptionalUser: vi.fn(),
+}));
+
+import { useOptionalUser } from '#app/utils/user.ts';
+
 import { BottomNav } from '../nav/bottom/bottom-nav.tsx';
 
 describe('<BottomNav />', () => {
+  afterEach(() => {
+    vi.mocked(useOptionalUser).mockReset();
+  });
+
   test('renders a navigation landmark', () => {
     const App = createRemixStub([
       {
@@ -39,7 +49,9 @@ describe('<BottomNav />', () => {
     expect(nav).toBeInTheDocument();
   });
 
-  test('contains a list with exactly two navigation items', () => {
+  test('contains a list with exactly three navigation items when authenticated', () => {
+    vi.mocked(useOptionalUser).mockReturnValue({ id: 'user1' } as any);
+
     const App = createRemixStub([
       {
         path: '/',
@@ -52,10 +64,12 @@ describe('<BottomNav />', () => {
 
     const list = within(nav).getByRole('list');
     const items = within(list).getAllByRole('listitem');
-    expect(items).toHaveLength(2);
+    expect(items).toHaveLength(3);
   });
 
-  test('buttons have accessible names', () => {
+  test('contains only one navigation item when unauthenticated', () => {
+    vi.mocked(useOptionalUser).mockReturnValue(null);
+
     const App = createRemixStub([
       {
         path: '/',
@@ -64,8 +78,28 @@ describe('<BottomNav />', () => {
     ]);
 
     render(<App />);
+    const nav = screen.getByRole('navigation');
+
+    const list = within(nav).getByRole('list');
+    const items = within(list).getAllByRole('listitem');
+    expect(items).toHaveLength(1);
+  });
+
+  test('buttons have accessible names', () => {
+    vi.mocked(useOptionalUser).mockReturnValue({ id: 'user1' } as any);
+
+    const App = createRemixStub([
+      {
+        path: '/',
+        Component: () => <BottomNav />,
+      },
+    ]);
+
+    render(<App />);
+    const home = screen.getByRole('link', { name: /home/i });
     const wishlist = screen.getByRole('link', { name: /wishlist/i });
     const groups = screen.getByRole('link', { name: /groups/i });
+    expect(home).toBeInTheDocument();
     expect(wishlist).toBeInTheDocument();
     expect(groups).toBeInTheDocument();
   });

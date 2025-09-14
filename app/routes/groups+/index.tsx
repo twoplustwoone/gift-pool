@@ -103,7 +103,7 @@ const GroupsIndex = () => {
       </div>
 
       {/* Content */}
-      <div className="container min-h-0 flex-1 py-8 pb-bottom-nav sm:pb-0">
+      <div className="container min-h-0 flex-1 py-8">
         {groups.length === 0 ? (
           <div className="mx-auto max-w-lg">{EmptyState}</div>
         ) : (
@@ -120,7 +120,7 @@ const GroupsIndex = () => {
       </div>
 
       {/* Floating create button for mobile */}
-      <div className="fixed bottom-[calc(theme(spacing.4)+env(safe-area-inset-bottom)+4rem)] right-4 z-40 sm:hidden">
+      <div className="fixed bottom-[calc(theme(spacing.4)+theme(spacing.bottom-nav))] right-4 z-40 sm:hidden">
         <CreateGroupDialog>
           <Button
             type="button"

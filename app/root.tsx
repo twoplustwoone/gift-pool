@@ -207,7 +207,7 @@ const App = () => {
       <div className="flex h-dvh min-h-0 flex-col">
         <TopBar />
 
-        <div className="to-background-muted min-h-0 flex-1 bg-gradient-to-br from-background sm:overflow-y-auto">
+        <div className="to-background-muted min-h-0 flex-1 bg-gradient-to-br from-background pb-bottom-nav sm:overflow-y-auto sm:pb-0">
           <Outlet />
         </div>
 
