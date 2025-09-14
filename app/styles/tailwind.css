@@ -72,7 +72,7 @@
     --pool: 174 66% 47%; /* #2EC4B6 in HSL */
     --pool-foreground: 0 0% 100%;
     /* Height of bottom nav including safe area for PWAs/iOS */
-    --bottom-nav-height: calc(4rem + env(safe-area-inset-bottom));
+    --bottom-nav-height: calc(3rem + env(safe-area-inset-bottom));
     --header-height: 4rem;
 
     --brand-gradient-start: var(--gift);
