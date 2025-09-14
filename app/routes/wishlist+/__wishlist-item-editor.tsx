@@ -197,7 +197,7 @@ export const WishlistItemEditor = React.forwardRef<
                   onClick={() => setMode('create')}
                   aria-label="Add Item"
                   title="Add Item"
-                  className="fixed bottom-[calc(theme(spacing.4)+env(safe-area-inset-bottom)+4rem)] right-4 z-40 h-14 w-14 rounded-full border bg-primary text-primary-foreground shadow-lg sm:hidden"
+                  className="fixed bottom-[calc(theme(spacing.4)+theme(spacing.bottom-nav))] right-4 z-40 h-14 w-14 rounded-full border bg-primary text-primary-foreground shadow-lg sm:hidden"
                 >
                   <Icon name="plus" />
                 </Button>

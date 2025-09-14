@@ -39,7 +39,7 @@ describe('<BottomNav />', () => {
     expect(nav).toBeInTheDocument();
   });
 
-  test('contains a list with exactly two navigation items', () => {
+  test('contains a list with exactly three navigation items', () => {
     const App = createRemixStub([
       {
         path: '/',
@@ -52,7 +52,7 @@ describe('<BottomNav />', () => {
 
     const list = within(nav).getByRole('list');
     const items = within(list).getAllByRole('listitem');
-    expect(items).toHaveLength(2);
+    expect(items).toHaveLength(3);
   });
 
   test('buttons have accessible names', () => {
@@ -64,8 +64,10 @@ describe('<BottomNav />', () => {
     ]);
 
     render(<App />);
+    const home = screen.getByRole('link', { name: /home/i });
     const wishlist = screen.getByRole('link', { name: /wishlist/i });
     const groups = screen.getByRole('link', { name: /groups/i });
+    expect(home).toBeInTheDocument();
     expect(wishlist).toBeInTheDocument();
     expect(groups).toBeInTheDocument();
   });
