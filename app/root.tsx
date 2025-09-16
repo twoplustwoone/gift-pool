@@ -161,7 +161,7 @@ const Document = ({
   env?: Record<string, string>;
 }) => {
   return (
-    <html lang="en" className={`${theme} h-full overflow-x-hidden`}>
+    <html lang="en" className={`${theme} min-h-full overflow-x-hidden`}>
       <head>
         <ClientHintCheck nonce={nonce} />
         <Meta />
@@ -173,7 +173,7 @@ const Document = ({
         <meta name="csp-nonce" content={nonce} />
         <Links />
       </head>
-      <body className="h-full text-foreground">
+      <body className="min-h-full bg-background text-foreground">
         {children}
         <script
           nonce={nonce}
@@ -204,7 +204,7 @@ const App = () => {
 
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
-      <div className="flex h-dvh min-h-0 flex-col">
+      <div className="flex min-h-[100dvh] flex-col">
         <TopBar />
 
         <div className="to-background-muted min-h-0 flex-1 bg-gradient-to-br from-background pb-bottom-nav sm:overflow-y-auto sm:pb-0">
