@@ -74,6 +74,9 @@
     /* Height of bottom nav including safe area for PWAs/iOS */
     --bottom-nav-height: calc(3rem + env(safe-area-inset-bottom));
     --header-height: 4rem;
+    --overscroll-top-stop: calc(
+      var(--header-height) + env(safe-area-inset-top, 0px) + 1rem
+    );
 
     --brand-gradient-start: var(--gift);
     --brand-gradient-end: 356 75% 62;
@@ -132,6 +135,19 @@
 
     --brand-gradient-start: 345 82.7% 40.8%;
     --brand-gradient-end: 0 100% 68%;
+  }
+
+  html {
+    background-color: hsl(var(--surface));
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--surface)) 0,
+      hsl(var(--surface)) var(--overscroll-top-stop),
+      hsl(var(--background)) var(--overscroll-top-stop),
+      hsl(var(--background)) 100%
+    );
+    background-repeat: no-repeat;
+    background-attachment: scroll;
   }
 }
 
