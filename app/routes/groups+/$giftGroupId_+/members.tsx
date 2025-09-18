@@ -1,4 +1,6 @@
 import { Link, useFetcher, useRouteLoaderData } from '@remix-run/react';
+import { LuUserPlus } from 'react-icons/lu';
+
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -103,7 +105,14 @@ const GroupMembersRoute = () => {
                 ) : null}
 
                 {/* Add friend UI (stub) */}
-                <Button className="ml-2" size="sm">Add Friend</Button>
+                <Button
+                  aria-label="Add friend"
+                  className="ml-2 h-8 w-8 md:h-9 md:w-auto md:px-3"
+                  size="icon"
+                >
+                  <LuUserPlus aria-hidden className="h-4 w-4 md:mr-2" />
+                  <span className="hidden md:inline">Add friend</span>
+                </Button>
               </div>
             </li>
           );
