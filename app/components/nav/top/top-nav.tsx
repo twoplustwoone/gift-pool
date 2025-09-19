@@ -1,7 +1,8 @@
 import { Link } from '@remix-run/react';
 import { type ReactNode } from 'react';
-import { LuUsers, LuHeart, LuHouse } from 'react-icons/lu';
+import { LuUsers, LuHeart, LuHouse, LuUserCheck } from 'react-icons/lu';
 import { Logo } from '#app/components/logo';
+import { NotificationBell } from '#app/components/notifications/notification-bell.tsx';
 import { Button } from '#app/components/ui/button';
 import { TopNavItem } from '#app/components/ui/topNavItem';
 import { UserDropdown } from '#app/components/user-dropdown';
@@ -18,6 +19,7 @@ const links: {
   { to: '/', icon: <LuHouse />, label: 'Home', needsAuth: false },
   { to: '/wishlist', icon: <LuHeart />, label: 'Wishlist', needsAuth: true },
   { to: '/groups', icon: <LuUsers />, label: 'Groups', needsAuth: true },
+  { to: '/friends', icon: <LuUserCheck />, label: 'Friends', needsAuth: true },
 ];
 
 export const TopNav = () => {
@@ -37,6 +39,7 @@ export const TopNav = () => {
       </div>
 
       <div className="flex items-center gap-2">
+        {user ? <NotificationBell /> : null}
         <ThemeSwitch userPreference={requestInfo.userPrefs.theme} />
         {user ? (
           <UserDropdown />

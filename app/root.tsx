@@ -24,6 +24,7 @@ import faviconAssetUrl from './assets/favicons/favicon.svg';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx';
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
+import { NotificationsProvider } from './components/notifications/notifications-context.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
 import { useToast } from './components/toaster.tsx';
 import { href as iconsHref } from './components/ui/icon.tsx';
@@ -37,6 +38,7 @@ import { honeypot } from './utils/honeypot.server.ts';
 import { combineHeaders, getDomainUrl } from './utils/misc.tsx';
 import { useNonce } from './utils/nonce-provider.ts';
 import { useRequestInfo } from './utils/request-info.ts';
+import { I18nProvider, getLocaleFromRequest } from './utils/i18n.tsx';
 import { type Theme, getTheme } from './utils/theme.server.ts';
 import { makeTimings, time } from './utils/timing.server.ts';
 import { getToast } from './utils/toast.server.ts';
@@ -77,6 +79,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     type: 'getUserId',
     desc: 'getUserId in root',
   });
+  const locale = getLocaleFromRequest(request);
 
   const user = userId
     ? await time(
@@ -120,6 +123,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         userPrefs: {
           theme: getTheme(request),
         },
+        locale,
       },
       ENV: {
         MODE: process.env.NODE_ENV,
@@ -204,17 +208,21 @@ const App = () => {
 
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
-      <div className="flex min-h-[100dvh] flex-col">
-        <TopBar />
+      <I18nProvider locale={data.requestInfo.locale}>
+        <NotificationsProvider>
+          <div className="flex min-h-[100dvh] flex-col">
+            <TopBar />
 
-        <div className="to-background-muted min-h-0 flex-1 bg-gradient-to-br from-background pb-bottom-nav sm:overflow-y-auto sm:pb-0">
-          <Outlet />
-        </div>
+            <div className="min-h-0 flex-1 bg-gradient-to-br from-background to-background-muted pb-bottom-nav sm:overflow-y-auto sm:pb-0">
+              <Outlet />
+            </div>
 
-        <Footer />
-      </div>
-      <EpicToaster closeButton position="top-center" theme={theme} />
-      <EpicProgress />
+            <Footer />
+          </div>
+          <EpicToaster closeButton position="top-center" theme={theme} />
+          <EpicProgress />
+        </NotificationsProvider>
+      </I18nProvider>
     </Document>
   );
 };

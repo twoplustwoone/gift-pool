@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { LuHeart, LuUsers, LuHouse } from 'react-icons/lu';
+import { LuHeart, LuUsers, LuUserCheck, LuHouse } from 'react-icons/lu';
 import { useOptionalUser } from '#app/utils/user.ts';
 import { BottomNavLink } from './bottom-nav-link.tsx';
 
@@ -12,6 +12,7 @@ const links: {
   { to: '/', icon: <LuHouse />, label: 'Home', needsAuth: false },
   { to: '/wishlist', icon: <LuHeart />, label: 'Wishlist', needsAuth: true },
   { to: '/groups', icon: <LuUsers />, label: 'Groups', needsAuth: true },
+  { to: '/friends', icon: <LuUserCheck />, label: 'Friends', needsAuth: true },
 ];
 
 export const BottomNav = () => {
@@ -19,7 +20,7 @@ export const BottomNav = () => {
 
   return (
     <nav className="fixed bottom-0 left-0 w-full border-t border-surface-border bg-surface text-foreground sm:hidden">
-      <ul className="h-bottom-nav flex divide-x divide-border">
+      <ul className="flex h-bottom-nav divide-x divide-border">
         {links
           .filter((l) => !l.needsAuth || user)
           .map((link) => (
