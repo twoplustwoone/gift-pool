@@ -49,7 +49,7 @@ describe('<BottomNav />', () => {
     expect(nav).toBeInTheDocument();
   });
 
-  test('contains a list with exactly three navigation items when authenticated', () => {
+  test('contains four navigation items when authenticated', () => {
     vi.mocked(useOptionalUser).mockReturnValue({ id: 'user1' } as any);
 
     const App = createRemixStub([
@@ -64,10 +64,10 @@ describe('<BottomNav />', () => {
 
     const list = within(nav).getByRole('list');
     const items = within(list).getAllByRole('listitem');
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(4);
   });
 
-  test('contains only one navigation item when unauthenticated', () => {
+  test('contains only the public navigation item when unauthenticated', () => {
     vi.mocked(useOptionalUser).mockReturnValue(null);
 
     const App = createRemixStub([
@@ -82,7 +82,7 @@ describe('<BottomNav />', () => {
 
     const list = within(nav).getByRole('list');
     const items = within(list).getAllByRole('listitem');
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(1);
   });
 
   test('buttons have accessible names', () => {
