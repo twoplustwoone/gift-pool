@@ -4,6 +4,7 @@ import { prisma } from '#app/utils/db.server.ts';
 import {
   formatRelativeTime,
   getLocaleFromRequest,
+  sanitizeTranslationParams,
   translate,
   type Locale,
 } from '#app/utils/i18n.tsx';
@@ -13,7 +14,7 @@ import {
 } from '#app/utils/notifications.server.ts';
 
 function serializeNotification(record: NotificationRecord, locale: Locale) {
-  const messageParams = record.messageParams ?? undefined;
+  const messageParams = sanitizeTranslationParams(record.messageParams);
   const message = translate(locale, record.messageKey as any, messageParams);
   const actions = record.actions.map((action) => ({
     kind: action.kind,

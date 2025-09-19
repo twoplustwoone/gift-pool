@@ -22,6 +22,7 @@ type DotNestedKeys<T> = T extends Record<string, unknown>
   : '';
 
 type TranslationKey = Exclude<DotNestedKeys<EnDictionary>, ''>;
+type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 
 const SUPPORTED_LOCALES: Locale[] = ['en'];
 
@@ -51,22 +52,23 @@ function getValueByKey(
   }, dictionary);
 }
 
-function interpolate(
-  template: string,
-  params?: Record<string, string | number>,
-) {
+function interpolate(template: string, params?: TranslationParams | null) {
   if (!params) return template;
   return template.replace(/{{(.*?)}}/g, (_, rawKey) => {
     const key = rawKey.trim();
     const value = params[key];
-    return value === undefined || value === null ? '' : String(value);
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    return String(value);
   });
 }
 
 export function translate(
   locale: Locale,
   key: TranslationKey,
-  params?: Record<string, string | number>,
+  params?: TranslationParams | null,
 ) {
   const dictionary = getDictionary(locale);
   const fallback = dictionaries.en;
@@ -87,7 +89,7 @@ export function useTranslation(namespace?: string) {
       locale,
       t: (
         key: string,
-        params?: Record<string, string | number>,
+        params?: TranslationParams | null,
       ) => translate(locale, `${prefix}${key}` as TranslationKey, params),
     }),
     [locale, prefix],
@@ -98,10 +100,10 @@ export function getLocaleFromRequest(request: Request): Locale {
   const header = request.headers.get('accept-language');
   if (header) {
     try {
-      const parsed = parseAcceptLanguage(header, { loose: true });
+      const parsed = parseAcceptLanguage(header);
       for (const item of parsed) {
-        const candidate = item.code.split('-')[0];
-        if (SUPPORTED_LOCALES.includes(candidate as Locale)) {
+        const candidate = item.split('-')[0]?.toLowerCase();
+        if (candidate && SUPPORTED_LOCALES.includes(candidate as Locale)) {
           return candidate as Locale;
         }
       }
@@ -148,3 +150,27 @@ export function formatRelativeTime(
 }
 
 export type TranslationFunction = ReturnType<typeof useTranslation>['t'];
+
+export function sanitizeTranslationParams(
+  params?: Record<string, unknown> | null,
+): TranslationParams | undefined {
+  if (!params) return undefined;
+  const entries: Array<[string, string | number | boolean | null | undefined]> = [];
+  for (const [key, value] of Object.entries(params)) {
+    if (
+      value === null ||
+      value === undefined ||
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+    ) {
+      entries.push([key, value]);
+    } else {
+      entries.push([key, String(value)]);
+    }
+  }
+  if (entries.length === 0) return undefined;
+  return Object.fromEntries(entries);
+}
+
+export type { TranslationParams };

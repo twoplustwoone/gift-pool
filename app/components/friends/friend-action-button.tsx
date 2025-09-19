@@ -33,6 +33,47 @@ interface RelationshipSnapshot {
   outgoingRequestId: string | null;
 }
 
+interface RelationshipEdgePayload {
+  state: RelationshipState;
+  friendship?: { id?: string | null } | null;
+  incoming?: { id?: string | null } | null;
+  outgoing?: { id?: string | null } | null;
+}
+
+interface RemoveRelationshipPayload {
+  state: RelationshipState;
+  friendshipId?: string | null;
+  incomingRequestId?: string | null;
+  outgoingRequestId?: string | null;
+}
+
+const EMPTY_SNAPSHOT: RelationshipSnapshot = {
+  state: 'NONE' as RelationshipState,
+  friendshipId: null,
+  incomingRequestId: null,
+  outgoingRequestId: null,
+};
+
+function snapshotFromEdge(payload?: RelationshipEdgePayload | null): RelationshipSnapshot {
+  if (!payload) return EMPTY_SNAPSHOT;
+  return {
+    state: payload.state,
+    friendshipId: payload.friendship?.id ?? null,
+    incomingRequestId: payload.incoming?.id ?? null,
+    outgoingRequestId: payload.outgoing?.id ?? null,
+  };
+}
+
+function snapshotFromRemove(payload?: RemoveRelationshipPayload | null): RelationshipSnapshot {
+  if (!payload) return EMPTY_SNAPSHOT;
+  return {
+    state: payload.state,
+    friendshipId: payload.friendshipId ?? null,
+    incomingRequestId: payload.incomingRequestId ?? null,
+    outgoingRequestId: payload.outgoingRequestId ?? null,
+  };
+}
+
 interface FriendActionButtonProps {
   targetUserId: string;
   targetUserName: string;
@@ -93,27 +134,12 @@ export const FriendActionButton = ({
       if (!response.ok) {
         throw new Error('Failed to send friend request');
       }
-      const payload: {
-        relationship?: {
-          state: RelationshipState;
-          friendship?: { id?: string | null } | null;
-          incoming?: { id?: string | null } | null;
-          outgoing?: { id?: string | null } | null;
-        };
-      } = await response.json();
-      const next: RelationshipSnapshot = payload.relationship
-        ? {
-            state: payload.relationship.state,
-            friendshipId: payload.relationship.friendship?.id ?? null,
-            incomingRequestId: payload.relationship.incoming?.id ?? null,
-            outgoingRequestId: payload.relationship.outgoing?.id ?? null,
-          }
-        : {
-            state: 'PENDING_OUTGOING',
-            friendshipId: null,
-            incomingRequestId: null,
-            outgoingRequestId: null,
-          };
+      const payload = (await response.json()) as {
+        relationship?: RelationshipEdgePayload | null;
+      };
+      const next = payload.relationship
+        ? snapshotFromEdge(payload.relationship)
+        : { ...EMPTY_SNAPSHOT, state: 'PENDING_OUTGOING' as RelationshipState };
       setCurrent(next);
       dispatchFriendshipUpdate({ userId: targetUserId, ...next });
       toast.success(t('friends.sendSuccess'));
@@ -139,27 +165,12 @@ export const FriendActionButton = ({
       if (!response.ok) {
         throw new Error('Failed to cancel request');
       }
-      const payload: {
-        relationship?: {
-          state: RelationshipState;
-          friendship?: { id?: string | null } | null;
-          incoming?: { id?: string | null } | null;
-          outgoing?: { id?: string | null } | null;
-        };
-      } = await response.json();
-      const next: RelationshipSnapshot = payload.relationship
-        ? {
-            state: payload.relationship.state,
-            friendshipId: payload.relationship.friendship?.id ?? null,
-            incomingRequestId: payload.relationship.incoming?.id ?? null,
-            outgoingRequestId: payload.relationship.outgoing?.id ?? null,
-          }
-        : {
-            state: 'NONE',
-            friendshipId: null,
-            incomingRequestId: null,
-            outgoingRequestId: null,
-          };
+      const payload = (await response.json()) as {
+        relationship?: RelationshipEdgePayload | null;
+      };
+      const next = payload.relationship
+        ? snapshotFromEdge(payload.relationship)
+        : EMPTY_SNAPSHOT;
       setCurrent(next);
       dispatchFriendshipUpdate({ userId: targetUserId, ...next });
       toast.success(t('friends.cancelSuccess'));
@@ -187,31 +198,16 @@ export const FriendActionButton = ({
       if (!response.ok) {
         throw new Error('Failed to accept request');
       }
-      const payload: {
+      const payload = (await response.json()) as {
         unreadCount?: number;
-        relationship?: {
-          state: RelationshipState;
-          friendship?: { id?: string | null } | null;
-          incoming?: { id?: string | null } | null;
-          outgoing?: { id?: string | null } | null;
-        };
-      } = await response.json();
+        relationship?: RelationshipEdgePayload | null;
+      };
       if (typeof payload.unreadCount === 'number') {
         setUnreadCount(payload.unreadCount);
       }
-      const next: RelationshipSnapshot = payload.relationship
-        ? {
-            state: payload.relationship.state,
-            friendshipId: payload.relationship.friendship?.id ?? null,
-            incomingRequestId: payload.relationship.incoming?.id ?? null,
-            outgoingRequestId: payload.relationship.outgoing?.id ?? null,
-          }
-        : {
-            state: 'FRIENDS',
-            friendshipId: null,
-            incomingRequestId: null,
-            outgoingRequestId: null,
-          };
+      const next = payload.relationship
+        ? snapshotFromEdge(payload.relationship)
+        : { ...EMPTY_SNAPSHOT, state: 'FRIENDS' as RelationshipState };
       setCurrent(next);
       dispatchFriendshipUpdate({ userId: targetUserId, ...next });
       toast.success(t('friends.acceptSuccess'));
@@ -239,31 +235,16 @@ export const FriendActionButton = ({
       if (!response.ok) {
         throw new Error('Failed to reject request');
       }
-      const payload: {
+      const payload = (await response.json()) as {
         unreadCount?: number;
-        relationship?: {
-          state: RelationshipState;
-          friendship?: { id?: string | null } | null;
-          incoming?: { id?: string | null } | null;
-          outgoing?: { id?: string | null } | null;
-        };
-      } = await response.json();
+        relationship?: RelationshipEdgePayload | null;
+      };
       if (typeof payload.unreadCount === 'number') {
         setUnreadCount(payload.unreadCount);
       }
-      const next: RelationshipSnapshot = payload.relationship
-        ? {
-            state: payload.relationship.state,
-            friendshipId: payload.relationship.friendship?.id ?? null,
-            incomingRequestId: payload.relationship.incoming?.id ?? null,
-            outgoingRequestId: payload.relationship.outgoing?.id ?? null,
-          }
-        : {
-            state: 'NONE',
-            friendshipId: null,
-            incomingRequestId: null,
-            outgoingRequestId: null,
-          };
+      const next = payload.relationship
+        ? snapshotFromEdge(payload.relationship)
+        : EMPTY_SNAPSHOT;
       setCurrent(next);
       dispatchFriendshipUpdate({ userId: targetUserId, ...next });
       toast.success(t('friends.rejectSuccess'));
@@ -288,27 +269,10 @@ export const FriendActionButton = ({
       if (!response.ok) {
         throw new Error('Failed to remove friend');
       }
-      const payload: {
-        relationship?: {
-          state: RelationshipState;
-          friendshipId?: string | null;
-          incomingRequestId?: string | null;
-          outgoingRequestId?: string | null;
-        };
-      } = await response.json();
-      const next: RelationshipSnapshot = payload.relationship
-        ? {
-            state: payload.relationship.state,
-            friendshipId: payload.relationship.friendshipId ?? null,
-            incomingRequestId: payload.relationship.incomingRequestId ?? null,
-            outgoingRequestId: payload.relationship.outgoingRequestId ?? null,
-          }
-        : {
-            state: 'NONE',
-            friendshipId: null,
-            incomingRequestId: null,
-            outgoingRequestId: null,
-          };
+      const payload = (await response.json()) as {
+        relationship?: RemoveRelationshipPayload | null;
+      };
+      const next = snapshotFromRemove(payload.relationship);
       setCurrent(next);
       dispatchFriendshipUpdate({ userId: targetUserId, ...next });
       toast.success(t('friends.removeSuccess', { name: targetUserName }));

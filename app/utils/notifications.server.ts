@@ -44,10 +44,12 @@ export async function listNotifications({
   cursor,
   take = DEFAULT_PAGE_SIZE,
 }: ListNotificationsOptions) {
-  const where = {
+  const where: NonNullable<
+    Parameters<typeof prisma.notification.findMany>[0]
+  >['where'] = {
     userId,
     ...(status === 'unread' ? { status: 'UNREAD' } : {}),
-  } satisfies Parameters<typeof prisma.notification.findMany>[0]['where'];
+  };
 
   const notifications = await prisma.notification.findMany({
     where,

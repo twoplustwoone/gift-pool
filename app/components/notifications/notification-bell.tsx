@@ -4,7 +4,11 @@ import { LuBell, LuCheckCheck, LuLoader } from 'react-icons/lu';
 import { toast } from 'sonner';
 import { track } from '#app/utils/analytics.client.ts';
 import { dispatchFriendshipUpdate } from '#app/utils/friendship-events.ts';
-import { formatRelativeTime, useTranslation } from '#app/utils/i18n.tsx';
+import {
+  formatRelativeTime,
+  sanitizeTranslationParams,
+  useTranslation,
+} from '#app/utils/i18n.tsx';
 import { cn } from '#app/utils/misc.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Popover, PopoverContent, PopoverTrigger } from '#app/components/ui/popover.tsx';
@@ -15,6 +19,7 @@ import {
   TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx';
 import { useNotificationsStore } from './notifications-context.tsx';
+import type { RelationshipState } from '#app/utils/friends.ts';
 
 interface NotificationActionPayload {
   kind: string;
@@ -40,6 +45,30 @@ interface NotificationsResponse {
   hasMore: boolean;
   nextCursor: string | null;
   unreadCount: number;
+}
+
+interface RelationshipEdgePayload {
+  state: RelationshipState;
+  friendship?: { id?: string | null } | null;
+  incoming?: { id?: string | null } | null;
+  outgoing?: { id?: string | null } | null;
+}
+
+const EMPTY_RELATIONSHIP = {
+  state: 'NONE' as RelationshipState,
+  friendshipId: null,
+  incomingRequestId: null,
+  outgoingRequestId: null,
+};
+
+function snapshotFromEdge(payload?: RelationshipEdgePayload | null) {
+  if (!payload) return EMPTY_RELATIONSHIP;
+  return {
+    state: payload.state,
+    friendshipId: payload.friendship?.id ?? null,
+    incomingRequestId: payload.incoming?.id ?? null,
+    outgoingRequestId: payload.outgoing?.id ?? null,
+  };
 }
 
 const NOTIFICATIONS_ENDPOINT = '/api/notifications';
@@ -79,7 +108,7 @@ export const NotificationBell = () => {
         if (!response.ok) {
           throw new Error('Failed to load notifications');
         }
-        const data: NotificationsResponse = await response.json();
+        const data = (await response.json()) as NotificationsResponse;
         setNotifications((prev) =>
           append ? [...prev, ...data.notifications] : data.notifications,
         );
@@ -127,7 +156,7 @@ export const NotificationBell = () => {
         if (!response.ok) {
           throw new Error('Unable to mark notification read');
         }
-        const payload: { unreadCount?: number } = await response.json();
+        const payload = (await response.json()) as { unreadCount?: number };
         if (typeof payload.unreadCount === 'number') {
           setUnreadCount(payload.unreadCount);
         }
@@ -173,7 +202,7 @@ export const NotificationBell = () => {
       if (!response.ok) {
         throw new Error('Unable to mark all read');
       }
-      const payload: { unreadCount?: number } = await response.json();
+      const payload = (await response.json()) as { unreadCount?: number };
       setUnreadCount(payload.unreadCount ?? 0);
       setNotifications((prev) =>
         prev.map((notification) => ({ ...notification, status: 'READ' })),
@@ -205,8 +234,10 @@ export const NotificationBell = () => {
         if (!response.ok) {
           throw new Error('Friend action failed');
         }
-        const payload: { unreadCount?: number; relationship?: Record<string, unknown> } =
-          await response.json();
+        const payload = (await response.json()) as {
+          unreadCount?: number;
+          relationship?: RelationshipEdgePayload | null;
+        };
         if (typeof payload.unreadCount === 'number') {
           setUnreadCount(payload.unreadCount);
         }
@@ -225,27 +256,12 @@ export const NotificationBell = () => {
         const metadata = (notification.metadata ?? {}) as Record<string, unknown>;
         const senderId = metadata.senderUserId as string | undefined;
         if (senderId) {
-          const detail: {
-            userId: string;
-            state: 'FRIENDS' | 'NONE';
-            friendshipId?: string | null;
-            incomingRequestId?: string | null;
-            outgoingRequestId?: string | null;
-          } = {
-            userId: senderId,
-            state: action.kind === FRIEND_ACCEPT_EVENT ? 'FRIENDS' : 'NONE',
-          };
-          if (payload.relationship && typeof payload.relationship === 'object') {
-            const relation = payload.relationship as {
-              friendship?: { id?: string | null };
-              incoming?: { id?: string | null };
-              outgoing?: { id?: string | null };
-            };
-            detail.friendshipId = relation.friendship?.id ?? null;
-            detail.incomingRequestId = relation.incoming?.id ?? null;
-            detail.outgoingRequestId = relation.outgoing?.id ?? null;
-          }
-          dispatchFriendshipUpdate(detail);
+          const relationSnapshot = payload.relationship
+            ? snapshotFromEdge(payload.relationship)
+            : action.kind === FRIEND_ACCEPT_EVENT
+              ? { ...EMPTY_RELATIONSHIP, state: 'FRIENDS' as RelationshipState }
+              : EMPTY_RELATIONSHIP;
+          dispatchFriendshipUpdate({ userId: senderId, ...relationSnapshot });
         }
       } catch (err) {
         console.error(err);
@@ -283,7 +299,10 @@ export const NotificationBell = () => {
       <ul className="max-h-80 overflow-y-auto">
         {notifications.map((notification) => {
           const isUnread = notification.status === 'UNREAD';
-          const message = t(notification.messageKey, notification.messageParams ?? undefined);
+          const message = t(
+            notification.messageKey,
+            sanitizeTranslationParams(notification.messageParams),
+          );
           const relativeTime = formatRelativeTime(notification.createdAt, locale);
           return (
             <li key={notification.id} className="border-b last:border-b-0">
