@@ -99,7 +99,7 @@ export const Wishlist = ({
           )}
         </div>
       </div>
-      <div className="container min-h-0 flex-1 py-8 pb-bottom-nav sm:pb-0">
+      <div className="container min-h-0 flex-1 py-8">
         <Stack gap={4}>
           {categories.map((category) => {
             const items = user.wishlistItems.filter(
