@@ -1,6 +1,7 @@
 import { Link, useFetcher, useRouteLoaderData } from '@remix-run/react';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
+import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
@@ -32,6 +33,13 @@ const GroupMembersRoute = () => {
           const isViewer = m.user.id === viewer.userId;
           const giftBudget = sumBudgetForRecipient(m.user.id);
           const birthday = m.user.birthday ? new Date(m.user.birthday as any) : null;
+          const friendRelationship = m.friendRelationship ?? {
+            state: 'NONE',
+            friendshipId: null,
+            incomingRequestId: null,
+            outgoingRequestId: null,
+          };
+          const memberDisplayName = m.user.name ?? m.user.username;
           return (
             <li key={m.user.id} className="flex items-center gap-3 p-3">
               <Link to={`/users/${m.user.username}`} className="flex items-center gap-3">
@@ -102,8 +110,14 @@ const GroupMembersRoute = () => {
                   </fetcher.Form>
                 ) : null}
 
-                {/* Add friend UI (stub) */}
-                <Button className="ml-2" size="sm">Add Friend</Button>
+                {!isViewer ? (
+                  <FriendActionButton
+                    targetUserId={m.user.id}
+                    targetUserName={memberDisplayName}
+                    relationship={friendRelationship}
+                    variant="compact"
+                  />
+                ) : null}
               </div>
             </li>
           );

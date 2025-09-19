@@ -11,9 +11,11 @@ export interface FriendRequest {
   status: FriendRequestStatus
   createdAt: string
   updatedAt: string
+  notificationId?: string | null
 }
 
 export interface Friendship {
+  id?: string
   userAId: string
   userBId: string
   createdAt: string
@@ -144,4 +146,3 @@ export function getRelationshipState(
   if (outgoing) return 'PENDING_OUTGOING'
   return 'NONE'
 }
-

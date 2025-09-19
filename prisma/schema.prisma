@@ -30,6 +30,61 @@ model User {
   wishlistItems      WishlistItem[]
   wishlistCategories WishlistCategory[]
   roles              Role[]              @relation("RoleToUser")
+  notifications      Notification[]
+  friendRequestsSent FriendRequest[]     @relation("FriendRequestFromUser")
+  friendRequestsReceived FriendRequest[] @relation("FriendRequestToUser")
+  friendshipsA       Friendship[]        @relation("FriendshipUserA")
+  friendshipsB       Friendship[]        @relation("FriendshipUserB")
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+  userA     User     @relation("FriendshipUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB     User     @relation("FriendshipUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+}
+
+model FriendRequest {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  status     String   @default("PENDING")
+  fromUserId String
+  toUserId   String
+  fromUser   User     @relation("FriendRequestFromUser", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser     User     @relation("FriendRequestToUser", fields: [toUserId], references: [id], onDelete: Cascade)
+  notification Notification? @relation("FriendRequestNotification")
+
+  @@unique([fromUserId, toUserId])
+  @@index([toUserId, status])
+  @@index([fromUserId, status])
+}
+
+model Notification {
+  id                String             @id @default(cuid())
+  createdAt         DateTime           @default(now())
+  readAt            DateTime?
+  userId            String
+  type              String
+  status            String             @default("UNREAD")
+  messageKey        String
+  messageParams     String?
+  targetUrl         String?
+  metadata          String?
+  actions           String?
+  friendRequestId   String?            @unique
+  friendRequest     FriendRequest?     @relation("FriendRequestNotification", fields: [friendRequestId], references: [id], onDelete: Cascade)
+  sourceIdentifier  String?
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, status])
 }
 
 model GiftGroup {

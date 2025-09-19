@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { LuHeart, LuUsers } from 'react-icons/lu';
+import { LuHeart, LuUsers, LuUserCheck } from 'react-icons/lu';
 import { BottomNavLink } from './bottom-nav-link.tsx';
 
 const links: {
@@ -10,6 +10,7 @@ const links: {
 }[] = [
   { to: '/wishlist', icon: <LuHeart />, label: 'Wishlist', needsAuth: true },
   { to: '/groups', icon: <LuUsers />, label: 'Groups', needsAuth: true },
+  { to: '/friends', icon: <LuUserCheck />, label: 'Friends', needsAuth: true },
 ];
 
 export const BottomNav = () => {

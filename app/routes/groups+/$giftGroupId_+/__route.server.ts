@@ -15,6 +15,7 @@ import {
   LockPlanFormSchema,
   PlanGiftFormSchema,
 } from './__route.shared';
+import type { RelationshipState } from '#app/utils/friends.ts';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
@@ -74,6 +75,104 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     throw new Response('Group not found', { status: 404 });
   }
 
+  type FriendRelationship = {
+    state: RelationshipState;
+    friendshipId: string | null;
+    incomingRequestId: string | null;
+    outgoingRequestId: string | null;
+  };
+
+  const emptyRelationship = (): FriendRelationship => ({
+    state: 'NONE',
+    friendshipId: null,
+    incomingRequestId: null,
+    outgoingRequestId: null,
+  });
+
+  const memberUserIds = giftGroup.groupMembers
+    .map((member) => member.user.id)
+    .filter((id) => id !== userId);
+
+  const [friendships, pendingRequests] = await Promise.all([
+    prisma.friendship.findMany({
+      where: {
+        OR: [
+          { userAId: userId, userBId: { in: memberUserIds } },
+          { userBId: userId, userAId: { in: memberUserIds } },
+        ],
+      },
+      select: { id: true, userAId: true, userBId: true },
+    }),
+    prisma.friendRequest.findMany({
+      where: {
+        status: 'PENDING',
+        OR: [
+          { fromUserId: userId, toUserId: { in: memberUserIds } },
+          { toUserId: userId, fromUserId: { in: memberUserIds } },
+        ],
+      },
+      select: { id: true, fromUserId: true, toUserId: true },
+    }),
+  ]);
+
+  const relationshipMap = new Map<string, FriendRelationship>();
+
+  memberUserIds.forEach((id) => {
+    relationshipMap.set(id, emptyRelationship());
+  });
+
+  for (const friendship of friendships) {
+    const otherId =
+      friendship.userAId === userId ? friendship.userBId : friendship.userAId;
+    relationshipMap.set(otherId, {
+      state: 'FRIENDS',
+      friendshipId: friendship.id,
+      incomingRequestId: null,
+      outgoingRequestId: null,
+    });
+  }
+
+  for (const request of pendingRequests) {
+    const otherId =
+      request.fromUserId === userId ? request.toUserId : request.fromUserId;
+    const current = relationshipMap.get(otherId) ?? emptyRelationship();
+    if (current.state === 'FRIENDS') continue;
+    if (request.fromUserId === userId) {
+      relationshipMap.set(otherId, {
+        state: 'PENDING_OUTGOING',
+        friendshipId: null,
+        incomingRequestId: null,
+        outgoingRequestId: request.id,
+      });
+    } else {
+      relationshipMap.set(otherId, {
+        state: 'PENDING_INCOMING',
+        friendshipId: null,
+        incomingRequestId: request.id,
+        outgoingRequestId: null,
+      });
+    }
+  }
+
+  const groupMembersWithFriendState = giftGroup.groupMembers.map((member) => {
+    if (member.user.id === userId) {
+      return {
+        ...member,
+        friendRelationship: {
+          state: 'FRIENDS' as RelationshipState,
+          friendshipId: null,
+          incomingRequestId: null,
+          outgoingRequestId: null,
+        },
+      };
+    }
+    return {
+      ...member,
+      friendRelationship:
+        relationshipMap.get(member.user.id) ?? emptyRelationship(),
+    };
+  });
+
   const canDelete = await userHasGroupPermission(
     userId,
     groupId,
@@ -119,7 +218,10 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const activities: Array<any> = [];
 
   return json({
-    giftGroup,
+    giftGroup: {
+      ...giftGroup,
+      groupMembers: groupMembersWithFriendState,
+    },
     canInvite,
     canDelete,
     canLeave,

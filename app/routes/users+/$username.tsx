@@ -9,11 +9,13 @@ import {
 } from '@remix-run/react';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
+import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { requireUsersShareAGroup } from '#app/utils/groups.server.ts';
+import { getRelationshipDetails } from '#app/utils/friends.server.ts';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useOptionalUser } from '#app/utils/user.ts';
 
@@ -40,7 +42,17 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     return redirect('/me');
   }
 
-  return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString() });
+  const relationshipDetails = await getRelationshipDetails(userId, user.id);
+  return json({
+    user,
+    userJoinedDisplay: user.createdAt.toLocaleDateString(),
+    relationship: {
+      state: relationshipDetails.state,
+      friendshipId: relationshipDetails.friendship?.id ?? null,
+      incomingRequestId: relationshipDetails.incoming?.id ?? null,
+      outgoingRequestId: relationshipDetails.outgoing?.id ?? null,
+    },
+  });
 }
 
 const ProfileRoute = () => {
@@ -49,6 +61,7 @@ const ProfileRoute = () => {
   const userDisplayName = user.name ?? user.username;
   const loggedInUser = useOptionalUser();
   const isLoggedInUser = data.user.id === loggedInUser?.id;
+  const relationship = data.relationship;
 
   return (
     <div className="container mb-48 mt-36 flex flex-col items-center justify-center">
@@ -85,7 +98,7 @@ const ProfileRoute = () => {
               </Button>
             </Form>
           ) : null}
-          <div className="mt-10 flex gap-4">
+          <div className="mt-10 flex flex-wrap items-center gap-4">
             {isLoggedInUser ? (
               <>
                 <Button asChild>
@@ -100,11 +113,19 @@ const ProfileRoute = () => {
                 </Button>
               </>
             ) : (
-              <Button asChild>
-                <Link to="wishlist" prefetch="intent">
-                  {userDisplayName}'s wishlist
-                </Link>
-              </Button>
+              <>
+                <FriendActionButton
+                  targetUserId={data.user.id}
+                  targetUserName={userDisplayName}
+                  relationship={relationship}
+                  variant="primary"
+                />
+                <Button asChild>
+                  <Link to="wishlist" prefetch="intent">
+                    {userDisplayName}'s wishlist
+                  </Link>
+                </Button>
+              </>
             )}
           </div>
         </div>
