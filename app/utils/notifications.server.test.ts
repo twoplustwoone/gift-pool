@@ -29,7 +29,7 @@ describe('notifications server utilities', () => {
     const first = await prisma.notification.create({
       data: {
         userId,
-        type: 'FRIEND_REQUEST',
+        type: 'FRIEND_REQUEST_RECEIVED',
         status: 'UNREAD',
         messageKey: 'notifications.friendRequest.message',
         messageParams: JSON.stringify({ name: 'Alex' }),
@@ -48,7 +48,7 @@ describe('notifications server utilities', () => {
     const second = await prisma.notification.create({
       data: {
         userId,
-        type: 'FRIEND_REQUEST',
+        type: 'FRIEND_REQUEST_RECEIVED',
         status: 'UNREAD',
         messageKey: 'notifications.friendRequest.message',
         messageParams: JSON.stringify({ name: 'Blair' }),

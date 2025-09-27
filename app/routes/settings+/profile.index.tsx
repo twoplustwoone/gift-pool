@@ -166,6 +166,11 @@ const EditUserProfile = () => {
           </Link>
         </div>
         <div>
+          <Link to="notifications">
+            <Icon name="dots-horizontal">Notification preferences</Icon>
+          </Link>
+        </div>
+        <div>
           <Link
             reloadDocument
             download="my-epic-notes-data.json"

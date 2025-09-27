@@ -115,9 +115,15 @@ export const FriendActionButton = ({
     });
   }, [targetUserId]);
 
+  // Avoid firing onStateChange on the initial mount to prevent list flicker
+  const didInitRef = useMemo(() => ({ current: false }), []);
   useEffect(() => {
+    if (!didInitRef.current) {
+      didInitRef.current = true as any;
+      return;
+    }
     onStateChange?.(current);
-  }, [current, onStateChange]);
+  }, [current, onStateChange, didInitRef]);
 
   const buttonSize: ButtonProps['size'] = variant === 'primary' ? 'lg' : 'sm';
 

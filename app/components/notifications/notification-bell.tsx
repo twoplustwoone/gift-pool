@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@remix-run/react';
-import { LuBell, LuCheckCheck, LuLoader } from 'react-icons/lu';
+import { LuBell, LuCheckCheck, LuLoader, LuX } from 'react-icons/lu';
 import { toast } from 'sonner';
 import { track } from '#app/utils/analytics.client.ts';
 import { dispatchFriendshipUpdate } from '#app/utils/friendship-events.ts';
@@ -175,6 +175,26 @@ export const NotificationBell = () => {
     [setUnreadCount, t],
   );
 
+  const deleteNotification = useCallback(
+    async (notificationId: string) => {
+      try {
+        const response = await fetch(`${NOTIFICATIONS_ENDPOINT}/${notificationId}/delete`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) throw new Error('Unable to delete notification');
+        const payload = (await response.json()) as { unreadCount?: number };
+        if (typeof payload.unreadCount === 'number') setUnreadCount(payload.unreadCount);
+        setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+      } catch (err) {
+        console.error(err);
+        toast.error(t('toasts.genericError'));
+      }
+    },
+    [setUnreadCount, t],
+  );
+
   const handleNotificationClick = useCallback(
     async (notification: ApiNotification) => {
       track('notification_click', { type: notification.type });
@@ -305,7 +325,18 @@ export const NotificationBell = () => {
           );
           const relativeTime = formatRelativeTime(notification.createdAt, locale);
           return (
-            <li key={notification.id} className="border-b last:border-b-0">
+            <li key={notification.id} className="relative border-b last:border-b-0">
+              <button
+                type="button"
+                className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-accent"
+                aria-label="Dismiss notification"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void deleteNotification(notification.id);
+                }}
+              >
+                <LuX className="h-4 w-4" aria-hidden />
+              </button>
               <button
                 type="button"
                 className={cn(
@@ -342,7 +373,7 @@ export const NotificationBell = () => {
                         <LuLoader className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                       ) : null}
                       {action.labelKey
-                        ? t(action.labelKey)
+                        ? t(action.labelKey, sanitizeTranslationParams(notification.messageParams))
                         : action.label ?? ''}
                     </Button>
                   ))}

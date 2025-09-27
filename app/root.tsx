@@ -111,6 +111,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
     await logout({ request, redirectTo: '/' });
   }
   const { toast, headers: toastHeaders } = await getToast(request);
+  const unreadCount = userId
+    ? await prisma.notification.count({ where: { userId, status: 'UNREAD' } })
+    : 0;
   const honeyProps = honeypot.getInputProps();
 
   return json(
@@ -131,6 +134,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         ALLOW_INDEXING: process.env.ALLOW_INDEXING,
       },
       toast,
+      notifications: { unreadCount },
       honeyProps,
     },
     {
@@ -209,7 +213,7 @@ const App = () => {
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
       <I18nProvider locale={data.requestInfo.locale}>
-        <NotificationsProvider>
+        <NotificationsProvider initialUnreadCount={data.notifications?.unreadCount ?? 0}>
           <div className="flex min-h-[100dvh] flex-col">
             <TopBar />
 

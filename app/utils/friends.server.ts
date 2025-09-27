@@ -1,4 +1,6 @@
 import { prisma } from '#app/utils/db.server.ts';
+import { notifyUser } from '#app/utils/notification-service.server.tsx';
+import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
 import type { RelationshipState } from './friends.ts';
 
 export type FriendRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
@@ -167,69 +169,65 @@ export async function sendFriendRequest(
 ) {
   await assertCanSendRequest(fromUserId, toUserId);
 
-  return prisma.$transaction(async (tx) => {
-    const [fromUser, request] = await Promise.all([
-      tx.user.findUniqueOrThrow({
-        where: { id: fromUserId },
-        select: { id: true, name: true, username: true, image: { select: { id: true } } },
-      }),
-      tx.friendRequest.create({
-        data: {
-          fromUserId,
-          toUserId,
-        },
-      }),
-    ]);
-
-    await tx.notification.create({
-      data: {
-        userId: toUserId,
-        type: 'FRIEND_REQUEST',
-        status: 'UNREAD',
-        messageKey: 'notifications.friendRequest.message',
-        messageParams: JSON.stringify({
-          name: fromUser.name ?? fromUser.username,
-        }),
-        targetUrl: `/users/${fromUser.username}`,
-        metadata: JSON.stringify({
-          senderUserId: fromUser.id,
-          senderDisplayName: fromUser.name ?? fromUser.username,
-          senderAvatarId: fromUser.image?.id ?? null,
-        }),
-        actions: JSON.stringify([
-          { kind: 'FRIEND_ACCEPT', labelKey: 'notifications.friendRequest.accept' },
-          { kind: 'FRIEND_REJECT', labelKey: 'notifications.friendRequest.reject' },
-        ] satisfies Array<{ kind: string; labelKey: string }>),
-        friendRequestId: request.id,
-        sourceIdentifier: request.id,
+  const { request, fromUser } = await prisma.$transaction(async (tx) => {
+    const actor = await tx.user.findUniqueOrThrow({
+      where: { id: fromUserId },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        image: { select: { id: true } },
       },
     });
 
-    return request;
+    // Ensure we either create a new pending request or re-open a prior non-pending one
+    const upserted = await tx.friendRequest.upsert({
+      where: { fromUserId_toUserId: { fromUserId, toUserId } },
+      create: { fromUserId, toUserId, status: 'PENDING' },
+      update: { status: 'PENDING' },
+    });
+
+    return { request: upserted, fromUser: actor };
   });
+
+  await notifyUser({
+    userId: toUserId,
+    type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
+    payload: {
+      friendRequestId: request.id,
+      actorUserId: fromUser.id,
+      actorDisplayName: fromUser.name ?? fromUser.username,
+      actorUsername: fromUser.username,
+      actorAvatarId: fromUser.image?.id ?? null,
+      recipientUserId: toUserId,
+    },
+    sourceIdentifier: `friend-request:${request.id}:received`,
+  });
+
+  return request;
 }
 
 export async function acceptFriendRequest(
   requestId: string,
   actingUserId: string,
 ) {
-  return prisma.$transaction(async (tx) => {
-    const request = await tx.friendRequest.findUniqueOrThrow({
+  const request = await prisma.$transaction(async (tx) => {
+    const record = await tx.friendRequest.findUniqueOrThrow({
       where: { id: requestId },
       include: { notification: true },
     });
-    if (request.toUserId !== actingUserId) {
+    if (record.toUserId !== actingUserId) {
       throw new Response('Not authorized to accept this request', {
         status: 403,
       });
     }
-    if (request.status !== 'PENDING') {
+    if (record.status !== 'PENDING') {
       throw new Response('Friend request is no longer pending', { status: 400 });
     }
 
-    const pair = normalizePair(request.fromUserId, request.toUserId);
+    const pair = normalizePair(record.fromUserId, record.toUserId);
     await tx.friendRequest.update({
-      where: { id: request.id },
+      where: { id: record.id },
       data: {
         status: 'ACCEPTED',
       },
@@ -249,9 +247,10 @@ export async function acceptFriendRequest(
       update: {},
     });
 
-    if (request.notification) {
+    const notificationId = record.notification?.id;
+    if (notificationId) {
       await tx.notification.update({
-        where: { id: request.notification.id },
+        where: { id: notificationId },
         data: {
           status: 'READ',
           readAt: new Date(),
@@ -260,8 +259,36 @@ export async function acceptFriendRequest(
       });
     }
 
-    return request;
+    return record;
   });
+
+  const actor = await prisma.user.findUnique({
+    where: { id: actingUserId },
+    select: {
+      id: true,
+      name: true,
+      username: true,
+      image: { select: { id: true } },
+    },
+  });
+
+  if (actor) {
+    await notifyUser({
+      userId: request.fromUserId,
+      type: NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED,
+      payload: {
+        friendRequestId: request.id,
+        actorUserId: actor.id,
+        actorDisplayName: actor.name ?? actor.username,
+        actorUsername: actor.username,
+        actorAvatarId: actor.image?.id ?? null,
+        recipientUserId: request.fromUserId,
+      },
+      sourceIdentifier: `friend-request:${request.id}:accepted`,
+    });
+  }
+
+  return request;
 }
 
 export async function rejectFriendRequest(

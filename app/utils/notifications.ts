@@ -1,4 +1,7 @@
-export type NotificationType = 'FRIEND_REQUEST'
+export type NotificationType =
+  | 'FRIEND_REQUEST_RECEIVED'
+  | 'FRIEND_REQUEST_ACCEPTED'
+  | 'UPCOMING_BIRTHDAY'
 
 export type NotificationStatus = 'UNREAD' | 'READ' | 'ARCHIVED'
 
@@ -46,7 +49,7 @@ export function createFriendRequestNotification(opts: {
 }): Notification {
   return {
     id: crypto.randomUUID(),
-    type: 'FRIEND_REQUEST',
+    type: 'FRIEND_REQUEST_RECEIVED',
     status: 'UNREAD',
     message: `${opts.from.displayName ?? 'Someone'} sent you a friend request`,
     targetUrl: `/users/${opts.from.id}`,
@@ -62,4 +65,3 @@ export function createFriendRequestNotification(opts: {
     },
   }
 }
-
