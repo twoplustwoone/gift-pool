@@ -1,9 +1,8 @@
 import { Form, Link } from '@remix-run/react';
 import { useRef } from 'react';
-import { LuBell, LuLogOut, LuSettings, LuUser, LuUsers } from 'react-icons/lu';
+import { LuLogOut, LuSettings, LuUser, LuUsers } from 'react-icons/lu';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useUser } from '#app/utils/user.ts';
-import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { useTranslation } from '#app/utils/i18n.tsx';
 import {
   DropdownMenu,
@@ -19,8 +18,6 @@ import { Flex, Text } from './ui-kit';
 export const UserDropdown = () => {
   const user = useUser();
   const formRef = useRef<HTMLFormElement>(null);
-  const { unreadCount } = useNotificationsStore();
-  const hasUnread = unreadCount > 0;
   const { t } = useTranslation();
   return (
     <DropdownMenu>
@@ -37,11 +34,6 @@ export const UserDropdown = () => {
             width={256}
             height={256}
           />
-          {hasUnread ? (
-            <span className="absolute -top-0.5 -right-0.5 inline-flex min-h-3 min-w-3 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold text-destructive-foreground">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          ) : null}
         </Link>
       </DropdownMenuTrigger>
       <DropdownMenuPortal>
@@ -63,21 +55,7 @@ export const UserDropdown = () => {
               </Flex>
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => {
-              window.dispatchEvent(new Event('notifications:open'));
-            }}
-          >
-            <Flex gap={2} className="items-center">
-              <LuBell className="h-3 w-3" />
-              <Text className="flex-1">{t('notifications.menuItem')}</Text>
-              {hasUnread ? (
-                <span className="ml-2 inline-flex min-h-3 min-w-3 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold text-destructive-foreground">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              ) : null}
-            </Flex>
-          </DropdownMenuItem>
+          
           <DropdownMenuItem asChild>
             <Link prefetch="intent" to={`/settings/profile`}>
               <Flex gap={2}>

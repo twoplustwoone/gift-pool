@@ -7,6 +7,7 @@ import {
   getUserImages,
   img,
 } from '#tests/db-utils.ts';
+import { ensureNotificationPreferencesForUser } from '#app/utils/notification-preferences.server.ts';
 
 async function seed() {
   console.log('🌱 Seeding...');
@@ -62,7 +63,7 @@ async function seed() {
 
   for (let index = 0; index < totalUsers; index++) {
     const userData = createUser();
-    await prisma.user
+    const user = await prisma.user
       .create({
         select: { id: true },
         data: {
@@ -96,6 +97,9 @@ async function seed() {
         console.error('Error creating a user:', e);
         return null;
       });
+    if (user) {
+      await ensureNotificationPreferencesForUser(user.id);
+    }
   }
   console.timeEnd(`👤 Created ${totalUsers} users...`);
 
@@ -104,7 +108,7 @@ async function seed() {
     filepath: './tests/fixtures/images/user/wade.png',
   });
 
-  await prisma.user.create({
+  const wade = await prisma.user.create({
     select: { id: true },
     data: {
       email: 'wade@example.com',
@@ -135,6 +139,7 @@ async function seed() {
       },
     },
   });
+  await ensureNotificationPreferencesForUser(wade.id);
   console.timeEnd(`🧑‍💼 Created admin user "Wade Wilson"`);
 
   console.timeEnd(`🌱 Database has been seeded`);

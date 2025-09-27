@@ -27,6 +27,10 @@ export const en = {
       acceptAria: 'Accept friend request from {{name}}',
       rejectAria: 'Reject friend request from {{name}}',
     },
+    friendRequestAccepted: {
+      message: '{{name}} accepted your friend request',
+      fallbackName: 'Someone',
+    },
     markAllReadSuccess: 'All notifications marked as read.',
   },
   friends: {

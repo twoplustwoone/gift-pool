@@ -8,6 +8,12 @@ export interface FriendshipEventDetail {
   friendshipId?: string | null;
   incomingRequestId?: string | null;
   outgoingRequestId?: string | null;
+  user?: {
+    id: string;
+    username: string;
+    name: string | null;
+    image: { id: string; altText: string | null } | null;
+  };
 }
 
 export function dispatchFriendshipUpdate(detail: FriendshipEventDetail) {

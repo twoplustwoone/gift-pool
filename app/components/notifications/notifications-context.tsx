@@ -13,8 +13,8 @@ interface NotificationsStoreValue {
 
 const NotificationsContext = createContext<NotificationsStoreValue | null>(null);
 
-export const NotificationsProvider = ({ children }: PropsWithChildren) => {
-  const [unreadCount, setUnreadCount] = useState(0);
+export const NotificationsProvider = ({ children, initialUnreadCount = 0 }: PropsWithChildren & { initialUnreadCount?: number }) => {
+  const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const value = useMemo(
     () => ({ unreadCount, setUnreadCount }),
     [unreadCount],

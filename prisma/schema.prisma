@@ -35,6 +35,10 @@ model User {
   friendRequestsReceived FriendRequest[] @relation("FriendRequestToUser")
   friendshipsA       Friendship[]        @relation("FriendshipUserA")
   friendshipsB       Friendship[]        @relation("FriendshipUserB")
+  notificationPreferences UserNotificationPreference[]
+  notificationPreferenceAudits NotificationPreferenceAudit[]
+  friendInvitationsCreated FriendInvitation[] @relation("FriendInvitation_CreatedBy")
+  friendInvitationsUsed     FriendInvitation[] @relation("FriendInvitation_UsedBy")
 }
 
 model Friendship {
@@ -66,6 +70,21 @@ model FriendRequest {
   @@index([fromUserId, status])
 }
 
+model FriendInvitation {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdById String
+  usedById    String?
+  usedAt      DateTime?
+  createdBy   User     @relation("FriendInvitation_CreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  usedBy      User?    @relation("FriendInvitation_UsedBy", fields: [usedById], references: [id])
+
+  @@index([code])
+}
+
 model Notification {
   id                String             @id @default(cuid())
   createdAt         DateTime           @default(now())
@@ -85,6 +104,35 @@ model Notification {
 
   @@index([userId, createdAt])
   @@index([userId, status])
+}
+
+model UserNotificationPreference {
+  userId       String
+  type         String
+  inAppEnabled Boolean  @default(true)
+  emailEnabled Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, type])
+  @@index([type])
+}
+
+model NotificationPreferenceAudit {
+  id             String   @id @default(cuid())
+  userId         String
+  type           String
+  channel        String
+  previousValue  Boolean
+  newValue       Boolean
+  source         String
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([type])
+  @@index([channel])
 }
 
 model GiftGroup {
