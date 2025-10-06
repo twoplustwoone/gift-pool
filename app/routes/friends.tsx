@@ -33,6 +33,7 @@ import { EmptyState } from '#app/components/ui/empty-state.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Skeleton } from '#app/components/ui/skeleton.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
+import { Text } from '#app/components/ui-kit/text.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import {
   getIncomingFriendRequests,
@@ -1393,7 +1394,10 @@ function AddFriendsPanel({
                 onClick={() => void openQr()}
                 className="min-w-[120px] flex-1 sm:flex-none"
               >
-                Show QR
+                <LuQrCode className="md:mr-2" />
+                <Text size="sm" className="hidden md:block">
+                  Show QR
+                </Text>
               </Button>
             </div>
           </div>
