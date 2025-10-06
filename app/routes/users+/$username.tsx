@@ -8,14 +8,14 @@ import {
   type MetaFunction,
 } from '@remix-run/react';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
-import { Spacer } from '#app/components/spacer.tsx';
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
+import { Spacer } from '#app/components/spacer.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import { requireUsersShareAGroup } from '#app/utils/groups.server.ts';
 import { getRelationshipDetails } from '#app/utils/friends.server.ts';
+import { requireUsersShareAGroupOrAreFriends } from '#app/utils/groups.server.ts';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useOptionalUser } from '#app/utils/user.ts';
 
@@ -23,7 +23,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const { username } = params;
 
   const userId = await requireUserId(request);
-  await requireUsersShareAGroup({ userId, username });
+  await requireUsersShareAGroupOrAreFriends({ userId, username });
 
   const user = await prisma.user.findFirst({
     select: {

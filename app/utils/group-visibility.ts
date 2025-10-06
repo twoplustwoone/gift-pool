@@ -14,7 +14,7 @@ export function isBudgetVisible({
 }) {
   const effective = memberOverride ?? groupVisibility;
   if (effective === 'EVERYONE') return true;
-  if (effective === 'ADMINS') return viewerRole === 'OWNER' || viewerRole === 'ADMIN' || isSelf;
+  if (effective === 'ADMINS')
+    return viewerRole === 'OWNER' || viewerRole === 'ADMIN' || isSelf;
   return isSelf;
 }
-

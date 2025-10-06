@@ -25,7 +25,7 @@ const TestComponent = () => {
       </button>
     </div>
   );
-}
+};
 
 test('prevents default on the first click, and does not on the second', async () => {
   const user = userEvent.setup();

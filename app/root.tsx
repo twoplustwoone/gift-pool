@@ -35,10 +35,10 @@ import { getUserId, logout } from './utils/auth.server.ts';
 import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx';
 import { prisma } from './utils/db.server.ts';
 import { honeypot } from './utils/honeypot.server.ts';
+import { I18nProvider, getLocaleFromRequest } from './utils/i18n.tsx';
 import { combineHeaders, getDomainUrl } from './utils/misc.tsx';
 import { useNonce } from './utils/nonce-provider.ts';
 import { useRequestInfo } from './utils/request-info.ts';
-import { I18nProvider, getLocaleFromRequest } from './utils/i18n.tsx';
 import { type Theme, getTheme } from './utils/theme.server.ts';
 import { makeTimings, time } from './utils/timing.server.ts';
 import { getToast } from './utils/toast.server.ts';
@@ -213,7 +213,9 @@ const App = () => {
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
       <I18nProvider locale={data.requestInfo.locale}>
-        <NotificationsProvider initialUnreadCount={data.notifications?.unreadCount ?? 0}>
+        <NotificationsProvider
+          initialUnreadCount={data.notifications?.unreadCount ?? 0}
+        >
           <div className="flex min-h-[100dvh] flex-col">
             <TopBar />
 

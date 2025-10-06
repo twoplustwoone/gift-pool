@@ -22,7 +22,8 @@ export async function action({ request }: ActionFunctionArgs) {
 
   const { intent, id, name, direction } = submission.value;
 
-  let toast: { type: 'success'; title: string; description: string } | null = null;
+  let toast: { type: 'success'; title: string; description: string } | null =
+    null;
 
   switch (intent) {
     case 'create': {
@@ -68,8 +69,14 @@ export async function action({ request }: ActionFunctionArgs) {
       const current = categories[index]!;
       const swap = categories[targetIndex]!;
       await prisma.$transaction([
-        prisma.wishlistCategory.update({ where: { id: current.id }, data: { order: swap.order } }),
-        prisma.wishlistCategory.update({ where: { id: swap.id }, data: { order: current.order } }),
+        prisma.wishlistCategory.update({
+          where: { id: current.id },
+          data: { order: swap.order },
+        }),
+        prisma.wishlistCategory.update({
+          where: { id: swap.id },
+          data: { order: current.order },
+        }),
       ]);
       break;
     }

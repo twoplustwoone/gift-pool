@@ -3,7 +3,10 @@ import { getUserId } from '#app/utils/auth.server';
 import { prisma } from '#app/utils/db.server';
 
 function formatDateLabel(date: Date) {
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(date);
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
 }
 
 // Find next birthday date (this year or next) from a month/day reference
@@ -21,7 +24,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const mockParam = url.searchParams.get('mock');
   const mock: 'empty' | 'data' | undefined =
-    mockParam === 'empty' || mockParam === 'data' ? (mockParam as any) : undefined;
+    mockParam === 'empty' || mockParam === 'data'
+      ? (mockParam as any)
+      : undefined;
 
   // Mocked responses for tests
   if (mock === 'empty') {
@@ -29,7 +34,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
   if (mock === 'data') {
     const now = new Date();
-    const in10 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 10);
+    const in10 = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 10,
+    );
     return json({
       birthdays: [
         {
@@ -44,7 +53,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       activity: [
         {
           id: 'a_mock_1',
-          description: 'Jamie added “Noise-cancelling headphones” to Family Gifts',
+          description:
+            'Jamie added “Noise-cancelling headphones” to Family Gifts',
           timestampISO: now.toISOString(),
         },
       ],
@@ -65,7 +75,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
           id: true,
           groupMembers: {
             select: {
-              user: { select: { id: true, name: true, username: true, birthday: true } },
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  username: true,
+                  birthday: true,
+                },
+              },
             },
           },
         },
@@ -77,7 +94,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const sixtyDays = 60 * 24 * 60 * 60 * 1000;
 
   // Collect potential birthdays with at least one shared group id
-  const birthdayMap = new Map<string, { id: string; name: string; username: string | null; date: Date; groupId: string | null }>();
+  const birthdayMap = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      username: string | null;
+      date: Date;
+      groupId: string | null;
+    }
+  >();
   for (const m of memberships) {
     for (const gm of m.giftGroup.groupMembers) {
       const u = gm.user;
@@ -110,10 +136,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }));
 
   // TODO: Wire real recent activity once available.
-  const activity: Array<{ id: string; description: string; timestampISO: string }> = [];
+  const activity: Array<{
+    id: string;
+    description: string;
+    timestampISO: string;
+  }> = [];
 
   return json({ birthdays, activity });
 }
 
 export default null;
-

@@ -6,7 +6,8 @@ export const Link = React.forwardRef<HTMLAnchorElement, any>(function Link(
   { to, href, children, ...rest },
   ref,
 ) {
-  const resolved = href ?? (typeof to === 'string' ? to : to?.pathname ?? '#');
+  const resolved =
+    href ?? (typeof to === 'string' ? to : (to?.pathname ?? '#'));
   return (
     <a ref={ref} href={resolved} {...rest}>
       {children}

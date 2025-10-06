@@ -1,5 +1,8 @@
 import { type Meta, type StoryObj } from '@storybook/react-vite';
-import { GroupCard, type GroupCardData } from '#app/components/groups/GroupCard';
+import {
+  GroupCard,
+  type GroupCardData,
+} from '#app/components/groups/GroupCard';
 
 const base: GroupCardData = {
   id: 'g1',
@@ -58,4 +61,3 @@ export const LongText: Story = {
     },
   },
 };
-

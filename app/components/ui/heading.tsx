@@ -4,4 +4,4 @@ export const Heading = ({ children }: { children: React.ReactNode }) => {
       {children}
     </h1>
   );
-}
+};

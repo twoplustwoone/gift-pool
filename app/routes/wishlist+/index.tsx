@@ -44,7 +44,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
   return json({ user });
 }
 
-
 const WishlistIndex = () => {
   const data = useLoaderData<typeof loader>();
 

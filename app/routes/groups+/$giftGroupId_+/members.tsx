@@ -1,9 +1,9 @@
 import { Link, useFetcher, useRouteLoaderData } from '@remix-run/react';
 import { LuUserPlus } from 'react-icons/lu';
 
+import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
-import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';

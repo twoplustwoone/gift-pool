@@ -3,13 +3,13 @@ import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { Outlet, redirect } from '@remix-run/react';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import { requireUsersShareAGroup } from '#app/utils/groups.server.ts';
+import { requireUsersShareAGroupOrAreFriends } from '#app/utils/groups.server.ts';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { username } = params;
 
   const userId = await requireUserId(request);
-  await requireUsersShareAGroup({ userId, username });
+  await requireUsersShareAGroupOrAreFriends({ userId, username });
 
   const user = await prisma.user.findFirst({
     select: {
@@ -33,8 +33,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 
 const Username = () => {
   return (
-    <main className="container h-full min-h-0 px-0 pb-12 md:px-8">
-      <div className="grid h-full min-h-0 w-full bg-muted pl-2 pr-2 md:container md:rounded-3xl">
+    <main className="h-full min-h-0 overflow-y-auto">
+      <div className="grid h-full min-h-0 w-full rounded-none text-surface-foreground shadow-sm">
         <Outlet />
       </div>
     </main>

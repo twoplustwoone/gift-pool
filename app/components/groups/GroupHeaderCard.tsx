@@ -32,7 +32,7 @@ export const GroupHeaderCard = ({
         {stats.map((s, i) => (
           <div
             key={i}
-            className="border-subcard-border bg-subcard flex flex-col rounded-xl border p-3 text-center"
+            className="flex flex-col rounded-xl border border-subcard-border bg-subcard p-3 text-center"
           >
             <div className="text-xs text-muted-foreground">{s.label}</div>
             <div className="flex grow items-center justify-center text-base font-semibold">

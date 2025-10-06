@@ -15,14 +15,21 @@ type Dictionaries = typeof dictionaries;
 export type Locale = keyof Dictionaries;
 
 type DotPrefix<T extends string> = T extends '' ? '' : `.${T}`;
-type DotNestedKeys<T> = T extends Record<string, unknown>
-  ? {
-      [K in Extract<keyof T, string>]: `${K}${DotPrefix<DotNestedKeys<T[K]>>}`;
-    }[Extract<keyof T, string>]
-  : '';
+type DotNestedKeys<T> =
+  T extends Record<string, unknown>
+    ? {
+        [K in Extract<
+          keyof T,
+          string
+        >]: `${K}${DotPrefix<DotNestedKeys<T[K]>>}`;
+      }[Extract<keyof T, string>]
+    : '';
 
 type TranslationKey = Exclude<DotNestedKeys<EnDictionary>, ''>;
-type TranslationParams = Record<string, string | number | boolean | null | undefined>;
+type TranslationParams = Record<
+  string,
+  string | number | boolean | null | undefined
+>;
 
 const SUPPORTED_LOCALES: Locale[] = ['en'];
 
@@ -58,7 +65,11 @@ function interpolate(template: string, params?: TranslationParams | null) {
     const key = rawKey.trim();
     const value = params[key];
     if (value === undefined || value === null) return '';
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+    ) {
       return String(value);
     }
     return String(value);
@@ -87,10 +98,8 @@ export function useTranslation(namespace?: string) {
   return useMemo(
     () => ({
       locale,
-      t: (
-        key: string,
-        params?: TranslationParams | null,
-      ) => translate(locale, `${prefix}${key}` as TranslationKey, params),
+      t: (key: string, params?: TranslationParams | null) =>
+        translate(locale, `${prefix}${key}` as TranslationKey, params),
     }),
     [locale, prefix],
   );
@@ -133,7 +142,9 @@ export function formatRelativeTime(
   now: Date = new Date(),
 ) {
   const date =
-    value instanceof Date ? value : new Date(typeof value === 'number' ? value : Date.parse(value));
+    value instanceof Date
+      ? value
+      : new Date(typeof value === 'number' ? value : Date.parse(value));
   const diffInSeconds = (date.getTime() - now.getTime()) / 1000;
   if (Math.abs(diffInSeconds) < 5) {
     return translate(locale, 'time.justNow');
@@ -141,7 +152,9 @@ export function formatRelativeTime(
   let duration = diffInSeconds;
   for (const division of RELATIVE_TIME_DIVISIONS) {
     if (Math.abs(duration) < division.amount) {
-      const formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+      const formatter = new Intl.RelativeTimeFormat(locale, {
+        numeric: 'auto',
+      });
       return formatter.format(Math.round(duration), division.unit);
     }
     duration /= division.amount;
@@ -155,7 +168,8 @@ export function sanitizeTranslationParams(
   params?: Record<string, unknown> | null,
 ): TranslationParams | undefined {
   if (!params) return undefined;
-  const entries: Array<[string, string | number | boolean | null | undefined]> = [];
+  const entries: Array<[string, string | number | boolean | null | undefined]> =
+    [];
   for (const [key, value] of Object.entries(params)) {
     if (
       value === null ||

@@ -1,22 +1,26 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
-import { notifyUser } from '#app/utils/notification-service.server.tsx';
-import {
-  NOTIFICATION_CHANNELS,
-  NOTIFICATION_TYPES,
-} from '#app/utils/notification-registry.ts';
+import { sendEmail } from '#app/utils/email.server.ts';
 import {
   ensureNotificationPreferencesForUser,
   setNotificationPreference,
 } from '#app/utils/notification-preferences.server.ts';
-import { sendEmail } from '#app/utils/email.server.ts';
+import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_TYPES,
+} from '#app/utils/notification-registry.ts';
+import { notifyUser } from '#app/utils/notification-service.server.tsx';
 
 vi.mock('#app/utils/email.server.ts', () => ({
-  sendEmail: vi.fn().mockResolvedValue({ status: 'success', data: { id: 'mock-email' } }),
+  sendEmail: vi
+    .fn()
+    .mockResolvedValue({ status: 'success', data: { id: 'mock-email' } }),
 }));
 
-async function createUser(overrides: Partial<{ email: string; username: string; name: string }> = {}) {
+async function createUser(
+  overrides: Partial<{ email: string; username: string; name: string }> = {},
+) {
   return prisma.user.create({
     select: { id: true, email: true, username: true, name: true },
     data: {
@@ -43,7 +47,9 @@ describe('notification service', () => {
     await prisma.notification.deleteMany();
     await prisma.friendRequest.deleteMany();
     await prisma.friendship.deleteMany();
-    await prisma.user.deleteMany({ where: { email: { contains: '@example.com' } } });
+    await prisma.user.deleteMany({
+      where: { email: { contains: '@example.com' } },
+    });
   });
 
   it('creates in-app notification and sends email by default', async () => {
@@ -74,7 +80,10 @@ describe('notification service', () => {
     });
 
     const notifications = await prisma.notification.findMany({
-      where: { userId: recipient.id, type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED },
+      where: {
+        userId: recipient.id,
+        type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
+      },
     });
     expect(notifications).toHaveLength(1);
     expect(emailMock).toHaveBeenCalledTimes(1);

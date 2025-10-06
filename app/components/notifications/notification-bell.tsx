@@ -1,8 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@remix-run/react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LuBell, LuCheckCheck, LuLoader, LuX } from 'react-icons/lu';
 import { toast } from 'sonner';
+import { Button } from '#app/components/ui/button.tsx';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '#app/components/ui/popover.tsx';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '#app/components/ui/tooltip.tsx';
 import { track } from '#app/utils/analytics.client.ts';
+import { type RelationshipState } from '#app/utils/friends.ts';
 import { dispatchFriendshipUpdate } from '#app/utils/friendship-events.ts';
 import {
   formatRelativeTime,
@@ -10,16 +23,7 @@ import {
   useTranslation,
 } from '#app/utils/i18n.tsx';
 import { cn } from '#app/utils/misc.tsx';
-import { Button } from '#app/components/ui/button.tsx';
-import { Popover, PopoverContent, PopoverTrigger } from '#app/components/ui/popover.tsx';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '#app/components/ui/tooltip.tsx';
 import { useNotificationsStore } from './notifications-context.tsx';
-import type { RelationshipState } from '#app/utils/friends.ts';
 
 interface NotificationActionPayload {
   kind: string;
@@ -91,7 +95,9 @@ export const NotificationBell = () => {
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [markAllPending, setMarkAllPending] = useState(false);
-  const [pendingAction, setPendingAction] = useState<PendingActionKey | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingActionKey | null>(
+    null,
+  );
   const openEventHandlerRef = useRef<(event: Event) => void>();
 
   const loadNotifications = useCallback(
@@ -101,10 +107,13 @@ export const NotificationBell = () => {
       try {
         const search = new URLSearchParams({ status: 'all' });
         if (cursor) search.set('cursor', cursor);
-        const response = await fetch(`${NOTIFICATIONS_ENDPOINT}?${search.toString()}`, {
-          headers: { Accept: 'application/json' },
-          credentials: 'same-origin',
-        });
+        const response = await fetch(
+          `${NOTIFICATIONS_ENDPOINT}?${search.toString()}`,
+          {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+          },
+        );
         if (!response.ok) {
           throw new Error('Failed to load notifications');
         }
@@ -140,7 +149,10 @@ export const NotificationBell = () => {
     window.addEventListener('notifications:open', handler);
     return () => {
       if (openEventHandlerRef.current) {
-        window.removeEventListener('notifications:open', openEventHandlerRef.current);
+        window.removeEventListener(
+          'notifications:open',
+          openEventHandlerRef.current,
+        );
       }
     };
   }, []);
@@ -148,11 +160,14 @@ export const NotificationBell = () => {
   const markNotificationRead = useCallback(
     async (notificationId: string) => {
       try {
-        const response = await fetch(`${NOTIFICATIONS_ENDPOINT}/${notificationId}/read`, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { Accept: 'application/json' },
-        });
+        const response = await fetch(
+          `${NOTIFICATIONS_ENDPOINT}/${notificationId}/read`,
+          {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          },
+        );
         if (!response.ok) {
           throw new Error('Unable to mark notification read');
         }
@@ -178,14 +193,18 @@ export const NotificationBell = () => {
   const deleteNotification = useCallback(
     async (notificationId: string) => {
       try {
-        const response = await fetch(`${NOTIFICATIONS_ENDPOINT}/${notificationId}/delete`, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { Accept: 'application/json' },
-        });
+        const response = await fetch(
+          `${NOTIFICATIONS_ENDPOINT}/${notificationId}/delete`,
+          {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          },
+        );
         if (!response.ok) throw new Error('Unable to delete notification');
         const payload = (await response.json()) as { unreadCount?: number };
-        if (typeof payload.unreadCount === 'number') setUnreadCount(payload.unreadCount);
+        if (typeof payload.unreadCount === 'number')
+          setUnreadCount(payload.unreadCount);
         setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
       } catch (err) {
         console.error(err);
@@ -237,7 +256,10 @@ export const NotificationBell = () => {
   }, [markAllPending, setUnreadCount, t, unreadCount]);
 
   const handleFriendAction = useCallback(
-    async (notification: ApiNotification, action: NotificationActionPayload) => {
+    async (
+      notification: ApiNotification,
+      action: NotificationActionPayload,
+    ) => {
       if (!notification.friendRequestId) return;
       const actionKey: PendingActionKey = `${notification.id}:${action.kind}`;
       setPendingAction(actionKey);
@@ -273,7 +295,10 @@ export const NotificationBell = () => {
             ? t('friends.acceptSuccess')
             : t('friends.rejectSuccess'),
         );
-        const metadata = (notification.metadata ?? {}) as Record<string, unknown>;
+        const metadata = (notification.metadata ?? {}) as Record<
+          string,
+          unknown
+        >;
         const senderId = metadata.senderUserId as string | undefined;
         if (senderId) {
           const relationSnapshot = payload.relationship
@@ -323,9 +348,15 @@ export const NotificationBell = () => {
             notification.messageKey,
             sanitizeTranslationParams(notification.messageParams),
           );
-          const relativeTime = formatRelativeTime(notification.createdAt, locale);
+          const relativeTime = formatRelativeTime(
+            notification.createdAt,
+            locale,
+          );
           return (
-            <li key={notification.id} className="relative border-b last:border-b-0">
+            <li
+              key={notification.id}
+              className="relative border-b last:border-b-0"
+            >
               <button
                 type="button"
                 className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-accent"
@@ -349,13 +380,19 @@ export const NotificationBell = () => {
                   <span
                     className={cn(
                       'mt-1 h-2.5 w-2.5 shrink-0 rounded-full',
-                      isUnread ? 'bg-primary' : 'bg-transparent border border-border',
+                      isUnread
+                        ? 'bg-primary'
+                        : 'border border-border bg-transparent',
                     )}
                     aria-hidden
                   />
                   <div className="flex-1">
-                    <div className="text-sm text-foreground line-clamp-2">{message}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{relativeTime}</div>
+                    <div className="line-clamp-2 text-sm text-foreground">
+                      {message}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {relativeTime}
+                    </div>
                   </div>
                 </div>
               </button>
@@ -365,16 +402,32 @@ export const NotificationBell = () => {
                     <Button
                       key={`${notification.id}-${action.kind}`}
                       size="sm"
-                      variant={action.kind === FRIEND_ACCEPT_EVENT ? 'default' : 'secondary'}
-                      onClick={() => void handleFriendAction(notification, action)}
-                      disabled={pendingAction === `${notification.id}:${action.kind}`}
+                      variant={
+                        action.kind === FRIEND_ACCEPT_EVENT
+                          ? 'default'
+                          : 'secondary'
+                      }
+                      onClick={() =>
+                        void handleFriendAction(notification, action)
+                      }
+                      disabled={
+                        pendingAction === `${notification.id}:${action.kind}`
+                      }
                     >
                       {pendingAction === `${notification.id}:${action.kind}` ? (
-                        <LuLoader className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                        <LuLoader
+                          className="mr-2 h-4 w-4 animate-spin"
+                          aria-hidden
+                        />
                       ) : null}
                       {action.labelKey
-                        ? t(action.labelKey, sanitizeTranslationParams(notification.messageParams))
-                        : action.label ?? ''}
+                        ? t(
+                            action.labelKey,
+                            sanitizeTranslationParams(
+                              notification.messageParams,
+                            ),
+                          )
+                        : (action.label ?? '')}
                     </Button>
                   ))}
                 </div>
@@ -384,21 +437,29 @@ export const NotificationBell = () => {
         })}
       </ul>
     );
-  }, [handleNotificationClick, handleFriendAction, locale, loading, notifications, pendingAction, t]);
+  }, [
+    handleNotificationClick,
+    handleFriendAction,
+    locale,
+    loading,
+    notifications,
+    pendingAction,
+    t,
+  ]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex size-10 items-center justify-center rounded-full border border-transparent bg-surface-muted text-foreground shadow-sm outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+          className="bg-surface-muted relative inline-flex size-10 items-center justify-center rounded-full border border-transparent text-foreground shadow-sm outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t('notifications.bellLabel')}
           aria-expanded={open}
           aria-haspopup="dialog"
         >
           <LuBell className="h-5 w-5" aria-hidden />
           {unreadCount > 0 ? (
-            <span className="absolute -top-0.5 -right-0.5 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+            <span className="absolute -right-0.5 -top-0.5 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
               {displayCount}
             </span>
           ) : null}
@@ -441,7 +502,12 @@ export const NotificationBell = () => {
               type="button"
               variant="ghost"
               className="w-full"
-              onClick={() => void loadNotifications({ cursor: nextCursor ?? undefined, append: true })}
+              onClick={() =>
+                void loadNotifications({
+                  cursor: nextCursor ?? undefined,
+                  append: true,
+                })
+              }
               disabled={loading}
             >
               {loading ? (

@@ -17,7 +17,9 @@ const NewGroupRoute = () => (
     <Heading>
       <Flex gap={2} align="center">
         <LuUsers className="text-primary" />
-        <Text size="xl" weight="bold">Create Group</Text>
+        <Text size="xl" weight="bold">
+          Create Group
+        </Text>
       </Flex>
     </Heading>
     <CreateGroupForm

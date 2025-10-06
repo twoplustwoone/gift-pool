@@ -58,6 +58,6 @@ const EpicProgress = () => {
       )}
     </div>
   );
-}
+};
 
 export { EpicProgress };

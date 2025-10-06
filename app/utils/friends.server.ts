@@ -1,9 +1,13 @@
 import { prisma } from '#app/utils/db.server.ts';
-import { notifyUser } from '#app/utils/notification-service.server.tsx';
 import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
-import type { RelationshipState } from './friends.ts';
+import { notifyUser } from '#app/utils/notification-service.server.tsx';
+import { type RelationshipState } from './friends.ts';
 
-export type FriendRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
+export type FriendRequestStatus =
+  | 'PENDING'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'CANCELLED';
 
 const FRIEND_REQUEST_RATE_LIMIT_WINDOW_MINUTES = 10;
 const FRIEND_REQUEST_RATE_LIMIT_MAX = 5;
@@ -163,10 +167,7 @@ async function assertCanSendRequest(fromUserId: string, toUserId: string) {
   }
 }
 
-export async function sendFriendRequest(
-  fromUserId: string,
-  toUserId: string,
-) {
+export async function sendFriendRequest(fromUserId: string, toUserId: string) {
   await assertCanSendRequest(fromUserId, toUserId);
 
   const { request, fromUser } = await prisma.$transaction(async (tx) => {
@@ -222,7 +223,9 @@ export async function acceptFriendRequest(
       });
     }
     if (record.status !== 'PENDING') {
-      throw new Response('Friend request is no longer pending', { status: 400 });
+      throw new Response('Friend request is no longer pending', {
+        status: 400,
+      });
     }
 
     const pair = normalizePair(record.fromUserId, record.toUserId);
@@ -306,7 +309,9 @@ export async function rejectFriendRequest(
       });
     }
     if (request.status !== 'PENDING') {
-      throw new Response('Friend request is no longer pending', { status: 400 });
+      throw new Response('Friend request is no longer pending', {
+        status: 400,
+      });
     }
 
     await tx.friendRequest.update({
@@ -342,7 +347,10 @@ export async function removeFriend(
   if (!existing) {
     throw new Response('Friendship not found', { status: 404 });
   }
-  if (currentUserId !== existing.userAId && currentUserId !== existing.userBId) {
+  if (
+    currentUserId !== existing.userAId &&
+    currentUserId !== existing.userBId
+  ) {
     throw new Response('Not authorized to remove this friend', { status: 403 });
   }
 
@@ -368,7 +376,9 @@ export async function cancelOutgoingRequest(
       });
     }
     if (request.status !== 'PENDING') {
-      throw new Response('Friend request is no longer pending', { status: 400 });
+      throw new Response('Friend request is no longer pending', {
+        status: 400,
+      });
     }
 
     await tx.friendRequest.update({

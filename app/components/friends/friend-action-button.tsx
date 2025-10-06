@@ -1,21 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LuCheck, LuLoader, LuUserPlus } from 'react-icons/lu';
 import { toast } from 'sonner';
-import { track } from '#app/utils/analytics.client.ts';
-import {
-  dispatchFriendshipUpdate,
-  subscribeToFriendshipUpdates,
-} from '#app/utils/friendship-events.ts';
-import type { RelationshipState } from '#app/utils/friends.ts';
-import { useTranslation } from '#app/utils/i18n.tsx';
-import { cn } from '#app/utils/misc.tsx';
+import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { Button, type ButtonProps } from '#app/components/ui/button.tsx';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '#app/components/ui/dropdown-menu.tsx';
 import {
   Dialog,
   DialogContent,
@@ -24,7 +11,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#app/components/ui/dialog.tsx';
-import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '#app/components/ui/dropdown-menu.tsx';
+import { track } from '#app/utils/analytics.client.ts';
+import { type RelationshipState } from '#app/utils/friends.ts';
+import {
+  dispatchFriendshipUpdate,
+  subscribeToFriendshipUpdates,
+} from '#app/utils/friendship-events.ts';
+import { useTranslation } from '#app/utils/i18n.tsx';
+import { cn } from '#app/utils/misc.tsx';
 
 interface RelationshipSnapshot {
   state: RelationshipState;
@@ -54,7 +54,9 @@ const EMPTY_SNAPSHOT: RelationshipSnapshot = {
   outgoingRequestId: null,
 };
 
-function snapshotFromEdge(payload?: RelationshipEdgePayload | null): RelationshipSnapshot {
+function snapshotFromEdge(
+  payload?: RelationshipEdgePayload | null,
+): RelationshipSnapshot {
   if (!payload) return EMPTY_SNAPSHOT;
   return {
     state: payload.state,
@@ -64,7 +66,9 @@ function snapshotFromEdge(payload?: RelationshipEdgePayload | null): Relationshi
   };
 }
 
-function snapshotFromRemove(payload?: RemoveRelationshipPayload | null): RelationshipSnapshot {
+function snapshotFromRemove(
+  payload?: RemoveRelationshipPayload | null,
+): RelationshipSnapshot {
   if (!payload) return EMPTY_SNAPSHOT;
   return {
     state: payload.state,
@@ -411,7 +415,10 @@ export const FriendActionButton = ({
                     disabled={isPending('remove')}
                   >
                     {isPending('remove') ? (
-                      <LuLoader className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      <LuLoader
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden
+                      />
                     ) : null}
                     {t('friends.removeConfirmConfirm')}
                   </Button>

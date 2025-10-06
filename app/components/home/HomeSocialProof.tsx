@@ -5,7 +5,10 @@ export const HomeSocialProof: React.FC = () => {
   return (
     <section aria-labelledby="home-social-proof" className="bg-muted/30">
       <div className="container py-6 md:py-8">
-        <p id="home-social-proof" className="text-center text-sm text-muted-foreground md:text-base">
+        <p
+          id="home-social-proof"
+          className="text-center text-sm text-muted-foreground md:text-base"
+        >
           {HOME_COPY.social.strip}
         </p>
         {/* Placeholder testimonials block: visually hidden by default, keep easy to enable */}
@@ -19,4 +22,3 @@ export const HomeSocialProof: React.FC = () => {
     </section>
   );
 };
-

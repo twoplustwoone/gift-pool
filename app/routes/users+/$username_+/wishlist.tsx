@@ -4,13 +4,13 @@ import { redirect, useLoaderData } from '@remix-run/react';
 import { Wishlist } from '#app/components/wishlist';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import { requireUsersShareAGroup } from '#app/utils/groups.server.ts';
+import { requireUsersShareAGroupOrAreFriends } from '#app/utils/groups.server.ts';
 
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const { username } = params;
 
   const userId = await requireUserId(request);
-  await requireUsersShareAGroup({ userId, username: username! });
+  await requireUsersShareAGroupOrAreFriends({ userId, username: username! });
   const user = await prisma.user.findFirst({
     select: {
       id: true,

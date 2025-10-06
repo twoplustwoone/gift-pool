@@ -26,4 +26,3 @@ export const SignupEmail = ({
     </E.Html>
   );
 };
-

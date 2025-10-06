@@ -30,11 +30,13 @@ export const HomeFooterLite: React.FC = () => {
             </li>
           </ul>
         </nav>
-        <p id="home-footer" className="mt-4 text-center text-xs text-muted-foreground">
+        <p
+          id="home-footer"
+          className="mt-4 text-center text-xs text-muted-foreground"
+        >
           {HOME_COPY.footer.copy}
         </p>
       </div>
     </footer>
   );
 };
-

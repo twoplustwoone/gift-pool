@@ -6,22 +6,34 @@ import {
 import { Link, Outlet, useLoaderData, useSearchParams } from '@remix-run/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  LuCopy,
+  LuHeart,
+  LuLink,
+  LuQrCode,
+  LuTrash,
+  LuUser,
+} from 'react-icons/lu';
+import { toast } from 'sonner';
+import {
   FriendActionButton,
   type RelationshipSnapshot,
 } from '#app/components/friends/friend-action-button.tsx';
-import { Icon } from '#app/components/ui/icon.tsx';
-import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '#app/components/ui/dialog.tsx';
+import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
+import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '#app/components/ui/dialog.tsx';
 import { EmptyState } from '#app/components/ui/empty-state.tsx';
-import { Heading } from '#app/components/ui/heading.tsx';
 import { Input } from '#app/components/ui/input.tsx';
-import { cn } from '#app/utils/misc.tsx';
 import { Skeleton } from '#app/components/ui/skeleton.tsx';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '#app/components/ui/dropdown-menu.tsx';
-import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
+import { Text } from '#app/components/ui-kit/text.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import {
   getIncomingFriendRequests,
@@ -33,6 +45,7 @@ import {
   type FriendshipEventDetail,
 } from '#app/utils/friendship-events.ts';
 import { useTranslation } from '#app/utils/i18n.tsx';
+import { cn } from '#app/utils/misc.tsx';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
@@ -61,11 +74,10 @@ const FriendsRoute = () => {
       : 'friends';
   const initialQ = searchParams.get('q') ?? '';
   const [q, setQ] = useState(initialQ);
+  const [friendsFilter, setFriendsFilter] = useState('');
   useEffect(() => {
     setQ(initialQ);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQ]);
-  // Debounce updating q in URL so back/forward works nicely
   useEffect(() => {
     const tId = setTimeout(() => {
       const next = new URLSearchParams(searchParams);
@@ -90,10 +102,19 @@ const FriendsRoute = () => {
   );
   const [incomingSelectMode, setIncomingSelectMode] = useState(false);
   const [outgoingSelectMode, setOutgoingSelectMode] = useState(false);
-  const [selectedIncoming, setSelectedIncoming] = useState<Set<string>>(new Set());
-  const [selectedOutgoing, setSelectedOutgoing] = useState<Set<string>>(new Set());
+  const [selectedIncoming, setSelectedIncoming] = useState<Set<string>>(
+    new Set(),
+  );
+  const [selectedOutgoing, setSelectedOutgoing] = useState<Set<string>>(
+    new Set(),
+  );
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
-  const [mutuals, setMutuals] = useState<Record<string, { groups: Array<{ id: string; name: string }>; more: number }>>({});
+  const [mutuals, setMutuals] = useState<
+    Record<
+      string,
+      { groups: Array<{ id: string; name: string }>; more: number }
+    >
+  >({});
 
   const anySelected =
     (incomingSelectMode && selectedIncoming.size > 0) ||
@@ -113,7 +134,10 @@ const FriendsRoute = () => {
           method: 'POST',
           credentials: 'same-origin',
           headers: { Accept: 'application/json' },
-        }).then(async (r) => ({ ok: r.ok, json: r.ok ? await r.json() : null })),
+        }).then(async (r) => ({
+          ok: r.ok,
+          json: r.ok ? await r.json() : null,
+        })),
       ),
     );
     let unread: number | null = null;
@@ -125,7 +149,9 @@ const FriendsRoute = () => {
     });
     if (unread != null) setUnreadCount(unread);
     setIncomingState((prev) => prev.filter((r) => !ids.includes(r.id)));
-    toast.success(`Accepted ${ids.length} request${ids.length > 1 ? 's' : ''}.`);
+    toast.success(
+      `Accepted ${ids.length} request${ids.length > 1 ? 's' : ''}.`,
+    );
   }
 
   async function batchDecline(ids: string[]) {
@@ -135,7 +161,10 @@ const FriendsRoute = () => {
           method: 'POST',
           credentials: 'same-origin',
           headers: { Accept: 'application/json' },
-        }).then(async (r) => ({ ok: r.ok, json: r.ok ? await r.json() : null })),
+        }).then(async (r) => ({
+          ok: r.ok,
+          json: r.ok ? await r.json() : null,
+        })),
       ),
     );
     let unread: number | null = null;
@@ -147,7 +176,9 @@ const FriendsRoute = () => {
     });
     if (unread != null) setUnreadCount(unread);
     setIncomingState((prev) => prev.filter((r) => !ids.includes(r.id)));
-    toast.success(`Declined ${ids.length} request${ids.length > 1 ? 's' : ''}.`);
+    toast.success(
+      `Declined ${ids.length} request${ids.length > 1 ? 's' : ''}.`,
+    );
   }
 
   async function batchCancel(ids: string[]) {
@@ -160,7 +191,9 @@ const FriendsRoute = () => {
       ),
     );
     setOutgoingState((prev) => prev.filter((r) => !ids.includes(r.id)));
-    toast.success(`Cancelled ${ids.length} request${ids.length > 1 ? 's' : ''}.`);
+    toast.success(
+      `Cancelled ${ids.length} request${ids.length > 1 ? 's' : ''}.`,
+    );
   }
 
   // Keep local state in sync when loader data changes (e.g., after accepting an invite)
@@ -327,8 +360,8 @@ const FriendsRoute = () => {
             {activeTab === 'friends' ? (
               <div className="sm:col-span-2">
                 <Input
-                  value={q}
-                  onChange={(e) => setQ(e.currentTarget.value)}
+                  value={friendsFilter}
+                  onChange={(e) => setFriendsFilter(e.currentTarget.value)}
                   placeholder={'Search friends'}
                   aria-label="Search"
                 />
@@ -376,236 +409,230 @@ const FriendsRoute = () => {
         </section>
 
         {/* Requests: visible on mobile when tab=requests; always visible on desktop */}
-        <div className={cn(activeTab !== 'requests' ? 'hidden sm:block' : undefined)}>
-            {incomingState.length > 0 ? (
-              <section id="incoming-requests">
-                <h2 className="text-lg font-semibold">
-                  {t('friends.incomingRequests')}
-                </h2>
-                <div className="mt-2 flex items-center justify-between">
-                  <div className="text-xs text-muted-foreground">
-                    {incomingSelectMode
-                      ? `${selectedIncoming.size} selected`
-                      : `${incomingState.length} pending`}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setIncomingSelectMode((v) => !v);
-                        setSelectedIncoming(new Set());
-                      }}
-                    >
-                      {incomingSelectMode ? 'Done' : 'Select'}
-                    </Button>
-                  </div>
+        <div
+          className={cn(
+            activeTab !== 'requests' ? 'hidden sm:block' : undefined,
+          )}
+        >
+          {incomingState.length > 0 ? (
+            <section id="incoming-requests">
+              <h2 className="text-lg font-semibold">
+                {t('friends.incomingRequests')}
+              </h2>
+              <div className="mt-2 flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">
+                  {incomingSelectMode
+                    ? `${selectedIncoming.size} selected`
+                    : `${incomingState.length} pending`}
                 </div>
-                <ul className="mt-3 space-y-3">
-                  {incomingState
-                    .filter((r) => {
-                      const term = q.trim().toLowerCase();
-                      if (!term) return true;
-                      const u = r.fromUser;
-                      return u.username.toLowerCase().includes(term);
-                    })
-                    .map((request) => {
-                    const user = request.fromUser;
-                    const username = user.username;
-                    const selected = selectedIncoming.has(request.id);
-                    return (
-                      <li
-                        key={request.id}
-                        className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
-                      >
-                        {incomingSelectMode ? (
-                          <input
-                            type="checkbox"
-                            aria-label={`Select @${username}`}
-                            checked={selected}
-                            onChange={(e) => {
-                              setSelectedIncoming((prev) => {
-                                const next = new Set(prev);
-                                if (e.currentTarget.checked) next.add(request.id);
-                                else next.delete(request.id);
-                                return next;
-                              });
-                            }}
-                            className="h-4 w-4"
-                          />
-                        ) : null}
-                        <Avatar size="s" image={user.image} user={user} />
-                        <div className="flex-1 text-foreground">@{username}</div>
-                        {incomingSelectMode ? null : (
-                          <FriendActionButton
-                            targetUserId={user.id}
-                            targetUserName={`@${username}`}
-                            relationship={{
-                              state: 'PENDING_INCOMING',
-                              friendshipId: null,
-                              incomingRequestId: request.id,
-                              outgoingRequestId: null,
-                            }}
-                            variant="compact"
-                            onStateChange={handleIncomingTransition(
-                              request.id,
-                              user,
-                            )}
-                          />
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ) : null}
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setIncomingSelectMode((v) => !v);
+                      setSelectedIncoming(new Set());
+                    }}
+                  >
+                    {incomingSelectMode ? 'Done' : 'Select'}
+                  </Button>
+                </div>
+              </div>
+              <ul className="mt-3 space-y-3">
+                {incomingState.map((request) => {
+                  const user = request.fromUser;
+                  const username = user.username;
+                  const selected = selectedIncoming.has(request.id);
+                  return (
+                    <li
+                      key={request.id}
+                      className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
+                    >
+                      {incomingSelectMode ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select @${username}`}
+                          checked={selected}
+                          onChange={(e) => {
+                            setSelectedIncoming((prev) => {
+                              const next = new Set(prev);
+                              if (e.currentTarget.checked) next.add(request.id);
+                              else next.delete(request.id);
+                              return next;
+                            });
+                          }}
+                          className="h-4 w-4"
+                        />
+                      ) : null}
+                      <Avatar size="s" image={user.image} user={user} />
+                      <div className="flex-1 text-foreground">@{username}</div>
+                      {incomingSelectMode ? null : (
+                        <FriendActionButton
+                          targetUserId={user.id}
+                          targetUserName={`@${username}`}
+                          relationship={{
+                            state: 'PENDING_INCOMING',
+                            friendshipId: null,
+                            incomingRequestId: request.id,
+                            outgoingRequestId: null,
+                          }}
+                          variant="compact"
+                          onStateChange={handleIncomingTransition(
+                            request.id,
+                            user,
+                          )}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
 
-            {outgoingState.length > 0 ? (
-              <section id="outgoing-requests">
-                <h2 className="text-lg font-semibold">
-                  {t('friends.outgoingRequests')}
-                </h2>
-                <div className="mt-2 flex items-center justify-between">
-                  <div className="text-xs text-muted-foreground">
-                    {outgoingSelectMode
-                      ? `${selectedOutgoing.size} selected`
-                      : `${outgoingState.length} pending`}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setOutgoingSelectMode((v) => !v);
-                        setSelectedOutgoing(new Set());
-                      }}
-                    >
-                      {outgoingSelectMode ? 'Done' : 'Select'}
-                    </Button>
-                  </div>
+          {outgoingState.length > 0 ? (
+            <section id="outgoing-requests">
+              <h2 className="text-lg font-semibold">
+                {t('friends.outgoingRequests')}
+              </h2>
+              <div className="mt-2 flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">
+                  {outgoingSelectMode
+                    ? `${selectedOutgoing.size} selected`
+                    : `${outgoingState.length} pending`}
                 </div>
-                <ul className="mt-3 space-y-3">
-                  {outgoingState
-                    .filter((r) => {
-                      const term = q.trim().toLowerCase();
-                      if (!term) return true;
-                      const u = r.toUser;
-                      return u.username.toLowerCase().includes(term);
-                    })
-                    .map((request) => {
-                    const user = request.toUser;
-                    const username = user.username;
-                    const selected = selectedOutgoing.has(request.id);
-                    return (
-                      <li
-                        key={request.id}
-                        className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setOutgoingSelectMode((v) => !v);
+                      setSelectedOutgoing(new Set());
+                    }}
+                  >
+                    {outgoingSelectMode ? 'Done' : 'Select'}
+                  </Button>
+                </div>
+              </div>
+              <ul className="mt-3 space-y-3">
+                {outgoingState.map((request) => {
+                  const user = request.toUser;
+                  const username = user.username;
+                  const selected = selectedOutgoing.has(request.id);
+                  return (
+                    <li
+                      key={request.id}
+                      className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
+                    >
+                      {outgoingSelectMode ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select @${username}`}
+                          checked={selected}
+                          onChange={(e) => {
+                            setSelectedOutgoing((prev) => {
+                              const next = new Set(prev);
+                              if (e.currentTarget.checked) next.add(request.id);
+                              else next.delete(request.id);
+                              return next;
+                            });
+                          }}
+                          className="h-4 w-4"
+                        />
+                      ) : null}
+                      <Avatar size="s" image={user.image} user={user} />
+                      <div className="flex-1 text-foreground">@{username}</div>
+                      {outgoingSelectMode ? null : (
+                        <FriendActionButton
+                          targetUserId={user.id}
+                          targetUserName={`@${username}`}
+                          relationship={{
+                            state: 'PENDING_OUTGOING',
+                            friendshipId: null,
+                            incomingRequestId: null,
+                            outgoingRequestId: request.id,
+                          }}
+                          variant="compact"
+                          onStateChange={handleOutgoingTransition(
+                            request.id,
+                            user,
+                          )}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+          {anySelected ? (
+            <div className="sticky bottom-0 z-10 mt-4 rounded-t-xl border border-border bg-card p-3 shadow-lg">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm text-muted-foreground">
+                  {selectedIncoming.size + selectedOutgoing.size} selected
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedIncoming.size > 0 ? (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          const ids = Array.from(selectedIncoming);
+                          await batchAccept(ids);
+                          resetSelection();
+                        }}
                       >
-                        {outgoingSelectMode ? (
-                          <input
-                            type="checkbox"
-                            aria-label={`Select @${username}`}
-                            checked={selected}
-                            onChange={(e) => {
-                              setSelectedOutgoing((prev) => {
-                                const next = new Set(prev);
-                                if (e.currentTarget.checked) next.add(request.id);
-                                else next.delete(request.id);
-                                return next;
-                              });
-                            }}
-                            className="h-4 w-4"
-                          />
-                        ) : null}
-                        <Avatar size="s" image={user.image} user={user} />
-                        <div className="flex-1 text-foreground">@{username}</div>
-                        {outgoingSelectMode ? null : (
-                          <FriendActionButton
-                            targetUserId={user.id}
-                            targetUserName={`@${username}`}
-                            relationship={{
-                              state: 'PENDING_OUTGOING',
-                              friendshipId: null,
-                              incomingRequestId: null,
-                              outgoingRequestId: request.id,
-                            }}
-                            variant="compact"
-                            onStateChange={handleOutgoingTransition(
-                              request.id,
-                              user,
-                            )}
-                          />
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ) : null}
-            {anySelected ? (
-              <div className="sticky bottom-0 z-10 mt-4 rounded-t-xl border border-border bg-card p-3 shadow-lg">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-sm text-muted-foreground">
-                    {selectedIncoming.size + selectedOutgoing.size} selected
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {selectedIncoming.size > 0 ? (
-                      <>
-                        <Button
-                          size="sm"
-                          onClick={async () => {
-                            const ids = Array.from(selectedIncoming);
-                            await batchAccept(ids);
-                            resetSelection();
-                          }}
-                        >
-                          Accept ({selectedIncoming.size})
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={async () => {
-                            const ids = Array.from(selectedIncoming);
-                            await batchDecline(ids);
-                            resetSelection();
-                          }}
-                        >
-                          Decline ({selectedIncoming.size})
-                        </Button>
-                      </>
-                    ) : null}
-                    {selectedOutgoing.size > 0 ? (
+                        Accept ({selectedIncoming.size})
+                      </Button>
                       <Button
                         size="sm"
                         variant="secondary"
                         onClick={async () => {
-                          const ids = Array.from(selectedOutgoing);
-                          await batchCancel(ids);
+                          const ids = Array.from(selectedIncoming);
+                          await batchDecline(ids);
                           resetSelection();
                         }}
                       >
-                        Cancel ({selectedOutgoing.size})
+                        Decline ({selectedIncoming.size})
                       </Button>
-                    ) : null}
-                  </div>
+                    </>
+                  ) : null}
+                  {selectedOutgoing.size > 0 ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={async () => {
+                        const ids = Array.from(selectedOutgoing);
+                        await batchCancel(ids);
+                        resetSelection();
+                      }}
+                    >
+                      Cancel ({selectedOutgoing.size})
+                    </Button>
+                  ) : null}
                 </div>
               </div>
-            ) : null}
-            {incomingState.length === 0 && outgoingState.length === 0 ? (
-              <EmptyState
-                title="No requests"
-                description="You don't have any incoming or outgoing requests."
-              />
-            ) : null}
+            </div>
+          ) : null}
+          {incomingState.length === 0 && outgoingState.length === 0 ? (
+            <EmptyState
+              title="No requests"
+              description="You don't have any incoming or outgoing requests."
+            />
+          ) : null}
         </div>
 
         {/* Friends: visible on mobile when tab=friends; always visible on desktop */}
         {friendsState.length > 0 ? (
-          <section className={cn(activeTab !== 'friends' ? 'hidden sm:block' : undefined)}>
+          <section
+            className={cn(
+              activeTab !== 'friends' ? 'hidden sm:block' : undefined,
+            )}
+          >
             <h2 className="text-lg font-semibold">{t('friends.friends')}</h2>
             {(() => {
               const filtered = friendsState.filter((f) => {
-                const term = q.trim().toLowerCase();
+                const term = friendsFilter.trim().toLowerCase();
                 if (!term) return true;
                 const u = f.user;
                 return (
@@ -628,88 +655,119 @@ const FriendsRoute = () => {
                           key={friend.friendshipId}
                           open={openSwipeId === friend.friendshipId}
                           onOpen={() => setOpenSwipeId(friend.friendshipId)}
-                          onClose={() => setOpenSwipeId((id) => (id === friend.friendshipId ? null : id))}
-                          onRemove={async () => {
-                            try {
-                              const res = await fetch('/api/friends/remove', {
-                                method: 'POST',
-                                credentials: 'same-origin',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ userId: user.id }),
-                              })
-                              if (!res.ok) throw new Error('remove failed')
-                              setFriendsState((prev) => prev.filter((f) => f.friendshipId !== friend.friendshipId))
-                              toast.success(`Removed ${displayName}`)
-                            } catch {
-                              toast.error('Unable to remove friend')
-                            }
-                          }}
-                          rightActions={
-                            <div className="flex h-full items-center gap-1 pr-2">
-                              <Button asChild size="sm" variant="secondary" className="hidden sm:inline-flex">
-                                <Link to={`/users/${user.username}`}>{t('friends.viewProfile')}</Link>
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button size="sm" variant="ghost">⋯</Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem asChild>
-                                    <Link to={`/users/${user.username}`}>{t('friends.viewProfile')}</Link>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onSelect={() => void (async () => {
-                                    try {
-                                      const res = await fetch('/api/friends/remove', {
-                                        method: 'POST',
-                                        credentials: 'same-origin',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ userId: user.id }),
-                                      })
-                                      if (!res.ok) throw new Error('remove failed')
-                                      setFriendsState((prev) => prev.filter((f) => f.friendshipId !== friend.friendshipId))
-                                      toast.success(`Removed ${displayName}`)
-                                    } catch {
-                                      toast.error('Unable to remove friend')
-                                    }
-                                  })()}>
-                                    Remove
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
+                          onClose={() =>
+                            setOpenSwipeId((id) =>
+                              id === friend.friendshipId ? null : id,
+                            )
                           }
+                          onRemove={async () => {}}
+                          rightActions={null}
                         >
                           <Avatar size="s" image={user.image} user={user} />
                           <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium text-foreground">{displayName}</div>
-                            <div className="truncate text-sm text-muted-foreground">@{user.username}</div>
+                            <div className="truncate font-medium text-foreground">
+                              {displayName}
+                            </div>
+                            <div className="truncate text-sm text-muted-foreground">
+                              @{user.username}
+                            </div>
                             {chips.length > 0 ? (
                               <div className="mt-1 flex flex-wrap gap-1">
                                 {chips.map((g) => (
-                                  <span key={g.id} className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">{g.name}</span>
+                                  <span
+                                    key={g.id}
+                                    className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
+                                  >
+                                    {g.name}
+                                  </span>
                                 ))}
                                 {mu && mu.more > 0 ? (
-                                  <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">+{mu.more}</span>
+                                  <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+                                    +{mu.more}
+                                  </span>
                                 ) : null}
                               </div>
                             ) : null}
-                            <Link to={`/users/${user.username}`} className="mt-1 inline-block text-xs text-primary hover:underline sm:hidden">{t('friends.viewProfile')}</Link>
                           </div>
-                          <FriendActionButton
-                            targetUserId={user.id}
-                            targetUserName={displayName}
-                            relationship={{
-                              state: 'FRIENDS',
-                              friendshipId: friend.friendshipId,
-                              incomingRequestId: null,
-                              outgoingRequestId: null,
-                            }}
-                            variant="compact"
-                            onStateChange={handleFriendTransition(
-                              friend.friendshipId,
-                              user.id,
-                            )}
-                          />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              asChild
+                              size="sm"
+                              variant="default"
+                              aria-label={t('friends.viewWishlist')}
+                            >
+                              <Link to={`/users/${user.username}/wishlist`}>
+                                <LuHeart />
+                                <span className="ml-2 hidden sm:inline">
+                                  {t('friends.viewWishlist')}
+                                </span>
+                              </Link>
+                            </Button>
+                            <Button
+                              asChild
+                              size="sm"
+                              variant="secondary"
+                              aria-label={t('friends.viewProfile')}
+                            >
+                              <Link to={`/users/${user.username}`}>
+                                <LuUser />
+                                <span className="ml-2 hidden sm:inline">
+                                  {t('friends.viewProfile')}
+                                </span>
+                              </Link>
+                            </Button>
+                            <ConfirmDialog
+                              title={t('friends.removeConfirmTitle')}
+                              description={
+                                <p className="text-sm text-muted-foreground">
+                                  {t('friends.removeConfirmDescription', {
+                                    name: displayName,
+                                  })}
+                                </p>
+                              }
+                              confirmText={t('friends.removeConfirmConfirm')}
+                              onConfirm={async () => {
+                                try {
+                                  const res = await fetch(
+                                    '/api/friends/remove',
+                                    {
+                                      method: 'POST',
+                                      credentials: 'same-origin',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                      },
+                                      body: JSON.stringify({ userId: user.id }),
+                                    },
+                                  );
+                                  if (!res.ok) throw new Error('remove failed');
+                                  setFriendsState((prev) =>
+                                    prev.filter(
+                                      (f) =>
+                                        f.friendshipId !== friend.friendshipId,
+                                    ),
+                                  );
+                                  toast.success(
+                                    t('friends.removeSuccess', {
+                                      name: displayName,
+                                    }),
+                                  );
+                                } catch {
+                                  toast.error(t('toasts.genericError'));
+                                }
+                              }}
+                            >
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                aria-label={t('friends.remove')}
+                              >
+                                <LuTrash />
+                                <span className="ml-2 hidden sm:inline">
+                                  {t('friends.remove')}
+                                </span>
+                              </Button>
+                            </ConfirmDialog>
+                          </div>
                         </SwipeableFriendRow>
                       );
                     }}
@@ -728,88 +786,116 @@ const FriendsRoute = () => {
                         key={friend.friendshipId}
                         open={openSwipeId === friend.friendshipId}
                         onOpen={() => setOpenSwipeId(friend.friendshipId)}
-                        onClose={() => setOpenSwipeId((id) => (id === friend.friendshipId ? null : id))}
-                        onRemove={async () => {
-                          try {
-                            const res = await fetch('/api/friends/remove', {
-                              method: 'POST',
-                              credentials: 'same-origin',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ userId: user.id }),
-                            })
-                            if (!res.ok) throw new Error('remove failed')
-                            setFriendsState((prev) => prev.filter((f) => f.friendshipId !== friend.friendshipId))
-                            toast.success(`Removed ${displayName}`)
-                          } catch {
-                            toast.error('Unable to remove friend')
-                          }
-                        }}
-                        rightActions={
-                          <div className="flex h-full items-center gap-1 pr-2">
-                            <Button asChild size="sm" variant="secondary" className="hidden sm:inline-flex">
-                              <Link to={`/users/${user.username}`}>{t('friends.viewProfile')}</Link>
-                            </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button size="sm" variant="ghost">⋯</Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                  <Link to={`/users/${user.username}`}>{t('friends.viewProfile')}</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => void (async () => {
-                                  try {
-                                    const res = await fetch('/api/friends/remove', {
-                                      method: 'POST',
-                                      credentials: 'same-origin',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ userId: user.id }),
-                                    })
-                                    if (!res.ok) throw new Error('remove failed')
-                                    setFriendsState((prev) => prev.filter((f) => f.friendshipId !== friend.friendshipId))
-                                    toast.success(`Removed ${displayName}`)
-                                  } catch {
-                                    toast.error('Unable to remove friend')
-                                  }
-                                })()}>
-                                  Remove
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
+                        onClose={() =>
+                          setOpenSwipeId((id) =>
+                            id === friend.friendshipId ? null : id,
+                          )
                         }
+                        onRemove={async () => {}}
+                        rightActions={null}
                       >
                         <Avatar size="s" image={user.image} user={user} />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-foreground truncate">{displayName}</div>
-                          <div className="text-sm text-muted-foreground truncate">@{user.username}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium text-foreground">
+                            {displayName}
+                          </div>
+                          <div className="truncate text-sm text-muted-foreground">
+                            @{user.username}
+                          </div>
                           {chips.length > 0 ? (
                             <div className="mt-1 flex flex-wrap gap-1">
                               {chips.map((g) => (
-                                <span key={g.id} className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">{g.name}</span>
+                                <span
+                                  key={g.id}
+                                  className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
+                                >
+                                  {g.name}
+                                </span>
                               ))}
                               {mu && mu.more > 0 ? (
-                                <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">+{mu.more}</span>
+                                <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+                                  +{mu.more}
+                                </span>
                               ) : null}
                             </div>
                           ) : null}
-                          <Link to={`/users/${user.username}`} className="mt-1 inline-block text-xs text-primary hover:underline sm:hidden">{t('friends.viewProfile')}</Link>
                         </div>
-                        <FriendActionButton
-                          targetUserId={user.id}
-                          targetUserName={displayName}
-                          relationship={{
-                            state: 'FRIENDS',
-                            friendshipId: friend.friendshipId,
-                            incomingRequestId: null,
-                            outgoingRequestId: null,
-                          }}
-                          variant="compact"
-                          onStateChange={handleFriendTransition(
-                            friend.friendshipId,
-                            user.id,
-                          )}
-                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="default"
+                            aria-label={t('friends.viewWishlist')}
+                          >
+                            <Link to={`/users/${user.username}/wishlist`}>
+                              <LuHeart />
+                              <span className="ml-2 hidden sm:inline">
+                                {t('friends.viewWishlist')}
+                              </span>
+                            </Link>
+                          </Button>
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="secondary"
+                            aria-label={t('friends.viewProfile')}
+                          >
+                            <Link to={`/users/${user.username}`}>
+                              <LuUser />
+                              <span className="ml-2 hidden sm:inline">
+                                {t('friends.viewProfile')}
+                              </span>
+                            </Link>
+                          </Button>
+                          <ConfirmDialog
+                            title={t('friends.removeConfirmTitle')}
+                            description={
+                              <p className="text-sm text-muted-foreground">
+                                {t('friends.removeConfirmDescription', {
+                                  name: displayName,
+                                })}
+                              </p>
+                            }
+                            confirmText={t('friends.removeConfirmConfirm')}
+                            onConfirm={async () => {
+                              try {
+                                const res = await fetch('/api/friends/remove', {
+                                  method: 'POST',
+                                  credentials: 'same-origin',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({ userId: user.id }),
+                                });
+                                if (!res.ok) throw new Error('remove failed');
+                                setFriendsState((prev) =>
+                                  prev.filter(
+                                    (f) =>
+                                      f.friendshipId !== friend.friendshipId,
+                                  ),
+                                );
+                                toast.success(
+                                  t('friends.removeSuccess', {
+                                    name: displayName,
+                                  }),
+                                );
+                              } catch {
+                                toast.error(t('toasts.genericError'));
+                              }
+                            }}
+                          >
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              aria-label={t('friends.remove')}
+                            >
+                              <LuTrash />
+                              <span className="ml-2 hidden sm:inline">
+                                {t('friends.remove')}
+                              </span>
+                            </Button>
+                          </ConfirmDialog>
+                        </div>
                       </SwipeableFriendRow>
                     );
                   })}
@@ -896,7 +982,8 @@ function VirtualizedFriendsList({
       setViewport((v) => ({ ...v, height: el.clientHeight }));
     });
     ro.observe(el);
-    const onScroll = () => setViewport((v) => ({ ...v, scrollTop: el.scrollTop }));
+    const onScroll = () =>
+      setViewport((v) => ({ ...v, scrollTop: el.scrollTop }));
     el.addEventListener('scroll', onScroll, { passive: true });
     // initialize
     setViewport({ height: el.clientHeight, scrollTop: el.scrollTop });
@@ -908,7 +995,10 @@ function VirtualizedFriendsList({
 
   const total = items.length * rowHeight;
   const overscan = 8;
-  const start = Math.max(0, Math.floor(viewport.scrollTop / rowHeight) - overscan);
+  const start = Math.max(
+    0,
+    Math.floor(viewport.scrollTop / rowHeight) - overscan,
+  );
   const end = Math.min(
     items.length,
     Math.ceil((viewport.scrollTop + viewport.height) / rowHeight) + overscan,
@@ -924,7 +1014,13 @@ function VirtualizedFriendsList({
           return (
             <div
               key={item.friendshipId}
-              style={{ position: 'absolute', top, left: 0, right: 0, height: rowHeight }}
+              style={{
+                position: 'absolute',
+                top,
+                left: 0,
+                right: 0,
+                height: rowHeight,
+              }}
             >
               {renderRow(item)}
             </div>
@@ -984,7 +1080,9 @@ function SwipeableFriendRow({
           deltaX.current = 0;
         }}
       >
-        <div className="pointer-events-auto flex items-center gap-4">{children}</div>
+        <div className="pointer-events-auto flex items-center gap-4">
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -1138,44 +1236,51 @@ function AddFriendsPanel({
   useEffect(() => {
     void (async () => {
       try {
-        const res = await fetch('/api/friends/invite', { method: 'POST', credentials: 'same-origin' })
-        if (!res.ok) return
-        const data = (await res.json()) as { inviteUrl: string }
-        setInviteUrl(data.inviteUrl)
+        const res = await fetch('/api/friends/invite', {
+          method: 'POST',
+          credentials: 'same-origin',
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { inviteUrl: string };
+        setInviteUrl(data.inviteUrl);
       } catch {}
-    })()
-  }, [])
+    })();
+  }, []);
 
   // Rotate/disable removed in Add tab to simplify UX
 
   const shareInvite = useCallback(async () => {
-    if (!inviteUrl) return
-    const shareData = { title: 'Add me on GiftPool', text: 'Let’s connect on GiftPool!', url: inviteUrl }
+    if (!inviteUrl) return;
+    const shareData = {
+      title: 'Add me on GiftPool',
+      text: 'Let’s connect on GiftPool!',
+      url: inviteUrl,
+    };
     if (navigator.share) {
       try {
-        await navigator.share(shareData)
-        return
+        await navigator.share(shareData);
+        return;
       } catch {}
     }
     try {
-      await navigator.clipboard.writeText(inviteUrl)
-      toast.success('Friend invite link copied')
+      await navigator.clipboard.writeText(inviteUrl);
+      toast.success('Friend invite link copied');
     } catch {
-      toast.error('Unable to copy link')
+      toast.error('Unable to copy link');
     }
-  }, [inviteUrl])
+  }, [inviteUrl]);
 
   const openQr = useCallback(async () => {
-    if (!inviteUrl) return
+    if (!inviteUrl) return;
     try {
-      const mod: any = await import('qrcode')
-      const url = await mod.toDataURL(inviteUrl, { margin: 1, scale: 6 })
-      setQrDataUrl(url)
-      setQrOpen(true)
+      const mod: any = await import('qrcode');
+      const url = await mod.toDataURL(inviteUrl, { margin: 1, scale: 6 });
+      setQrDataUrl(url);
+      setQrOpen(true);
     } catch {
-      toast.error('Unable to generate QR code')
+      toast.error('Unable to generate QR code');
     }
-  }, [inviteUrl])
+  }, [inviteUrl]);
 
   const hasResults = useMemo(() => results.length > 0, [results.length]);
   const showEmpty = useMemo(
@@ -1279,23 +1384,26 @@ function AddFriendsPanel({
                     toast.error('Unable to copy link');
                   }
                 }}
-                className="flex-1 min-w-[120px] sm:flex-none"
+                className="min-w-[120px] flex-1 sm:flex-none"
               >
-                <Icon name="copy" />
+                <LuCopy />
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => void openQr()}
-                className="flex-1 min-w-[120px] sm:flex-none"
+                className="min-w-[120px] flex-1 sm:flex-none"
               >
-                Show QR
+                <LuQrCode className="md:mr-2" />
+                <Text size="sm" className="hidden md:block">
+                  Show QR
+                </Text>
               </Button>
             </div>
           </div>
         ) : (
           <Button onClick={() => void createInvite()} className="w-full">
-            <Icon name="link-2" className="mr-2" /> Create Friend Link
+            <LuLink className="mr-2" /> Create Friend Link
           </Button>
         )}
       </div>
@@ -1308,12 +1416,16 @@ function AddFriendsPanel({
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-2">
             {qrDataUrl ? (
-              <img src={qrDataUrl} alt="Friend invite QR" className="h-48 w-48" />
+              <img
+                src={qrDataUrl}
+                alt="Friend invite QR"
+                className="h-48 w-48"
+              />
             ) : (
               <Skeleton className="h-48 w-48" />
             )}
             {inviteUrl ? (
-              <div className="text-xs text-muted-foreground break-all text-center max-w-full">
+              <div className="max-w-full break-all text-center text-xs text-muted-foreground">
                 {inviteUrl}
               </div>
             ) : null}
@@ -1326,11 +1438,11 @@ function AddFriendsPanel({
               <Button
                 onClick={async () => {
                   try {
-                    if (!inviteUrl) return
-                    await navigator.clipboard.writeText(inviteUrl)
-                    toast.success('Friend invite link copied')
+                    if (!inviteUrl) return;
+                    await navigator.clipboard.writeText(inviteUrl);
+                    toast.success('Friend invite link copied');
                   } catch {
-                    toast.error('Unable to copy link')
+                    toast.error('Unable to copy link');
                   }
                 }}
               >

@@ -43,13 +43,15 @@ export const en = {
     remove: 'Remove friend',
     removeAria: 'Remove {{name}} from friends',
     removeConfirmTitle: 'Remove friend',
-    removeConfirmDescription: 'Are you sure you want to remove {{name}} from your friends list?',
+    removeConfirmDescription:
+      'Are you sure you want to remove {{name}} from your friends list?',
     removeConfirmCancel: 'Keep friend',
     removeConfirmConfirm: 'Remove',
     listTitle: 'Friends',
     listDescription: 'See the people you have connected with across GiftPool.',
     emptyTitle: 'No friends yet',
-    emptyDescription: 'Find people in your groups and send them a friend request.',
+    emptyDescription:
+      'Find people in your groups and send them a friend request.',
     emptyCta: 'Browse groups',
     incomingRequests: 'Incoming requests',
     outgoingRequests: 'Outgoing requests',
@@ -59,6 +61,7 @@ export const en = {
     cancelSuccess: 'Friend request cancelled.',
     sendSuccess: 'Friend request sent.',
     viewProfile: 'View profile',
+    viewWishlist: 'View wishlist',
   },
   time: {
     justNow: 'just now',

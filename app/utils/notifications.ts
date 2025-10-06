@@ -1,51 +1,49 @@
 export type NotificationType =
   | 'FRIEND_REQUEST_RECEIVED'
   | 'FRIEND_REQUEST_ACCEPTED'
-  | 'UPCOMING_BIRTHDAY'
+  | 'UPCOMING_BIRTHDAY';
 
-export type NotificationStatus = 'UNREAD' | 'READ' | 'ARCHIVED'
+export type NotificationStatus = 'UNREAD' | 'READ' | 'ARCHIVED';
 
 export interface NotificationAction {
-  kind: 'FRIEND_ACCEPT' | 'FRIEND_REJECT'
-  label: string
+  kind: 'FRIEND_ACCEPT' | 'FRIEND_REJECT';
+  label: string;
 }
 
 export interface Notification {
-  id: string
-  type: NotificationType
-  status: NotificationStatus
-  message: string
-  targetUrl?: string
-  createdAt: string
-  actions?: NotificationAction[]
+  id: string;
+  type: NotificationType;
+  status: NotificationStatus;
+  message: string;
+  targetUrl?: string;
+  createdAt: string;
+  actions?: NotificationAction[];
   metadata?: {
-    senderUserId?: string
-    senderDisplayName?: string
-    senderAvatarUrl?: string
-  }
+    senderUserId?: string;
+    senderDisplayName?: string;
+    senderAvatarUrl?: string;
+  };
 }
 
 export function markNotificationRead(
   notifications: Notification[],
   id: string,
 ): void {
-  const n = notifications.find((n) => n.id === id)
+  const n = notifications.find((n) => n.id === id);
   if (n) {
-    n.status = 'READ'
+    n.status = 'READ';
   }
 }
 
-export function markAllNotificationsRead(
-  notifications: Notification[],
-): void {
+export function markAllNotificationsRead(notifications: Notification[]): void {
   notifications.forEach((n) => {
-    n.status = 'READ'
-  })
+    n.status = 'READ';
+  });
 }
 
 export function createFriendRequestNotification(opts: {
-  toUserId: string
-  from: { id: string; displayName?: string; avatarUrl?: string }
+  toUserId: string;
+  from: { id: string; displayName?: string; avatarUrl?: string };
 }): Notification {
   return {
     id: crypto.randomUUID(),
@@ -63,5 +61,5 @@ export function createFriendRequestNotification(opts: {
       senderDisplayName: opts.from.displayName,
       senderAvatarUrl: opts.from.avatarUrl,
     },
-  }
+  };
 }

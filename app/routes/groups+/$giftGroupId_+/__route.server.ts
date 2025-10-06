@@ -6,6 +6,7 @@ import {
   type LoaderFunctionArgs,
 } from '@remix-run/node';
 
+import { type RelationshipState } from '#app/utils/friends.ts';
 import {
   CreateInviteLinkFormSchema,
   DeleteFormSchema,
@@ -15,7 +16,6 @@ import {
   LockPlanFormSchema,
   PlanGiftFormSchema,
 } from './__route.shared';
-import type { RelationshipState } from '#app/utils/friends.ts';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
@@ -296,12 +296,15 @@ export async function action({ request }: ActionFunctionArgs) {
         orderBy: { createdAt: 'desc' },
       });
       const inviteUrl = latest ? getInviteLink(latest.code, request) : null;
-      return json({ ...submission.reply(), inviteUrl }, {
-        headers: await createToastHeaders({
-          description: 'Invite link has been created.',
-          type: 'success',
-        }),
-      });
+      return json(
+        { ...submission.reply(), inviteUrl },
+        {
+          headers: await createToastHeaders({
+            description: 'Invite link has been created.',
+            type: 'success',
+          }),
+        },
+      );
     }
 
     case GiftGroupIdFormIntent.DestroyInviteLink:

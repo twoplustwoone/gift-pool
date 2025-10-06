@@ -2,30 +2,30 @@ export type FriendRequestStatus =
   | 'PENDING'
   | 'ACCEPTED'
   | 'REJECTED'
-  | 'CANCELLED'
+  | 'CANCELLED';
 
 export interface FriendRequest {
-  id: string
-  fromUserId: string
-  toUserId: string
-  status: FriendRequestStatus
-  createdAt: string
-  updatedAt: string
-  notificationId?: string | null
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  status: FriendRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+  notificationId?: string | null;
 }
 
 export interface Friendship {
-  id?: string
-  userAId: string
-  userBId: string
-  createdAt: string
+  id?: string;
+  userAId: string;
+  userBId: string;
+  createdAt: string;
 }
 
 export type RelationshipState =
   | 'NONE'
   | 'PENDING_INCOMING'
   | 'PENDING_OUTGOING'
-  | 'FRIENDS'
+  | 'FRIENDS';
 
 // In-memory helpers for friend management. In the real application these
 // would be backed by database calls. The helpers mutate the provided arrays so
@@ -45,7 +45,7 @@ export function sendFriendRequest(
         (f.userAId === toUserId && f.userBId === fromUserId),
     )
   ) {
-    throw new Error('Users are already friends')
+    throw new Error('Users are already friends');
   }
   if (
     requests.some(
@@ -55,9 +55,9 @@ export function sendFriendRequest(
           (r.fromUserId === toUserId && r.toUserId === fromUserId)),
     )
   ) {
-    throw new Error('There is already a pending request')
+    throw new Error('There is already a pending request');
   }
-  const now = new Date().toISOString()
+  const now = new Date().toISOString();
   const request: FriendRequest = {
     id: crypto.randomUUID(),
     fromUserId,
@@ -65,9 +65,9 @@ export function sendFriendRequest(
     status: 'PENDING',
     createdAt: now,
     updatedAt: now,
-  }
-  requests.push(request)
-  return request
+  };
+  requests.push(request);
+  return request;
 }
 
 export function acceptFriendRequest(
@@ -75,29 +75,29 @@ export function acceptFriendRequest(
   friendships: Friendship[],
   requestId: string,
 ): void {
-  const req = requests.find((r) => r.id === requestId)
+  const req = requests.find((r) => r.id === requestId);
   if (!req || req.status !== 'PENDING') {
-    throw new Error('Pending request not found')
+    throw new Error('Pending request not found');
   }
-  req.status = 'ACCEPTED'
-  req.updatedAt = new Date().toISOString()
+  req.status = 'ACCEPTED';
+  req.updatedAt = new Date().toISOString();
   friendships.push({
     userAId: req.fromUserId,
     userBId: req.toUserId,
     createdAt: new Date().toISOString(),
-  })
+  });
 }
 
 export function rejectFriendRequest(
   requests: FriendRequest[],
   requestId: string,
 ): void {
-  const req = requests.find((r) => r.id === requestId)
+  const req = requests.find((r) => r.id === requestId);
   if (!req || req.status !== 'PENDING') {
-    throw new Error('Pending request not found')
+    throw new Error('Pending request not found');
   }
-  req.status = 'REJECTED'
-  req.updatedAt = new Date().toISOString()
+  req.status = 'REJECTED';
+  req.updatedAt = new Date().toISOString();
 }
 
 export function removeFriendship(
@@ -109,9 +109,9 @@ export function removeFriendship(
     (f) =>
       (f.userAId === userAId && f.userBId === userBId) ||
       (f.userAId === userBId && f.userBId === userAId),
-  )
+  );
   if (index >= 0) {
-    friendships.splice(index, 1)
+    friendships.splice(index, 1);
   }
 }
 
@@ -128,21 +128,21 @@ export function getRelationshipState(
         (f.userAId === otherUserId && f.userBId === currentUserId),
     )
   ) {
-    return 'FRIENDS'
+    return 'FRIENDS';
   }
   const incoming = requests.find(
     (r) =>
       r.status === 'PENDING' &&
       r.fromUserId === otherUserId &&
       r.toUserId === currentUserId,
-  )
-  if (incoming) return 'PENDING_INCOMING'
+  );
+  if (incoming) return 'PENDING_INCOMING';
   const outgoing = requests.find(
     (r) =>
       r.status === 'PENDING' &&
       r.fromUserId === currentUserId &&
       r.toUserId === otherUserId,
-  )
-  if (outgoing) return 'PENDING_OUTGOING'
-  return 'NONE'
+  );
+  if (outgoing) return 'PENDING_OUTGOING';
+  return 'NONE';
 }
