@@ -5,6 +5,7 @@ import {
 } from '@remix-run/node';
 import { Link, Outlet, useLoaderData, useSearchParams } from '@remix-run/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LuCopy, LuHeart, LuLink, LuTrash, LuUser } from 'react-icons/lu';
 import { toast } from 'sonner';
 import {
   FriendActionButton,
@@ -20,14 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#app/components/ui/dialog.tsx';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '#app/components/ui/dropdown-menu.tsx';
 import { EmptyState } from '#app/components/ui/empty-state.tsx';
-import { Icon } from '#app/components/ui/icon.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Skeleton } from '#app/components/ui/skeleton.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
@@ -657,93 +651,8 @@ const FriendsRoute = () => {
                               id === friend.friendshipId ? null : id,
                             )
                           }
-                          onRemove={async () => {
-                            try {
-                              const res = await fetch('/api/friends/remove', {
-                                method: 'POST',
-                                credentials: 'same-origin',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ userId: user.id }),
-                              });
-                              if (!res.ok) throw new Error('remove failed');
-                              setFriendsState((prev) =>
-                                prev.filter(
-                                  (f) => f.friendshipId !== friend.friendshipId,
-                                ),
-                              );
-                              toast.success(`Removed ${displayName}`);
-                            } catch {
-                              toast.error('Unable to remove friend');
-                            }
-                          }}
-                          rightActions={
-                            <div className="flex h-full items-center gap-1 pr-2">
-                              <Button
-                                asChild
-                                size="sm"
-                                variant="secondary"
-                                className="hidden sm:inline-flex"
-                              >
-                                <Link to={`/users/${user.username}`}>
-                                  {t('friends.viewProfile')}
-                                </Link>
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button size="sm" variant="ghost">
-                                    ⋯
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem asChild>
-                                    <Link to={`/users/${user.username}`}>
-                                      {t('friends.viewProfile')}
-                                    </Link>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onSelect={() =>
-                                      void (async () => {
-                                        try {
-                                          const res = await fetch(
-                                            '/api/friends/remove',
-                                            {
-                                              method: 'POST',
-                                              credentials: 'same-origin',
-                                              headers: {
-                                                'Content-Type':
-                                                  'application/json',
-                                              },
-                                              body: JSON.stringify({
-                                                userId: user.id,
-                                              }),
-                                            },
-                                          );
-                                          if (!res.ok)
-                                            throw new Error('remove failed');
-                                          setFriendsState((prev) =>
-                                            prev.filter(
-                                              (f) =>
-                                                f.friendshipId !==
-                                                friend.friendshipId,
-                                            ),
-                                          );
-                                          toast.success(
-                                            `Removed ${displayName}`,
-                                          );
-                                        } catch {
-                                          toast.error(
-                                            'Unable to remove friend',
-                                          );
-                                        }
-                                      })()
-                                    }
-                                  >
-                                    Remove
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          }
+                          onRemove={async () => {}}
+                          rightActions={null}
                         >
                           <Avatar size="s" image={user.image} user={user} />
                           <div className="min-w-0 flex-1">
@@ -770,28 +679,70 @@ const FriendsRoute = () => {
                                 ) : null}
                               </div>
                             ) : null}
-                            <Link
-                              to={`/users/${user.username}`}
-                              className="mt-1 inline-block text-xs text-primary hover:underline sm:hidden"
-                            >
-                              {t('friends.viewProfile')}
-                            </Link>
                           </div>
-                          <FriendActionButton
-                            targetUserId={user.id}
-                            targetUserName={displayName}
-                            relationship={{
-                              state: 'FRIENDS',
-                              friendshipId: friend.friendshipId,
-                              incomingRequestId: null,
-                              outgoingRequestId: null,
-                            }}
-                            variant="compact"
-                            onStateChange={handleFriendTransition(
-                              friend.friendshipId,
-                              user.id,
-                            )}
-                          />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              asChild
+                              size="sm"
+                              variant="default"
+                              aria-label={t('friends.viewWishlist')}
+                            >
+                              <Link to={`/users/${user.username}/wishlist`}>
+                                <LuHeart />
+                                <span className="ml-2 hidden sm:inline">
+                                  {t('friends.viewWishlist')}
+                                </span>
+                              </Link>
+                            </Button>
+                            <Button
+                              asChild
+                              size="sm"
+                              variant="secondary"
+                              aria-label={t('friends.viewProfile')}
+                            >
+                              <Link to={`/users/${user.username}`}>
+                                <LuUser />
+                                <span className="ml-2 hidden sm:inline">
+                                  {t('friends.viewProfile')}
+                                </span>
+                              </Link>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              aria-label={t('friends.remove')}
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch(
+                                    '/api/friends/remove',
+                                    {
+                                      method: 'POST',
+                                      credentials: 'same-origin',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                      },
+                                      body: JSON.stringify({ userId: user.id }),
+                                    },
+                                  );
+                                  if (!res.ok) throw new Error('remove failed');
+                                  setFriendsState((prev) =>
+                                    prev.filter(
+                                      (f) =>
+                                        f.friendshipId !== friend.friendshipId,
+                                    ),
+                                  );
+                                  toast.success(`Removed ${displayName}`);
+                                } catch {
+                                  toast.error('Unable to remove friend');
+                                }
+                              }}
+                            >
+                              <LuTrash />
+                              <span className="ml-2 hidden sm:inline">
+                                {t('friends.remove')}
+                              </span>
+                            </Button>
+                          </div>
                         </SwipeableFriendRow>
                       );
                     }}
@@ -815,89 +766,8 @@ const FriendsRoute = () => {
                             id === friend.friendshipId ? null : id,
                           )
                         }
-                        onRemove={async () => {
-                          try {
-                            const res = await fetch('/api/friends/remove', {
-                              method: 'POST',
-                              credentials: 'same-origin',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ userId: user.id }),
-                            });
-                            if (!res.ok) throw new Error('remove failed');
-                            setFriendsState((prev) =>
-                              prev.filter(
-                                (f) => f.friendshipId !== friend.friendshipId,
-                              ),
-                            );
-                            toast.success(`Removed ${displayName}`);
-                          } catch {
-                            toast.error('Unable to remove friend');
-                          }
-                        }}
-                        rightActions={
-                          <div className="flex h-full items-center gap-1 pr-2">
-                            <Button
-                              asChild
-                              size="sm"
-                              variant="secondary"
-                              className="hidden sm:inline-flex"
-                            >
-                              <Link to={`/users/${user.username}`}>
-                                {t('friends.viewProfile')}
-                              </Link>
-                            </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button size="sm" variant="ghost">
-                                  ⋯
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                  <Link to={`/users/${user.username}`}>
-                                    {t('friends.viewProfile')}
-                                  </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={() =>
-                                    void (async () => {
-                                      try {
-                                        const res = await fetch(
-                                          '/api/friends/remove',
-                                          {
-                                            method: 'POST',
-                                            credentials: 'same-origin',
-                                            headers: {
-                                              'Content-Type':
-                                                'application/json',
-                                            },
-                                            body: JSON.stringify({
-                                              userId: user.id,
-                                            }),
-                                          },
-                                        );
-                                        if (!res.ok)
-                                          throw new Error('remove failed');
-                                        setFriendsState((prev) =>
-                                          prev.filter(
-                                            (f) =>
-                                              f.friendshipId !==
-                                              friend.friendshipId,
-                                          ),
-                                        );
-                                        toast.success(`Removed ${displayName}`);
-                                      } catch {
-                                        toast.error('Unable to remove friend');
-                                      }
-                                    })()
-                                  }
-                                >
-                                  Remove
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        }
+                        onRemove={async () => {}}
+                        rightActions={null}
                       >
                         <Avatar size="s" image={user.image} user={user} />
                         <div className="min-w-0 flex-1">
@@ -924,28 +794,67 @@ const FriendsRoute = () => {
                               ) : null}
                             </div>
                           ) : null}
-                          <Link
-                            to={`/users/${user.username}`}
-                            className="mt-1 inline-block text-xs text-primary hover:underline sm:hidden"
-                          >
-                            {t('friends.viewProfile')}
-                          </Link>
                         </div>
-                        <FriendActionButton
-                          targetUserId={user.id}
-                          targetUserName={displayName}
-                          relationship={{
-                            state: 'FRIENDS',
-                            friendshipId: friend.friendshipId,
-                            incomingRequestId: null,
-                            outgoingRequestId: null,
-                          }}
-                          variant="compact"
-                          onStateChange={handleFriendTransition(
-                            friend.friendshipId,
-                            user.id,
-                          )}
-                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="default"
+                            aria-label={t('friends.viewWishlist')}
+                          >
+                            <Link to={`/users/${user.username}/wishlist`}>
+                              <LuHeart />
+                              <span className="ml-2 hidden sm:inline">
+                                {t('friends.viewWishlist')}
+                              </span>
+                            </Link>
+                          </Button>
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="secondary"
+                            aria-label={t('friends.viewProfile')}
+                          >
+                            <Link to={`/users/${user.username}`}>
+                              <LuUser />
+                              <span className="ml-2 hidden sm:inline">
+                                {t('friends.viewProfile')}
+                              </span>
+                            </Link>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            aria-label={t('friends.remove')}
+                            onClick={async () => {
+                              try {
+                                const res = await fetch('/api/friends/remove', {
+                                  method: 'POST',
+                                  credentials: 'same-origin',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({ userId: user.id }),
+                                });
+                                if (!res.ok) throw new Error('remove failed');
+                                setFriendsState((prev) =>
+                                  prev.filter(
+                                    (f) =>
+                                      f.friendshipId !== friend.friendshipId,
+                                  ),
+                                );
+                                toast.success(`Removed ${displayName}`);
+                              } catch {
+                                toast.error('Unable to remove friend');
+                              }
+                            }}
+                          >
+                            <LuTrash />
+                            <span className="ml-2 hidden sm:inline">
+                              {t('friends.remove')}
+                            </span>
+                          </Button>
+                        </div>
                       </SwipeableFriendRow>
                     );
                   })}
@@ -1436,7 +1345,7 @@ function AddFriendsPanel({
                 }}
                 className="min-w-[120px] flex-1 sm:flex-none"
               >
-                <Icon name="copy" />
+                <LuCopy />
               </Button>
               <Button
                 size="sm"
@@ -1450,7 +1359,7 @@ function AddFriendsPanel({
           </div>
         ) : (
           <Button onClick={() => void createInvite()} className="w-full">
-            <Icon name="link-2" className="mr-2" /> Create Friend Link
+            <LuLink className="mr-2" /> Create Friend Link
           </Button>
         )}
       </div>

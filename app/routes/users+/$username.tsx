@@ -15,7 +15,7 @@ import { Icon } from '#app/components/ui/icon.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getRelationshipDetails } from '#app/utils/friends.server.ts';
-import { requireUsersShareAGroup } from '#app/utils/groups.server.ts';
+import { requireUsersShareAGroupOrAreFriends } from '#app/utils/groups.server.ts';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useOptionalUser } from '#app/utils/user.ts';
 
@@ -23,7 +23,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const { username } = params;
 
   const userId = await requireUserId(request);
-  await requireUsersShareAGroup({ userId, username });
+  await requireUsersShareAGroupOrAreFriends({ userId, username });
 
   const user = await prisma.user.findFirst({
     select: {

@@ -59,6 +59,7 @@ export const en = {
     cancelSuccess: 'Friend request cancelled.',
     sendSuccess: 'Friend request sent.',
     viewProfile: 'View profile',
+    viewWishlist: 'View wishlist',
   },
   time: {
     justNow: 'just now',
