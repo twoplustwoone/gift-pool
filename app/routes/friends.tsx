@@ -5,7 +5,14 @@ import {
 } from '@remix-run/node';
 import { Link, Outlet, useLoaderData, useSearchParams } from '@remix-run/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LuCopy, LuHeart, LuLink, LuTrash, LuUser } from 'react-icons/lu';
+import {
+  LuCopy,
+  LuHeart,
+  LuLink,
+  LuQrCode,
+  LuTrash,
+  LuUser,
+} from 'react-icons/lu';
 import { toast } from 'sonner';
 import {
   FriendActionButton,
@@ -14,6 +21,7 @@ import {
 import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
+import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +33,6 @@ import { EmptyState } from '#app/components/ui/empty-state.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Skeleton } from '#app/components/ui/skeleton.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
-import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import {
   getIncomingFriendRequests,
@@ -712,23 +719,37 @@ const FriendsRoute = () => {
                               title={t('friends.removeConfirmTitle')}
                               description={
                                 <p className="text-sm text-muted-foreground">
-                                  {t('friends.removeConfirmDescription', { name: displayName })}
+                                  {t('friends.removeConfirmDescription', {
+                                    name: displayName,
+                                  })}
                                 </p>
                               }
                               confirmText={t('friends.removeConfirmConfirm')}
                               onConfirm={async () => {
                                 try {
-                                  const res = await fetch('/api/friends/remove', {
-                                    method: 'POST',
-                                    credentials: 'same-origin',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ userId: user.id }),
-                                  });
+                                  const res = await fetch(
+                                    '/api/friends/remove',
+                                    {
+                                      method: 'POST',
+                                      credentials: 'same-origin',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                      },
+                                      body: JSON.stringify({ userId: user.id }),
+                                    },
+                                  );
                                   if (!res.ok) throw new Error('remove failed');
                                   setFriendsState((prev) =>
-                                    prev.filter((f) => f.friendshipId !== friend.friendshipId),
+                                    prev.filter(
+                                      (f) =>
+                                        f.friendshipId !== friend.friendshipId,
+                                    ),
                                   );
-                                  toast.success(t('friends.removeSuccess', { name: displayName }));
+                                  toast.success(
+                                    t('friends.removeSuccess', {
+                                      name: displayName,
+                                    }),
+                                  );
                                 } catch {
                                   toast.error(t('toasts.genericError'));
                                 }
@@ -829,7 +850,9 @@ const FriendsRoute = () => {
                             title={t('friends.removeConfirmTitle')}
                             description={
                               <p className="text-sm text-muted-foreground">
-                                {t('friends.removeConfirmDescription', { name: displayName })}
+                                {t('friends.removeConfirmDescription', {
+                                  name: displayName,
+                                })}
                               </p>
                             }
                             confirmText={t('friends.removeConfirmConfirm')}
@@ -838,14 +861,23 @@ const FriendsRoute = () => {
                                 const res = await fetch('/api/friends/remove', {
                                   method: 'POST',
                                   credentials: 'same-origin',
-                                  headers: { 'Content-Type': 'application/json' },
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
                                   body: JSON.stringify({ userId: user.id }),
                                 });
                                 if (!res.ok) throw new Error('remove failed');
                                 setFriendsState((prev) =>
-                                  prev.filter((f) => f.friendshipId !== friend.friendshipId),
+                                  prev.filter(
+                                    (f) =>
+                                      f.friendshipId !== friend.friendshipId,
+                                  ),
                                 );
-                                toast.success(t('friends.removeSuccess', { name: displayName }));
+                                toast.success(
+                                  t('friends.removeSuccess', {
+                                    name: displayName,
+                                  }),
+                                );
                               } catch {
                                 toast.error(t('toasts.genericError'));
                               }
