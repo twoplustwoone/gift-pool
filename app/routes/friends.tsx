@@ -25,6 +25,7 @@ import { EmptyState } from '#app/components/ui/empty-state.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Skeleton } from '#app/components/ui/skeleton.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
+import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import {
   getIncomingFriendRequests,
@@ -707,41 +708,43 @@ const FriendsRoute = () => {
                                 </span>
                               </Link>
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              aria-label={t('friends.remove')}
-                              onClick={async () => {
+                            <ConfirmDialog
+                              title={t('friends.removeConfirmTitle')}
+                              description={
+                                <p className="text-sm text-muted-foreground">
+                                  {t('friends.removeConfirmDescription', { name: displayName })}
+                                </p>
+                              }
+                              confirmText={t('friends.removeConfirmConfirm')}
+                              onConfirm={async () => {
                                 try {
-                                  const res = await fetch(
-                                    '/api/friends/remove',
-                                    {
-                                      method: 'POST',
-                                      credentials: 'same-origin',
-                                      headers: {
-                                        'Content-Type': 'application/json',
-                                      },
-                                      body: JSON.stringify({ userId: user.id }),
-                                    },
-                                  );
+                                  const res = await fetch('/api/friends/remove', {
+                                    method: 'POST',
+                                    credentials: 'same-origin',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ userId: user.id }),
+                                  });
                                   if (!res.ok) throw new Error('remove failed');
                                   setFriendsState((prev) =>
-                                    prev.filter(
-                                      (f) =>
-                                        f.friendshipId !== friend.friendshipId,
-                                    ),
+                                    prev.filter((f) => f.friendshipId !== friend.friendshipId),
                                   );
-                                  toast.success(`Removed ${displayName}`);
+                                  toast.success(t('friends.removeSuccess', { name: displayName }));
                                 } catch {
-                                  toast.error('Unable to remove friend');
+                                  toast.error(t('toasts.genericError'));
                                 }
                               }}
                             >
-                              <LuTrash />
-                              <span className="ml-2 hidden sm:inline">
-                                {t('friends.remove')}
-                              </span>
-                            </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                aria-label={t('friends.remove')}
+                              >
+                                <LuTrash />
+                                <span className="ml-2 hidden sm:inline">
+                                  {t('friends.remove')}
+                                </span>
+                              </Button>
+                            </ConfirmDialog>
                           </div>
                         </SwipeableFriendRow>
                       );
@@ -822,38 +825,43 @@ const FriendsRoute = () => {
                               </span>
                             </Link>
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            aria-label={t('friends.remove')}
-                            onClick={async () => {
+                          <ConfirmDialog
+                            title={t('friends.removeConfirmTitle')}
+                            description={
+                              <p className="text-sm text-muted-foreground">
+                                {t('friends.removeConfirmDescription', { name: displayName })}
+                              </p>
+                            }
+                            confirmText={t('friends.removeConfirmConfirm')}
+                            onConfirm={async () => {
                               try {
                                 const res = await fetch('/api/friends/remove', {
                                   method: 'POST',
                                   credentials: 'same-origin',
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                  },
+                                  headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ userId: user.id }),
                                 });
                                 if (!res.ok) throw new Error('remove failed');
                                 setFriendsState((prev) =>
-                                  prev.filter(
-                                    (f) =>
-                                      f.friendshipId !== friend.friendshipId,
-                                  ),
+                                  prev.filter((f) => f.friendshipId !== friend.friendshipId),
                                 );
-                                toast.success(`Removed ${displayName}`);
+                                toast.success(t('friends.removeSuccess', { name: displayName }));
                               } catch {
-                                toast.error('Unable to remove friend');
+                                toast.error(t('toasts.genericError'));
                               }
                             }}
                           >
-                            <LuTrash />
-                            <span className="ml-2 hidden sm:inline">
-                              {t('friends.remove')}
-                            </span>
-                          </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              aria-label={t('friends.remove')}
+                            >
+                              <LuTrash />
+                              <span className="ml-2 hidden sm:inline">
+                                {t('friends.remove')}
+                              </span>
+                            </Button>
+                          </ConfirmDialog>
                         </div>
                       </SwipeableFriendRow>
                     );
