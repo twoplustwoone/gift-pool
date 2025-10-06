@@ -71,10 +71,10 @@ const FriendsRoute = () => {
       : 'friends';
   const initialQ = searchParams.get('q') ?? '';
   const [q, setQ] = useState(initialQ);
+  const [friendsFilter, setFriendsFilter] = useState('');
   useEffect(() => {
     setQ(initialQ);
   }, [initialQ]);
-  // Debounce updating q in URL so back/forward works nicely
   useEffect(() => {
     const tId = setTimeout(() => {
       const next = new URLSearchParams(searchParams);
@@ -357,8 +357,8 @@ const FriendsRoute = () => {
             {activeTab === 'friends' ? (
               <div className="sm:col-span-2">
                 <Input
-                  value={q}
-                  onChange={(e) => setQ(e.currentTarget.value)}
+                  value={friendsFilter}
+                  onChange={(e) => setFriendsFilter(e.currentTarget.value)}
                   placeholder={'Search friends'}
                   aria-label="Search"
                 />
@@ -436,63 +436,53 @@ const FriendsRoute = () => {
                 </div>
               </div>
               <ul className="mt-3 space-y-3">
-                {incomingState
-                  .filter((r) => {
-                    const term = q.trim().toLowerCase();
-                    if (!term) return true;
-                    const u = r.fromUser;
-                    return u.username.toLowerCase().includes(term);
-                  })
-                  .map((request) => {
-                    const user = request.fromUser;
-                    const username = user.username;
-                    const selected = selectedIncoming.has(request.id);
-                    return (
-                      <li
-                        key={request.id}
-                        className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
-                      >
-                        {incomingSelectMode ? (
-                          <input
-                            type="checkbox"
-                            aria-label={`Select @${username}`}
-                            checked={selected}
-                            onChange={(e) => {
-                              setSelectedIncoming((prev) => {
-                                const next = new Set(prev);
-                                if (e.currentTarget.checked)
-                                  next.add(request.id);
-                                else next.delete(request.id);
-                                return next;
-                              });
-                            }}
-                            className="h-4 w-4"
-                          />
-                        ) : null}
-                        <Avatar size="s" image={user.image} user={user} />
-                        <div className="flex-1 text-foreground">
-                          @{username}
-                        </div>
-                        {incomingSelectMode ? null : (
-                          <FriendActionButton
-                            targetUserId={user.id}
-                            targetUserName={`@${username}`}
-                            relationship={{
-                              state: 'PENDING_INCOMING',
-                              friendshipId: null,
-                              incomingRequestId: request.id,
-                              outgoingRequestId: null,
-                            }}
-                            variant="compact"
-                            onStateChange={handleIncomingTransition(
-                              request.id,
-                              user,
-                            )}
-                          />
-                        )}
-                      </li>
-                    );
-                  })}
+                {incomingState.map((request) => {
+                  const user = request.fromUser;
+                  const username = user.username;
+                  const selected = selectedIncoming.has(request.id);
+                  return (
+                    <li
+                      key={request.id}
+                      className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
+                    >
+                      {incomingSelectMode ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select @${username}`}
+                          checked={selected}
+                          onChange={(e) => {
+                            setSelectedIncoming((prev) => {
+                              const next = new Set(prev);
+                              if (e.currentTarget.checked) next.add(request.id);
+                              else next.delete(request.id);
+                              return next;
+                            });
+                          }}
+                          className="h-4 w-4"
+                        />
+                      ) : null}
+                      <Avatar size="s" image={user.image} user={user} />
+                      <div className="flex-1 text-foreground">@{username}</div>
+                      {incomingSelectMode ? null : (
+                        <FriendActionButton
+                          targetUserId={user.id}
+                          targetUserName={`@${username}`}
+                          relationship={{
+                            state: 'PENDING_INCOMING',
+                            friendshipId: null,
+                            incomingRequestId: request.id,
+                            outgoingRequestId: null,
+                          }}
+                          variant="compact"
+                          onStateChange={handleIncomingTransition(
+                            request.id,
+                            user,
+                          )}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ) : null}
@@ -522,63 +512,53 @@ const FriendsRoute = () => {
                 </div>
               </div>
               <ul className="mt-3 space-y-3">
-                {outgoingState
-                  .filter((r) => {
-                    const term = q.trim().toLowerCase();
-                    if (!term) return true;
-                    const u = r.toUser;
-                    return u.username.toLowerCase().includes(term);
-                  })
-                  .map((request) => {
-                    const user = request.toUser;
-                    const username = user.username;
-                    const selected = selectedOutgoing.has(request.id);
-                    return (
-                      <li
-                        key={request.id}
-                        className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
-                      >
-                        {outgoingSelectMode ? (
-                          <input
-                            type="checkbox"
-                            aria-label={`Select @${username}`}
-                            checked={selected}
-                            onChange={(e) => {
-                              setSelectedOutgoing((prev) => {
-                                const next = new Set(prev);
-                                if (e.currentTarget.checked)
-                                  next.add(request.id);
-                                else next.delete(request.id);
-                                return next;
-                              });
-                            }}
-                            className="h-4 w-4"
-                          />
-                        ) : null}
-                        <Avatar size="s" image={user.image} user={user} />
-                        <div className="flex-1 text-foreground">
-                          @{username}
-                        </div>
-                        {outgoingSelectMode ? null : (
-                          <FriendActionButton
-                            targetUserId={user.id}
-                            targetUserName={`@${username}`}
-                            relationship={{
-                              state: 'PENDING_OUTGOING',
-                              friendshipId: null,
-                              incomingRequestId: null,
-                              outgoingRequestId: request.id,
-                            }}
-                            variant="compact"
-                            onStateChange={handleOutgoingTransition(
-                              request.id,
-                              user,
-                            )}
-                          />
-                        )}
-                      </li>
-                    );
-                  })}
+                {outgoingState.map((request) => {
+                  const user = request.toUser;
+                  const username = user.username;
+                  const selected = selectedOutgoing.has(request.id);
+                  return (
+                    <li
+                      key={request.id}
+                      className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
+                    >
+                      {outgoingSelectMode ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select @${username}`}
+                          checked={selected}
+                          onChange={(e) => {
+                            setSelectedOutgoing((prev) => {
+                              const next = new Set(prev);
+                              if (e.currentTarget.checked) next.add(request.id);
+                              else next.delete(request.id);
+                              return next;
+                            });
+                          }}
+                          className="h-4 w-4"
+                        />
+                      ) : null}
+                      <Avatar size="s" image={user.image} user={user} />
+                      <div className="flex-1 text-foreground">@{username}</div>
+                      {outgoingSelectMode ? null : (
+                        <FriendActionButton
+                          targetUserId={user.id}
+                          targetUserName={`@${username}`}
+                          relationship={{
+                            state: 'PENDING_OUTGOING',
+                            friendshipId: null,
+                            incomingRequestId: null,
+                            outgoingRequestId: request.id,
+                          }}
+                          variant="compact"
+                          onStateChange={handleOutgoingTransition(
+                            request.id,
+                            user,
+                          )}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ) : null}
@@ -649,7 +629,7 @@ const FriendsRoute = () => {
             <h2 className="text-lg font-semibold">{t('friends.friends')}</h2>
             {(() => {
               const filtered = friendsState.filter((f) => {
-                const term = q.trim().toLowerCase();
+                const term = friendsFilter.trim().toLowerCase();
                 if (!term) return true;
                 const u = f.user;
                 return (
