@@ -2,6 +2,7 @@ export function getAppBaseUrl() {
   return (
     process.env.APP_BASE_URL ??
     process.env.APP_URL ??
+    process.env.BASE_URL ??
     process.env.ORIGIN ??
     'http://localhost:3000'
   );
