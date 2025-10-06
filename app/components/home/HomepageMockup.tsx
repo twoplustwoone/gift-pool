@@ -6,7 +6,10 @@ type HomepageMockupProps = {
 };
 
 // Lightweight, responsive placeholder illustration with accessible alt text
-export const HomepageMockup: React.FC<HomepageMockupProps> = ({ alt, className }) => {
+export const HomepageMockup: React.FC<HomepageMockupProps> = ({
+  alt,
+  className,
+}) => {
   return (
     <figure className={className} aria-labelledby="home-mockup-caption">
       <div
@@ -27,11 +30,43 @@ export const HomepageMockup: React.FC<HomepageMockupProps> = ({ alt, className }
             </linearGradient>
           </defs>
           <rect width="400" height="300" fill="url(#g1)" />
-          <rect x="28" y="28" width="344" height="48" rx="8" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-          <rect x="28" y="92" width="168" height="160" rx="10" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-          <rect x="204" y="92" width="168" height="160" rx="10" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
+          <rect
+            x="28"
+            y="28"
+            width="344"
+            height="48"
+            rx="8"
+            fill="hsl(var(--card))"
+            stroke="hsl(var(--border))"
+          />
+          <rect
+            x="28"
+            y="92"
+            width="168"
+            height="160"
+            rx="10"
+            fill="hsl(var(--card))"
+            stroke="hsl(var(--border))"
+          />
+          <rect
+            x="204"
+            y="92"
+            width="168"
+            height="160"
+            rx="10"
+            fill="hsl(var(--card))"
+            stroke="hsl(var(--border))"
+          />
           <circle cx="60" cy="52" r="10" fill="hsl(var(--muted-foreground))" />
-          <rect x="84" y="44" width="200" height="16" rx="8" fill="hsl(var(--muted-foreground))" opacity="0.6" />
+          <rect
+            x="84"
+            y="44"
+            width="200"
+            height="16"
+            rx="8"
+            fill="hsl(var(--muted-foreground))"
+            opacity="0.6"
+          />
         </svg>
       </div>
       <figcaption id="home-mockup-caption" className="sr-only">
@@ -40,4 +75,3 @@ export const HomepageMockup: React.FC<HomepageMockupProps> = ({ alt, className }
     </figure>
   );
 };
-

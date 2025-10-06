@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { buildAppUrl } from '#app/utils/app-url.server.ts';
-import  {
+import {
   type NotificationChannel,
   type NotificationType,
 } from '#app/utils/notification-registry.ts';
@@ -17,7 +17,11 @@ interface PreferenceTokenPayload {
 }
 
 function getSecret() {
-  return process.env.NOTIFICATION_TOKEN_SECRET ?? process.env.SESSION_SECRET ?? 'SESSION_SECRET';
+  return (
+    process.env.NOTIFICATION_TOKEN_SECRET ??
+    process.env.SESSION_SECRET ??
+    'SESSION_SECRET'
+  );
 }
 
 function encodePayload(payload: PreferenceTokenPayload) {

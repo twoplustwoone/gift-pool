@@ -1,4 +1,4 @@
-import  { type RelationshipState } from '#app/utils/friends.ts';
+import { type RelationshipState } from '#app/utils/friends.ts';
 
 export const NOTIFICATION_TYPES = {
   FRIEND_REQUEST_RECEIVED: 'FRIEND_REQUEST_RECEIVED',

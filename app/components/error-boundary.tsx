@@ -43,4 +43,4 @@ export const GeneralErrorBoundary = ({
         : unexpectedErrorHandler(error)}
     </div>
   );
-}
+};

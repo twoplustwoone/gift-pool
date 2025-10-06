@@ -1,6 +1,13 @@
 import { type ReactNode, useState } from 'react';
 import { Button } from './button';
-import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './dialog';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './dialog';
 
 export function ConfirmDialog({
   title = 'Confirm',
@@ -57,4 +64,3 @@ export function ConfirmDialog({
     </Dialog>
   );
 }
-

@@ -34,7 +34,9 @@ describe('notification preferences', () => {
     await prisma.userNotificationPreference.deleteMany();
     await prisma.friendRequest.deleteMany();
     await prisma.friendship.deleteMany();
-    await prisma.user.deleteMany({ where: { email: { contains: '@example.com' } } });
+    await prisma.user.deleteMany({
+      where: { email: { contains: '@example.com' } },
+    });
   });
 
   it('seeds defaults when ensuring preferences', async () => {
@@ -66,7 +68,10 @@ describe('notification preferences', () => {
     expect(preference.emailEnabled).toBe(false);
 
     const audit = await prisma.notificationPreferenceAudit.findFirst({
-      where: { userId: user.id, type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED },
+      where: {
+        userId: user.id,
+        type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
+      },
     });
     expect(audit).not.toBeNull();
     expect(audit?.previousValue).toBe(true);

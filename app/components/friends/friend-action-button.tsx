@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx';
 import { track } from '#app/utils/analytics.client.ts';
-import  { type RelationshipState } from '#app/utils/friends.ts';
+import { type RelationshipState } from '#app/utils/friends.ts';
 import {
   dispatchFriendshipUpdate,
   subscribeToFriendshipUpdates,
@@ -54,7 +54,9 @@ const EMPTY_SNAPSHOT: RelationshipSnapshot = {
   outgoingRequestId: null,
 };
 
-function snapshotFromEdge(payload?: RelationshipEdgePayload | null): RelationshipSnapshot {
+function snapshotFromEdge(
+  payload?: RelationshipEdgePayload | null,
+): RelationshipSnapshot {
   if (!payload) return EMPTY_SNAPSHOT;
   return {
     state: payload.state,
@@ -64,7 +66,9 @@ function snapshotFromEdge(payload?: RelationshipEdgePayload | null): Relationshi
   };
 }
 
-function snapshotFromRemove(payload?: RemoveRelationshipPayload | null): RelationshipSnapshot {
+function snapshotFromRemove(
+  payload?: RemoveRelationshipPayload | null,
+): RelationshipSnapshot {
   if (!payload) return EMPTY_SNAPSHOT;
   return {
     state: payload.state,
@@ -411,7 +415,10 @@ export const FriendActionButton = ({
                     disabled={isPending('remove')}
                   >
                     {isPending('remove') ? (
-                      <LuLoader className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      <LuLoader
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden
+                      />
                     ) : null}
                     {t('friends.removeConfirmConfirm')}
                   </Button>

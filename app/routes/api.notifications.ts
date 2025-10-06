@@ -21,7 +21,7 @@ function serializeNotification(record: NotificationRecord, locale: Locale) {
     labelKey: action.labelKey,
     label: action.labelKey
       ? translate(locale, action.labelKey as any, messageParams)
-      : action.label ?? null,
+      : (action.label ?? null),
   }));
 
   return {

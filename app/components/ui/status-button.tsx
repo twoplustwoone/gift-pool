@@ -41,32 +41,28 @@ export const StatusButton = React.forwardRef<
     idle: null,
   }[status];
 
-  const badgeNode = badge
-    ? message
-      ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>{badge}</TooltipTrigger>
-              <TooltipContent>{message}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )
-      : (
-          badge
-        )
-    : null;
+  const badgeNode = badge ? (
+    message ? (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>{badge}</TooltipTrigger>
+          <TooltipContent>{message}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    ) : (
+      badge
+    )
+  ) : null;
 
   // Only describe status to AT when meaningful (not idle)
   const shouldDescribe = status !== 'idle';
 
   // Merge any consumer-provided aria-describedby with our status id
-  const describedBy = [
-    props['aria-describedby'],
-    shouldDescribe ? statusId : undefined,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .trim() || undefined;
+  const describedBy =
+    [props['aria-describedby'], shouldDescribe ? statusId : undefined]
+      .filter(Boolean)
+      .join(' ')
+      .trim() || undefined;
 
   // Respect consumer-provided aria-labelledby; otherwise, label only the primary text
   const labelledBy = props['aria-labelledby'] ?? labelId;
@@ -94,7 +90,7 @@ export const StatusButton = React.forwardRef<
         id={statusId}
         className={cn(
           'flex items-center transition-opacity',
-          badge ? 'opacity-100 ml-2' : 'opacity-0',
+          badge ? 'ml-2 opacity-100' : 'opacity-0',
         )}
       >
         {badgeNode}

@@ -51,4 +51,3 @@ export const HOME_COPY = {
 } as const;
 
 export type HomeFeature = (typeof HOME_COPY.features)[number];
-

@@ -20,8 +20,8 @@ export function FriendRequestAcceptedEmail({
           {actorDisplayName} accepted your friend request on {appName}
         </E.Heading>
         <E.Text>
-          You're now connected with {actorDisplayName}. Jump back in to plan your
-          next gift together.
+          You're now connected with {actorDisplayName}. Jump back in to plan
+          your next gift together.
         </E.Text>
         <E.Button
           href={actorProfileUrl}
@@ -37,7 +37,9 @@ export function FriendRequestAcceptedEmail({
         >
           Open Gift Pool
         </E.Button>
-        <E.Text style={{ marginTop: '32px', fontSize: '12px', color: '#64748b' }}>
+        <E.Text
+          style={{ marginTop: '32px', fontSize: '12px', color: '#64748b' }}
+        >
           You are receiving this email because you have enabled friend activity
           email notifications. You can update your preferences at any time.
         </E.Text>
@@ -65,4 +67,3 @@ See their profile: ${actorProfileUrl}
 Update notification preferences: ${managePreferencesUrl}
 `;
 }
-

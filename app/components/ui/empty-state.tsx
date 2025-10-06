@@ -1,4 +1,12 @@
-export function EmptyState({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
+export function EmptyState({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col items-center justify-center rounded-md border p-6 text-center text-sm text-muted-foreground">
       <div className="font-medium text-foreground">{title}</div>
@@ -7,4 +15,3 @@ export function EmptyState({ title, description, action }: { title: string; desc
     </div>
   );
 }
-

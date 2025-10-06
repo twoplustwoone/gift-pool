@@ -37,7 +37,9 @@ export function FriendRequestReceivedEmail({
         >
           View request
         </E.Button>
-        <E.Text style={{ marginTop: '32px', fontSize: '12px', color: '#64748b' }}>
+        <E.Text
+          style={{ marginTop: '32px', fontSize: '12px', color: '#64748b' }}
+        >
           You are receiving this email because you have enabled friend activity
           email notifications. You can update your preferences at any time.
         </E.Text>
@@ -65,4 +67,3 @@ View request: ${actorProfileUrl}
 Update notification preferences: ${managePreferencesUrl}
 `;
 }
-

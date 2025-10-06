@@ -36,8 +36,14 @@ describe('notifications server utilities', () => {
         targetUrl: '/users/alex',
         metadata: JSON.stringify({ senderUserId: 'alex' }),
         actions: JSON.stringify([
-          { kind: 'FRIEND_ACCEPT', labelKey: 'notifications.friendRequest.accept' },
-          { kind: 'FRIEND_REJECT', labelKey: 'notifications.friendRequest.reject' },
+          {
+            kind: 'FRIEND_ACCEPT',
+            labelKey: 'notifications.friendRequest.accept',
+          },
+          {
+            kind: 'FRIEND_REJECT',
+            labelKey: 'notifications.friendRequest.reject',
+          },
         ]),
         createdAt: new Date('2024-01-02T00:00:00Z'),
       },
@@ -55,7 +61,10 @@ describe('notifications server utilities', () => {
         targetUrl: '/users/blair',
         metadata: JSON.stringify({ senderUserId: 'blair' }),
         actions: JSON.stringify([
-          { kind: 'FRIEND_ACCEPT', labelKey: 'notifications.friendRequest.accept' },
+          {
+            kind: 'FRIEND_ACCEPT',
+            labelKey: 'notifications.friendRequest.accept',
+          },
         ]),
         createdAt: new Date('2024-01-01T00:00:00Z'),
       },
@@ -65,7 +74,10 @@ describe('notifications server utilities', () => {
   });
 
   it('lists notifications newest first with parsed payload', async () => {
-    const { items, hasMore } = await listNotifications({ userId, status: 'all' });
+    const { items, hasMore } = await listNotifications({
+      userId,
+      status: 'all',
+    });
 
     expect(hasMore).toBe(false);
     expect(items).toHaveLength(2);

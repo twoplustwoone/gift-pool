@@ -1,4 +1,8 @@
-import { json, type LoaderFunctionArgs, type MetaFunction } from '@remix-run/node';
+import {
+  json,
+  type LoaderFunctionArgs,
+  type MetaFunction,
+} from '@remix-run/node';
 import { useLoaderData, useSearchParams } from '@remix-run/react';
 import { HOME_COPY } from '#app/components/home/home-copy';
 import { HomeFeatures } from '#app/components/home/HomeFeatures';
@@ -17,7 +21,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const mockParam = url.searchParams.get('mock');
   const mock: 'empty' | 'data' | undefined =
-    mockParam === 'empty' || mockParam === 'data' ? (mockParam as any) : undefined;
+    mockParam === 'empty' || mockParam === 'data'
+      ? (mockParam as any)
+      : undefined;
 
   const userId = await getUserId(request);
   let isLoggedIn = Boolean(userId);

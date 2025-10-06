@@ -1,6 +1,17 @@
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './tooltip';
 
-export function VisibilityHint({ children, text = 'Hidden due to privacy settings' }: { children: React.ReactNode; text?: string }) {
+export function VisibilityHint({
+  children,
+  text = 'Hidden due to privacy settings',
+}: {
+  children: React.ReactNode;
+  text?: string;
+}) {
   return (
     <TooltipProvider>
       <Tooltip>
@@ -10,4 +21,3 @@ export function VisibilityHint({ children, text = 'Hidden due to privacy setting
     </TooltipProvider>
   );
 }
-

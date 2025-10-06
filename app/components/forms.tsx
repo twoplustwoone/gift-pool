@@ -33,7 +33,7 @@ export const ErrorList = ({
       ))}
     </ul>
   );
-}
+};
 
 export const Field = ({
   labelProps,
@@ -72,7 +72,7 @@ export const Field = ({
       )}
     </Stack>
   );
-}
+};
 
 export const OTPField = ({
   labelProps,
@@ -116,7 +116,7 @@ export const OTPField = ({
       </div>
     </div>
   );
-}
+};
 
 export const TextareaField = ({
   labelProps,
@@ -148,7 +148,7 @@ export const TextareaField = ({
       )}
     </Stack>
   );
-}
+};
 
 export const CheckboxField = ({
   labelProps,
@@ -211,4 +211,4 @@ export const CheckboxField = ({
       </div>
     </div>
   );
-}
+};

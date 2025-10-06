@@ -48,4 +48,4 @@ export const ClientHintCheck = ({ nonce }: { nonce: string }) => {
       }}
     />
   );
-}
+};

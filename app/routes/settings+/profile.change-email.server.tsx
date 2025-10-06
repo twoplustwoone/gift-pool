@@ -93,7 +93,7 @@ export const EmailChangeEmail = ({
       </E.Container>
     </E.Html>
   );
-}
+};
 
 const EmailChangeNoticeEmail = ({ userId }: { userId: string }) => {
   return (
@@ -121,4 +121,4 @@ const EmailChangeNoticeEmail = ({ userId }: { userId: string }) => {
       </E.Container>
     </E.Html>
   );
-}
+};

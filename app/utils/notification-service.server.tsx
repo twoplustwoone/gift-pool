@@ -1,4 +1,4 @@
-import  { type Notification as PrismaNotification } from '@prisma/client';
+import { type Notification as PrismaNotification } from '@prisma/client';
 import React from 'react';
 import { FriendRequestAcceptedEmail } from '#app/emails/friend-request-accepted.tsx';
 import { FriendRequestReceivedEmail } from '#app/emails/friend-request-received.tsx';
@@ -16,7 +16,10 @@ import {
 import {
   NOTIFICATION_TYPES,
   type NotificationPayload,
-  type NotificationType, type NotificationChannel , type FriendRelationshipSnapshot , NOTIFICATION_CHANNELS 
+  type NotificationType,
+  type NotificationChannel,
+  type FriendRelationshipSnapshot,
+  NOTIFICATION_CHANNELS,
 } from '#app/utils/notification-registry.ts';
 
 const appName = 'GiftPool';
@@ -34,9 +37,13 @@ export async function notifyUser<T extends NotificationType>(
 ) {
   switch (options.type) {
     case NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED:
-      return notifyFriendRequestReceived(options as NotifyUserOptions<'FRIEND_REQUEST_RECEIVED'>);
+      return notifyFriendRequestReceived(
+        options as NotifyUserOptions<'FRIEND_REQUEST_RECEIVED'>,
+      );
     case NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED:
-      return notifyFriendRequestAccepted(options as NotifyUserOptions<'FRIEND_REQUEST_ACCEPTED'>);
+      return notifyFriendRequestAccepted(
+        options as NotifyUserOptions<'FRIEND_REQUEST_ACCEPTED'>,
+      );
     case NOTIFICATION_TYPES.UPCOMING_BIRTHDAY:
       // Placeholder for future implementation
       return;
@@ -78,8 +85,14 @@ async function notifyFriendRequestReceived(
           senderAvatarId: payload.actorAvatarId ?? null,
         }),
         actions: JSON.stringify([
-          { kind: 'FRIEND_ACCEPT', labelKey: 'notifications.friendRequest.accept' },
-          { kind: 'FRIEND_REJECT', labelKey: 'notifications.friendRequest.reject' },
+          {
+            kind: 'FRIEND_ACCEPT',
+            labelKey: 'notifications.friendRequest.accept',
+          },
+          {
+            kind: 'FRIEND_REJECT',
+            labelKey: 'notifications.friendRequest.reject',
+          },
         ]),
         friendRequestId: payload.friendRequestId,
       },
@@ -188,7 +201,10 @@ async function sendFriendRequestReceivedEmail(
   });
   if (!user?.email) return;
 
-  const preferencesUrl = await buildManagePreferencesUrl(userId, NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED);
+  const preferencesUrl = await buildManagePreferencesUrl(
+    userId,
+    NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
+  );
   const profileUrl = buildAppUrl(`/users/${payload.actorUsername}`);
 
   await sendEmail({
@@ -215,7 +231,10 @@ async function sendFriendRequestAcceptedEmail(
   });
   if (!user?.email) return;
 
-  const preferencesUrl = await buildManagePreferencesUrl(userId, NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED);
+  const preferencesUrl = await buildManagePreferencesUrl(
+    userId,
+    NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED,
+  );
   const profileUrl = buildAppUrl(`/users/${payload.actorUsername}`);
 
   await sendEmail({
@@ -241,5 +260,7 @@ async function buildManagePreferencesUrl(
 }
 
 export function channelToColumn(channel: NotificationChannel) {
-  return channel === NOTIFICATION_CHANNELS.EMAIL ? 'emailEnabled' : 'inAppEnabled';
+  return channel === NOTIFICATION_CHANNELS.EMAIL
+    ? 'emailEnabled'
+    : 'inAppEnabled';
 }

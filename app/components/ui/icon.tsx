@@ -74,4 +74,4 @@ export const Icon = ({
       <use href={`${href}#${name}`} />
     </svg>
   );
-}
+};

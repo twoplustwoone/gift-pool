@@ -53,10 +53,7 @@ export async function listNotifications({
 
   const notifications = await prisma.notification.findMany({
     where,
-    orderBy: [
-      { createdAt: 'desc' },
-      { id: 'desc' },
-    ],
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: take + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
   });
@@ -68,22 +65,33 @@ export async function listNotifications({
       type: notification.type,
       status: notification.status,
       messageKey: notification.messageKey,
-      messageParams: parseJson<Record<string, unknown>>(notification.messageParams ?? undefined),
+      messageParams: parseJson<Record<string, unknown>>(
+        notification.messageParams ?? undefined,
+      ),
       targetUrl: notification.targetUrl,
       createdAt: notification.createdAt,
       readAt: notification.readAt,
-      metadata: parseJson<Record<string, unknown>>(notification.metadata ?? undefined),
+      metadata: parseJson<Record<string, unknown>>(
+        notification.metadata ?? undefined,
+      ),
       actions:
-        parseJson<NotificationActionPayload[]>(notification.actions ?? undefined) ?? [],
+        parseJson<NotificationActionPayload[]>(
+          notification.actions ?? undefined,
+        ) ?? [],
       friendRequestId: notification.friendRequestId,
     } satisfies NotificationRecord;
   });
 
-  const nextCursor = hasMore ? notifications[notifications.length - 1]!.id : null;
+  const nextCursor = hasMore
+    ? notifications[notifications.length - 1]!.id
+    : null;
   return { items, hasMore, nextCursor };
 }
 
-export async function markNotificationRead(userId: string, notificationId: string) {
+export async function markNotificationRead(
+  userId: string,
+  notificationId: string,
+) {
   const notification = await prisma.notification.findFirst({
     where: {
       id: notificationId,

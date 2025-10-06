@@ -11,14 +11,16 @@ interface NotificationsStoreValue {
   setUnreadCount: (count: number) => void;
 }
 
-const NotificationsContext = createContext<NotificationsStoreValue | null>(null);
+const NotificationsContext = createContext<NotificationsStoreValue | null>(
+  null,
+);
 
-export const NotificationsProvider = ({ children, initialUnreadCount = 0 }: PropsWithChildren & { initialUnreadCount?: number }) => {
+export const NotificationsProvider = ({
+  children,
+  initialUnreadCount = 0,
+}: PropsWithChildren & { initialUnreadCount?: number }) => {
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
-  const value = useMemo(
-    () => ({ unreadCount, setUnreadCount }),
-    [unreadCount],
-  );
+  const value = useMemo(() => ({ unreadCount, setUnreadCount }), [unreadCount]);
   return (
     <NotificationsContext.Provider value={value}>
       {children}
@@ -29,7 +31,9 @@ export const NotificationsProvider = ({ children, initialUnreadCount = 0 }: Prop
 export const useNotificationsStore = () => {
   const ctx = useContext(NotificationsContext);
   if (!ctx) {
-    throw new Error('useNotificationsStore must be used within NotificationsProvider');
+    throw new Error(
+      'useNotificationsStore must be used within NotificationsProvider',
+    );
   }
   return ctx;
 };

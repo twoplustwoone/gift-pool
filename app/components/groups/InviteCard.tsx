@@ -31,12 +31,19 @@ export const InviteCard = ({
             value={url}
             onClick={(e) => (e.currentTarget as HTMLInputElement).select()}
           />
-          <Button size="sm" variant="secondary" aria-label="Copy invite link" onClick={copy}>
+          <Button
+            size="sm"
+            variant="secondary"
+            aria-label="Copy invite link"
+            onClick={copy}
+          >
             <Icon name="copy" />
           </Button>
         </div>
       ) : (
-        <div className="text-sm">Use the Invite button in the header to create a link.</div>
+        <div className="text-sm">
+          Use the Invite button in the header to create a link.
+        </div>
       )}
       {footer ? <div className="mt-3">{footer}</div> : null}
     </Card>

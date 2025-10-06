@@ -1,2 +1,1 @@
-export { action } from './api.friends.requests..cancel.ts'
-
+export { action } from './api.friends.requests..cancel.ts';

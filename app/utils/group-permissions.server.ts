@@ -148,6 +148,6 @@ export async function userHasGroupPermission(
     : undefined;
 
   return userRole
-    ? groupRolePermissions[userRole]?.includes(permission) ?? false
+    ? (groupRolePermissions[userRole]?.includes(permission) ?? false)
     : false;
 }

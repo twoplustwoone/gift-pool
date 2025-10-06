@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card } from '#app/components/ui/card.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
-import  { type IconName } from '@/icon-name';
+import { type IconName } from '@/icon-name';
 
 export type ActivityItem = {
   id: string;
@@ -10,7 +10,13 @@ export type ActivityItem = {
   timestamp: string; // preformatted string
 };
 
-export const ActivityFeedCard = ({ items, loadMore }: { items: ActivityItem[]; loadMore?: React.ReactNode }) => {
+export const ActivityFeedCard = ({
+  items,
+  loadMore,
+}: {
+  items: ActivityItem[];
+  loadMore?: React.ReactNode;
+}) => {
   return (
     <Card padding="lg" data-testid="panel-activity">
       <div className="mb-2 font-semibold">Recent Activity</div>

@@ -1,6 +1,9 @@
 import { type Meta, type StoryObj } from '@storybook/react-vite';
 import { LuPlus, LuUsers } from 'react-icons/lu';
-import { GroupCard, type GroupCardData } from '#app/components/groups/GroupCard';
+import {
+  GroupCard,
+  type GroupCardData,
+} from '#app/components/groups/GroupCard';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
@@ -120,10 +123,10 @@ export const SomeGroups: Story = {
 
 export const ManyGroups: Story = {
   args: {
-    groups: (Array.from({ length: 9 }).map((_, i) => ({
+    groups: Array.from({ length: 9 }).map((_, i) => ({
       ...sampleGroups[i % sampleGroups.length],
       id: String(i + 1),
       name: `Group ${i + 1}`,
-    })) as GroupCardData[]),
+    })) as GroupCardData[],
   },
 };

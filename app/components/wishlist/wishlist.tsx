@@ -18,7 +18,6 @@ import { Heading } from '../ui/heading.tsx';
 import { Flex, Grid, Stack, Text } from '../ui-kit';
 import { CategoryManager } from './category-manager';
 import { WishlistItem } from './wishlist-item';
- 
 
 export const Wishlist = ({
   user,

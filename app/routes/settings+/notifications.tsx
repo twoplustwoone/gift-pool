@@ -1,5 +1,9 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/node';
+import {
+  json,
+  type ActionFunctionArgs,
+  type LoaderFunctionArgs,
+} from '@remix-run/node';
 import { Form, Link, useLoaderData, useSubmit } from '@remix-run/react';
 import React from 'react';
 import { Button } from '#app/components/ui/button.tsx';
@@ -86,7 +90,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
     ? await getNotificationPreferences(targetUserId)
     : null;
 
-  const preferences = new Map<NotificationType, { inAppEnabled: boolean; emailEnabled: boolean }>();
+  const preferences = new Map<
+    NotificationType,
+    { inAppEnabled: boolean; emailEnabled: boolean }
+  >();
   if (preferencesMap) {
     for (const [type, value] of preferencesMap.entries()) {
       preferences.set(type, value);
@@ -116,7 +123,10 @@ export async function action({ request }: ActionFunctionArgs) {
     const type = formData.get('type');
     const channel = formData.get('channel');
     const enabled = formData.get('enabled');
-    invariantResponse(typeof type === 'string' && type in NOTIFICATION_TYPES, 'Invalid notification type');
+    invariantResponse(
+      typeof type === 'string' && type in NOTIFICATION_TYPES,
+      'Invalid notification type',
+    );
     invariantResponse(
       typeof channel === 'string' && channel in NOTIFICATION_CHANNELS,
       'Invalid channel',
@@ -151,7 +161,10 @@ const NotificationsSettingsRoute = () => {
   const data = useLoaderData<typeof loader>();
   const submit = useSubmit();
 
-  const preferenceMap = new Map<NotificationType, { inAppEnabled: boolean; emailEnabled: boolean }>();
+  const preferenceMap = new Map<
+    NotificationType,
+    { inAppEnabled: boolean; emailEnabled: boolean }
+  >();
   for (const pref of data.preferences) {
     preferenceMap.set(pref.type, {
       inAppEnabled: pref.inAppEnabled,
@@ -186,14 +199,17 @@ const NotificationsSettingsRoute = () => {
         <div className="rounded-md border border-dashed border-muted-foreground/50 bg-muted px-4 py-3 text-sm text-muted-foreground">
           <p>You are viewing notification preferences with a one-time link.</p>
           <p>
-            <Link className="underline" to={`/login?redirectTo=/settings/notifications`}>
+            <Link
+              className="underline"
+              to={`/login?redirectTo=/settings/notifications`}
+            >
               Sign in to update your preferences.
             </Link>
           </p>
         </div>
       ) : null}
 
-      <div className="border border-border rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -247,7 +263,10 @@ const NotificationsSettingsRoute = () => {
                         <PreferenceCheckbox
                           checked={pref.emailEnabled}
                           label="Enable email"
-                          disabled={disableToggles || (!item.emailDefault && item.disabled)}
+                          disabled={
+                            disableToggles ||
+                            (!item.emailDefault && item.disabled)
+                          }
                           onChange={() =>
                             handleToggle(
                               item.type,
@@ -302,7 +321,12 @@ function PreferenceCheckbox({
   label: string;
 }) {
   return (
-    <label className={cn('flex items-center gap-2 text-sm', disabled && 'opacity-50')}>
+    <label
+      className={cn(
+        'flex items-center gap-2 text-sm',
+        disabled && 'opacity-50',
+      )}
+    >
       <Checkbox
         checked={checked}
         disabled={disabled}

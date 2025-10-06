@@ -11,9 +11,12 @@ export function CopyableField({ value }: { value: string }) {
   };
   return (
     <div className="flex items-center gap-2">
-      <Input readOnly value={value} onClick={(e) => (e.currentTarget as HTMLInputElement).select()} />
+      <Input
+        readOnly
+        value={value}
+        onClick={(e) => (e.currentTarget as HTMLInputElement).select()}
+      />
       <Button onClick={doCopy}>{copied ? 'Copied' : 'Copy'}</Button>
     </div>
   );
 }
-

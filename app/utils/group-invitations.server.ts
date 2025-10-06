@@ -59,7 +59,8 @@ export const createInviteLink = async (
       expiresAt,
       createdById: userId,
       label: label ?? '',
-      roleGranted: (roleGranted as 'OWNER' | 'ADMIN' | 'MEMBER' | undefined) ?? 'MEMBER',
+      roleGranted:
+        (roleGranted as 'OWNER' | 'ADMIN' | 'MEMBER' | undefined) ?? 'MEMBER',
       maxUses: maxUses ? parseInt(maxUses, 10) : null,
       requireApproval: requireApproval === 'on' ? true : false,
     },
@@ -83,7 +84,10 @@ export const requireInvitationNotExpired = async (code: string) => {
     include: { giftGroup: true },
   });
 
-  if (invitation?.maxUses != null && invitation.usedCount >= invitation.maxUses) {
+  if (
+    invitation?.maxUses != null &&
+    invitation.usedCount >= invitation.maxUses
+  ) {
     invitation = null as any;
   }
 
@@ -160,8 +164,20 @@ export const destroyInviteLink = async (
     where: { id: groupInvitationId },
     data: { revokedAt: new Date() },
   });
-  const inv = await prisma.groupInvitation.findUnique({ where: { id: groupInvitationId } });
-  if (inv) await logGroupActivity(giftGroupId, (await requireUserWithGroupPermission(request, giftGroupId, 'manageInvites')), 'invite.revoke', { groupInvitationId });
+  const inv = await prisma.groupInvitation.findUnique({
+    where: { id: groupInvitationId },
+  });
+  if (inv)
+    await logGroupActivity(
+      giftGroupId,
+      await requireUserWithGroupPermission(
+        request,
+        giftGroupId,
+        'manageInvites',
+      ),
+      'invite.revoke',
+      { groupInvitationId },
+    );
 };
 
 export async function submitJoinRequest({

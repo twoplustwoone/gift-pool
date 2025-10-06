@@ -23,7 +23,6 @@ import { useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
 import { Box, Text, Flex } from '../ui-kit';
 import { usePressFeedback } from './hooks/use-press-feedback.ts';
- 
 
 export const DeleteFormSchema = z.object({
   intent: z.literal('delete-wishlist-item'),

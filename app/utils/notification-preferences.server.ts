@@ -46,7 +46,10 @@ export async function getNotificationPreferences(userId: string) {
   const prefs = await prisma.userNotificationPreference.findMany({
     where: { userId },
   });
-  const map = new Map<NotificationType, { inAppEnabled: boolean; emailEnabled: boolean }>();
+  const map = new Map<
+    NotificationType,
+    { inAppEnabled: boolean; emailEnabled: boolean }
+  >();
   for (const pref of prefs) {
     map.set(pref.type as NotificationType, {
       inAppEnabled: pref.inAppEnabled,

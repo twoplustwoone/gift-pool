@@ -1,6 +1,10 @@
-export const SectionSubtitle = ({ children }: { children?: React.ReactNode }) => {
+export const SectionSubtitle = ({
+  children,
+}: {
+  children?: React.ReactNode;
+}) => {
   if (!children) {
     return null;
   }
   return <div className="mb-5">{children}</div>;
-}
+};

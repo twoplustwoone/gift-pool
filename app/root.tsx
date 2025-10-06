@@ -213,7 +213,9 @@ const App = () => {
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
       <I18nProvider locale={data.requestInfo.locale}>
-        <NotificationsProvider initialUnreadCount={data.notifications?.unreadCount ?? 0}>
+        <NotificationsProvider
+          initialUnreadCount={data.notifications?.unreadCount ?? 0}
+        >
           <div className="flex min-h-[100dvh] flex-col">
             <TopBar />
 

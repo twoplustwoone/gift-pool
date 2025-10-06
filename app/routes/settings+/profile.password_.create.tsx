@@ -86,7 +86,7 @@ const CreatePasswordRoute = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
 
-  const [form, fields] = useForm<{ password: string; confirmPassword: string}>(
+  const [form, fields] = useForm<{ password: string; confirmPassword: string }>(
     {
       id: 'password-create-form',
       constraint: getZodConstraint(CreatePasswordForm),

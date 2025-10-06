@@ -1,2 +1,1 @@
-export { action } from './api.notifications..read.ts'
-
+export { action } from './api.notifications..read.ts';

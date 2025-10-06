@@ -55,7 +55,7 @@ export const UserDropdown = () => {
               </Flex>
             </Link>
           </DropdownMenuItem>
-          
+
           <DropdownMenuItem asChild>
             <Link prefetch="intent" to={`/settings/profile`}>
               <Flex gap={2}>

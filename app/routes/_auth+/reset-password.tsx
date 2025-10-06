@@ -81,7 +81,7 @@ const ResetPasswordPage = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
 
-  const [form, fields] = useForm<{ password: string; confirmPassword: string}>(
+  const [form, fields] = useForm<{ password: string; confirmPassword: string }>(
     {
       id: 'reset-password',
       constraint: getZodConstraint(ResetPasswordSchema),
