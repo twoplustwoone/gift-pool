@@ -13,11 +13,42 @@ import { ConfirmDialog } from '#app/components/ui/confirm-dialog';
 import { Icon } from '#app/components/ui/icon';
 import { Input } from '#app/components/ui/input';
 import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
-import { cn, getUserImgSrc } from '#app/utils/misc.tsx';
+import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { Heading } from '../ui/heading.tsx';
 import { Flex, Grid, Stack, Text } from '../ui-kit';
 import { CategoryManager } from './category-manager';
 import { WishlistItem } from './wishlist-item';
+
+const WishlistAvatar = ({
+  isOwner,
+  user,
+}: {
+  isOwner: boolean;
+  user: Pick<User, 'username' | 'name'> & {
+    image: Pick<UserImage, 'id'> | null;
+  };
+}) => {
+  const displayName = user.name ?? user.username;
+  const image = (
+    <img
+      src={getUserImgSrc(user.image?.id)}
+      alt={displayName}
+      className="h-10 w-10 rounded-full object-cover"
+    />
+  );
+
+  if (isOwner) {
+    return image;
+  }
+  return (
+    <Link
+      to={`/users/${user.username}`}
+      className="group flex items-center gap-3 hover:no-underline"
+    >
+      {image}
+    </Link>
+  );
+};
 
 export const Wishlist = ({
   user,
@@ -66,38 +97,7 @@ export const Wishlist = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b bg-surface px-4 py-4">
-        <div className="container flex flex-col items-center justify-between gap-2 lg:flex-row">
-          {!isOwner ? (
-            <Link
-              to={`/users/${user.username}`}
-              className="flex flex-col items-center justify-center gap-2 lg:flex-row lg:justify-start lg:gap-4"
-            >
-              <img
-                src={getUserImgSrc(user.image?.id)}
-                alt={displayName}
-                className="h-6 w-6 rounded-full object-cover lg:h-10 lg:w-10"
-              />
-              <Text size="xl" weight="bold">
-                {/* <h1 className="text-center text-lg font-bold lg:text-left"> */}
-                {displayName}'s Wishlist
-                {/* </h1> */}
-              </Text>
-            </Link>
-          ) : (
-            <>
-              {/* <Text weight="bold"> */}
-              <Text size="xl" weight="bold">
-                My Wishlist
-              </Text>
-              <div className="flex gap-2">
-                <WishlistItemEditor categories={user.wishlistCategories} />
-                <CategoryManager categories={user.wishlistCategories} />
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+      <WishlistHeader isOwner={isOwner} user={user} displayName={displayName} />
       <div className="container min-h-0 flex-1 py-8">
         <Stack gap={4}>
           {categories.map((category) => {
@@ -113,9 +113,7 @@ export const Wishlist = ({
                 className="group overflow-hidden rounded-xl border border-border bg-surface shadow-sm"
               >
                 <div
-                  className={cn(
-                    'flex cursor-pointer items-center justify-between rounded-t-xl bg-surface px-4 py-2 hover:bg-muted',
-                  )}
+                  className="flex min-h-14 cursor-pointer items-center justify-between rounded-t-xl bg-surface px-4 py-2 hover:bg-muted"
                   onClick={() => toggle(category.id)}
                 >
                   <div className="flex items-center gap-2">
@@ -275,3 +273,51 @@ export const Wishlist = ({
     </div>
   );
 };
+
+const WishlistHeader = ({
+  isOwner,
+  user,
+  displayName,
+}: {
+  isOwner: boolean;
+  user: Pick<
+    {
+      name: string | null;
+      username: string;
+    },
+    'name' | 'username'
+  > & {
+    image: Pick<UserImage, 'id'> | null;
+    wishlistCategories: { id: string; name: string; order: number }[];
+  };
+  displayName: string;
+}) => (
+  <div className="border-b bg-surface px-4 py-4">
+    <div className="container flex min-h-11 items-center justify-between gap-4">
+      <div className="flex items-center gap-3">
+        <WishlistAvatar isOwner={isOwner} user={user} />
+        {isOwner ? (
+          <Text size="xl" weight="bold">
+            My Wishlist
+          </Text>
+        ) : (
+          <div className="flex flex-col items-start">
+            <Text size="xl" weight="bold" className="group-hover:underline">
+              {displayName}'s Wishlist
+            </Text>
+            <Text size="xs" className="text-muted-foreground">
+              @{user.username}
+            </Text>
+          </div>
+        )}
+      </div>
+
+      {isOwner ? (
+        <div className="flex gap-2">
+          <WishlistItemEditor categories={user.wishlistCategories} />
+          <CategoryManager categories={user.wishlistCategories} />
+        </div>
+      ) : null}
+    </div>
+  </div>
+);
