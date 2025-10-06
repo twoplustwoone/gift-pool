@@ -13,6 +13,12 @@ export async function loader() {
   throw new Response('Not found', { status: 404 });
 }
 
+// Handle non-GET methods (e.g., POST) so Remix doesn't
+// throw a 405 for routes without an action.
+export async function action() {
+  return new Response('Not found', { status: 404 });
+}
+
 const NotFound = () => {
   // due to the loader, this component will never be rendered, but we'll return
   // the error boundary just in case.
