@@ -1,26 +1,23 @@
+import  { type Notification as PrismaNotification } from '@prisma/client';
 import React from 'react';
-import type { Notification as PrismaNotification } from '@prisma/client';
+import { FriendRequestAcceptedEmail } from '#app/emails/friend-request-accepted.tsx';
+import { FriendRequestReceivedEmail } from '#app/emails/friend-request-received.tsx';
+import { buildAppUrl } from '#app/utils/app-url.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { sendEmail } from '#app/utils/email.server.ts';
 import {
-  NOTIFICATION_TYPES,
-  type NotificationPayload,
-  type NotificationType,
-} from '#app/utils/notification-registry.ts';
+  createPreferenceToken,
+  getPreferenceManagementUrl,
+} from '#app/utils/notification-preference-token.server.ts';
 import {
   ensureNotificationPreferencesForUser,
   getNotificationPreferenceForChannels,
 } from '#app/utils/notification-preferences.server.ts';
 import {
-  createPreferenceToken,
-  getPreferenceManagementUrl,
-} from '#app/utils/notification-preference-token.server.ts';
-import { FriendRequestReceivedEmail } from '#app/emails/friend-request-received.tsx';
-import { FriendRequestAcceptedEmail } from '#app/emails/friend-request-accepted.tsx';
-import type { NotificationChannel } from '#app/utils/notification-registry.ts';
-import type { FriendRelationshipSnapshot } from '#app/utils/notification-registry.ts';
-import { NOTIFICATION_CHANNELS } from '#app/utils/notification-registry.ts';
-import { buildAppUrl } from '#app/utils/app-url.server.ts';
+  NOTIFICATION_TYPES,
+  type NotificationPayload,
+  type NotificationType, type NotificationChannel , type FriendRelationshipSnapshot , NOTIFICATION_CHANNELS 
+} from '#app/utils/notification-registry.ts';
 
 const appName = 'GiftPool';
 

@@ -1,4 +1,4 @@
-import type { RelationshipState } from './friends.ts';
+import  { type RelationshipState } from './friends.ts';
 
 export const FRIENDSHIP_UPDATED_EVENT = 'friendship:updated';
 

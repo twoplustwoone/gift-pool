@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid'
-import { prisma } from '#app/utils/db.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { getDomainUrl } from '#app/utils/misc.tsx'
+import { prisma } from '#app/utils/db.server.ts'
 import { getRelationshipState } from '#app/utils/friends.server.ts'
+import { getDomainUrl } from '#app/utils/misc.tsx'
 
 export const getFriendInviteLink = (code: string, request?: Request) => {
   try {

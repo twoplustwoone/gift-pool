@@ -1,15 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@remix-run/react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LuBell, LuCheckCheck, LuLoader, LuX } from 'react-icons/lu';
 import { toast } from 'sonner';
-import { track } from '#app/utils/analytics.client.ts';
-import { dispatchFriendshipUpdate } from '#app/utils/friendship-events.ts';
-import {
-  formatRelativeTime,
-  sanitizeTranslationParams,
-  useTranslation,
-} from '#app/utils/i18n.tsx';
-import { cn } from '#app/utils/misc.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Popover, PopoverContent, PopoverTrigger } from '#app/components/ui/popover.tsx';
 import {
@@ -18,8 +10,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx';
+import { track } from '#app/utils/analytics.client.ts';
+import  { type RelationshipState } from '#app/utils/friends.ts';
+import { dispatchFriendshipUpdate } from '#app/utils/friendship-events.ts';
+import {
+  formatRelativeTime,
+  sanitizeTranslationParams,
+  useTranslation,
+} from '#app/utils/i18n.tsx';
+import { cn } from '#app/utils/misc.tsx';
 import { useNotificationsStore } from './notifications-context.tsx';
-import type { RelationshipState } from '#app/utils/friends.ts';
 
 interface NotificationActionPayload {
   kind: string;

@@ -1,7 +1,7 @@
 import { prisma } from '#app/utils/db.server.ts';
-import { notifyUser } from '#app/utils/notification-service.server.tsx';
 import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
-import type { RelationshipState } from './friends.ts';
+import { notifyUser } from '#app/utils/notification-service.server.tsx';
+import  { type RelationshipState } from './friends.ts';
 
 export type FriendRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
 

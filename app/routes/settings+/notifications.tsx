@@ -1,10 +1,18 @@
-import React from 'react';
+import { invariantResponse } from '@epic-web/invariant';
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/node';
 import { Form, Link, useLoaderData, useSubmit } from '@remix-run/react';
-import { invariantResponse } from '@epic-web/invariant';
-import { Checkbox } from '#app/components/ui/checkbox.tsx';
+import React from 'react';
 import { Button } from '#app/components/ui/button.tsx';
+import { Checkbox } from '#app/components/ui/checkbox.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
+import { getUserId, requireUserId } from '#app/utils/auth.server.ts';
+import { cn } from '#app/utils/misc.tsx';
+import { verifyPreferenceToken } from '#app/utils/notification-preference-token.server.ts';
+import {
+  disableEmailForAll,
+  getNotificationPreferences,
+  setNotificationPreference,
+} from '#app/utils/notification-preferences.server.ts';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   NOTIFICATION_CHANNELS,
@@ -12,14 +20,6 @@ import {
   type NotificationChannel,
   type NotificationType,
 } from '#app/utils/notification-registry.ts';
-import {
-  disableEmailForAll,
-  getNotificationPreferences,
-  setNotificationPreference,
-} from '#app/utils/notification-preferences.server.ts';
-import { getUserId, requireUserId } from '#app/utils/auth.server.ts';
-import { verifyPreferenceToken } from '#app/utils/notification-preference-token.server.ts';
-import { cn } from '#app/utils/misc.tsx';
 
 const preferenceGroups: Array<{
   id: string;

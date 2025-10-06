@@ -5,6 +5,7 @@ import {
   redirect,
 } from '@remix-run/node'
 import { Form, useLoaderData, useNavigate } from '@remix-run/react'
+import { Avatar } from '#app/components/ui/avatar.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
   Dialog,
@@ -14,14 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#app/components/ui/dialog.tsx'
-import { Avatar } from '#app/components/ui/avatar.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
   acceptFriendInvite,
   requireFriendInvitationNotExpired,
 } from '#app/utils/friend-invitations.server.ts'
-import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { dispatchFriendshipUpdate } from '#app/utils/friendship-events.ts'
+import { redirectWithToast } from '#app/utils/toast.server.ts'
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const code = params.code

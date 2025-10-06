@@ -1,9 +1,9 @@
 import { Form, Link } from '@remix-run/react';
 import { useRef } from 'react';
 import { LuLogOut, LuSettings, LuUser, LuUsers } from 'react-icons/lu';
+import { useTranslation } from '#app/utils/i18n.tsx';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useUser } from '#app/utils/user.ts';
-import { useTranslation } from '#app/utils/i18n.tsx';
 import {
   DropdownMenu,
   DropdownMenuTrigger,

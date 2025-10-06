@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
-import { notifyUser } from '#app/utils/notification-service.server.tsx';
-import {
-  NOTIFICATION_CHANNELS,
-  NOTIFICATION_TYPES,
-} from '#app/utils/notification-registry.ts';
+import { sendEmail } from '#app/utils/email.server.ts';
 import {
   ensureNotificationPreferencesForUser,
   setNotificationPreference,
 } from '#app/utils/notification-preferences.server.ts';
-import { sendEmail } from '#app/utils/email.server.ts';
+import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_TYPES,
+} from '#app/utils/notification-registry.ts';
+import { notifyUser } from '#app/utils/notification-service.server.tsx';
 
 vi.mock('#app/utils/email.server.ts', () => ({
   sendEmail: vi.fn().mockResolvedValue({ status: 'success', data: { id: 'mock-email' } }),

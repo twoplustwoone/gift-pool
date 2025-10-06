@@ -1,8 +1,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { buildAppUrl } from '#app/utils/app-url.server.ts';
-import type {
-  NotificationChannel,
-  NotificationType,
+import  {
+  type NotificationChannel,
+  type NotificationType,
 } from '#app/utils/notification-registry.ts';
 
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
