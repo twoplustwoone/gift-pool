@@ -3,10 +3,10 @@ import {
   type ActionFunctionArgs,
   json,
   redirect,
-} from '@remix-run/node'
-import { Form, useLoaderData, useNavigate } from '@remix-run/react'
-import { Avatar } from '#app/components/ui/avatar.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+} from '@remix-run/node';
+import { Form, useLoaderData, useNavigate } from '@remix-run/react';
+import { Avatar } from '#app/components/ui/avatar.tsx';
+import { Button } from '#app/components/ui/button.tsx';
 import {
   Dialog,
   DialogClose,
@@ -14,39 +14,43 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '#app/components/ui/dialog.tsx'
-import { requireUserId } from '#app/utils/auth.server.ts'
+} from '#app/components/ui/dialog.tsx';
+import { requireUserId } from '#app/utils/auth.server.ts';
 import {
   acceptFriendInvite,
   requireFriendInvitationNotExpired,
-} from '#app/utils/friend-invitations.server.ts'
-import { redirectWithToast } from '#app/utils/toast.server.ts'
+} from '#app/utils/friend-invitations.server.ts';
+import { redirectWithToast } from '#app/utils/toast.server.ts';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
-  const code = params.code
-  if (!code) return redirect('/friends')
-  await requireUserId(request)
-  const invitation = await requireFriendInvitationNotExpired(code)
+  const code = params.code;
+  if (!code) return redirect('/friends');
+  const userId = await requireUserId(request);
+  const invitation = await requireFriendInvitationNotExpired(code);
+  console.info({ invitation, userId });
+  if (invitation.createdBy.id === userId) {
+    return redirect('/friends');
+  }
   return json({
     inviter: invitation.createdBy,
-  })
+  });
 }
 
 export async function action({ params, request }: ActionFunctionArgs) {
-  const code = params.code
-  if (!code) return json({ error: 'Invalid invite.' }, { status: 400 })
-  const userId = await requireUserId(request)
-  await acceptFriendInvite(code, userId)
+  const code = params.code;
+  if (!code) return json({ error: 'Invalid invite.' }, { status: 400 });
+  const userId = await requireUserId(request);
+  await acceptFriendInvite(code, userId);
   return redirectWithToast('/friends', {
     type: 'success',
     description: 'Friend added.',
-  })
+  });
 }
 
 const AcceptFriendInvitePage = () => {
-  const { inviter } = useLoaderData<typeof loader>()
-  const navigate = useNavigate()
-  const displayName = inviter.name ?? inviter.username
+  const { inviter } = useLoaderData<typeof loader>();
+  const navigate = useNavigate();
+  const displayName = inviter.name ?? inviter.username;
   return (
     <div className="flex flex-col items-center justify-center">
       <Dialog open>
@@ -58,7 +62,9 @@ const AcceptFriendInvitePage = () => {
             <Avatar size="s" image={inviter.image} user={inviter} />
             <div>
               <div className="font-medium text-foreground">{displayName}</div>
-              <div className="text-sm text-muted-foreground">@{inviter.username}</div>
+              <div className="text-sm text-muted-foreground">
+                @{inviter.username}
+              </div>
             </div>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -82,8 +88,7 @@ const AcceptFriendInvitePage = () => {
         </DialogContent>
       </Dialog>
     </div>
-  )
-}
+  );
+};
 
-export default AcceptFriendInvitePage
-
+export default AcceptFriendInvitePage;
