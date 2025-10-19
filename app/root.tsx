@@ -26,9 +26,11 @@ import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
 import { NotificationsProvider } from './components/notifications/notifications-context.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
+import { PwaInstallBanner } from './components/pwa-install-banner.tsx';
 import { useToast } from './components/toaster.tsx';
 import { href as iconsHref } from './components/ui/icon.tsx';
 import { EpicToaster } from './components/ui/sonner.tsx';
+import { usePwaInstallPrompt } from './hooks/use-pwa-install-prompt.ts';
 import nunitoStyleSheet from './styles/nunito-font.css?url';
 import tailwindStyleSheetUrl from './styles/tailwind.css?url';
 import { getUserId, logout } from './utils/auth.server.ts';
@@ -209,6 +211,12 @@ const App = () => {
   const nonce = useNonce();
   const theme = useTheme();
   useToast(data.toast);
+  const {
+    dismissBanner: dismissInstallBanner,
+    isInstallable: isPwaInstallable,
+    isPrompting,
+    promptInstall,
+  } = usePwaInstallPrompt();
 
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
@@ -217,6 +225,13 @@ const App = () => {
           initialUnreadCount={data.notifications?.unreadCount ?? 0}
         >
           <div className="flex min-h-[100dvh] flex-col">
+            {isPwaInstallable ? (
+              <PwaInstallBanner
+                isPrompting={isPrompting}
+                onDismiss={dismissInstallBanner}
+                onInstall={promptInstall}
+              />
+            ) : null}
             <TopBar />
 
             <div className="min-h-0 flex-1 bg-gradient-to-br from-background to-background-muted pb-bottom-nav sm:overflow-y-auto sm:pb-0">
