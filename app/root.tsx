@@ -213,10 +213,11 @@ const App = () => {
   useToast(data.toast);
   const {
     dismissBanner: dismissInstallBanner,
-    isInstallable: isPwaInstallable,
     isPrompting,
     promptInstall,
   } = usePwaInstallPrompt();
+  // TEMP: Force the banner to always render to help debug install issues on iOS.
+  const showPwaInstallBanner = true;
 
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
@@ -225,7 +226,7 @@ const App = () => {
           initialUnreadCount={data.notifications?.unreadCount ?? 0}
         >
           <div className="flex min-h-[100dvh] flex-col">
-            {isPwaInstallable ? (
+            {showPwaInstallBanner ? (
               <PwaInstallBanner
                 isPrompting={isPrompting}
                 onDismiss={dismissInstallBanner}
