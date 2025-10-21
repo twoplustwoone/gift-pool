@@ -17,8 +17,10 @@ import {
   useLoaderData,
 } from '@remix-run/react';
 import { withSentry } from '@sentry/remix';
+import { useCallback } from 'react';
 import { HoneypotProvider } from 'remix-utils/honeypot/react';
 import { z } from 'zod';
+import { toast } from 'sonner';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx';
@@ -213,11 +215,38 @@ const App = () => {
   useToast(data.toast);
   const {
     dismissBanner: dismissInstallBanner,
+    installMode,
+    instructions: installInstructions,
+    isInstallable,
     isPrompting,
     promptInstall,
   } = usePwaInstallPrompt();
-  // TEMP: Force the banner to always render to help debug install issues on iOS.
-  const showPwaInstallBanner = true;
+  const showPwaInstallBanner = isInstallable;
+
+  const handleInstallClick = useCallback(async () => {
+    const outcome = await promptInstall();
+    if (outcome === 'manual') {
+      return outcome;
+    }
+    if (outcome === 'accepted') {
+      toast.success('GiftPool installed', {
+        description: 'You can now launch it from your Home Screen.',
+      });
+    } else if (outcome === 'dismissed') {
+      toast.info('Install dismissed', {
+        description: 'You can try again later from this banner.',
+      });
+    } else if (outcome === 'unavailable') {
+      toast.error('Install not available', {
+        description: 'Your browser did not expose an install option.',
+      });
+    } else if (outcome === 'error') {
+      toast.error('Install failed', {
+        description: 'Something went wrong. Please try again.',
+      });
+    }
+    return outcome;
+  }, [promptInstall]);
 
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
@@ -228,9 +257,11 @@ const App = () => {
           <div className="flex min-h-[100dvh] flex-col">
             {showPwaInstallBanner ? (
               <PwaInstallBanner
+                installMode={installMode}
+                instructions={installInstructions}
                 isPrompting={isPrompting}
                 onDismiss={dismissInstallBanner}
-                onInstall={promptInstall}
+                onInstall={handleInstallClick}
               />
             ) : null}
             <TopBar />
