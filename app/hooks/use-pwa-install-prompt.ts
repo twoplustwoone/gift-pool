@@ -14,7 +14,7 @@ export type InstallOutcome =
   | 'unavailable'
   | 'error'
   | 'manual';
-export type InstallMode = 'prompt' | 'manual';
+export type InstallCapability = 'prompt' | 'manual' | 'unsupported';
 
 const isStandalone = () => {
   if (typeof window === 'undefined') return false;
@@ -25,7 +25,7 @@ const isStandalone = () => {
   return Boolean(mediaQueryList?.matches || navigatorStandalone);
 };
 
-const detectManualInstallInstructions = (): string[] | null => {
+const detectManualInstallPlatform = (): 'ios' | null => {
   if (typeof window === 'undefined') return null;
   if (isStandalone()) return null;
 
@@ -42,11 +42,7 @@ const detectManualInstallInstructions = (): string[] | null => {
 
   if (!isStandaloneCapableSafari) return null;
 
-  return [
-    'Tap the share button in Safari (the square with the upward arrow).',
-    'Scroll down and choose “Add to Home Screen”.',
-    'Confirm the name and tap “Add” to finish.',
-  ];
+  return 'ios';
 };
 
 export const usePwaInstallPrompt = () => {
@@ -56,9 +52,7 @@ export const usePwaInstallPrompt = () => {
   const [isDismissed, setIsDismissed] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isPrompting, setIsPrompting] = useState(false);
-  const [manualInstructions, setManualInstructions] = useState<string[] | null>(
-    null,
-  );
+  const [manualPlatform, setManualPlatform] = useState<'ios' | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -68,20 +62,20 @@ export const usePwaInstallPrompt = () => {
       setIsInstalled(nextInstalled);
       if (nextInstalled) {
         setInstallEvent(null);
-        setManualInstructions(null);
+        setManualPlatform(null);
       }
     };
 
     updateInstallationState();
 
-    const instructions = detectManualInstallInstructions();
-    setManualInstructions(instructions);
+    const platform = detectManualInstallPlatform();
+    setManualPlatform(platform);
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       setInstallEvent(event as BeforeInstallPromptEvent);
       setIsDismissed(false);
-      setManualInstructions(null);
+      setManualPlatform(null);
     };
 
     const handleAppInstalled = () => {
@@ -117,22 +111,18 @@ export const usePwaInstallPrompt = () => {
     };
   }, []);
 
-  const installMode = useMemo<InstallMode | null>(() => {
+  const capability = useMemo<InstallCapability>(() => {
     if (installEvent) return 'prompt';
-    if (manualInstructions) return 'manual';
-    return null;
-  }, [installEvent, manualInstructions]);
+    if (manualPlatform) return 'manual';
+    return 'unsupported';
+  }, [installEvent, manualPlatform]);
 
-  const isInstallable = useMemo(() => {
+  const shouldShowBanner = useMemo(() => {
     if (isInstalled || isDismissed) return false;
-    if (installEvent) return true;
-    return Boolean(manualInstructions);
-  }, [installEvent, isDismissed, isInstalled, manualInstructions]);
+    return true;
+  }, [isDismissed, isInstalled]);
 
   const promptInstall = useCallback(async (): Promise<InstallOutcome> => {
-    if (installMode === 'manual' && manualInstructions) {
-      return 'manual';
-    }
     if (!installEvent) return 'unavailable';
 
     setIsPrompting(true);
@@ -153,20 +143,20 @@ export const usePwaInstallPrompt = () => {
     } finally {
       setIsPrompting(false);
     }
-  }, [installEvent, installMode, manualInstructions]);
+  }, [installEvent]);
 
   const dismissBanner = useCallback(() => {
     setIsDismissed(true);
   }, []);
 
   return {
+    capability,
     dismissBanner,
-    installMode,
-    instructions: manualInstructions,
-    isInstallable,
     isInstalled,
-    isPrompting: installMode === 'prompt' ? isPrompting : false,
+    isPrompting: capability === 'prompt' ? isPrompting : false,
+    manualPlatform,
     promptInstall,
+    shouldShowBanner,
   };
 };
 

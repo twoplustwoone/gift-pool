@@ -19,8 +19,8 @@ import {
 import { withSentry } from '@sentry/remix';
 import { useCallback } from 'react';
 import { HoneypotProvider } from 'remix-utils/honeypot/react';
-import { z } from 'zod';
 import { toast } from 'sonner';
+import { z } from 'zod';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx';
@@ -214,16 +214,18 @@ const App = () => {
   const theme = useTheme();
   useToast(data.toast);
   const {
+    capability: installCapability,
     dismissBanner: dismissInstallBanner,
-    installMode,
-    instructions: installInstructions,
-    isInstallable,
     isPrompting,
     promptInstall,
+    shouldShowBanner: showPwaInstallBanner,
   } = usePwaInstallPrompt();
-  const showPwaInstallBanner = isInstallable;
 
   const handleInstallClick = useCallback(async () => {
+    if (installCapability !== 'prompt') {
+      return 'unavailable' as const;
+    }
+
     const outcome = await promptInstall();
     if (outcome === 'manual') {
       return outcome;
@@ -246,7 +248,7 @@ const App = () => {
       });
     }
     return outcome;
-  }, [promptInstall]);
+  }, [installCapability, promptInstall]);
 
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
@@ -257,11 +259,11 @@ const App = () => {
           <div className="flex min-h-[100dvh] flex-col">
             {showPwaInstallBanner ? (
               <PwaInstallBanner
-                installMode={installMode}
-                instructions={installInstructions}
+                capability={installCapability}
                 isPrompting={isPrompting}
+                manualHref="/pwa-install"
                 onDismiss={dismissInstallBanner}
-                onInstall={handleInstallClick}
+                onPromptInstall={handleInstallClick}
               />
             ) : null}
             <TopBar />
