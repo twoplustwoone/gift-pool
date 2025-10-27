@@ -14,6 +14,7 @@ export type InstallOutcome =
   | 'unavailable'
   | 'error'
   | 'manual';
+export type ManualInstallPlatform = 'ios-safari' | 'ios-chrome';
 export type InstallCapability = 'prompt' | 'manual' | 'unsupported';
 
 const isStandalone = () => {
@@ -25,24 +26,29 @@ const isStandalone = () => {
   return Boolean(mediaQueryList?.matches || navigatorStandalone);
 };
 
-const detectManualInstallPlatform = (): 'ios' | null => {
+const detectManualInstallPlatform = (): ManualInstallPlatform | null => {
   if (typeof window === 'undefined') return null;
   if (isStandalone()) return null;
 
   const userAgent = window.navigator.userAgent.toLowerCase();
   const isIos = /iphone|ipad|ipod/.test(userAgent);
-  const isStandaloneCapableSafari =
-    isIos &&
+  if (!isIos) return null;
+
+  if (userAgent.includes('crios')) {
+    return 'ios-chrome';
+  }
+
+  const isSafari =
     userAgent.includes('safari') &&
-    !userAgent.includes('crios') &&
     !userAgent.includes('fxios') &&
-    !userAgent.includes('chrome') &&
     !userAgent.includes('edgios') &&
     !userAgent.includes('opios');
 
-  if (!isStandaloneCapableSafari) return null;
+  if (isSafari) {
+    return 'ios-safari';
+  }
 
-  return 'ios';
+  return null;
 };
 
 export const usePwaInstallPrompt = () => {
@@ -52,7 +58,9 @@ export const usePwaInstallPrompt = () => {
   const [isDismissed, setIsDismissed] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isPrompting, setIsPrompting] = useState(false);
-  const [manualPlatform, setManualPlatform] = useState<'ios' | null>(null);
+  const [manualPlatform, setManualPlatform] = useState<ManualInstallPlatform | null>(
+    null,
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

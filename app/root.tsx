@@ -217,6 +217,7 @@ const App = () => {
     capability: installCapability,
     dismissBanner: dismissInstallBanner,
     isPrompting,
+    manualPlatform,
     promptInstall,
     shouldShowBanner: showPwaInstallBanner,
   } = usePwaInstallPrompt();
@@ -261,7 +262,12 @@ const App = () => {
               <PwaInstallBanner
                 capability={installCapability}
                 isPrompting={isPrompting}
-                manualHref="/pwa-install"
+                manualHref={
+                  installCapability === 'manual' && manualPlatform
+                    ? `/pwa-install?platform=${manualPlatform}`
+                    : '/pwa-install'
+                }
+                manualPlatform={manualPlatform}
                 onDismiss={dismissInstallBanner}
                 onPromptInstall={handleInstallClick}
               />
