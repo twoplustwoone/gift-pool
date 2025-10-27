@@ -114,12 +114,19 @@ export async function action({ request }: ActionFunctionArgs) {
     return redirect('/settings/profile');
   }
 
-  await prisma.$transaction(async ($prisma) => {
-    await $prisma.userImage.deleteMany({ where: { userId } });
-    await $prisma.user.update({
-      where: { id: userId },
-      data: { image: { create: image } },
-    });
+  invariantResponse(image, 'Image is required');
+
+  await prisma.userImage.upsert({
+    where: { userId },
+    create: {
+      userId,
+      contentType: image.contentType,
+      blob: image.blob,
+    },
+    update: {
+      contentType: image.contentType,
+      blob: image.blob,
+    },
   });
 
   return redirect('/settings/profile');
