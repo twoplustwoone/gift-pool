@@ -114,13 +114,18 @@ export async function action({ request }: ActionFunctionArgs) {
     return redirect('/settings/profile');
   }
 
-  await prisma.$transaction(async ($prisma) => {
-    await $prisma.userImage.deleteMany({ where: { userId } });
-    await $prisma.user.update({
-      where: { id: userId },
-      data: { image: { create: image } },
-    });
-  });
+  invariantResponse(image, 'Image is required');
+
+  await prisma.$transaction([
+    prisma.userImage.deleteMany({ where: { userId } }),
+    prisma.userImage.create({
+      data: {
+        userId,
+        contentType: image.contentType,
+        blob: image.blob,
+      },
+    }),
+  ]);
 
   return redirect('/settings/profile');
 }
@@ -148,6 +153,8 @@ const PhotoRoute = () => {
   const lastSubmissionIntent = fields.intent.value;
 
   const [newImageSrc, setNewImageSrc] = useState<string | null>(null);
+
+  const resetButtonProps = form.reset.getButtonProps();
 
   return (
     <div>
@@ -214,9 +221,11 @@ const PhotoRoute = () => {
             Save Photo
           </StatusButton>
           <Button
+            type="reset"
             variant="destructive"
             className="peer-invalid:hidden"
-            {...form.reset.getButtonProps()}
+            {...resetButtonProps}
+            onClick={() => setNewImageSrc(null)}
           >
             <Icon name="trash">Reset</Icon>
           </Button>
