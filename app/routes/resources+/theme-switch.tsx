@@ -5,7 +5,7 @@ import {
 } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
-import { json, type ActionFunctionArgs } from '@remix-run/node';
+import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/node';
 import { redirect, useFetcher, useFetchers } from '@remix-run/react';
 import { ServerOnly } from 'remix-utils/server-only';
 import { z } from 'zod';
@@ -21,6 +21,11 @@ const ThemeFormSchema = z.object({
 });
 
 export async function action({ request }: ActionFunctionArgs) {
+  invariantResponse(request.method === 'POST', 'Method not allowed', {
+    status: 405,
+    headers: { Allow: 'POST' },
+  });
+
   const formData = await request.formData();
   const submission = parseWithZod(formData, {
     schema: ThemeFormSchema,
@@ -38,6 +43,17 @@ export async function action({ request }: ActionFunctionArgs) {
   } else {
     return json({ result: submission.reply() }, responseInit);
   }
+}
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  if (request.method !== 'GET') {
+    return json(
+      { message: 'Method not allowed' },
+      { status: 405, headers: { Allow: 'POST' } },
+    );
+  }
+
+  return json({ message: 'Submit a POST request to switch themes.' });
 }
 
 export const ThemeSwitch = ({
