@@ -154,6 +154,8 @@ const PhotoRoute = () => {
 
   const [newImageSrc, setNewImageSrc] = useState<string | null>(null);
 
+  const resetButtonProps = form.reset.getButtonProps();
+
   return (
     <div>
       <Form
@@ -219,9 +221,11 @@ const PhotoRoute = () => {
             Save Photo
           </StatusButton>
           <Button
+            type="reset"
             variant="destructive"
             className="peer-invalid:hidden"
-            {...form.reset.getButtonProps()}
+            {...resetButtonProps}
+            onClick={() => setNewImageSrc(null)}
           >
             <Icon name="trash">Reset</Icon>
           </Button>
