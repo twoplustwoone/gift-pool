@@ -17,7 +17,9 @@ import {
   useLoaderData,
 } from '@remix-run/react';
 import { withSentry } from '@sentry/remix';
+import { useCallback } from 'react';
 import { HoneypotProvider } from 'remix-utils/honeypot/react';
+import { toast } from 'sonner';
 import { z } from 'zod';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
@@ -26,9 +28,11 @@ import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
 import { NotificationsProvider } from './components/notifications/notifications-context.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
+import { PwaInstallBanner } from './components/pwa-install-banner.tsx';
 import { useToast } from './components/toaster.tsx';
 import { href as iconsHref } from './components/ui/icon.tsx';
 import { EpicToaster } from './components/ui/sonner.tsx';
+import { usePwaInstallPrompt } from './hooks/use-pwa-install-prompt.ts';
 import nunitoStyleSheet from './styles/nunito-font.css?url';
 import tailwindStyleSheetUrl from './styles/tailwind.css?url';
 import { getUserId, logout } from './utils/auth.server.ts';
@@ -209,6 +213,43 @@ const App = () => {
   const nonce = useNonce();
   const theme = useTheme();
   useToast(data.toast);
+  const {
+    capability: installCapability,
+    dismissBanner: dismissInstallBanner,
+    isPrompting,
+    manualPlatform,
+    promptInstall,
+    shouldShowBanner: showPwaInstallBanner,
+  } = usePwaInstallPrompt();
+
+  const handleInstallClick = useCallback(async () => {
+    if (installCapability !== 'prompt') {
+      return 'unavailable' as const;
+    }
+
+    const outcome = await promptInstall();
+    if (outcome === 'manual') {
+      return outcome;
+    }
+    if (outcome === 'accepted') {
+      toast.success('GiftPool installed', {
+        description: 'You can now launch it from your Home Screen.',
+      });
+    } else if (outcome === 'dismissed') {
+      toast.info('Install dismissed', {
+        description: 'You can try again later from this banner.',
+      });
+    } else if (outcome === 'unavailable') {
+      toast.error('Install not available', {
+        description: 'Your browser did not expose an install option.',
+      });
+    } else if (outcome === 'error') {
+      toast.error('Install failed', {
+        description: 'Something went wrong. Please try again.',
+      });
+    }
+    return outcome;
+  }, [installCapability, promptInstall]);
 
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
@@ -217,6 +258,20 @@ const App = () => {
           initialUnreadCount={data.notifications?.unreadCount ?? 0}
         >
           <div className="flex min-h-[100dvh] flex-col">
+            {showPwaInstallBanner ? (
+              <PwaInstallBanner
+                capability={installCapability}
+                isPrompting={isPrompting}
+                manualHref={
+                  installCapability === 'manual' && manualPlatform
+                    ? `/pwa-install?platform=${manualPlatform}`
+                    : '/pwa-install'
+                }
+                manualPlatform={manualPlatform}
+                onDismiss={dismissInstallBanner}
+                onPromptInstall={handleInstallClick}
+              />
+            ) : null}
             <TopBar />
 
             <div className="min-h-0 flex-1 bg-gradient-to-br from-background to-background-muted pb-bottom-nav sm:overflow-y-auto sm:pb-0">
