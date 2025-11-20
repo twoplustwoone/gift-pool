@@ -1,7 +1,7 @@
 import path from 'node:path';
+import { PrismaClient } from '@prisma/client';
 import fsExtra from 'fs-extra';
 import { afterAll, afterEach, beforeAll } from 'vitest';
-import { PrismaClient } from '@prisma/client';
 import { cleanupDb } from '#tests/db-utils.ts';
 import { BASE_DATABASE_PATH } from './global-setup.ts';
 
