@@ -51,13 +51,17 @@ export const WishlistItem = ({
   const editorRef = React.useRef<WishlistItemEditorHandle>(null);
 
   // 🔧 Call hook once, unconditionally
-  const press = usePressFeedback<HTMLDivElement>({
-    onClick: () => editorRef.current?.openView(),
-  });
+  const press = usePressFeedback<HTMLDivElement>(
+    isOwner
+      ? {
+          onClick: () => editorRef.current?.openView(),
+        }
+      : undefined,
+  );
 
   // ---------------- Non-owner: simple, tappable row → read-only view
   if (!isOwner) {
-    return (
+    const trigger = (
       <Card
         variant="interactive"
         padding="md"
@@ -66,21 +70,6 @@ export const WishlistItem = ({
         data-pressed={press.pressed ? 'true' : 'false'}
         {...press.rowProps}
       >
-        <WishlistItemEditor
-          ref={editorRef}
-          wishlistItem={{
-            id: wishlistItem.id,
-            title: wishlistItem.title,
-            url: wishlistItem.url ?? null,
-            note: wishlistItem.note ?? null,
-            type: wishlistItem.type,
-            categoryId: wishlistItem.categoryId ?? null,
-          }}
-          canEdit={false}
-          initialMode="view"
-          categories={categories}
-        />
-
         <Flex justify="between" align="center" className="min-w-0 gap-3">
           <Box className="w-0 min-w-0 flex-1 overflow-hidden">
             <Text
@@ -99,6 +88,24 @@ export const WishlistItem = ({
           <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         </Flex>
       </Card>
+    );
+
+    return (
+      <WishlistItemEditor
+        ref={editorRef}
+        wishlistItem={{
+          id: wishlistItem.id,
+          title: wishlistItem.title,
+          url: wishlistItem.url ?? null,
+          note: wishlistItem.note ?? null,
+          type: wishlistItem.type,
+          categoryId: wishlistItem.categoryId ?? null,
+        }}
+        canEdit={false}
+        initialMode="view"
+        categories={categories}
+        trigger={trigger}
+      />
     );
   }
 
