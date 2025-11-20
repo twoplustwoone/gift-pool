@@ -23,7 +23,7 @@ type ProcessedImage = {
 };
 
 function isPrivateIPv4(address: string) {
-  const [a, b] = address.split('.').map(Number);
+  const [a, b = Number.NaN] = address.split('.').map(Number);
   if (Number.isNaN(a) || Number.isNaN(b)) return false;
   if (a === 10) return true;
   if (a === 172 && b >= 16 && b <= 31) return true;
@@ -60,7 +60,10 @@ async function assertSafeUrl(target: URL) {
   }
   if (parsedIpFamily) return;
 
-  const lookups = await dns.lookup(target.hostname, { all: true, verbatim: true });
+  const lookups = await dns.lookup(target.hostname, {
+    all: true,
+    verbatim: true,
+  });
   const unsafe = lookups.some((entry) => {
     if (entry.family === 4) return isPrivateIPv4(entry.address);
     return isPrivateIPv6(entry.address);
@@ -78,7 +81,10 @@ function ensureImageContentType(contentType: string | null) {
   }
 }
 
-async function fetchWithLimit(url: URL, options: FetchWithLimitOptions): Promise<{
+async function fetchWithLimit(
+  url: URL,
+  options: FetchWithLimitOptions,
+): Promise<{
   buffer: Buffer;
   contentType: string | null;
 }> {
@@ -180,7 +186,9 @@ export async function autoDetectImageUrl(itemUrl: string) {
   const html = await fetchHtml(itemUrl);
   const root = parse(html);
 
-  const ogImage = root.querySelector('meta[property="og:image"]')?.getAttribute('content');
+  const ogImage = root
+    .querySelector('meta[property="og:image"]')
+    ?.getAttribute('content');
   const twitterImage = root
     .querySelector('meta[name="twitter:image"], meta[name="twitter:image:src"]')
     ?.getAttribute('content');
