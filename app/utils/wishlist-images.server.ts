@@ -1,0 +1,196 @@
+import dns from 'node:dns/promises';
+import { isIP } from 'node:net';
+import { parse } from 'node-html-parser';
+import sharp from 'sharp';
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB limit for uploads/downloads
+const MAX_HTML_BYTES = 1024 * 1024; // 1MB limit when fetching HTML for auto-detect
+const REQUEST_TIMEOUT_MS = 7_000;
+const PROCESSED_CONTENT_TYPE = 'image/webp';
+
+const BLOCKED_HOSTNAMES = ['localhost', '127.0.0.1', '::1'];
+
+export type WishlistItemImageSource = 'AUTO' | 'MANUAL_UPLOAD' | 'MANUAL_URL';
+
+type FetchWithLimitOptions = {
+  allowedContentTypes?: string[];
+  maxBytes: number;
+};
+
+type ProcessedImage = {
+  data: Buffer;
+  contentType: string;
+};
+
+function isPrivateIPv4(address: string) {
+  const [a, b] = address.split('.').map(Number);
+  if (Number.isNaN(a) || Number.isNaN(b)) return false;
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 127) return true;
+  return false;
+}
+
+function isPrivateIPv6(address: string) {
+  const normalized = address.toLowerCase();
+  return (
+    normalized === '::1' ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd') ||
+    normalized.startsWith('fe80')
+  );
+}
+
+async function assertSafeUrl(target: URL) {
+  if (!target.hostname) {
+    throw new Error('Invalid URL host');
+  }
+
+  if (BLOCKED_HOSTNAMES.includes(target.hostname.toLowerCase())) {
+    throw new Error('Blocked host');
+  }
+
+  const parsedIpFamily = isIP(target.hostname);
+  if (parsedIpFamily === 4 && isPrivateIPv4(target.hostname)) {
+    throw new Error('Blocked private address');
+  }
+  if (parsedIpFamily === 6 && isPrivateIPv6(target.hostname)) {
+    throw new Error('Blocked private address');
+  }
+  if (parsedIpFamily) return;
+
+  const lookups = await dns.lookup(target.hostname, { all: true, verbatim: true });
+  const unsafe = lookups.some((entry) => {
+    if (entry.family === 4) return isPrivateIPv4(entry.address);
+    return isPrivateIPv6(entry.address);
+  });
+  if (unsafe) {
+    throw new Error('Blocked private address');
+  }
+}
+
+function ensureImageContentType(contentType: string | null) {
+  if (!contentType) throw new Error('Missing content type');
+  const normalized = contentType.toLowerCase();
+  if (!normalized.startsWith('image/')) {
+    throw new Error('URL is not an image');
+  }
+}
+
+async function fetchWithLimit(url: URL, options: FetchWithLimitOptions): Promise<{
+  buffer: Buffer;
+  contentType: string | null;
+}> {
+  await assertSafeUrl(url);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      redirect: 'follow',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (options.allowedContentTypes?.length) {
+      const isAllowed = options.allowedContentTypes.some((allowed) =>
+        contentType?.toLowerCase().startsWith(allowed.toLowerCase()),
+      );
+      if (!isAllowed) {
+        throw new Error('Unsupported content type');
+      }
+    }
+
+    const contentLength = response.headers.get('content-length');
+    if (contentLength && Number(contentLength) > options.maxBytes) {
+      throw new Error('Response too large');
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('Unable to read response');
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > options.maxBytes) {
+        throw new Error('Response too large');
+      }
+      chunks.push(value);
+    }
+
+    return { buffer: Buffer.concat(chunks), contentType };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function processImage(buffer: Buffer): Promise<ProcessedImage> {
+  const processed = await sharp(buffer)
+    .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 82 })
+    .toBuffer();
+
+  return { data: processed, contentType: PROCESSED_CONTENT_TYPE };
+}
+
+export async function processImageFromFile(file: File) {
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new Error('Image is too large');
+  }
+  const buffer = Buffer.from(await file.arrayBuffer());
+  return processImage(buffer);
+}
+
+export async function processImageFromUrl(urlString: string) {
+  const target = new URL(urlString);
+  const { buffer, contentType } = await fetchWithLimit(target, {
+    maxBytes: MAX_IMAGE_BYTES,
+    allowedContentTypes: ['image/'],
+  });
+  ensureImageContentType(contentType);
+  return processImage(buffer);
+}
+
+export async function fetchHtml(urlString: string) {
+  const target = new URL(urlString);
+  const { buffer } = await fetchWithLimit(target, {
+    maxBytes: MAX_HTML_BYTES,
+    allowedContentTypes: ['text/html', 'application/xhtml+xml'],
+  });
+  return buffer.toString('utf8');
+}
+
+function resolveImageUrl(src: string | null, base: string) {
+  if (!src) return null;
+  try {
+    return new URL(src, base).toString();
+  } catch {
+    return null;
+  }
+}
+
+export async function autoDetectImageUrl(itemUrl: string) {
+  const html = await fetchHtml(itemUrl);
+  const root = parse(html);
+
+  const ogImage = root.querySelector('meta[property="og:image"]')?.getAttribute('content');
+  const twitterImage = root
+    .querySelector('meta[name="twitter:image"], meta[name="twitter:image:src"]')
+    ?.getAttribute('content');
+  const firstImg = root.querySelector('img')?.getAttribute('src');
+
+  const candidate = ogImage ?? twitterImage ?? firstImg ?? null;
+  return resolveImageUrl(candidate, itemUrl);
+}
+
+export const WISHLIST_IMAGE_HEADERS = {
+  'Content-Type': PROCESSED_CONTENT_TYPE,
+  'Cache-Control': 'public, max-age=31536000, immutable',
+};

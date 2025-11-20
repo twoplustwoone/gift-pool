@@ -36,6 +36,8 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
           note: true,
           categoryId: true,
           purchase: { select: { purchasedById: true } },
+          image: true,
+          imageSource: true,
         },
       },
       wishlistCategories: {
@@ -53,7 +55,13 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     return redirect('/wishlist');
   }
 
-  return json({ user });
+  const wishlistItems = user.wishlistItems.map(({ image, imageSource, ...item }) => ({
+    ...item,
+    hasImage: Boolean(image),
+    imageSource,
+  }));
+
+  return json({ user: { ...user, wishlistItems } });
 };
 
 const UserWishlist = () => {

@@ -9,8 +9,8 @@ import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type WishlistItem } from '@prisma/client';
 import { type SerializeFrom } from '@remix-run/node';
 import { Form, useActionData } from '@remix-run/react';
-import React, { useRef } from 'react';
-import { LuExternalLink, LuPlus } from 'react-icons/lu';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { LuExternalLink, LuImage, LuLink2, LuPlus, LuUpload } from 'react-icons/lu';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Field, TextareaField } from '#app/components/forms.tsx';
@@ -26,14 +26,20 @@ import {
   DialogClose,
 } from '#app/components/ui/dialog';
 import { Icon } from '#app/components/ui/icon';
+import { Input } from '#app/components/ui/input';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Flex, Text } from '#app/components/ui-kit';
-import { useIsPending } from '#app/utils/misc.tsx';
+import { getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
 import { type Toast } from '#app/utils/toast.server.ts';
+import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
 import { type action } from './__wishlist-item-editor.server';
 
 const valueMinLength = 1;
 const valueMaxLength = 255;
+
+const ImageActionSchema = z
+  .enum(['none', 'upload', 'url', 'auto-detect', 'remove'])
+  .default('none');
 
 export const WishlistItemSchema = z.object({
   id: z.string().optional(),
@@ -42,11 +48,15 @@ export const WishlistItemSchema = z.object({
   note: z.string().optional(),
   url: z.string().url().optional(),
   type: z.enum(['text', 'link', 'wishlist']).default('text'),
+  imageAction: ImageActionSchema,
+  imageUrl: z.string().url().optional(),
+  imageFile: z.instanceof(File).optional(),
 });
 
 type EditorProps = {
   wishlistItem?: SerializeFrom<
-    Pick<WishlistItem, 'id' | 'title' | 'url' | 'note' | 'type' | 'categoryId'>
+    Pick<WishlistItem, 'id' | 'title' | 'url' | 'note' | 'type' | 'categoryId'> &
+      Partial<{ hasImage: boolean; imageSource: WishlistItemImageSource | null }>
   >;
   trigger?: React.ReactNode;
   initialMode?: 'auto' | 'view' | 'edit' | 'create';
@@ -132,20 +142,87 @@ export const WishlistItemEditor = React.forwardRef<
           result: SubmissionResult<z.infer<typeof WishlistItemSchema>>;
           intent: 'save' | 'save-add-another';
           toast: Toast | null;
+          imageError?: string | null;
+          imageAction?: z.infer<typeof ImageActionSchema>;
         }
       | undefined;
 
     const isPending = useIsPending();
     const formRef = useRef<HTMLFormElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const currentImageSrc = useMemo(
+      () =>
+        wishlistItem?.hasImage && wishlistItem?.id
+          ? getWishlistItemImgSrc(wishlistItem.id)
+          : null,
+      [wishlistItem?.hasImage, wishlistItem?.id],
+    );
+    const [imageActionState, setImageActionState] = useState<
+      z.infer<typeof ImageActionSchema>
+    >('none');
+    const [imagePreview, setImagePreview] = useState<string | null>(
+      currentImageSrc,
+    );
+    const [previewVersion, setPreviewVersion] = useState(0);
+    const [imageError, setImageError] = useState<string | null>(null);
 
     useToast(actionData?.toast);
 
-    React.useEffect(() => {
+    useEffect(() => {
+      setImagePreview(currentImageSrc);
+      setImageActionState('none');
+    }, [currentImageSrc]);
+
+    useEffect(() => {
+      if (actionData?.imageError) {
+        setImageError(actionData.imageError);
+      } else {
+        setImageError(null);
+      }
+
       if (actionData?.result?.status === 'success') {
         formRef.current?.reset();
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        if (!actionData.imageError) {
+          setImageActionState('none');
+          setPreviewVersion((v) => v + 1);
+        }
         if (actionData.intent === 'save') setOpen(false);
       }
     }, [actionData]);
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const [file] = Array.from(event.target.files ?? []);
+      if (!file) {
+        setImageActionState('none');
+        setImagePreview(currentImageSrc);
+        return;
+      }
+      setImageActionState('upload');
+      setImagePreview(URL.createObjectURL(file));
+      setImageError(null);
+    };
+
+    const handlePasteImage = (event: React.ClipboardEvent<HTMLDivElement>) => {
+      const [file] = Array.from(event.clipboardData?.files ?? []).filter((f) =>
+        f.type.startsWith('image/'),
+      );
+      if (!file) return;
+      event.preventDefault();
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      if (fileInputRef.current) {
+        fileInputRef.current.files = transfer.files;
+      }
+      setImageActionState('upload');
+      setImagePreview(URL.createObjectURL(file));
+      setImageError(null);
+    };
+
+    const triggerImageRetry = () => setPreviewVersion((v) => v + 1);
 
     const formId = React.useId();
 
@@ -161,6 +238,8 @@ export const WishlistItemEditor = React.forwardRef<
         url: wishlistItem?.url ?? '',
         note: wishlistItem?.note ?? '',
         categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
+        imageAction: 'none',
+        imageUrl: '',
       },
     });
 
@@ -218,6 +297,16 @@ export const WishlistItemEditor = React.forwardRef<
           <div className="mx-auto w-full sm:w-[28rem]">
             {mode === 'view' ? (
               <div className="flex flex-col gap-5">
+                {wishlistItem?.hasImage ? (
+                  <div className="overflow-hidden rounded-lg border bg-muted/40">
+                    <img
+                      src={`${getWishlistItemImgSrc(wishlistItem.id)}`}
+                      alt={wishlistItem.title}
+                      className="h-full w-full max-h-80 object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                ) : null}
                 <dl className="grid grid-cols-1 items-start gap-y-4 sm:grid-cols-[7.5rem,1fr] sm:gap-x-4 sm:gap-y-5">
                   {/* Title */}
                   <dt className="text-xs text-muted-foreground sm:text-sm">
@@ -352,7 +441,7 @@ export const WishlistItemEditor = React.forwardRef<
                       ariaAttributes: true,
                     }),
                   }}
-                  errors={[]}
+                  errors={fields.note.errors}
                 />
 
                 <div className="flex flex-col gap-2">
@@ -371,6 +460,128 @@ export const WishlistItemEditor = React.forwardRef<
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <input type="hidden" name="imageAction" value={imageActionState} />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">Image</label>
+                    <Text size="xs" className="text-muted-foreground">
+                      Paste, upload, or use a link.
+                    </Text>
+                  </div>
+
+                  <div
+                    className="overflow-hidden rounded-lg border bg-muted/40"
+                    onPaste={handlePasteImage}
+                  >
+                    {imagePreview ? (
+                      <img
+                        key={`${imagePreview}-${previewVersion}`}
+                        src={`${imagePreview}${imagePreview.includes('?') ? '&' : '?'}v=${previewVersion}`}
+                        alt={
+                          wishlistItem?.title ??
+                          fields.title.value ??
+                          fields.title.defaultValue ??
+                          'Wishlist item image'
+                        }
+                        className="h-full w-full max-h-64 object-cover"
+                        onError={() => setImageError('Image failed to load')}
+                      />
+                    ) : (
+                      <div className="flex h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
+                        <LuImage className="h-5 w-5" aria-hidden />
+                        No image selected
+                      </div>
+                    )}
+                  </div>
+                  {imageError ? (
+                    <Text size="sm" className="text-destructive">
+                      {imageError}
+                    </Text>
+                  ) : null}
+
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Input
+                      {...getInputProps(fields.imageFile, {
+                        type: 'file',
+                        ariaAttributes: true,
+                      })}
+                      ref={fileInputRef}
+                      accept="image/*"
+                      onChange={handleFileChange}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="sm:w-40"
+                    >
+                      <LuUpload className="mr-2 h-4 w-4" aria-hidden />
+                      Upload or paste
+                    </Button>
+                  </div>
+                  {fields.imageFile.errors?.length ? (
+                    <Text size="sm" className="text-destructive">
+                      {fields.imageFile.errors.join(', ')}
+                    </Text>
+                  ) : null}
+
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Input
+                      {...getInputProps(fields.imageUrl, {
+                        type: 'url',
+                        ariaAttributes: true,
+                      })}
+                      placeholder="https://example.com/image.jpg"
+                    />
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      name="intent"
+                      value="save"
+                      onClick={() => setImageActionState('url')}
+                    >
+                      <LuLink2 className="mr-2 h-4 w-4" aria-hidden />
+                      Use image link
+                    </Button>
+                  </div>
+                  {fields.imageUrl.errors?.length ? (
+                    <Text size="sm" className="text-destructive">
+                      {fields.imageUrl.errors.join(', ')}
+                    </Text>
+                  ) : null}
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="submit"
+                      variant="secondary"
+                      name="intent"
+                      value="save"
+                      onClick={() => setImageActionState('auto-detect')}
+                      disabled={!fields.url.value}
+                    >
+                      Auto-detect image
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      name="intent"
+                      value="save"
+                      onClick={() => setImageActionState('remove')}
+                      disabled={!wishlistItem?.hasImage && imageActionState !== 'upload'}
+                    >
+                      Remove image
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={triggerImageRetry}
+                      disabled={!imagePreview}
+                    >
+                      Retry loading
+                    </Button>
+                  </div>
                 </div>
 
                 <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
@@ -393,6 +604,13 @@ export const WishlistItemEditor = React.forwardRef<
                     name="intent"
                     value="save"
                     className="w-full sm:w-auto"
+                    onClick={() =>
+                      setImageActionState((current) =>
+                        current === 'upload' && fileInputRef.current?.files?.length
+                          ? current
+                          : 'none',
+                      )
+                    }
                   >
                     Save
                   </StatusButton>
@@ -407,6 +625,13 @@ export const WishlistItemEditor = React.forwardRef<
                       name="intent"
                       value="save-add-another"
                       className="col-span-2 w-full sm:col-span-1 sm:w-auto"
+                      onClick={() =>
+                        setImageActionState((current) =>
+                          current === 'upload' && fileInputRef.current?.files?.length
+                            ? current
+                            : 'none',
+                        )
+                      }
                     >
                       Save & Add Another
                     </StatusButton>

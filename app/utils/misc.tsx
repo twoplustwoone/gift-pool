@@ -9,6 +9,10 @@ export function getUserImgSrc(imageId?: string | null) {
   return imageId ? `/resources/user-images/${imageId}` : '/img/user.png';
 }
 
+export function getWishlistItemImgSrc(itemId?: string | null) {
+  return itemId ? `/resources/wishlist-images/${itemId}` : null;
+}
+
 export function getErrorMessage(error: unknown) {
   if (typeof error === 'string') return error;
   if (

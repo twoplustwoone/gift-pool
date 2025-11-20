@@ -1,7 +1,7 @@
 import { type WishlistItem as WishlistItemType } from '@prisma/client';
 import { useFetcher } from '@remix-run/react';
 import * as React from 'react';
-import { LuChevronRight, LuGift, LuPencil, LuTrash } from 'react-icons/lu';
+import { LuChevronRight, LuGift, LuImage, LuPencil, LuTrash } from 'react-icons/lu';
 import { z } from 'zod';
 import { Badge } from '#app/components/ui/badge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -19,8 +19,9 @@ import {
   WishlistItemEditor,
   type WishlistItemEditorHandle,
 } from '#app/routes/wishlist+/__wishlist-item-editor';
-import { cn, useIsPending } from '#app/utils/misc.tsx';
+import { cn, getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
+import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
 import { Box, Text, Flex } from '../ui-kit';
 import { usePressFeedback } from './hooks/use-press-feedback.ts';
 
@@ -38,6 +39,8 @@ export const WishlistItem = ({
     WishlistItemType,
     'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId'
   > &
+    Partial<{ hasImage: boolean; imageSource: WishlistItemImageSource | null }>
+    &
     Partial<{ purchase: { purchasedById: string } | null }>;
   isOwner?: boolean;
   categories?: { id: string; name: string; order: number }[];
@@ -54,6 +57,92 @@ export const WishlistItem = ({
   const isPurchasedByMe = wishlistItem.purchase?.purchasedById === user?.id;
   const isPurchasedBySomeoneElse =
     !!wishlistItem.purchase && wishlistItem.purchase.purchasedById !== user?.id;
+  const imageFetcher = useFetcher();
+  const [imageErrored, setImageErrored] = React.useState(false);
+  const [imageVersion, setImageVersion] = React.useState(0);
+  const imageSrc = wishlistItem.hasImage ? getWishlistItemImgSrc(wishlistItem.id) : null;
+  const displayImageSrc = imageSrc
+    ? `${imageSrc}${imageSrc.includes('?') ? '&' : '?'}v=${imageVersion}`
+    : null;
+
+  React.useEffect(() => {
+    setImageErrored(false);
+  }, [displayImageSrc]);
+
+  const handleImageError = (event?: React.SyntheticEvent) => {
+    event?.stopPropagation();
+    setImageErrored(true);
+  };
+
+  const handleRetryImage = (event?: React.SyntheticEvent) => {
+    event?.stopPropagation();
+    setImageErrored(false);
+    setImageVersion((v) => v + 1);
+  };
+
+  const handleRemoveImage = (event?: React.SyntheticEvent) => {
+    event?.stopPropagation();
+    if (!isOwner) return;
+    const formData = new FormData();
+    formData.set('intent', 'save');
+    formData.set('id', wishlistItem.id);
+    formData.set('title', wishlistItem.title);
+    formData.set('type', wishlistItem.type);
+    if (wishlistItem.url) formData.set('url', wishlistItem.url);
+    if (wishlistItem.note) formData.set('note', wishlistItem.note);
+    if (wishlistItem.categoryId) formData.set('categoryId', wishlistItem.categoryId);
+    formData.set('imageAction', 'remove');
+    imageFetcher.submit(formData, {
+      method: 'post',
+      encType: 'multipart/form-data',
+      action: '/wishlist',
+    });
+  };
+
+  const renderImageBlock = () => {
+    if (!(wishlistItem.hasImage || imageErrored)) return null;
+    return (
+      <div className="overflow-hidden rounded-lg bg-muted/30 sm:w-40">
+        {displayImageSrc && !imageErrored ? (
+          <img
+            src={displayImageSrc}
+            alt={wishlistItem.title}
+            className="h-40 w-full object-cover sm:h-full"
+            onError={handleImageError}
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex h-40 flex-col items-center justify-center gap-2 p-3 text-xs text-muted-foreground sm:h-full sm:min-h-[9rem]">
+            <LuImage className="h-5 w-5" aria-hidden />
+            <span>{imageErrored ? 'Image failed to load' : 'Image unavailable'}</span>
+            {imageErrored ? (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="secondary"
+                  onClick={handleRetryImage}
+                >
+                  Retry
+                </Button>
+                {isOwner ? (
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    onClick={handleRemoveImage}
+                    disabled={imageFetcher.state !== 'idle'}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+    );
+  };
   const purchaseStatusText = isPurchasedBySomeoneElse
     ? 'A friend already called dibs on this'
     : isPurchasedByMe
@@ -131,6 +220,8 @@ export const WishlistItem = ({
 
   // ---------------- Non-owner: simple, tappable row → read-only view
   if (!isOwner) {
+    const imageBlock = renderImageBlock();
+
     const viewPurchaseExtras = isPurchasedBySomeoneElse ? (
       <Flex align="center" gap={2}>
         <LuGift
@@ -189,64 +280,66 @@ export const WishlistItem = ({
           categories={categories}
           viewExtras={viewPurchaseExtras}
         />
-
-        <Flex justify="between" align="start" className="min-w-0 gap-3">
-          <Box className="w-0 min-w-0 flex-1 overflow-hidden">
-            <Text
-              size="base"
-              weight="medium"
-              className="block min-w-0 max-w-full truncate"
-            >
-              {wishlistItem.title}
-            </Text>
-            {purchaseStatusText ? (
-              isPurchasedByMe ? (
-                <Badge variant="pool" className="mt-1 w-fit">
-                  {purchaseStatusText}
-                </Badge>
-              ) : (
-                <Text size="xs" className="text-green-700 dark:text-green-400">
-                  {purchaseStatusText}
-                </Text>
-              )
-            ) : null}
-            <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-              <Text size="xs" className="break-words text-muted-foreground">
-                {wishlistItem.note}
-              </Text>
-            </Box>
-          </Box>
-          <div className="flex items-center gap-2">
-            {isPurchasedBySomeoneElse ? (
+        <div className="flex h-full flex-col gap-3 sm:flex-row">
+          {imageBlock}
+          <Flex justify="between" align="start" className="min-w-0 flex-1 gap-3">
+            <Box className="w-0 min-w-0 flex-1 overflow-hidden">
               <Text
-                size="xs"
-                className="flex items-center gap-1 text-green-700 dark:text-green-400"
+                size="base"
+                weight="medium"
+                className="block min-w-0 max-w-full truncate"
               >
-                <LuGift className="h-4 w-4" aria-hidden />A friend already
-                grabbed this
+                {wishlistItem.title}
               </Text>
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                variant={isPurchasedByMe ? 'secondary' : 'outline'}
-                disabled={isPurchasePending}
-                onPointerDown={(event) => event.stopPropagation()}
-                onPointerUp={(event) => event.stopPropagation()}
-                onClick={handlePurchaseToggle}
-                className={cn(
-                  'flex items-center whitespace-nowrap',
-                  purchaseButtonClassName,
-                )}
-                aria-pressed={isPurchasedByMe}
-                aria-label={purchaseButtonAriaLabel}
-              >
-                {purchaseButtonIconOnly}
-              </Button>
-            )}
-            <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-          </div>
-        </Flex>
+              {purchaseStatusText ? (
+                isPurchasedByMe ? (
+                  <Badge variant="pool" className="mt-1 w-fit">
+                    {purchaseStatusText}
+                  </Badge>
+                ) : (
+                  <Text size="xs" className="text-green-700 dark:text-green-400">
+                    {purchaseStatusText}
+                  </Text>
+                )
+              ) : null}
+              <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
+                <Text size="xs" className="break-words text-muted-foreground">
+                  {wishlistItem.note ?? ''}
+                </Text>
+              </Box>
+            </Box>
+            <div className="flex items-center gap-2">
+              {isPurchasedBySomeoneElse ? (
+                <Text
+                  size="xs"
+                  className="flex items-center gap-1 text-green-700 dark:text-green-400"
+                >
+                  <LuGift className="h-4 w-4" aria-hidden />A friend already
+                  grabbed this
+                </Text>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isPurchasedByMe ? 'secondary' : 'outline'}
+                  disabled={isPurchasePending}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onPointerUp={(event) => event.stopPropagation()}
+                  onClick={handlePurchaseToggle}
+                  className={cn(
+                    'flex items-center whitespace-nowrap',
+                    purchaseButtonClassName,
+                  )}
+                  aria-pressed={isPurchasedByMe}
+                  aria-label={purchaseButtonAriaLabel}
+                >
+                  {purchaseButtonIconOnly}
+                </Button>
+              )}
+              <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            </div>
+          </Flex>
+        </div>
       </Card>
     );
 
@@ -270,45 +363,51 @@ export const WishlistItem = ({
   }
 
   // ---------------- Owner: desktop trigger keeps click-to-edit behavior
+  const imageBlock = renderImageBlock();
   const DesktopTrigger = (
     <div className="hidden sm:block">
-      <Card variant="interactive" padding="md" className="group h-28 min-w-0">
-        <Flex justify="between" align="center" className="min-w-0 gap-3">
-          <Text
-            size="base"
-            weight="medium"
-            className="block w-0 min-w-0 max-w-full flex-1 truncate"
-          >
-            {wishlistItem.title}
-          </Text>
-          <div className="flex items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            <Flex>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                aria-label="Edit item"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  editorRef.current?.openEdit();
-                }}
+      <Card variant="interactive" padding="md" className="group min-w-0">
+        <div className="flex gap-3">
+          {imageBlock}
+          <div className="min-w-0 flex-1">
+            <Flex justify="between" align="center" className="min-w-0 gap-3">
+              <Text
+                size="base"
+                weight="medium"
+                className="block w-0 min-w-0 max-w-full flex-1 truncate"
               >
-                <LuPencil className="h-4 w-4" />
-              </Button>
-              {canDelete && (
-                <DeleteWishlistItem
-                  id={wishlistItem.id}
-                  className="items-center justify-center text-red-600 hover:text-red-800"
-                />
-              )}
+                {wishlistItem.title}
+              </Text>
+              <div className="flex items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                <Flex>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Edit item"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      editorRef.current?.openEdit();
+                    }}
+                  >
+                    <LuPencil className="h-4 w-4" />
+                  </Button>
+                  {canDelete && (
+                    <DeleteWishlistItem
+                      id={wishlistItem.id}
+                      className="items-center justify-center text-red-600 hover:text-red-800"
+                    />
+                  )}
+                </Flex>
+              </div>
             </Flex>
+            <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
+              <Text size="xs" className="break-words text-muted-foreground">
+                {wishlistItem.note ?? ''}
+              </Text>
+            </Box>
           </div>
-        </Flex>
-        <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-          <Text size="xs" className="break-words text-muted-foreground">
-            {wishlistItem.note}
-          </Text>
-        </Box>
+        </div>
       </Card>
     </div>
   );
@@ -340,62 +439,65 @@ export const WishlistItem = ({
           data-pressed={press.pressed ? 'true' : 'false'}
           {...press.rowProps}
         >
-          <Flex
-            className="h-full min-w-0"
-            align="center"
-            justify="between"
-            gap={3}
-          >
-            <Box className="w-0 min-w-0 flex-1 overflow-hidden">
-              <Text
-                size="base"
-                weight="medium"
-                className="block min-w-0 max-w-full truncate"
-              >
-                {wishlistItem.title}
-              </Text>
-              <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-                <Text size="xs" className="break-words text-muted-foreground">
-                  {wishlistItem.note}
+          <div className="flex h-full min-w-0 flex-col gap-3">
+            {imageBlock}
+            <Flex
+              className="min-w-0"
+              align="center"
+              justify="between"
+              gap={3}
+            >
+              <Box className="w-0 min-w-0 flex-1 overflow-hidden">
+                <Text
+                  size="base"
+                  weight="medium"
+                  className="block min-w-0 max-w-full truncate"
+                >
+                  {wishlistItem.title}
                 </Text>
+                <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
+                  <Text size="xs" className="break-words text-muted-foreground">
+                    {wishlistItem.note ?? ''}
+                  </Text>
+                </Box>
               </Box>
-            </Box>
 
-            <Flex align="center" className="flex-shrink-0" gap={1}>
-              {/* EDIT → flip current modal to edit mode */}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onPointerDown={(e) => e.stopPropagation()}
-                onPointerUp={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  editorRef.current?.openEdit();
-                }}
-                aria-label="Edit item"
-                title="Edit"
-                className="h-9 w-9 text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:opacity-80"
-              >
-                <LuPencil className="h-4 w-4" />
-              </Button>
+              <Flex align="center" className="flex-shrink-0" gap={1}>
+                {/* EDIT → flip current modal to edit mode */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerUp={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    editorRef.current?.openEdit();
+                  }}
+                  aria-label="Edit item"
+                  title="Edit"
+                  className="h-9 w-9 text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:opacity-80"
+                >
+                  <LuPencil className="h-4 w-4" />
+                </Button>
 
-              {/* DELETE */}
-              {canDelete && (
-                <DeleteWishlistItem
-                  id={wishlistItem.id}
-                  className="h-9 w-9 text-red-600 [-webkit-tap-highlight-color:transparent] hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:opacity-80"
+                {/* DELETE */}
+                {canDelete && (
+                  <DeleteWishlistItem
+                    id={wishlistItem.id}
+                    className="h-9 w-9 text-red-600 [-webkit-tap-highlight-color:transparent] hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:opacity-80"
+                  />
+                )}
+
+                {/* Divider + Chevron */}
+                <div className="mx-1 h-6 border-l border-border/40" />
+                <LuChevronRight
+                  className="h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform data-[pressed=true]:translate-x-0.5"
+                  data-pressed={press.pressed ? 'true' : 'false'}
                 />
-              )}
-
-              {/* Divider + Chevron */}
-              <div className="mx-1 h-6 border-l border-border/40" />
-              <LuChevronRight
-                className="h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform data-[pressed=true]:translate-x-0.5"
-                data-pressed={press.pressed ? 'true' : 'false'}
-              />
+              </Flex>
             </Flex>
-          </Flex>
+          </div>
         </Card>
       </div>
     </>

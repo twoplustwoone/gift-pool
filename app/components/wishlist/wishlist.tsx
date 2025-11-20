@@ -14,6 +14,7 @@ import { Icon } from '#app/components/ui/icon';
 import { Input } from '#app/components/ui/input';
 import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
+import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
 import { Heading } from '../ui/heading.tsx';
 import { Flex, Grid, Stack, Text } from '../ui-kit';
 import { CategoryManager } from './category-manager';
@@ -61,6 +62,7 @@ export const Wishlist = ({
         WishlistItemType,
         'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId'
       > & { purchase?: { purchasedById: string } | null }
+      & { hasImage?: boolean; imageSource?: WishlistItemImageSource | null }
     )[];
     wishlistCategories: { id: string; name: string; order: number }[];
   };

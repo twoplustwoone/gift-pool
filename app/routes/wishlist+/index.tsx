@@ -26,6 +26,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
           note: true,
           url: true,
           type: true,
+          image: true,
+          imageSource: true,
         },
       },
       wishlistCategories: {
@@ -43,7 +45,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   invariantResponse(user, 'User not found', { status: 404 });
 
-  return json({ user });
+  const wishlistItems = user.wishlistItems.map(({ image, imageSource, ...item }) => ({
+    ...item,
+    hasImage: Boolean(image),
+    imageSource,
+  }));
+
+  return json({ user: { ...user, wishlistItems } });
 }
 
 const WishlistIndex = () => {
