@@ -1,13 +1,7 @@
-// WishlistItem.tsx
 import { type WishlistItem as WishlistItemType } from '@prisma/client';
 import { useFetcher } from '@remix-run/react';
 import * as React from 'react';
-import {
-  LuChevronRight,
-  LuGift,
-  LuPencil,
-  LuTrash,
-} from 'react-icons/lu';
+import { LuChevronRight, LuGift, LuPencil, LuTrash } from 'react-icons/lu';
 import { z } from 'zod';
 import { Badge } from '#app/components/ui/badge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -65,7 +59,9 @@ export const WishlistItem = ({
     : isPurchasedByMe
       ? 'You’re on gift duty for this one'
       : null;
-  const purchaseActionLabel = isPurchasedByMe ? 'Change my mind' : "I'll grab this";
+  const purchaseActionLabel = isPurchasedByMe
+    ? 'Change my mind'
+    : "I'll grab this";
   const purchaseButtonAriaLabel = isPurchasedByMe
     ? 'Let someone else pick up this gift'
     : "I'll grab this gift";
@@ -125,16 +121,22 @@ export const WishlistItem = ({
 
   const editorRef = React.useRef<WishlistItemEditorHandle>(null);
 
-  // 🔧 Call hook once, unconditionally
-  const press = usePressFeedback<HTMLDivElement>({
-    onClick: () => editorRef.current?.openView(),
-  });
+  const press = usePressFeedback<HTMLDivElement>(
+    isOwner
+      ? {
+          onClick: () => editorRef.current?.openView(),
+        }
+      : undefined,
+  );
 
   // ---------------- Non-owner: simple, tappable row → read-only view
   if (!isOwner) {
     const viewPurchaseExtras = isPurchasedBySomeoneElse ? (
       <Flex align="center" gap={2}>
-        <LuGift className="h-4 w-4 text-green-700 dark:text-green-400" aria-hidden />
+        <LuGift
+          className="h-4 w-4 text-green-700 dark:text-green-400"
+          aria-hidden
+        />
         <Text size="sm" className="text-green-700 dark:text-green-400">
           A friend already grabbed this one.
         </Text>
@@ -163,7 +165,7 @@ export const WishlistItem = ({
       </div>
     );
 
-    return (
+    const trigger = (
       <Card
         variant="interactive"
         padding="md"
@@ -220,8 +222,8 @@ export const WishlistItem = ({
                 size="xs"
                 className="flex items-center gap-1 text-green-700 dark:text-green-400"
               >
-                <LuGift className="h-4 w-4" aria-hidden />
-                A friend already grabbed this
+                <LuGift className="h-4 w-4" aria-hidden />A friend already
+                grabbed this
               </Text>
             ) : (
               <Button
@@ -246,6 +248,24 @@ export const WishlistItem = ({
           </div>
         </Flex>
       </Card>
+    );
+
+    return (
+      <WishlistItemEditor
+        ref={editorRef}
+        wishlistItem={{
+          id: wishlistItem.id,
+          title: wishlistItem.title,
+          url: wishlistItem.url ?? null,
+          note: wishlistItem.note ?? null,
+          type: wishlistItem.type,
+          categoryId: wishlistItem.categoryId ?? null,
+        }}
+        canEdit={false}
+        initialMode="view"
+        categories={categories}
+        trigger={trigger}
+      />
     );
   }
 
@@ -394,26 +414,23 @@ export const DeleteWishlistItem = ({
 
   return (
     <Dialog>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        onPointerUp={(e) => e.stopPropagation()} // ADD THIS
-        onKeyDown={(e) => e.stopPropagation()}
-        onKeyUp={(e) => e.stopPropagation()}
-      >
-        <DialogTrigger asChild>
-          <Button
-            variant="ghost"
-            className={className}
-            size="icon"
-            type="button"
-            aria-label="Delete item"
-            title="Delete"
-          >
-            <LuTrash className="h-4 w-4" />
-          </Button>
-        </DialogTrigger>
-      </div>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          className={className}
+          size="icon"
+          type="button"
+          aria-label="Delete item"
+          title="Delete"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          onKeyUp={(e) => e.stopPropagation()}
+        >
+          <LuTrash className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
 
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
