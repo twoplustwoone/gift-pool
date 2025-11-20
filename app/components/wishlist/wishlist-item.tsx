@@ -43,7 +43,7 @@ export const WishlistItem = ({
 }: {
   wishlistItem: Pick<
     WishlistItemType,
-    'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId'
+    'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId' | 'updatedAt'
   > &
     Partial<{
       hasImage: boolean;
@@ -72,7 +72,7 @@ export const WishlistItem = ({
     ? getWishlistItemImgSrc(wishlistItem.id)
     : null;
   const displayImageSrc = imageSrc
-    ? `${imageSrc}${imageSrc.includes('?') ? '&' : '?'}v=${imageVersion}`
+    ? `${imageSrc}${imageSrc.includes('?') ? '&' : '?'}v=${(wishlistItem.updatedAt ? new Date(wishlistItem.updatedAt).getTime() : 0) + imageVersion}`
     : null;
 
   React.useEffect(() => {
@@ -279,19 +279,23 @@ export const WishlistItem = ({
         {...press.rowProps}
       >
         <WishlistItemEditor
+          key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}`}
           ref={editorRef}
           wishlistItem={{
             id: wishlistItem.id,
             title: wishlistItem.title,
             url: wishlistItem.url ?? null,
-            note: wishlistItem.note ?? null,
-            type: wishlistItem.type,
-            categoryId: wishlistItem.categoryId ?? null,
-          }}
-          canEdit={false}
-          initialMode="view"
-          categories={categories}
-          viewExtras={viewPurchaseExtras}
+          note: wishlistItem.note ?? null,
+          type: wishlistItem.type,
+          categoryId: wishlistItem.categoryId ?? null,
+          hasImage: wishlistItem.hasImage ?? false,
+          imageSource: wishlistItem.imageSource ?? null,
+          updatedAt: wishlistItem.updatedAt,
+        }}
+        canEdit={false}
+        initialMode="view"
+        categories={categories}
+        viewExtras={viewPurchaseExtras}
         />
         <div className="flex h-full flex-col gap-3 sm:flex-row">
           {imageBlock}
@@ -365,6 +369,7 @@ export const WishlistItem = ({
 
     return (
       <WishlistItemEditor
+        key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}`}
         ref={editorRef}
         wishlistItem={{
           id: wishlistItem.id,
@@ -373,6 +378,9 @@ export const WishlistItem = ({
           note: wishlistItem.note ?? null,
           type: wishlistItem.type,
           categoryId: wishlistItem.categoryId ?? null,
+          hasImage: wishlistItem.hasImage ?? false,
+          imageSource: wishlistItem.imageSource ?? null,
+          updatedAt: wishlistItem.updatedAt,
         }}
         canEdit={false}
         initialMode="view"
@@ -436,6 +444,7 @@ export const WishlistItem = ({
   return (
     <>
       <WishlistItemEditor
+        key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}`}
         ref={editorRef}
         wishlistItem={{
           id: wishlistItem.id,
@@ -444,6 +453,9 @@ export const WishlistItem = ({
           note: wishlistItem.note ?? null,
           type: wishlistItem.type,
           categoryId: wishlistItem.categoryId ?? null,
+          hasImage: wishlistItem.hasImage ?? false,
+          imageSource: wishlistItem.imageSource ?? null,
+          updatedAt: wishlistItem.updatedAt,
         }}
         trigger={DesktopTrigger} // desktop: row-as-trigger (edit/create)
         canEdit={true}

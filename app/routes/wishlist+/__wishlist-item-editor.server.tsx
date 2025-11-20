@@ -10,7 +10,6 @@ import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getErrorMessage } from '#app/utils/misc.tsx';
 import {
-  autoDetectImageUrl,
   processImageFromFile,
   processImageFromUrl,
   type WishlistItemImageSource,
@@ -79,13 +78,6 @@ export async function action({ request }: ActionFunctionArgs) {
         });
       }
 
-      if (data.imageAction === 'auto-detect' && !data.url) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['url'],
-          message: 'Add an item link to auto-detect an image',
-        });
-      }
     }),
     async: true,
   });
@@ -122,45 +114,25 @@ export async function action({ request }: ActionFunctionArgs) {
   let nextImageSource: WishlistItemImageSource | null | undefined;
   let imageError: string | null = null;
 
-  const shouldAutoDetectFromUrlChange =
-    imageAction === 'none' &&
-    !existingItem?.image &&
-    data.url &&
-    data.url !== existingItem?.url;
-
-  const applyAutoDetect = async () => {
-    if (!data.url) {
-      throw new Error('Add an item link to find an image');
-    }
-    const detectedUrl = await autoDetectImageUrl(data.url);
-    if (!detectedUrl) {
-      throw new Error('We could not find an image for that link');
-    }
-    const processed = await processImageFromUrl(detectedUrl);
-    nextImage = processed.data;
-    nextImageSource = 'AUTO';
-  };
+  const effectiveImageAction =
+    imageAction === 'auto-detect' ? 'none' : imageAction;
 
   try {
-    if (imageAction === 'upload') {
+    if (effectiveImageAction === 'upload') {
       if (imageFile && imageFile.size > 0) {
         const processed = await processImageFromFile(imageFile);
         nextImage = processed.data;
         nextImageSource = 'MANUAL_UPLOAD';
       }
-    } else if (imageAction === 'url') {
+    } else if (effectiveImageAction === 'url') {
       if (imageUrl) {
         const processed = await processImageFromUrl(imageUrl);
         nextImage = processed.data;
         nextImageSource = 'MANUAL_URL';
       }
-    } else if (imageAction === 'auto-detect') {
-      await applyAutoDetect();
-    } else if (imageAction === 'remove') {
+    } else if (effectiveImageAction === 'remove') {
       nextImage = null;
       nextImageSource = null;
-    } else if (shouldAutoDetectFromUrlChange) {
-      await applyAutoDetect();
     }
   } catch (error) {
     imageError = getErrorMessage(error);

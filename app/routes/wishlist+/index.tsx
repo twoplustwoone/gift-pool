@@ -28,6 +28,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
           note: true,
           url: true,
           type: true,
+          updatedAt: true,
           image: true,
           imageSource: true,
         },

@@ -15,6 +15,7 @@ export type WishlistItemImageSource = 'AUTO' | 'MANUAL_UPLOAD' | 'MANUAL_URL';
 type FetchWithLimitOptions = {
   allowedContentTypes?: string[];
   maxBytes: number;
+  headers?: Record<string, string>;
 };
 
 type ProcessedImage = {
@@ -95,6 +96,17 @@ async function fetchWithLimit(
     const response = await fetch(url, {
       signal: controller.signal,
       redirect: 'follow',
+      headers: {
+        // Some hosts (e.g., Amazon) block requests without a browsery UA.
+        'User-Agent':
+          options.headers?.['User-Agent'] ||
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+        Accept:
+          options.headers?.Accept ||
+          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': options.headers?.['Accept-Language'] || 'en-US,en;q=0.9',
+        ...(options.headers ?? {}),
+      },
     });
 
     if (!response.ok) {
