@@ -2,12 +2,14 @@ import { invariantResponse } from '@epic-web/invariant';
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { useLoaderData } from '@remix-run/react';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
-import { Wishlist } from '#app/components/wishlist';
+import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
 // Re-export the server action without importing it in the client bundle
 export { action } from './__wishlist-item-editor.server';
+
+type LoaderData = { user: WishlistUser };
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
@@ -45,13 +47,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   invariantResponse(user, 'User not found', { status: 404 });
 
-  const wishlistItems = user.wishlistItems.map(({ image, imageSource, ...item }) => ({
-    ...item,
-    hasImage: Boolean(image),
-    imageSource,
-  }));
+  const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
+    ({ image, imageSource, ...item }) => ({
+      ...item,
+      hasImage: Boolean(image),
+      imageSource:
+        imageSource as WishlistUser['wishlistItems'][number]['imageSource'],
+    }),
+  );
 
-  return json({ user: { ...user, wishlistItems } });
+  return json<LoaderData>({ user: { ...user, wishlistItems } });
 }
 
 const WishlistIndex = () => {

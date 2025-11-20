@@ -1,11 +1,13 @@
 import { invariantResponse } from '@epic-web/invariant';
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { redirect, useLoaderData } from '@remix-run/react';
-import { Wishlist } from '#app/components/wishlist';
+import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { requireUsersShareAGroupOrAreFriends } from '#app/utils/groups.server.ts';
 import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
+
+type LoaderData = { user: WishlistUser };
 
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const { username } = params;
@@ -55,18 +57,21 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     return redirect('/wishlist');
   }
 
-  const wishlistItems = user.wishlistItems.map(({ image, imageSource, ...item }) => ({
-    ...item,
-    hasImage: Boolean(image),
-    imageSource,
-  }));
+  const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
+    ({ image, imageSource, ...item }) => ({
+      ...item,
+      hasImage: Boolean(image),
+      imageSource:
+        imageSource as WishlistUser['wishlistItems'][number]['imageSource'],
+    }),
+  );
 
-  return json({ user: { ...user, wishlistItems } });
+  return json<LoaderData>({ user: { ...user, wishlistItems } });
 };
 
 const UserWishlist = () => {
-  const { user } = useLoaderData<typeof loader>();
-  return <Wishlist isOwner={false} user={user} />;
+  const data = useLoaderData<typeof loader>();
+  return <Wishlist isOwner={false} user={data.user} />;
 };
 
 export default UserWishlist;
