@@ -71,6 +71,7 @@
 
     --pool: 174 66% 47%; /* #2EC4B6 in HSL */
     --pool-foreground: 0 0% 100%;
+    --pool-badge-foreground: 0 0% 100%;
     /* Height of bottom nav including safe area for PWAs/iOS */
     --bottom-nav-height: calc(3rem + env(safe-area-inset-bottom));
     --header-height: 4rem;
@@ -132,6 +133,8 @@
 
     --brand-gradient-start: 345 82.7% 40.8%;
     --brand-gradient-end: 0 100% 68%;
+
+    --pool-badge-foreground: 0 0% 100%;
   }
 }
 

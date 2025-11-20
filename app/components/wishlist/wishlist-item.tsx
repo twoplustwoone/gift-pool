@@ -2,8 +2,14 @@
 import { type WishlistItem as WishlistItemType } from '@prisma/client';
 import { useFetcher } from '@remix-run/react';
 import * as React from 'react';
-import { LuChevronRight, LuPencil, LuTrash } from 'react-icons/lu';
+import {
+  LuChevronRight,
+  LuGift,
+  LuPencil,
+  LuTrash,
+} from 'react-icons/lu';
 import { z } from 'zod';
+import { Badge } from '#app/components/ui/badge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import {
@@ -19,7 +25,7 @@ import {
   WishlistItemEditor,
   type WishlistItemEditorHandle,
 } from '#app/routes/wishlist+/__wishlist-item-editor';
-import { useIsPending } from '#app/utils/misc.tsx';
+import { cn, useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
 import { Box, Text, Flex } from '../ui-kit';
 import { usePressFeedback } from './hooks/use-press-feedback.ts';
@@ -37,7 +43,8 @@ export const WishlistItem = ({
   wishlistItem: Pick<
     WishlistItemType,
     'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId'
-  >;
+  > &
+    Partial<{ purchase: { purchasedById: string } | null }>;
   isOwner?: boolean;
   categories?: { id: string; name: string; order: number }[];
 }) => {
@@ -48,6 +55,74 @@ export const WishlistItem = ({
     isOwnerByUser ? `delete:wishlistItem:own` : `delete:wishlistItem:any`,
   );
 
+  const purchaseFetcher = useFetcher();
+  const isPurchasePending = purchaseFetcher.state !== 'idle';
+  const isPurchasedByMe = wishlistItem.purchase?.purchasedById === user?.id;
+  const isPurchasedBySomeoneElse =
+    !!wishlistItem.purchase && wishlistItem.purchase.purchasedById !== user?.id;
+  const purchaseStatusText = isPurchasedBySomeoneElse
+    ? 'A friend already called dibs on this'
+    : isPurchasedByMe
+      ? 'You’re on gift duty for this one'
+      : null;
+  const purchaseActionLabel = isPurchasedByMe ? 'Change my mind' : "I'll grab this";
+  const purchaseButtonAriaLabel = isPurchasedByMe
+    ? 'Let someone else pick up this gift'
+    : "I'll grab this gift";
+  const purchaseCheckIndicator = (
+    <span
+      aria-hidden
+      className={cn(
+        'flex h-4 w-4 items-center justify-center rounded-sm border text-xs transition-colors',
+        isPurchasedByMe
+          ? 'border-pool bg-pool text-pool-foreground'
+          : 'border-input bg-background',
+      )}
+    >
+      {isPurchasedByMe ? (
+        <svg viewBox="0 0 8 8" className="h-3 w-3">
+          <path
+            d="M1,4 L3,6 L7,2"
+            stroke="currentColor"
+            strokeWidth="1.25"
+            fill="none"
+          />
+        </svg>
+      ) : null}
+    </span>
+  );
+  const purchaseButtonClassName = cn(
+    'gap-2',
+    isPurchasedByMe
+      ? 'border-pool bg-pool text-pool-foreground hover:bg-pool/90'
+      : '',
+  );
+  const purchaseButtonContent = (
+    <>
+      {purchaseCheckIndicator}
+      <span className="sr-only sm:hidden">{purchaseActionLabel}</span>
+      <span className="hidden sm:inline">{purchaseActionLabel}</span>
+      <LuGift className="h-4 w-4 sm:hidden" aria-hidden />
+    </>
+  );
+  const purchaseButtonIconOnly = (
+    <>
+      <span className="sr-only">{purchaseActionLabel}</span>
+      <LuGift className="h-4 w-4" aria-hidden />
+    </>
+  );
+
+  const handlePurchaseToggle = (event: React.SyntheticEvent) => {
+    event.stopPropagation();
+    purchaseFetcher.submit(
+      {
+        intent: isPurchasedByMe ? 'unpurchase' : 'purchase',
+        wishlistItemId: wishlistItem.id,
+      },
+      { method: 'post', action: '/wishlist/purchase' },
+    );
+  };
+
   const editorRef = React.useRef<WishlistItemEditorHandle>(null);
 
   // 🔧 Call hook once, unconditionally
@@ -57,6 +132,37 @@ export const WishlistItem = ({
 
   // ---------------- Non-owner: simple, tappable row → read-only view
   if (!isOwner) {
+    const viewPurchaseExtras = isPurchasedBySomeoneElse ? (
+      <Flex align="center" gap={2}>
+        <LuGift className="h-4 w-4 text-green-700 dark:text-green-400" aria-hidden />
+        <Text size="sm" className="text-green-700 dark:text-green-400">
+          A friend already grabbed this one.
+        </Text>
+      </Flex>
+    ) : (
+      <div className="flex flex-col gap-3">
+        <Text size="sm" className="text-muted-foreground">
+          Claim this gift so everyone else knows it’s handled.
+        </Text>
+        <Button
+          type="button"
+          variant={isPurchasedByMe ? 'secondary' : 'outline'}
+          disabled={isPurchasePending}
+          onClick={handlePurchaseToggle}
+          aria-pressed={isPurchasedByMe}
+          aria-label={purchaseButtonAriaLabel}
+          className={cn('justify-center sm:w-auto', purchaseButtonClassName)}
+        >
+          {purchaseButtonContent}
+        </Button>
+        {purchaseStatusText ? (
+          <Text size="sm" className="text-green-700 dark:text-green-400">
+            {purchaseStatusText}
+          </Text>
+        ) : null}
+      </div>
+    );
+
     return (
       <Card
         variant="interactive"
@@ -79,9 +185,10 @@ export const WishlistItem = ({
           canEdit={false}
           initialMode="view"
           categories={categories}
+          viewExtras={viewPurchaseExtras}
         />
 
-        <Flex justify="between" align="center" className="min-w-0 gap-3">
+        <Flex justify="between" align="start" className="min-w-0 gap-3">
           <Box className="w-0 min-w-0 flex-1 overflow-hidden">
             <Text
               size="base"
@@ -90,13 +197,53 @@ export const WishlistItem = ({
             >
               {wishlistItem.title}
             </Text>
+            {purchaseStatusText ? (
+              isPurchasedByMe ? (
+                <Badge variant="pool" className="mt-1 w-fit">
+                  {purchaseStatusText}
+                </Badge>
+              ) : (
+                <Text size="xs" className="text-green-700 dark:text-green-400">
+                  {purchaseStatusText}
+                </Text>
+              )
+            ) : null}
             <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
               <Text size="xs" className="break-words text-muted-foreground">
                 {wishlistItem.note}
               </Text>
             </Box>
           </Box>
-          <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          <div className="flex items-center gap-2">
+            {isPurchasedBySomeoneElse ? (
+              <Text
+                size="xs"
+                className="flex items-center gap-1 text-green-700 dark:text-green-400"
+              >
+                <LuGift className="h-4 w-4" aria-hidden />
+                A friend already grabbed this
+              </Text>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant={isPurchasedByMe ? 'secondary' : 'outline'}
+                disabled={isPurchasePending}
+                onPointerDown={(event) => event.stopPropagation()}
+                onPointerUp={(event) => event.stopPropagation()}
+                onClick={handlePurchaseToggle}
+                className={cn(
+                  'flex items-center whitespace-nowrap',
+                  purchaseButtonClassName,
+                )}
+                aria-pressed={isPurchasedByMe}
+                aria-label={purchaseButtonAriaLabel}
+              >
+                {purchaseButtonIconOnly}
+              </Button>
+            )}
+            <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          </div>
         </Flex>
       </Card>
     );
