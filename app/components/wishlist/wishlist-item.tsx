@@ -1,7 +1,13 @@
 import { type WishlistItem as WishlistItemType } from '@prisma/client';
 import { useFetcher } from '@remix-run/react';
 import * as React from 'react';
-import { LuChevronRight, LuGift, LuImage, LuPencil, LuTrash } from 'react-icons/lu';
+import {
+  LuChevronRight,
+  LuGift,
+  LuImage,
+  LuPencil,
+  LuTrash,
+} from 'react-icons/lu';
 import { z } from 'zod';
 import { Badge } from '#app/components/ui/badge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -39,8 +45,10 @@ export const WishlistItem = ({
     WishlistItemType,
     'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId'
   > &
-    Partial<{ hasImage: boolean; imageSource: WishlistItemImageSource | null }>
-    &
+    Partial<{
+      hasImage: boolean;
+      imageSource: WishlistItemImageSource | null;
+    }> &
     Partial<{ purchase: { purchasedById: string } | null }>;
   isOwner?: boolean;
   categories?: { id: string; name: string; order: number }[];
@@ -60,7 +68,9 @@ export const WishlistItem = ({
   const imageFetcher = useFetcher();
   const [imageErrored, setImageErrored] = React.useState(false);
   const [imageVersion, setImageVersion] = React.useState(0);
-  const imageSrc = wishlistItem.hasImage ? getWishlistItemImgSrc(wishlistItem.id) : null;
+  const imageSrc = wishlistItem.hasImage
+    ? getWishlistItemImgSrc(wishlistItem.id)
+    : null;
   const displayImageSrc = imageSrc
     ? `${imageSrc}${imageSrc.includes('?') ? '&' : '?'}v=${imageVersion}`
     : null;
@@ -90,7 +100,8 @@ export const WishlistItem = ({
     formData.set('type', wishlistItem.type);
     if (wishlistItem.url) formData.set('url', wishlistItem.url);
     if (wishlistItem.note) formData.set('note', wishlistItem.note);
-    if (wishlistItem.categoryId) formData.set('categoryId', wishlistItem.categoryId);
+    if (wishlistItem.categoryId)
+      formData.set('categoryId', wishlistItem.categoryId);
     formData.set('imageAction', 'remove');
     imageFetcher.submit(formData, {
       method: 'post',
@@ -114,7 +125,9 @@ export const WishlistItem = ({
         ) : (
           <div className="flex h-40 flex-col items-center justify-center gap-2 p-3 text-xs text-muted-foreground sm:h-full sm:min-h-[9rem]">
             <LuImage className="h-5 w-5" aria-hidden />
-            <span>{imageErrored ? 'Image failed to load' : 'Image unavailable'}</span>
+            <span>
+              {imageErrored ? 'Image failed to load' : 'Image unavailable'}
+            </span>
             {imageErrored ? (
               <div className="flex gap-2">
                 <Button
@@ -282,7 +295,11 @@ export const WishlistItem = ({
         />
         <div className="flex h-full flex-col gap-3 sm:flex-row">
           {imageBlock}
-          <Flex justify="between" align="start" className="min-w-0 flex-1 gap-3">
+          <Flex
+            justify="between"
+            align="start"
+            className="min-w-0 flex-1 gap-3"
+          >
             <Box className="w-0 min-w-0 flex-1 overflow-hidden">
               <Text
                 size="base"
@@ -297,7 +314,10 @@ export const WishlistItem = ({
                     {purchaseStatusText}
                   </Badge>
                 ) : (
-                  <Text size="xs" className="text-green-700 dark:text-green-400">
+                  <Text
+                    size="xs"
+                    className="text-green-700 dark:text-green-400"
+                  >
                     {purchaseStatusText}
                   </Text>
                 )
@@ -441,12 +461,7 @@ export const WishlistItem = ({
         >
           <div className="flex h-full min-w-0 flex-col gap-3">
             {imageBlock}
-            <Flex
-              className="min-w-0"
-              align="center"
-              justify="between"
-              gap={3}
-            >
+            <Flex className="min-w-0" align="center" justify="between" gap={3}>
               <Box className="w-0 min-w-0 flex-1 overflow-hidden">
                 <Text
                   size="base"

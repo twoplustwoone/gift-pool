@@ -131,7 +131,8 @@ const PwaInstallInstructions = () => {
             Add GiftPool to your Home Screen
           </h1>
           <p className="text-base text-muted-foreground sm:text-lg">
-            These steps walk you through adding GiftPool using Safari or Chrome on iOS.
+            These steps walk you through adding GiftPool using Safari or Chrome
+            on iOS.
           </p>
         </div>
       </header>
@@ -149,12 +150,13 @@ const PwaInstallInstructions = () => {
       <Card className="space-y-3 border-dashed">
         <h2 className="text-lg font-semibold">Why install GiftPool?</h2>
         <p className="text-sm text-muted-foreground">
-          Installing GiftPool to your Home Screen gives you full-screen browsing, offline support for
-          recent data, and quicker access when you need to check in on gift ideas.
+          Installing GiftPool to your Home Screen gives you full-screen
+          browsing, offline support for recent data, and quicker access when you
+          need to check in on gift ideas.
         </p>
         <p className="text-xs text-muted-foreground">
-          Tip: If you do not see the share icon, make sure the toolbar is visible by tapping the
-          bottom of the screen first.
+          Tip: If you do not see the share icon, make sure the toolbar is
+          visible by tapping the bottom of the screen first.
         </p>
       </Card>
     </div>

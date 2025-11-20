@@ -82,7 +82,11 @@ export const PwaInstallBanner = ({
               Not supported
             </Button>
           ) : null}
-          <Button variant="ghost" onClick={onDismiss} className="whitespace-nowrap">
+          <Button
+            variant="ghost"
+            onClick={onDismiss}
+            className="whitespace-nowrap"
+          >
             Not now
           </Button>
         </div>

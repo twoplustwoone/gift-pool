@@ -20,9 +20,11 @@ export type InstallCapability = 'prompt' | 'manual' | 'unsupported';
 const isStandalone = () => {
   if (typeof window === 'undefined') return false;
   const mediaQueryList = window.matchMedia?.('(display-mode: standalone)');
-  const navigatorStandalone = (window.navigator as Navigator & {
-    standalone?: boolean;
-  }).standalone;
+  const navigatorStandalone = (
+    window.navigator as Navigator & {
+      standalone?: boolean;
+    }
+  ).standalone;
   return Boolean(mediaQueryList?.matches || navigatorStandalone);
 };
 
@@ -52,15 +54,13 @@ const detectManualInstallPlatform = (): ManualInstallPlatform | null => {
 };
 
 export const usePwaInstallPrompt = () => {
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(
-    null,
-  );
+  const [installEvent, setInstallEvent] =
+    useState<BeforeInstallPromptEvent | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isPrompting, setIsPrompting] = useState(false);
-  const [manualPlatform, setManualPlatform] = useState<ManualInstallPlatform | null>(
-    null,
-  );
+  const [manualPlatform, setManualPlatform] =
+    useState<ManualInstallPlatform | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -107,7 +107,10 @@ export const usePwaInstallPrompt = () => {
     }
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener(
+        'beforeinstallprompt',
+        handleBeforeInstallPrompt,
+      );
       window.removeEventListener('appinstalled', handleAppInstalled);
       if (mediaQueryList) {
         if (typeof mediaQueryList.removeEventListener === 'function') {

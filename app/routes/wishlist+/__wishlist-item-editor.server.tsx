@@ -107,7 +107,13 @@ export async function action({ request }: ActionFunctionArgs) {
 
   const existingItem = wishlistItemId
     ? await prisma.wishlistItem.findUnique({
-        select: { id: true, ownerId: true, url: true, image: true, imageSource: true },
+        select: {
+          id: true,
+          ownerId: true,
+          url: true,
+          image: true,
+          imageSource: true,
+        },
         where: { id: wishlistItemId },
       })
     : null;
@@ -188,11 +194,14 @@ export async function action({ request }: ActionFunctionArgs) {
         }
       : null;
 
-  return json({
-    result: submission.reply(),
-    intent,
-    toast,
-    imageError,
-    imageAction,
-  }, { status: imageError ? 400 : 200 });
+  return json(
+    {
+      result: submission.reply(),
+      intent,
+      toast,
+      imageError,
+      imageAction,
+    },
+    { status: imageError ? 400 : 200 },
+  );
 }

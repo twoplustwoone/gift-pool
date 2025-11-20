@@ -10,7 +10,13 @@ import { type WishlistItem } from '@prisma/client';
 import { type SerializeFrom } from '@remix-run/node';
 import { Form, useActionData } from '@remix-run/react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { LuExternalLink, LuImage, LuLink2, LuPlus, LuUpload } from 'react-icons/lu';
+import {
+  LuExternalLink,
+  LuImage,
+  LuLink2,
+  LuPlus,
+  LuUpload,
+} from 'react-icons/lu';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Field, TextareaField } from '#app/components/forms.tsx';
@@ -55,8 +61,14 @@ export const WishlistItemSchema = z.object({
 
 type EditorProps = {
   wishlistItem?: SerializeFrom<
-    Pick<WishlistItem, 'id' | 'title' | 'url' | 'note' | 'type' | 'categoryId'> &
-      Partial<{ hasImage: boolean; imageSource: WishlistItemImageSource | null }>
+    Pick<
+      WishlistItem,
+      'id' | 'title' | 'url' | 'note' | 'type' | 'categoryId'
+    > &
+      Partial<{
+        hasImage: boolean;
+        imageSource: WishlistItemImageSource | null;
+      }>
   >;
   trigger?: React.ReactNode;
   initialMode?: 'auto' | 'view' | 'edit' | 'create';
@@ -158,9 +170,8 @@ export const WishlistItemEditor = React.forwardRef<
           : null,
       [wishlistItem?.hasImage, wishlistItem?.id],
     );
-    const [imageActionState, setImageActionState] = useState<
-      z.infer<typeof ImageActionSchema>
-    >('none');
+    const [imageActionState, setImageActionState] =
+      useState<z.infer<typeof ImageActionSchema>>('none');
     const [imagePreview, setImagePreview] = useState<string | null>(
       currentImageSrc,
     );
@@ -302,7 +313,7 @@ export const WishlistItemEditor = React.forwardRef<
                     <img
                       src={`${getWishlistItemImgSrc(wishlistItem.id)}`}
                       alt={wishlistItem.title}
-                      className="h-full w-full max-h-80 object-cover"
+                      className="h-full max-h-80 w-full object-cover"
                       loading="lazy"
                     />
                   </div>
@@ -347,7 +358,9 @@ export const WishlistItemEditor = React.forwardRef<
                   </dd>
                 </dl>
 
-                {viewExtras ? <div className="rounded-lg bg-muted/50 p-4">{viewExtras}</div> : null}
+                {viewExtras ? (
+                  <div className="rounded-lg bg-muted/50 p-4">{viewExtras}</div>
+                ) : null}
 
                 <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
                   <DialogClose asChild>
@@ -462,7 +475,11 @@ export const WishlistItemEditor = React.forwardRef<
                   </select>
                 </div>
 
-                <input type="hidden" name="imageAction" value={imageActionState} />
+                <input
+                  type="hidden"
+                  name="imageAction"
+                  value={imageActionState}
+                />
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium">Image</label>
@@ -485,7 +502,7 @@ export const WishlistItemEditor = React.forwardRef<
                           fields.title.defaultValue ??
                           'Wishlist item image'
                         }
-                        className="h-full w-full max-h-64 object-cover"
+                        className="h-full max-h-64 w-full object-cover"
                         onError={() => setImageError('Image failed to load')}
                       />
                     ) : (
@@ -569,7 +586,9 @@ export const WishlistItemEditor = React.forwardRef<
                       name="intent"
                       value="save"
                       onClick={() => setImageActionState('remove')}
-                      disabled={!wishlistItem?.hasImage && imageActionState !== 'upload'}
+                      disabled={
+                        !wishlistItem?.hasImage && imageActionState !== 'upload'
+                      }
                     >
                       Remove image
                     </Button>
@@ -606,7 +625,8 @@ export const WishlistItemEditor = React.forwardRef<
                     className="w-full sm:w-auto"
                     onClick={() =>
                       setImageActionState((current) =>
-                        current === 'upload' && fileInputRef.current?.files?.length
+                        current === 'upload' &&
+                        fileInputRef.current?.files?.length
                           ? current
                           : 'none',
                       )
@@ -627,7 +647,8 @@ export const WishlistItemEditor = React.forwardRef<
                       className="col-span-2 w-full sm:col-span-1 sm:w-auto"
                       onClick={() =>
                         setImageActionState((current) =>
-                          current === 'upload' && fileInputRef.current?.files?.length
+                          current === 'upload' &&
+                          fileInputRef.current?.files?.length
                             ? current
                             : 'none',
                         )
