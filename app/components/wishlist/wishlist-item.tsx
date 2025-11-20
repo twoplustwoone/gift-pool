@@ -74,7 +74,7 @@ export const WishlistItem = ({
       className={cn(
         'flex h-4 w-4 items-center justify-center rounded-sm border text-xs transition-colors',
         isPurchasedByMe
-          ? 'border-primary bg-primary text-primary-foreground'
+          ? 'border-pool bg-pool text-pool-foreground'
           : 'border-input bg-background',
       )}
     >
@@ -90,12 +90,24 @@ export const WishlistItem = ({
       ) : null}
     </span>
   );
+  const purchaseButtonClassName = cn(
+    'gap-2',
+    isPurchasedByMe
+      ? 'border-pool bg-pool text-pool-foreground hover:bg-pool/90'
+      : '',
+  );
   const purchaseButtonContent = (
     <>
       {purchaseCheckIndicator}
       <span className="sr-only sm:hidden">{purchaseActionLabel}</span>
       <span className="hidden sm:inline">{purchaseActionLabel}</span>
       <LuGift className="h-4 w-4 sm:hidden" aria-hidden />
+    </>
+  );
+  const purchaseButtonIconOnly = (
+    <>
+      <span className="sr-only">{purchaseActionLabel}</span>
+      <LuGift className="h-4 w-4" aria-hidden />
     </>
   );
 
@@ -138,7 +150,7 @@ export const WishlistItem = ({
           onClick={handlePurchaseToggle}
           aria-pressed={isPurchasedByMe}
           aria-label={purchaseButtonAriaLabel}
-          className="justify-center gap-2 sm:w-auto"
+          className={cn('justify-center sm:w-auto', purchaseButtonClassName)}
         >
           {purchaseButtonContent}
         </Button>
@@ -175,7 +187,7 @@ export const WishlistItem = ({
           viewExtras={viewPurchaseExtras}
         />
 
-        <Flex justify="between" align="center" className="min-w-0 gap-3">
+        <Flex justify="between" align="start" className="min-w-0 gap-3">
           <Box className="w-0 min-w-0 flex-1 overflow-hidden">
             <Text
               size="base"
@@ -213,11 +225,14 @@ export const WishlistItem = ({
                 onPointerDown={(event) => event.stopPropagation()}
                 onPointerUp={(event) => event.stopPropagation()}
                 onClick={handlePurchaseToggle}
-                className="flex items-center gap-2 whitespace-nowrap"
+                className={cn(
+                  'flex items-center whitespace-nowrap',
+                  purchaseButtonClassName,
+                )}
                 aria-pressed={isPurchasedByMe}
                 aria-label={purchaseButtonAriaLabel}
               >
-                {purchaseButtonContent}
+                {purchaseButtonIconOnly}
               </Button>
             )}
             <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
