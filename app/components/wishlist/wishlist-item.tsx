@@ -9,6 +9,7 @@ import {
   LuTrash,
 } from 'react-icons/lu';
 import { z } from 'zod';
+import { Badge } from '#app/components/ui/badge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import {
@@ -197,9 +198,15 @@ export const WishlistItem = ({
               {wishlistItem.title}
             </Text>
             {purchaseStatusText ? (
-              <Text size="xs" className="text-green-700 dark:text-green-400">
-                {purchaseStatusText}
-              </Text>
+              isPurchasedByMe ? (
+                <Badge variant="pool" className="mt-1 w-fit">
+                  {purchaseStatusText}
+                </Badge>
+              ) : (
+                <Text size="xs" className="text-green-700 dark:text-green-400">
+                  {purchaseStatusText}
+                </Text>
+              )
             ) : null}
             <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
               <Text size="xs" className="break-words text-muted-foreground">
