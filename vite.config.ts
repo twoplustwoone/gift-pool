@@ -8,6 +8,7 @@ import { envOnlyMacros } from 'vite-env-only';
 
 const MODE = process.env.NODE_ENV;
 const IS_STORYBOOK = Boolean(process.env.STORYBOOK);
+const IS_VITEST = Boolean(process.env.VITEST);
 
 export default defineConfig({
   optimizeDeps: {
@@ -61,7 +62,7 @@ export default defineConfig({
     envOnlyMacros(),
     // it would be really nice to have this enabled in tests, but we'll have to
     // wait until https://github.com/remix-run/remix/issues/9871 is fixed
-    process.env.NODE_ENV === 'test' || IS_STORYBOOK
+    process.env.NODE_ENV === 'test' || IS_VITEST || IS_STORYBOOK
       ? null
       : remix({
           ignoredRouteFiles: ['**/*'],
