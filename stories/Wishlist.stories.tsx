@@ -21,6 +21,7 @@ const items = [
     url: 'https://www.amazon.com/',
     type: 'link' as const,
     categoryId: 'c2',
+    purchase: null,
   },
   {
     id: 'i2',
@@ -30,6 +31,7 @@ const items = [
     url: '',
     type: 'text' as const,
     categoryId: 'c2',
+    purchase: null,
   },
   {
     id: 'i3',
@@ -39,6 +41,40 @@ const items = [
     url: '',
     type: 'text' as const,
     categoryId: null,
+    purchase: null,
+  },
+];
+
+const viewerItems = [
+  {
+    id: 'i4',
+    title: 'Board game night kit',
+    ownerId: 'user-2',
+    note: 'Dice, cards, and snacks',
+    url: '',
+    type: 'text' as const,
+    categoryId: 'c1',
+    purchase: null,
+  },
+  {
+    id: 'i5',
+    title: 'Fancy tea set',
+    ownerId: 'user-2',
+    note: 'Matcha friendly',
+    url: '',
+    type: 'text' as const,
+    categoryId: 'c1',
+    purchase: { purchasedById: 'friend-1' },
+  },
+  {
+    id: 'i6',
+    title: 'Wireless charger',
+    ownerId: 'user-2',
+    note: 'USB-C, fast charge',
+    url: '',
+    type: 'text' as const,
+    categoryId: 'c2',
+    purchase: null,
   },
 ];
 
@@ -84,7 +120,7 @@ export const Viewer: Story = {
     isOwner: false,
     user: {
       ...baseUser,
-      wishlistItems: items,
+      wishlistItems: viewerItems,
       wishlistCategories: categories,
     },
   },

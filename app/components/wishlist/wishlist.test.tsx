@@ -187,12 +187,10 @@ describe('Wishlist components', () => {
 
     render(<App />);
 
-    const purchaseButtons = await screen.findAllByRole('button', {
-      name: /mark purchased/i,
+    const purchaseButton = await screen.findByRole('button', {
+      name: /grab this gift/i,
     });
-    expect(
-      purchaseButtons.find((button) => button.tagName === 'BUTTON'),
-    ).toBeDefined();
+    expect(purchaseButton.tagName).toBe('BUTTON');
   });
 
   it('shows purchase status for viewers', async () => {
@@ -227,12 +225,11 @@ describe('Wishlist components', () => {
 
     render(<PurchasedByViewer />);
 
-    await screen.findByText(/you marked this as purchased/i);
-    const unmarkButtons = screen.getAllByRole('button', { name: /unmark/i });
-    const unmarkButton = unmarkButtons.find(
-      (button) => button.tagName === 'BUTTON',
-    );
-    expect(unmarkButton).toBeDefined();
+    await screen.findByText(/you’re on gift duty for this one/i);
+    const unmarkButton = screen.getByRole('button', {
+      name: /someone else pick up this gift/i,
+    });
+    expect(unmarkButton.tagName).toBe('BUTTON');
     expect(unmarkButton).toBeEnabled();
 
     const PurchasedByOther = createRemixStub([
@@ -266,14 +263,9 @@ describe('Wishlist components', () => {
 
     render(<PurchasedByOther />);
 
-    await screen.findByText(/purchased by someone else/i);
-    const purchaseStatusButtons = screen.getAllByRole('button', {
-      name: /purchased/i,
-    });
-    const purchaseStatusButton = purchaseStatusButtons.find(
-      (button) => button.tagName === 'BUTTON',
-    );
-    expect(purchaseStatusButton).toBeDefined();
-    expect(purchaseStatusButton).toBeDisabled();
+    await screen.findByText(/called dibs on this/i);
+    expect(
+      screen.queryByRole('button', { name: /grab this gift/i }),
+    ).not.toBeInTheDocument();
   });
 });
