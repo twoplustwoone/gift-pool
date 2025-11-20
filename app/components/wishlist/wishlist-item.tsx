@@ -1,4 +1,3 @@
-// WishlistItem.tsx
 import { type WishlistItem as WishlistItemType } from '@prisma/client';
 import { useFetcher } from '@remix-run/react';
 import * as React from 'react';
@@ -50,7 +49,6 @@ export const WishlistItem = ({
 
   const editorRef = React.useRef<WishlistItemEditorHandle>(null);
 
-  // 🔧 Call hook once, unconditionally
   const press = usePressFeedback<HTMLDivElement>(
     isOwner
       ? {
@@ -254,26 +252,23 @@ export const DeleteWishlistItem = ({
 
   return (
     <Dialog>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        onPointerUp={(e) => e.stopPropagation()} // ADD THIS
-        onKeyDown={(e) => e.stopPropagation()}
-        onKeyUp={(e) => e.stopPropagation()}
-      >
-        <DialogTrigger asChild>
-          <Button
-            variant="ghost"
-            className={className}
-            size="icon"
-            type="button"
-            aria-label="Delete item"
-            title="Delete"
-          >
-            <LuTrash className="h-4 w-4" />
-          </Button>
-        </DialogTrigger>
-      </div>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          className={className}
+          size="icon"
+          type="button"
+          aria-label="Delete item"
+          title="Delete"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          onKeyUp={(e) => e.stopPropagation()}
+        >
+          <LuTrash className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
 
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
