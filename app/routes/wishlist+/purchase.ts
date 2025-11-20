@@ -48,10 +48,6 @@ export async function action({ request }: ActionFunctionArgs) {
   });
 
   if (!hasAccess) {
-    if (wishlistItem.purchase) {
-      await prisma.wishlistPurchase.delete({ where: { wishlistItemId } });
-    }
-
     return json(
       { error: 'You no longer have access to this wishlist.' },
       { status: 403 },
