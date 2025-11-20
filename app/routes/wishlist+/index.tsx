@@ -5,11 +5,13 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Wishlist } from '#app/components/wishlist';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
 // Re-export the server action without importing it in the client bundle
 export { action } from './__wishlist-item-editor.server';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
+  await cleanupWishlistPurchasesForOwner(userId);
   const user = await prisma.user.findFirst({
     select: {
       id: true,

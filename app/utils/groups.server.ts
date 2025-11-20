@@ -109,24 +109,41 @@ export async function requireUsersShareAGroupOrAreFriends({
   });
   if (!other) return;
 
-  const [a, b] = userId < other.id ? [userId, other.id] : [other.id, userId];
+  const canView = await usersShareAGroupOrAreFriendsByIds({
+    userId,
+    otherUserId: other.id,
+  });
+
+  if (!canView) {
+    throw redirect('/groups');
+  }
+}
+
+export async function usersShareAGroupOrAreFriendsByIds({
+  userId,
+  otherUserId,
+}: {
+  userId: string;
+  otherUserId: string;
+}) {
+  if (userId === otherUserId) return true;
+
+  const [a, b] = userId < otherUserId ? [userId, otherUserId] : [otherUserId, userId];
   const friendship = await prisma.friendship.findUnique({
     where: { userAId_userBId: { userAId: a, userBId: b } },
     select: { id: true },
   });
-  if (friendship) return;
+  if (friendship) return true;
 
   const giftGroup = await prisma.giftGroup.findFirst({
     where: {
       groupMembers: { some: { userId } },
-      AND: { groupMembers: { some: { userId: other.id } } },
+      AND: { groupMembers: { some: { userId: otherUserId } } },
     },
     select: { id: true },
   });
 
-  if (!giftGroup) {
-    throw redirect('/groups');
-  }
+  return !!giftGroup;
 }
 
 export async function removeMember(

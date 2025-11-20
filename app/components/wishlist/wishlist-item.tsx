@@ -37,7 +37,8 @@ export const WishlistItem = ({
   wishlistItem: Pick<
     WishlistItemType,
     'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId'
-  >;
+  > &
+    Partial<{ purchase: { purchasedById: string } | null }>;
   isOwner?: boolean;
   categories?: { id: string; name: string; order: number }[];
 }) => {
@@ -47,6 +48,12 @@ export const WishlistItem = ({
     user,
     isOwnerByUser ? `delete:wishlistItem:own` : `delete:wishlistItem:any`,
   );
+
+  const purchaseFetcher = useFetcher();
+  const isPurchasePending = purchaseFetcher.state !== 'idle';
+  const isPurchasedByMe = wishlistItem.purchase?.purchasedById === user?.id;
+  const isPurchasedBySomeoneElse =
+    !!wishlistItem.purchase && wishlistItem.purchase.purchasedById !== user?.id;
 
   const editorRef = React.useRef<WishlistItemEditorHandle>(null);
 
@@ -90,13 +97,48 @@ export const WishlistItem = ({
             >
               {wishlistItem.title}
             </Text>
+            {isPurchasedBySomeoneElse ? (
+              <Text size="xs" className="text-green-700 dark:text-green-400">
+                Purchased by someone else
+              </Text>
+            ) : null}
+            {isPurchasedByMe ? (
+              <Text size="xs" className="text-green-700 dark:text-green-400">
+                You marked this as purchased
+              </Text>
+            ) : null}
             <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
               <Text size="xs" className="break-words text-muted-foreground">
                 {wishlistItem.note}
               </Text>
             </Box>
           </Box>
-          <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={isPurchasedByMe ? 'secondary' : 'outline'}
+              disabled={isPurchasedBySomeoneElse || isPurchasePending}
+              onClick={(event) => {
+                event.stopPropagation();
+                purchaseFetcher.submit(
+                  {
+                    intent: isPurchasedByMe ? 'unpurchase' : 'purchase',
+                    wishlistItemId: wishlistItem.id,
+                  },
+                  { method: 'post', action: '/wishlist/purchase' },
+                );
+              }}
+              className="whitespace-nowrap"
+            >
+              {isPurchasedBySomeoneElse
+                ? 'Purchased'
+                : isPurchasedByMe
+                  ? 'Unmark'
+                  : 'Mark purchased'}
+            </Button>
+            <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          </div>
         </Flex>
       </Card>
     );
