@@ -53,6 +53,7 @@ type EditorProps = {
   canEdit?: boolean;
   categories?: { id: string; name: string }[];
   defaultCategoryId?: string | null;
+  viewExtras?: React.ReactNode;
 };
 
 export type WishlistItemEditorHandle = {
@@ -76,6 +77,7 @@ export const WishlistItemEditor = React.forwardRef<
       canEdit = false,
       categories = [],
       defaultCategoryId = null,
+      viewExtras,
     },
     ref,
   ) => {
@@ -255,6 +257,8 @@ export const WishlistItemEditor = React.forwardRef<
                     {wishlistItem?.note || '—'}
                   </dd>
                 </dl>
+
+                {viewExtras ? <div className="rounded-lg bg-muted/50 p-4">{viewExtras}</div> : null}
 
                 <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
                   <DialogClose asChild>

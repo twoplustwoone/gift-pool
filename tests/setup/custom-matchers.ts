@@ -1,14 +1,14 @@
 import * as setCookieParser from 'set-cookie-parser';
 import { expect } from 'vitest';
-import { sessionKey } from '#app/utils/auth.server.ts';
-import { prisma } from '#app/utils/db.server.ts';
-import { authSessionStorage } from '#app/utils/session.server.ts';
-import {
-  type ToastInput,
-  toastSessionStorage,
-  toastKey,
-} from '#app/utils/toast.server.ts';
 import { convertSetCookieToCookie } from '#tests/utils.ts';
+import {
+  authSessionStorage,
+  sessionKey,
+  toastKey,
+  toastSessionStorage,
+  type ToastInput,
+} from './test-session-storage.ts';
+import { getPrisma } from './db-setup.ts';
 
 import '@testing-library/jest-dom/vitest';
 
@@ -102,7 +102,7 @@ expect.extend({
       };
     }
 
-    const session = await prisma.session.findUnique({
+    const session = await getPrisma().session.findUnique({
       select: { id: true },
       where: { userId, id: sessionValue },
     });

@@ -1,6 +1,12 @@
 import { useEffect } from 'react';
 import { toast as showToast } from 'sonner';
-import { type Toast } from '#app/utils/toast.server.ts';
+
+type Toast = {
+  description: string;
+  id: string;
+  title?: string;
+  type: 'message' | 'success' | 'error';
+};
 
 export function useToast(toast?: Toast | null) {
   useEffect(() => {

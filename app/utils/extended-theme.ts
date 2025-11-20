@@ -70,6 +70,7 @@ export const extendedTheme = {
     pool: {
       DEFAULT: 'hsl(var(--pool))',
       foreground: 'hsl(var(--pool-foreground))',
+      'badge-foreground': 'hsl(var(--pool-badge-foreground))',
     },
   },
   borderColor: {

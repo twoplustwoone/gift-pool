@@ -56,10 +56,12 @@ export const Wishlist = ({
 }: {
   user: Pick<User, 'username' | 'name'> & {
     image: Pick<UserImage, 'id'> | null;
-    wishlistItems: Pick<
-      WishlistItemType,
-      'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId'
-    >[];
+    wishlistItems: (
+      Pick<
+        WishlistItemType,
+        'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId'
+      > & { purchase?: { purchasedById: string } | null }
+    )[];
     wishlistCategories: { id: string; name: string; order: number }[];
   };
   isOwner: boolean;

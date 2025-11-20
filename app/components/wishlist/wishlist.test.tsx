@@ -154,4 +154,118 @@ describe('Wishlist components', () => {
 
     await screen.findByRole('heading', { name: /books \(0\)/i });
   });
+
+  it('lets viewers mark an item as purchased', async () => {
+    const App = createRemixStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={false}
+            user={{
+              username: 'jim',
+              name: 'Jim',
+              image: { id: 'img1' },
+              wishlistItems: [
+                {
+                  id: '1',
+                  title: 'Item one',
+                  ownerId: 'user2',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                  categoryId: null,
+                  purchase: null,
+                },
+              ],
+              wishlistCategories: [],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    const purchaseButton = await screen.findByRole('button', {
+      name: /grab this gift/i,
+    });
+    expect(purchaseButton.tagName).toBe('BUTTON');
+  });
+
+  it('shows purchase status for viewers', async () => {
+    const PurchasedByViewer = createRemixStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={false}
+            user={{
+              username: 'jim',
+              name: 'Jim',
+              image: { id: 'img1' },
+              wishlistItems: [
+                {
+                  id: '1',
+                  title: 'Item one',
+                  ownerId: 'user2',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                  categoryId: null,
+                  purchase: { purchasedById: 'user1' },
+                },
+              ],
+              wishlistCategories: [],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<PurchasedByViewer />);
+
+    await screen.findByText(/you’re on gift duty for this one/i);
+    const unmarkButton = screen.getByRole('button', {
+      name: /someone else pick up this gift/i,
+    });
+    expect(unmarkButton.tagName).toBe('BUTTON');
+    expect(unmarkButton).toBeEnabled();
+
+    const PurchasedByOther = createRemixStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={false}
+            user={{
+              username: 'jim',
+              name: 'Jim',
+              image: { id: 'img1' },
+              wishlistItems: [
+                {
+                  id: '1',
+                  title: 'Item one',
+                  ownerId: 'user2',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                  categoryId: null,
+                  purchase: { purchasedById: 'someone-else' },
+                },
+              ],
+              wishlistCategories: [],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<PurchasedByOther />);
+
+    await screen.findByText(/called dibs on this/i);
+    expect(
+      screen.queryByRole('button', { name: /grab this gift/i }),
+    ).not.toBeInTheDocument();
+  });
 });
