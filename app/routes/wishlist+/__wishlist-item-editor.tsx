@@ -174,6 +174,9 @@ export const WishlistItemEditor = React.forwardRef<
           imageAction?: z.infer<typeof ImageActionSchema>;
         }
       | undefined;
+    const shouldResetForm =
+      actionData?.intent === 'save-add-another' &&
+      actionData?.result?.status === 'success';
     const isPending = useIsPending();
     const formRef = useRef<HTMLFormElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -214,7 +217,7 @@ export const WishlistItemEditor = React.forwardRef<
     const [form, fields] = useForm<z.input<typeof WishlistItemSchema>>({
       id: formId,
       constraint: getZodConstraint(WishlistItemSchema),
-      lastResult: actionData?.result as any,
+      lastResult: shouldResetForm ? undefined : (actionData?.result as any),
       onValidate({ formData }) {
         return parseWithZod(formData, { schema: WishlistItemSchema }) as any;
       },
@@ -293,26 +296,46 @@ export const WishlistItemEditor = React.forwardRef<
                 }
               ).value
             : null;
-        initialValuesRef.current = {
-          title: nextValue?.title ?? initialValuesRef.current.title,
-          url: nextValue?.url ?? initialValuesRef.current.url,
-          note: nextValue?.note ?? initialValuesRef.current.note,
-          categoryId: (nextValue?.categoryId ??
-            initialValuesRef.current.categoryId ??
-            '') as string,
-          type: nextValue?.type ?? initialValuesRef.current.type,
-          hasImage:
-            (nextValue as any)?.hasImage ??
-            wishlistItem?.hasImage ??
-            initialValuesRef.current.hasImage,
-          updatedAt:
-            wishlistItem?.updatedAt ?? initialValuesRef.current.updatedAt,
-        };
+        initialValuesRef.current = shouldResetForm
+          ? {
+              title: '',
+              url: '',
+              note: '',
+              categoryId: (nextValue?.categoryId ??
+                initialValuesRef.current.categoryId ??
+                defaultCategoryId ??
+                '') as string,
+              type: nextValue?.type ?? initialValuesRef.current.type,
+              hasImage: false,
+              updatedAt: null,
+            }
+          : {
+              title: nextValue?.title ?? initialValuesRef.current.title,
+              url: nextValue?.url ?? initialValuesRef.current.url,
+              note: nextValue?.note ?? initialValuesRef.current.note,
+              categoryId: (nextValue?.categoryId ??
+                initialValuesRef.current.categoryId ??
+                '') as string,
+              type: nextValue?.type ?? initialValuesRef.current.type,
+              hasImage:
+                (nextValue as any)?.hasImage ??
+                wishlistItem?.hasImage ??
+                initialValuesRef.current.hasImage,
+              updatedAt:
+                wishlistItem?.updatedAt ?? initialValuesRef.current.updatedAt,
+            };
+
+        if (shouldResetForm) {
+          formRef.current?.reset();
+          setImagePreview(currentImageSrc);
+        }
         if (actionData.intent === 'save') setOpen(false);
       }
     }, [
       actionData,
       currentImageSrc,
+      defaultCategoryId,
+      shouldResetForm,
       wishlistItem?.hasImage,
       wishlistItem?.updatedAt,
     ]);
