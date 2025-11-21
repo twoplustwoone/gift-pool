@@ -269,6 +269,9 @@ const App = () => {
                 }
                 manualPlatform={manualPlatform}
                 onDismiss={dismissInstallBanner}
+                onDismissPermanently={() =>
+                  dismissInstallBanner({ persist: true })
+                }
                 onPromptInstall={handleInstallClick}
               />
             ) : null}
