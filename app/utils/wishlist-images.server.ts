@@ -8,6 +8,7 @@ const MAX_PROCESSED_IMAGE_BYTES = 5 * 1024 * 1024; // compress down to <= 5MB be
 const PROCESS_QUALITIES = [82, 70, 60, 50, 40, 30];
 const MAX_HTML_BYTES = 1024 * 1024; // 1MB limit when fetching HTML for auto-detect
 const REQUEST_TIMEOUT_MS = 7_000;
+const MAX_REDIRECTS = 3;
 const PROCESSED_CONTENT_TYPE = 'image/webp';
 
 const BLOCKED_HOSTNAMES = ['localhost', '127.0.0.1', '::1'];
@@ -91,61 +92,79 @@ async function fetchWithLimit(
   buffer: Buffer;
   contentType: string | null;
 }> {
-  await assertSafeUrl(url);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: {
-        // Some hosts (e.g., Amazon) block requests without a browsery UA.
-        'User-Agent':
-          options.headers?.['User-Agent'] ||
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
-        Accept:
-          options.headers?.Accept ||
-          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': options.headers?.['Accept-Language'] || 'en-US,en;q=0.9',
-        ...(options.headers ?? {}),
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Request failed with status ${response.status}`);
-    }
-
-    const contentType = response.headers.get('content-type');
-    if (options.allowedContentTypes?.length) {
-      const isAllowed = options.allowedContentTypes.some((allowed) =>
-        contentType?.toLowerCase().startsWith(allowed.toLowerCase()),
-      );
-      if (!isAllowed) {
-        throw new Error('Unsupported content type');
-      }
-    }
-
-    const contentLength = response.headers.get('content-length');
-    if (contentLength && Number(contentLength) > options.maxBytes) {
-      throw new Error('Response too large');
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('Unable to read response');
-    const chunks: Uint8Array[] = [];
-    let total = 0;
+    let currentUrl = url;
+    let redirectCount = 0;
+    // Follow redirects manually so we can re-validate each hop.
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-      total += value.byteLength;
-      if (total > options.maxBytes) {
+      await assertSafeUrl(currentUrl);
+      const response = await fetch(currentUrl, {
+        signal: controller.signal,
+        redirect: 'manual',
+        headers: {
+          // Some hosts (e.g., Amazon) block requests without a browsery UA.
+          'User-Agent':
+            options.headers?.['User-Agent'] ||
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+          Accept:
+            options.headers?.Accept ||
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': options.headers?.['Accept-Language'] || 'en-US,en;q=0.9',
+          ...(options.headers ?? {}),
+        },
+      });
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) {
+          throw new Error('Redirect missing location header');
+        }
+        if (redirectCount >= MAX_REDIRECTS) {
+          throw new Error('Too many redirects');
+        }
+        redirectCount += 1;
+        currentUrl = new URL(location, currentUrl);
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (options.allowedContentTypes?.length) {
+        const isAllowed = options.allowedContentTypes.some((allowed) =>
+          contentType?.toLowerCase().startsWith(allowed.toLowerCase()),
+        );
+        if (!isAllowed) {
+          throw new Error('Unsupported content type');
+        }
+      }
+
+      const contentLength = response.headers.get('content-length');
+      if (contentLength && Number(contentLength) > options.maxBytes) {
         throw new Error('Response too large');
       }
-      chunks.push(value);
-    }
 
-    return { buffer: Buffer.concat(chunks), contentType };
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Unable to read response');
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        total += value.byteLength;
+        if (total > options.maxBytes) {
+          throw new Error('Response too large');
+        }
+        chunks.push(value);
+      }
+
+      return { buffer: Buffer.concat(chunks), contentType };
+    }
   } finally {
     clearTimeout(timeout);
   }
