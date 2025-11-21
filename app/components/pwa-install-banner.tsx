@@ -13,6 +13,7 @@ export type PwaInstallBannerProps = {
   manualHref?: string;
   manualPlatform?: ManualInstallPlatform | null;
   onDismiss: () => void;
+  onDismissPermanently?: () => void;
   onPromptInstall?: () => Promise<InstallOutcome> | InstallOutcome;
   isPrompting?: boolean;
 };
@@ -22,6 +23,7 @@ export const PwaInstallBanner = ({
   manualHref,
   manualPlatform,
   onDismiss,
+  onDismissPermanently,
   onPromptInstall,
   isPrompting = false,
 }: PwaInstallBannerProps) => {
@@ -88,6 +90,13 @@ export const PwaInstallBanner = ({
             className="whitespace-nowrap"
           >
             Not now
+          </Button>
+          <Button
+            variant="outline"
+            onClick={onDismissPermanently}
+            className="whitespace-nowrap"
+          >
+            Don't show again
           </Button>
         </div>
       </div>

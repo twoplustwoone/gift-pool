@@ -53,14 +53,24 @@ const detectManualInstallPlatform = (): ManualInstallPlatform | null => {
   return null;
 };
 
+const DISMISS_STORAGE_KEY = 'pwa-install-banner-dismissed';
+
 export const usePwaInstallPrompt = () => {
   const [installEvent, setInstallEvent] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
+  const [isPermanentlyDismissed, setIsPermanentlyDismissed] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isPrompting, setIsPrompting] = useState(false);
   const [manualPlatform, setManualPlatform] =
     useState<ManualInstallPlatform | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const storedDismissal = window.localStorage.getItem(DISMISS_STORAGE_KEY);
+    setIsPermanentlyDismissed(storedDismissal === 'true');
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -129,9 +139,9 @@ export const usePwaInstallPrompt = () => {
   }, [installEvent, manualPlatform]);
 
   const shouldShowBanner = useMemo(() => {
-    if (isInstalled || isDismissed) return false;
+    if (isInstalled || isDismissed || isPermanentlyDismissed) return false;
     return true;
-  }, [isDismissed, isInstalled]);
+  }, [isDismissed, isInstalled, isPermanentlyDismissed]);
 
   const promptInstall = useCallback(async (): Promise<InstallOutcome> => {
     if (!installEvent) return 'unavailable';
@@ -156,8 +166,12 @@ export const usePwaInstallPrompt = () => {
     }
   }, [installEvent]);
 
-  const dismissBanner = useCallback(() => {
+  const dismissBanner = useCallback((options?: { persist?: boolean }) => {
     setIsDismissed(true);
+    if (options?.persist && typeof window !== 'undefined') {
+      window.localStorage.setItem(DISMISS_STORAGE_KEY, 'true');
+      setIsPermanentlyDismissed(true);
+    }
   }, []);
 
   return {
