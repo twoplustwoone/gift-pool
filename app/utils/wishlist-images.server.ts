@@ -3,7 +3,9 @@ import { isIP } from 'node:net';
 import { parse } from 'node-html-parser';
 import sharp from 'sharp';
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB limit for uploads/downloads
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB limit for uploads/downloads
+const MAX_PROCESSED_IMAGE_BYTES = 5 * 1024 * 1024; // compress down to <= 5MB before storage
+const PROCESS_QUALITIES = [82, 70, 60, 50, 40, 30];
 const MAX_HTML_BYTES = 1024 * 1024; // 1MB limit when fetching HTML for auto-detect
 const REQUEST_TIMEOUT_MS = 7_000;
 const PROCESSED_CONTENT_TYPE = 'image/webp';
@@ -150,12 +152,22 @@ async function fetchWithLimit(
 }
 
 async function processImage(buffer: Buffer): Promise<ProcessedImage> {
-  const processed = await sharp(buffer)
-    .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 82 })
-    .toBuffer();
+  // Lower image quality progressively until the final payload fits under the max size.
+  const baseImage = sharp(buffer);
 
-  return { data: processed, contentType: PROCESSED_CONTENT_TYPE };
+  for (const quality of PROCESS_QUALITIES) {
+    const processed = await baseImage
+      .clone()
+      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality })
+      .toBuffer();
+
+    if (processed.byteLength <= MAX_PROCESSED_IMAGE_BYTES) {
+      return { data: processed, contentType: PROCESSED_CONTENT_TYPE };
+    }
+  }
+
+  throw new Error('Processed image is too large');
 }
 
 export async function processImageFromFile(file: File) {

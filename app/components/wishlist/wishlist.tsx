@@ -24,8 +24,17 @@ export type WishlistUser = Pick<User, 'username' | 'name'> & {
   image: Pick<UserImage, 'id'> | null;
   wishlistItems: (Pick<
     WishlistItemType,
-    'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId' | 'updatedAt'
-  > & { purchase?: { purchasedById: string } | null } & {
+    | 'id'
+    | 'title'
+    | 'ownerId'
+    | 'note'
+    | 'url'
+    | 'type'
+    | 'categoryId'
+    | 'updatedAt'
+  > & {
+    updatedAt: Date;
+    purchase?: { purchasedById: string } | null;
     hasImage?: boolean;
     imageSource?: WishlistItemImageSource | null;
   })[];

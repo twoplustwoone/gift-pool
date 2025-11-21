@@ -7,7 +7,6 @@ import {
 } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type WishlistItem } from '@prisma/client';
-import { type SerializeFrom } from '@remix-run/node';
 import { Form, useActionData } from '@remix-run/react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -44,6 +43,7 @@ import { type action } from './__wishlist-item-editor.server';
 
 const valueMinLength = 1;
 const valueMaxLength = 255;
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const ImageActionSchema = z
   .enum(['none', 'upload', 'url', 'auto-detect', 'remove'])
@@ -62,16 +62,14 @@ export const WishlistItemSchema = z.object({
 });
 
 type EditorProps = {
-  wishlistItem?: SerializeFrom<
-    Pick<
-      WishlistItem,
-      'id' | 'title' | 'url' | 'note' | 'type' | 'categoryId' | 'updatedAt'
-    > &
-      Partial<{
-        hasImage: boolean;
-        imageSource: WishlistItemImageSource | null;
-      }>
-  >;
+  wishlistItem?: Pick<
+    WishlistItem,
+    'id' | 'title' | 'url' | 'note' | 'type' | 'categoryId' | 'updatedAt'
+  > &
+    Partial<{
+      hasImage: boolean;
+      imageSource: WishlistItemImageSource | null;
+    }>;
   trigger?: React.ReactNode;
   initialMode?: 'auto' | 'view' | 'edit' | 'create';
   canEdit?: boolean;
@@ -170,7 +168,7 @@ export const WishlistItemEditor = React.forwardRef<
       const version = wishlistItem.updatedAt
         ? new Date(wishlistItem.updatedAt).getTime()
         : 0;
-      return `${base}${base.includes('?') ? '&' : '?'}v=${version}`;
+      return `${base}${base?.includes('?') ? '&' : '?'}v=${version}`;
     }, [wishlistItem?.hasImage, wishlistItem?.id, wishlistItem?.updatedAt]);
     const [imageActionState, setImageActionState] =
       useState<z.infer<typeof ImageActionSchema>>('none');
@@ -271,17 +269,26 @@ export const WishlistItemEditor = React.forwardRef<
         setImageUrlValue('');
         setPreviewVersion((v) => v + 1);
         setImageUrlResetKey((key) => key + 1);
+        const nextValue =
+          actionData?.result &&
+          actionData.result.status === 'success' &&
+          'value' in actionData.result
+            ? (
+                actionData.result as {
+                  value: z.infer<typeof WishlistItemSchema>;
+                }
+              ).value
+            : null;
         initialValuesRef.current = {
-          title:
-            actionData.result.value?.title ?? initialValuesRef.current.title,
-          url: actionData.result.value?.url ?? initialValuesRef.current.url,
-          note: actionData.result.value?.note ?? initialValuesRef.current.note,
-          categoryId: (actionData.result.value?.categoryId ??
+          title: nextValue?.title ?? initialValuesRef.current.title,
+          url: nextValue?.url ?? initialValuesRef.current.url,
+          note: nextValue?.note ?? initialValuesRef.current.note,
+          categoryId: (nextValue?.categoryId ??
             initialValuesRef.current.categoryId ??
             '') as string,
-          type: actionData.result.value?.type ?? initialValuesRef.current.type,
+          type: nextValue?.type ?? initialValuesRef.current.type,
           hasImage:
-            actionData.result.value?.hasImage ??
+            (nextValue as any)?.hasImage ??
             wishlistItem?.hasImage ??
             initialValuesRef.current.hasImage,
           updatedAt:
@@ -409,12 +416,22 @@ export const WishlistItemEditor = React.forwardRef<
     }, [previewSrc]);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-      imageFileInputProps.onChange?.(event);
       const [file] = Array.from(event.target.files ?? []);
       if (!file) {
         setImageActionState('none');
         setImagePreview(currentImageSrc);
         setHasPendingImageChange(false);
+        return;
+      }
+      if (file.size > MAX_UPLOAD_BYTES) {
+        setImageActionState('none');
+        setImagePreview(currentImageSrc);
+        setImageError('Images must be 10MB or smaller');
+        setImageWarning(null);
+        setHasPendingImageChange(false);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
         return;
       }
       setImageActionState('upload');
@@ -660,7 +677,7 @@ export const WishlistItemEditor = React.forwardRef<
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium">Image</label>
                     <Text size="xs" className="text-muted-foreground">
-                      Upload or paste.
+                      Upload or paste. Max 10MB; stored images are compressed.
                     </Text>
                   </div>
 
@@ -748,12 +765,10 @@ export const WishlistItemEditor = React.forwardRef<
 
                   <div className="flex flex-col gap-2">
                     <Input
-                      key={imageUrlResetKey}
                       {...imageUrlInputProps}
                       placeholder="Paste an image URL or paste an image directly"
                       value={imageUrlValue}
                       onChange={(event) => {
-                        imageUrlInputProps.onChange?.(event);
                         const value = event.target.value;
                         setImageUrlValue(value);
                         setImageActionState(value ? 'url' : 'none');
@@ -779,7 +794,6 @@ export const WishlistItemEditor = React.forwardRef<
                           setImageWarning(null);
                           return;
                         }
-                        imageUrlInputProps.onPaste?.(event);
                         const target = event.currentTarget;
                         setTimeout(() => {
                           applyUrlPreview(target.value);

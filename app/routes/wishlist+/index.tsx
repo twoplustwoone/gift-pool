@@ -63,7 +63,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 const WishlistIndex = () => {
   const data = useLoaderData<typeof loader>();
 
-  return <Wishlist isOwner user={data.user} />;
+  const user: WishlistUser = {
+    ...data.user,
+    wishlistItems: data.user.wishlistItems.map((item) => ({
+      ...item,
+      updatedAt: new Date(item.updatedAt),
+    })),
+  };
+
+  return <Wishlist isOwner user={user} />;
 };
 
 export default WishlistIndex;

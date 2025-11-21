@@ -1,6 +1,6 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
-import { redirect, useLoaderData } from '@remix-run/react';
+import { json, redirect, type LoaderFunctionArgs } from '@remix-run/node';
+import { useLoaderData } from '@remix-run/react';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
@@ -37,6 +37,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
           url: true,
           note: true,
           categoryId: true,
+          updatedAt: true,
           purchase: { select: { purchasedById: true } },
           image: true,
           imageSource: true,
@@ -60,6 +61,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
     ({ image, imageSource, ...item }) => ({
       ...item,
+      updatedAt: item.updatedAt,
       hasImage: Boolean(image),
       imageSource:
         imageSource as WishlistUser['wishlistItems'][number]['imageSource'],
@@ -71,7 +73,15 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
 
 const UserWishlist = () => {
   const data = useLoaderData<typeof loader>();
-  return <Wishlist isOwner={false} user={data.user} />;
+  const user: WishlistUser = {
+    ...data.user,
+    wishlistItems: data.user.wishlistItems.map((item) => ({
+      ...item,
+      updatedAt: new Date(item.updatedAt),
+    })),
+  };
+
+  return <Wishlist isOwner={false} user={user} />;
 };
 
 export default UserWishlist;

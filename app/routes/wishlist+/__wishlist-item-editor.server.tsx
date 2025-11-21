@@ -16,7 +16,7 @@ import {
 } from '#app/utils/wishlist-images.server.ts';
 import { WishlistItemSchema } from './__wishlist-item-editor';
 
-const MAX_UPLOAD_SIZE = 1024 * 1024 * 5; // 5MB
+const MAX_UPLOAD_SIZE = 1024 * 1024 * 10; // 10MB
 
 export async function action({ request }: ActionFunctionArgs) {
   const userId = await requireUserId(request);
@@ -78,6 +78,17 @@ export async function action({ request }: ActionFunctionArgs) {
         });
       }
 
+      if (
+        data.imageAction === 'upload' &&
+        data.imageFile &&
+        data.imageFile.size > MAX_UPLOAD_SIZE
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['imageFile'],
+          message: 'Image must be 10MB or smaller',
+        });
+      }
     }),
     async: true,
   });
