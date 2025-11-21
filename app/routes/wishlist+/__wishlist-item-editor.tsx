@@ -44,6 +44,7 @@ import { type action } from './__wishlist-item-editor.server';
 const valueMinLength = 1;
 const valueMaxLength = 255;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const SAFE_IMAGE_PROTOCOLS = new Set(['http:', 'https:']);
 
 const ImageActionSchema = z
   .enum(['none', 'upload', 'url', 'auto-detect', 'remove'])
@@ -60,6 +61,21 @@ export const WishlistItemSchema = z.object({
   imageUrl: z.string().url().optional(),
   imageFile: z.instanceof(File).optional(),
 });
+
+const getSafePreviewSrc = (value: string | null) => {
+  if (!value) return null;
+  if (value.startsWith('/')) return value;
+  if (value.startsWith('blob:')) return value;
+  try {
+    const parsed = new URL(value);
+    if (SAFE_IMAGE_PROTOCOLS.has(parsed.protocol)) {
+      return parsed.toString();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
 
 type EditorProps = {
   wishlistItem?: Pick<
@@ -179,7 +195,6 @@ export const WishlistItemEditor = React.forwardRef<
     const [imageError, setImageError] = useState<string | null>(null);
     const [imageWarning, setImageWarning] = useState<string | null>(null);
     const [hasPendingImageChange, setHasPendingImageChange] = useState(false);
-    const [imageUrlResetKey, setImageUrlResetKey] = useState(0);
     const [isImageLoading, setIsImageLoading] = useState(false);
     const [imageUrlValue, setImageUrlValue] = useState('');
     const initialValuesRef = useRef({
@@ -268,7 +283,6 @@ export const WishlistItemEditor = React.forwardRef<
         setImageError(null);
         setImageUrlValue('');
         setPreviewVersion((v) => v + 1);
-        setImageUrlResetKey((key) => key + 1);
         const nextValue =
           actionData?.result &&
           actionData.result.status === 'success' &&
@@ -327,7 +341,6 @@ export const WishlistItemEditor = React.forwardRef<
       setImageError(null);
       setImageWarning(null);
       setHasPendingImageChange(true);
-      setImageUrlResetKey((key) => key + 1);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -373,20 +386,17 @@ export const WishlistItemEditor = React.forwardRef<
     const saveDisabled = isPending || !isDirty;
     const showImageError = Boolean(imageError && !imageWarning);
     const previewSrc = React.useMemo(() => {
-      if (!imagePreview) return null;
-      if (
-        imagePreview.startsWith('blob:') ||
-        imagePreview.startsWith('data:')
-      ) {
-        return imagePreview;
-      }
-      const separator = imagePreview.includes('?') ? '&' : '?';
-      return `${imagePreview}${separator}v=${previewVersion}`;
+      const safePreview = getSafePreviewSrc(imagePreview);
+      if (!safePreview) return null;
+      if (safePreview.startsWith('blob:')) return safePreview;
+      const separator = safePreview.includes('?') ? '&' : '?';
+      return `${safePreview}${separator}v=${previewVersion}`;
     }, [imagePreview, previewVersion]);
 
     const applyUrlPreview = React.useCallback(
       (rawValue: string) => {
         const value = rawValue.trim();
+        setImageUrlValue(value);
         if (!value) {
           setImageActionState('none');
           setHasPendingImageChange(false);
@@ -395,14 +405,21 @@ export const WishlistItemEditor = React.forwardRef<
           setImageWarning(null);
           return;
         }
+        const safePreview = getSafePreviewSrc(value);
+        if (!safePreview) {
+          setImageActionState('none');
+          setHasPendingImageChange(false);
+          setImagePreview(currentImageSrc);
+          setImageError('Enter a valid http(s) image URL');
+          setImageWarning(null);
+          return;
+        }
         setImageActionState('url');
         setHasPendingImageChange(true);
-        setImagePreview(value);
+        setImagePreview(safePreview);
         setPreviewVersion((v) => v + 1);
         setImageError(null);
         setImageWarning(null);
-        setImageUrlValue(value);
-        setImageUrlResetKey((key) => key + 1);
       },
       [currentImageSrc],
     );
@@ -839,7 +856,6 @@ export const WishlistItemEditor = React.forwardRef<
                         setHasPendingImageChange(false);
                         setImageError(null);
                         setImageWarning(null);
-                        setImageUrlResetKey((key) => key + 1);
                         setImageUrlValue('');
                         if (fileInputRef.current)
                           fileInputRef.current.value = '';
