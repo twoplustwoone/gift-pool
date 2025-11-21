@@ -22,6 +22,7 @@ const items = [
     type: 'link' as const,
     categoryId: 'c2',
     purchase: null,
+    updatedAt: new Date(),
   },
   {
     id: 'i2',
@@ -32,6 +33,7 @@ const items = [
     type: 'text' as const,
     categoryId: 'c2',
     purchase: null,
+    updatedAt: new Date(),
   },
   {
     id: 'i3',
@@ -42,6 +44,7 @@ const items = [
     type: 'text' as const,
     categoryId: null,
     purchase: null,
+    updatedAt: new Date(),
   },
 ];
 
@@ -55,6 +58,7 @@ const viewerItems = [
     type: 'text' as const,
     categoryId: 'c1',
     purchase: null,
+    updatedAt: new Date(),
   },
   {
     id: 'i5',
@@ -65,6 +69,7 @@ const viewerItems = [
     type: 'text' as const,
     categoryId: 'c1',
     purchase: { purchasedById: 'friend-1' },
+    updatedAt: new Date(),
   },
   {
     id: 'i6',
@@ -75,6 +80,7 @@ const viewerItems = [
     type: 'text' as const,
     categoryId: 'c2',
     purchase: null,
+    updatedAt: new Date(),
   },
 ];
 

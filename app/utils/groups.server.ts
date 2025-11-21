@@ -128,7 +128,8 @@ export async function usersShareAGroupOrAreFriendsByIds({
 }) {
   if (userId === otherUserId) return true;
 
-  const [a, b] = userId < otherUserId ? [userId, otherUserId] : [otherUserId, userId];
+  const [a, b] =
+    userId < otherUserId ? [userId, otherUserId] : [otherUserId, userId];
   const friendship = await prisma.friendship.findUnique({
     where: { userAId_userBId: { userAId: a, userBId: b } },
     select: { id: true },

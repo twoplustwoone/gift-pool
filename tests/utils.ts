@@ -1,5 +1,8 @@
 import * as setCookieParser from 'set-cookie-parser';
-import { authSessionStorage, sessionKey } from './setup/test-session-storage.ts';
+import {
+  authSessionStorage,
+  sessionKey,
+} from './setup/test-session-storage.ts';
 
 export const BASE_URL = 'https://www.giftpool.app';
 

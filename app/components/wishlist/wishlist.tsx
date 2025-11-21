@@ -14,19 +14,39 @@ import { Icon } from '#app/components/ui/icon';
 import { Input } from '#app/components/ui/input';
 import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
+import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
 import { Heading } from '../ui/heading.tsx';
 import { Flex, Grid, Stack, Text } from '../ui-kit';
 import { CategoryManager } from './category-manager';
 import { WishlistItem } from './wishlist-item';
+
+export type WishlistUser = Pick<User, 'username' | 'name'> & {
+  image: Pick<UserImage, 'id'> | null;
+  wishlistItems: (Pick<
+    WishlistItemType,
+    | 'id'
+    | 'title'
+    | 'ownerId'
+    | 'note'
+    | 'url'
+    | 'type'
+    | 'categoryId'
+    | 'updatedAt'
+  > & {
+    updatedAt: Date;
+    purchase?: { purchasedById: string } | null;
+    hasImage?: boolean;
+    imageSource?: WishlistItemImageSource | null;
+  })[];
+  wishlistCategories: { id: string; name: string; order: number }[];
+};
 
 const WishlistAvatar = ({
   isOwner,
   user,
 }: {
   isOwner: boolean;
-  user: Pick<User, 'username' | 'name'> & {
-    image: Pick<UserImage, 'id'> | null;
-  };
+  user: Pick<WishlistUser, 'username' | 'name' | 'image'>;
 }) => {
   const displayName = user.name ?? user.username;
   const image = (
@@ -54,16 +74,7 @@ export const Wishlist = ({
   user,
   isOwner,
 }: {
-  user: Pick<User, 'username' | 'name'> & {
-    image: Pick<UserImage, 'id'> | null;
-    wishlistItems: (
-      Pick<
-        WishlistItemType,
-        'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId'
-      > & { purchase?: { purchasedById: string } | null }
-    )[];
-    wishlistCategories: { id: string; name: string; order: number }[];
-  };
+  user: WishlistUser;
   isOwner: boolean;
 }) => {
   const displayName = user.name ?? user.username;

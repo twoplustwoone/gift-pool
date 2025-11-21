@@ -1,11 +1,13 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
-import { redirect, useLoaderData } from '@remix-run/react';
-import { Wishlist } from '#app/components/wishlist';
+import { json, redirect, type LoaderFunctionArgs } from '@remix-run/node';
+import { useLoaderData } from '@remix-run/react';
+import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { requireUsersShareAGroupOrAreFriends } from '#app/utils/groups.server.ts';
 import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
+
+type LoaderData = { user: WishlistUser };
 
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const { username } = params;
@@ -35,7 +37,10 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
           url: true,
           note: true,
           categoryId: true,
+          updatedAt: true,
           purchase: { select: { purchasedById: true } },
+          image: true,
+          imageSource: true,
         },
       },
       wishlistCategories: {
@@ -53,11 +58,29 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     return redirect('/wishlist');
   }
 
-  return json({ user });
+  const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
+    ({ image, imageSource, ...item }) => ({
+      ...item,
+      updatedAt: item.updatedAt,
+      hasImage: Boolean(image),
+      imageSource:
+        imageSource as WishlistUser['wishlistItems'][number]['imageSource'],
+    }),
+  );
+
+  return json<LoaderData>({ user: { ...user, wishlistItems } });
 };
 
 const UserWishlist = () => {
-  const { user } = useLoaderData<typeof loader>();
+  const data = useLoaderData<typeof loader>();
+  const user: WishlistUser = {
+    ...data.user,
+    wishlistItems: data.user.wishlistItems.map((item) => ({
+      ...item,
+      updatedAt: new Date(item.updatedAt),
+    })),
+  };
+
   return <Wishlist isOwner={false} user={user} />;
 };
 
