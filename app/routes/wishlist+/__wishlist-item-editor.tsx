@@ -529,7 +529,8 @@ export const WishlistItemEditor = React.forwardRef<
         ) : null}
 
         {/* Optional: ensure dialog can fit our inner width comfortably */}
-        <DialogContent className="sm:max-w-[36rem]">
+        <DialogContent variant="bottom-sheet" className="p-5 sm:max-w-[36rem] sm:p-6">
+          <div className="mx-auto mb-2 h-1.5 w-12 rounded-full bg-muted sm:hidden" aria-hidden />
           <DialogHeader>
             <DialogTitle>{titleText}</DialogTitle>
             <DialogDescription className="sr-only">
