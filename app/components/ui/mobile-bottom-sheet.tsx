@@ -1,6 +1,6 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import * as React from 'react';
-import { useDrag } from '@use-gesture/react';
+import { type FullGestureState, useDrag } from '@use-gesture/react';
 import { cn } from '#app/utils/misc.tsx';
 import { Icon } from './icon';
 
@@ -44,7 +44,13 @@ const MobileBottomSheetContent = React.forwardRef<
   const closeRef = React.useRef<HTMLButtonElement>(null);
 
   const bindHandleDrag = useDrag(
-    ({ first, last, movement: [, movementY], velocity: [, velocityY], direction: [, directionY] }) => {
+    ({
+      first,
+      last,
+      movement: [, movementY],
+      velocity: [, velocityY],
+      direction: [, directionY],
+    }: FullGestureState<'drag'>) => {
       if (first) {
         dragStartSnapRef.current = snapPoint;
       }

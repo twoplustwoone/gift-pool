@@ -25,6 +25,16 @@ import { Button } from '#app/components/ui/button';
 import { Icon } from '#app/components/ui/icon';
 import { Input } from '#app/components/ui/input';
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '#app/components/ui/dialog';
+import {
   MobileBottomSheet,
   MobileBottomSheetTrigger,
   MobileBottomSheetContent,
@@ -49,6 +59,27 @@ const SAFE_IMAGE_PROTOCOLS = new Set(['http:', 'https:']);
 const ImageActionSchema = z
   .enum(['none', 'upload', 'url', 'auto-detect', 'remove'])
   .default('none');
+
+const useIsDesktop = () => {
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(min-width: 640px)').matches;
+  });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 640px)');
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsDesktop(event.matches);
+    };
+
+    setIsDesktop(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  return isDesktop;
+};
 
 export const WishlistItemSchema = z.object({
   id: z.string().optional(),
@@ -214,6 +245,8 @@ export const WishlistItemEditor = React.forwardRef<
 
     const formId = React.useId();
 
+    const isDesktop = useIsDesktop();
+
     const [form, fields] = useForm<z.input<typeof WishlistItemSchema>>({
       id: formId,
       constraint: getZodConstraint(WishlistItemSchema),
@@ -230,6 +263,25 @@ export const WishlistItemEditor = React.forwardRef<
         imageUrl: '',
       },
     });
+
+    const DialogRoot = isDesktop ? Dialog : MobileBottomSheet;
+    const DialogTriggerComponent = isDesktop
+      ? DialogTrigger
+      : MobileBottomSheetTrigger;
+    const DialogContentComponent = isDesktop
+      ? DialogContent
+      : MobileBottomSheetContent;
+    const DialogHeaderComponent = isDesktop
+      ? DialogHeader
+      : MobileBottomSheetHeader;
+    const DialogFooterComponent = isDesktop
+      ? DialogFooter
+      : MobileBottomSheetFooter;
+    const DialogTitleComponent = isDesktop ? DialogTitle : MobileBottomSheetTitle;
+    const DialogDescriptionComponent = isDesktop
+      ? DialogDescription
+      : MobileBottomSheetDescription;
+    const DialogCloseComponent = isDesktop ? DialogClose : MobileBottomSheetClose;
 
     const imageFileInputProps = getInputProps(fields.imageFile, {
       type: 'file',
@@ -492,15 +544,15 @@ export const WishlistItemEditor = React.forwardRef<
     };
 
     return (
-      <MobileBottomSheet open={open} onOpenChange={setOpen}>
+      <DialogRoot open={open} onOpenChange={setOpen}>
         {trigger ? (
-          <MobileBottomSheetTrigger asChild>
+          <DialogTriggerComponent asChild>
             {trigger}
-          </MobileBottomSheetTrigger>
+          </DialogTriggerComponent>
         ) : !wishlistItem ? (
           <>
             {/* Desktop add button */}
-            <MobileBottomSheetTrigger asChild>
+            <DialogTriggerComponent asChild>
               <Button
                 className="hidden sm:inline-flex"
                 variant="outline"
@@ -511,10 +563,10 @@ export const WishlistItemEditor = React.forwardRef<
                   <Text size="sm">Add Item</Text>
                 </Flex>
               </Button>
-            </MobileBottomSheetTrigger>
+            </DialogTriggerComponent>
             {/* Mobile FAB add button */}
             {!open && (
-              <MobileBottomSheetTrigger asChild>
+              <DialogTriggerComponent asChild>
                 <Button
                   type="button"
                   size="icon"
@@ -525,19 +577,22 @@ export const WishlistItemEditor = React.forwardRef<
                 >
                   <Icon name="plus" />
                 </Button>
-              </MobileBottomSheetTrigger>
+              </DialogTriggerComponent>
             )}
           </>
         ) : null}
 
         {/* Optional: ensure dialog can fit our inner width comfortably */}
-        <MobileBottomSheetContent className="p-5 sm:max-w-[36rem] sm:p-6">
-          <MobileBottomSheetHeader>
-            <MobileBottomSheetTitle>{titleText}</MobileBottomSheetTitle>
-            <MobileBottomSheetDescription className="sr-only">
+        <DialogContentComponent
+          className="p-5 sm:max-w-[36rem] sm:p-6"
+          {...(!isDesktop ? { showHandle: true } : {})}
+        >
+          <DialogHeaderComponent>
+            <DialogTitleComponent>{titleText}</DialogTitleComponent>
+            <DialogDescriptionComponent className="sr-only">
               Update wishlist item details
-            </MobileBottomSheetDescription>
-          </MobileBottomSheetHeader>
+            </DialogDescriptionComponent>
+          </DialogHeaderComponent>
 
           {/* Shared width container for BOTH modes */}
           <div className="mx-auto w-full sm:w-[28rem]">
@@ -597,7 +652,7 @@ export const WishlistItemEditor = React.forwardRef<
                   <div className="rounded-lg bg-muted/50 p-4">{viewExtras}</div>
                 ) : null}
 
-                <MobileBottomSheetFooter className="grid gap-3 sm:flex sm:justify-end sm:space-x-2">
+                <DialogFooterComponent className="grid gap-3 sm:flex sm:justify-end sm:space-x-2">
                   {canEdit && hasId ? (
                     <Button
                       type="button"
@@ -609,7 +664,7 @@ export const WishlistItemEditor = React.forwardRef<
                     </Button>
                   ) : null}
 
-                  <MobileBottomSheetClose asChild>
+                  <DialogCloseComponent asChild>
                     <Button
                       type="button"
                       variant="outline"
@@ -617,8 +672,8 @@ export const WishlistItemEditor = React.forwardRef<
                     >
                       Close
                     </Button>
-                  </MobileBottomSheetClose>
-                </MobileBottomSheetFooter>
+                  </DialogCloseComponent>
+                </DialogFooterComponent>
               </div>
             ) : (
               // === EDIT / CREATE FORM ===
@@ -895,8 +950,8 @@ export const WishlistItemEditor = React.forwardRef<
                   </div>
                 </div>
 
-                <MobileBottomSheetFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
-                  <MobileBottomSheetClose asChild>
+                <DialogFooterComponent className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
+                  <DialogCloseComponent asChild>
                     <Button
                       type="button"
                       variant="outline"
@@ -904,7 +959,7 @@ export const WishlistItemEditor = React.forwardRef<
                     >
                       Cancel
                     </Button>
-                  </MobileBottomSheetClose>
+                  </DialogCloseComponent>
 
                   <StatusButton
                     form={form.id}
@@ -935,12 +990,12 @@ export const WishlistItemEditor = React.forwardRef<
                       Save & Add Another
                     </StatusButton>
                   ) : null}
-                </MobileBottomSheetFooter>
+                </DialogFooterComponent>
               </Form>
             )}
           </div>
-        </MobileBottomSheetContent>
-      </MobileBottomSheet>
+        </DialogContentComponent>
+      </DialogRoot>
     );
   },
 );
