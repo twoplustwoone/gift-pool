@@ -278,25 +278,6 @@ export const WishlistItem = ({
         data-pressed={press.pressed ? 'true' : 'false'}
         {...press.rowProps}
       >
-        <WishlistItemEditor
-          key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}`}
-          ref={editorRef}
-          wishlistItem={{
-            id: wishlistItem.id,
-            title: wishlistItem.title,
-            url: wishlistItem.url ?? null,
-          note: wishlistItem.note ?? null,
-          type: wishlistItem.type,
-          categoryId: wishlistItem.categoryId ?? null,
-          hasImage: wishlistItem.hasImage ?? false,
-          imageSource: wishlistItem.imageSource ?? null,
-          updatedAt: wishlistItem.updatedAt,
-        }}
-        canEdit={false}
-        initialMode="view"
-        categories={categories}
-        viewExtras={viewPurchaseExtras}
-        />
         <div className="flex h-full flex-col gap-3 sm:flex-row">
           {imageBlock}
           <Flex
@@ -385,6 +366,7 @@ export const WishlistItem = ({
         canEdit={false}
         initialMode="view"
         categories={categories}
+        viewExtras={viewPurchaseExtras}
         trigger={trigger}
       />
     );
