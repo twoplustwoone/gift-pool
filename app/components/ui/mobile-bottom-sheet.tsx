@@ -1,5 +1,6 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import * as React from 'react';
+import { useDrag } from '@use-gesture/react';
 import { cn } from '#app/utils/misc.tsx';
 import { Icon } from './icon';
 
@@ -39,53 +40,50 @@ const MobileBottomSheetContent = React.forwardRef<
 >(({ className, children, showHandle = true, onOpenAutoFocus, ...props }, ref) => {
   const [snapPoint, setSnapPoint] = React.useState<'peek' | 'full'>('peek');
   const [dragOffset, setDragOffset] = React.useState(0);
-  const startYRef = React.useRef<number | null>(null);
-  const wasFullAtDragStartRef = React.useRef(false);
+  const dragStartSnapRef = React.useRef<'peek' | 'full'>('peek');
   const closeRef = React.useRef<HTMLButtonElement>(null);
 
-  const handleDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
-    wasFullAtDragStartRef.current = snapPoint === 'full';
-    startYRef.current = event.clientY;
-    setDragOffset(0);
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
+  const bindHandleDrag = useDrag(
+    ({ first, last, movement: [, movementY], velocity: [, velocityY], direction: [, directionY] }) => {
+      if (first) {
+        dragStartSnapRef.current = snapPoint;
+      }
 
-  const handleDragMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (startYRef.current === null) return;
-    setDragOffset(event.clientY - startYRef.current);
-  };
+      const limitedOffset = Math.max(movementY, -120);
+      setDragOffset(last ? 0 : limitedOffset);
 
-  const resetDragState = () => {
-    startYRef.current = null;
-    setDragOffset(0);
-  };
+      if (!last) return;
 
-  const handleDragEnd = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (startYRef.current === null) return;
+      const downwardsIntent = movementY > 140 || (movementY > 80 && velocityY > 1.1 && directionY > 0);
+      const upwardsIntent = movementY < -80 || (movementY < -40 && velocityY < -1 && directionY < 0);
+      const shouldPeek =
+        dragStartSnapRef.current === 'full' &&
+        movementY > 60 &&
+        directionY > 0 &&
+        velocityY > 0.4;
 
-    const delta = event.clientY - startYRef.current;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
+      if (downwardsIntent) {
+        closeRef.current?.click();
+        setSnapPoint('peek');
+        return;
+      }
 
-    resetDragState();
+      if (upwardsIntent) {
+        setSnapPoint('full');
+        return;
+      }
 
-    if (delta > 120) {
-      closeRef.current?.click();
-      setSnapPoint('peek');
-      return;
-    }
-
-    if (delta < -60) {
-      setSnapPoint('full');
-      return;
-    }
-
-    if (wasFullAtDragStartRef.current && delta > 60) {
-      setSnapPoint('peek');
-      return;
-    }
-  };
+      if (shouldPeek) {
+        setSnapPoint('peek');
+      }
+    },
+    {
+      axis: 'y',
+      filterTaps: true,
+      pointer: { touch: true },
+      eventOptions: { passive: false },
+    },
+  );
 
   return (
     <MobileBottomSheetPortal>
@@ -94,7 +92,7 @@ const MobileBottomSheetContent = React.forwardRef<
         ref={ref}
         data-snap={snapPoint}
         style={{
-          transform: dragOffset ? `translateY(${Math.max(dragOffset, -80)}px)` : undefined,
+          transform: dragOffset ? `translateY(${Math.max(dragOffset, -120)}px)` : undefined,
         }}
         onOpenAutoFocus={(event) => {
           setSnapPoint('peek');
@@ -108,12 +106,9 @@ const MobileBottomSheetContent = React.forwardRef<
       >
         {showHandle ? (
           <div
+            {...bindHandleDrag()}
             className="mx-auto mb-2 h-1.5 w-12 rounded-full bg-muted sm:hidden touch-none select-none"
             aria-hidden
-            onPointerDown={handleDragStart}
-            onPointerMove={handleDragMove}
-            onPointerUp={handleDragEnd}
-            onPointerCancel={handleDragEnd}
           />
         ) : null}
         {children}

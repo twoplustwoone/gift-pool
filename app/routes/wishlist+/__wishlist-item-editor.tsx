@@ -597,17 +597,7 @@ export const WishlistItemEditor = React.forwardRef<
                   <div className="rounded-lg bg-muted/50 p-4">{viewExtras}</div>
                 ) : null}
 
-                <MobileBottomSheetFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
-                  <MobileBottomSheetClose asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full sm:w-auto"
-                    >
-                      Close
-                    </Button>
-                  </MobileBottomSheetClose>
-
+                <MobileBottomSheetFooter className="grid gap-3 sm:flex sm:justify-end sm:space-x-2">
                   {canEdit && hasId ? (
                     <Button
                       type="button"
@@ -618,6 +608,16 @@ export const WishlistItemEditor = React.forwardRef<
                       Edit
                     </Button>
                   ) : null}
+
+                  <MobileBottomSheetClose asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="hidden sm:inline-flex"
+                    >
+                      Close
+                    </Button>
+                  </MobileBottomSheetClose>
                 </MobileBottomSheetFooter>
               </div>
             ) : (
