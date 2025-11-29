@@ -129,7 +129,7 @@ export type WishlistItemEditorHandle = {
   open: () => void;
   close: () => void;
   toggle: () => void;
-  openView: () => void;
+  openView: (options?: { fromTrigger?: boolean }) => void;
   openEdit: () => void;
   openCreate: () => void;
 };
@@ -169,31 +169,46 @@ export const WishlistItemEditor = React.forwardRef<
       computedInitial,
     );
 
+    const itemIdLabel = wishlistItem?.id ?? 'new-item';
+
+    const openView: WishlistItemEditorHandle['openView'] = ({
+      fromTrigger = false,
+    } = {}) => {
+      setMode('view');
+      if (!fromTrigger) setOpen(true);
+    };
+
+    const openEdit = () => {
+      if (!canEdit) {
+        openView();
+        return;
+      }
+      setMode(hasId ? 'edit' : 'create');
+      setOpen(true);
+    };
+
+    const openCreate = () => {
+      setMode('create');
+      setOpen(true);
+    };
+
     React.useImperativeHandle(
       ref,
       () => ({
-        open: () => setOpen(true),
-        close: () => setOpen(false),
-        toggle: () => setOpen((o) => !o),
-        openView: () => {
-          setMode('view');
+        open: () => {
           setOpen(true);
         },
-        openEdit: () => {
-          if (!canEdit) {
-            setMode('view');
-            setOpen(true);
-            return;
-          }
-          setMode(hasId ? 'edit' : 'create');
-          setOpen(true);
+        close: () => {
+          setOpen(false);
         },
-        openCreate: () => {
-          setMode('create');
-          setOpen(true);
+        toggle: () => {
+          setOpen((o) => !o);
         },
+        openView,
+        openEdit,
+        openCreate,
       }),
-      [hasId, canEdit],
+      [canEdit, hasId, itemIdLabel, mode],
     );
 
     const actionData = useActionData<typeof action>() as
@@ -381,13 +396,16 @@ export const WishlistItemEditor = React.forwardRef<
           formRef.current?.reset();
           setImagePreview(currentImageSrc);
         }
-        if (actionData.intent === 'save') setOpen(false);
+        if (actionData.intent === 'save') {
+          setOpen(false);
+        }
       }
     }, [
       actionData,
       currentImageSrc,
       defaultCategoryId,
       shouldResetForm,
+      itemIdLabel,
       wishlistItem?.hasImage,
       wishlistItem?.updatedAt,
     ]);
@@ -543,8 +561,12 @@ export const WishlistItemEditor = React.forwardRef<
       });
     };
 
+    const handleOpenChange = (nextOpen: boolean) => {
+      setOpen(nextOpen);
+    };
+
     return (
-      <DialogRoot open={open} onOpenChange={setOpen}>
+      <DialogRoot open={open} onOpenChange={handleOpenChange}>
         {trigger ? (
           <DialogTriggerComponent asChild>
             {trigger}

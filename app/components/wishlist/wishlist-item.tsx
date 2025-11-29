@@ -226,7 +226,9 @@ export const WishlistItem = ({
   const press = usePressFeedback<HTMLDivElement>(
     isOwner
       ? {
-          onClick: () => editorRef.current?.openView(),
+          onClick: () => {
+            editorRef.current?.openView({ fromTrigger: true });
+          },
         }
       : undefined,
   );
