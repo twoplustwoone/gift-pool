@@ -68,7 +68,9 @@ test('friends can claim a gift and owner cannot see the claim', async ({
     await page.goto(`/users/${owner.username}/wishlist`);
     await expect(page.getByText(wishlistItem.title)).toBeVisible();
 
-    await page.getByRole('button', { name: "I'll grab this gift" }).click();
+    await page
+      .getByRole('button', { name: "I'll grab this gift", exact: true })
+      .click();
     await expect(page.getByText(/gift duty for this one/i)).toBeVisible();
 
     await page.context().clearCookies();
@@ -82,7 +84,7 @@ test('friends can claim a gift and owner cannot see the claim', async ({
     await page.context().clearCookies();
     await login({ id: owner.id });
     await page.goto('/wishlist');
-    await expect(page.getByText(wishlistItem.title)).toBeVisible();
+    await expect(page.getByText(wishlistItem.title).first()).toBeVisible();
     await expect(page.getByText(/gift duty/i)).toHaveCount(0);
     await expect(page.getByText(/already grabbed this/i)).toHaveCount(0);
   } finally {
