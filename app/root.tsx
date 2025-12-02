@@ -52,6 +52,13 @@ export const links: LinksFunction = () => {
     // Preload svg sprite as a resource to avoid render blocking
     { rel: 'preload', href: iconsHref, as: 'image' },
     {
+      rel: 'preload',
+      href: '/fonts/Nunito/Nunito-ExtraLight.woff2',
+      as: 'font',
+      type: 'font/woff2',
+      crossOrigin: 'anonymous',
+    },
+    {
       rel: 'icon',
       href: '/favicon.ico',
       sizes: '48x48',
