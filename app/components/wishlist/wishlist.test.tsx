@@ -228,7 +228,7 @@ describe('Wishlist components', () => {
 
     render(<PurchasedByViewer />);
 
-    await screen.findByText(/you’re on gift duty for this one/i);
+    await screen.findByText(/you’re on gift duty/i);
     const unmarkButton = screen.getByRole('button', {
       name: /someone else pick up this gift/i,
     });
@@ -267,9 +267,7 @@ describe('Wishlist components', () => {
 
     render(<PurchasedByOther />);
 
-    await screen.findByText(/called dibs on this/i);
-    expect(
-      screen.queryByRole('button', { name: /grab this gift/i }),
-    ).not.toBeInTheDocument();
+    await screen.findByText(/someone already grabbed this/i);
+    expect(screen.queryByRole('button', { name: /grab this/i })).not.toBeInTheDocument();
   });
 });
