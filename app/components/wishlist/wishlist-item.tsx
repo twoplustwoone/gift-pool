@@ -226,7 +226,9 @@ export const WishlistItem = ({
   const press = usePressFeedback<HTMLDivElement>(
     isOwner
       ? {
-          onClick: () => editorRef.current?.openView(),
+          onClick: () => {
+            editorRef.current?.openView({ fromTrigger: true });
+          },
         }
       : undefined,
   );
@@ -422,95 +424,103 @@ export const WishlistItem = ({
     </div>
   );
 
+  const MobileTrigger = (
+    <div className="sm:hidden">
+      <Card
+        variant="interactive"
+        padding="md"
+        role="button"
+        className="h-28 min-w-0 cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30"
+        data-pressed={press.pressed ? 'true' : 'false'}
+        {...press.rowProps}
+      >
+        <div className="flex h-full min-w-0 flex-col gap-3">
+          {imageBlock}
+          <Flex className="min-w-0" align="center" justify="between" gap={3}>
+            <Box className="w-0 min-w-0 flex-1 overflow-hidden">
+              <Text
+                size="base"
+                weight="medium"
+                className="block min-w-0 max-w-full truncate"
+              >
+                {wishlistItem.title}
+              </Text>
+              <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
+                <Text size="xs" className="break-words text-muted-foreground">
+                  {wishlistItem.note ?? ''}
+                </Text>
+              </Box>
+            </Box>
+
+            <Flex align="center" className="flex-shrink-0" gap={1}>
+              {/* EDIT → flip current modal to edit mode */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerUp={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  editorRef.current?.openEdit();
+                }}
+                aria-label="Edit item"
+                title="Edit"
+                className="h-9 w-9 text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:opacity-80"
+              >
+                <LuPencil className="h-4 w-4" />
+              </Button>
+
+              {/* DELETE */}
+              {canDelete && (
+                <DeleteWishlistItem
+                  id={wishlistItem.id}
+                  className="h-9 w-9 text-red-600 [-webkit-tap-highlight-color:transparent] hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:opacity-80"
+                />
+              )}
+
+              {/* Divider + Chevron */}
+              <div className="mx-1 h-6 border-l border-border/40" />
+              <LuChevronRight
+                className="h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform data-[pressed=true]:translate-x-0.5"
+                data-pressed={press.pressed ? 'true' : 'false'}
+              />
+            </Flex>
+          </Flex>
+        </div>
+      </Card>
+    </div>
+  );
+
+  const Trigger = (
+    <div className="contents">
+      {DesktopTrigger}
+      {MobileTrigger}
+    </div>
+  );
+
   // ---------------- Owner: mobile row (explicit actions + chevron); row tap → read-only view
   return (
-    <>
-      <WishlistItemEditor
-        key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}`}
-        ref={editorRef}
-        wishlistItem={{
-          id: wishlistItem.id,
-          title: wishlistItem.title,
-          url: wishlistItem.url ?? null,
-          note: wishlistItem.note ?? null,
-          type: wishlistItem.type,
-          categoryId: wishlistItem.categoryId ?? null,
-          hasImage: wishlistItem.hasImage ?? false,
-          imageSource: wishlistItem.imageSource ?? null,
-          updatedAt: wishlistItem.updatedAt,
-        }}
-        trigger={DesktopTrigger} // desktop: row-as-trigger (edit/create)
-        canEdit={true}
-        categories={categories}
-      />
-
-      <div className="sm:hidden">
-        <Card
-          variant="interactive"
-          padding="md"
-          role="button"
-          className="h-28 min-w-0 cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30"
-          data-pressed={press.pressed ? 'true' : 'false'}
-          {...press.rowProps}
-        >
-          <div className="flex h-full min-w-0 flex-col gap-3">
-            {imageBlock}
-            <Flex className="min-w-0" align="center" justify="between" gap={3}>
-              <Box className="w-0 min-w-0 flex-1 overflow-hidden">
-                <Text
-                  size="base"
-                  weight="medium"
-                  className="block min-w-0 max-w-full truncate"
-                >
-                  {wishlistItem.title}
-                </Text>
-                <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-                  <Text size="xs" className="break-words text-muted-foreground">
-                    {wishlistItem.note ?? ''}
-                  </Text>
-                </Box>
-              </Box>
-
-              <Flex align="center" className="flex-shrink-0" gap={1}>
-                {/* EDIT → flip current modal to edit mode */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onPointerUp={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    editorRef.current?.openEdit();
-                  }}
-                  aria-label="Edit item"
-                  title="Edit"
-                  className="h-9 w-9 text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:opacity-80"
-                >
-                  <LuPencil className="h-4 w-4" />
-                </Button>
-
-                {/* DELETE */}
-                {canDelete && (
-                  <DeleteWishlistItem
-                    id={wishlistItem.id}
-                    className="h-9 w-9 text-red-600 [-webkit-tap-highlight-color:transparent] hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:opacity-80"
-                  />
-                )}
-
-                {/* Divider + Chevron */}
-                <div className="mx-1 h-6 border-l border-border/40" />
-                <LuChevronRight
-                  className="h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform data-[pressed=true]:translate-x-0.5"
-                  data-pressed={press.pressed ? 'true' : 'false'}
-                />
-              </Flex>
-            </Flex>
-          </div>
-        </Card>
-      </div>
-    </>
+    <WishlistItemEditor
+      key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}`}
+      ref={editorRef}
+      wishlistItem={{
+        id: wishlistItem.id,
+        title: wishlistItem.title,
+        url: wishlistItem.url ?? null,
+        note: wishlistItem.note ?? null,
+        type: wishlistItem.type,
+        categoryId: wishlistItem.categoryId ?? null,
+        hasImage: wishlistItem.hasImage ?? false,
+        imageSource: wishlistItem.imageSource ?? null,
+        updatedAt: wishlistItem.updatedAt,
+      }}
+      trigger={Trigger} // desktop: row-as-trigger (edit/create); mobile: tap-to-view
+      canEdit={true}
+      categories={categories}
+    />
   );
+
 };
 
 export const DeleteWishlistItem = ({
