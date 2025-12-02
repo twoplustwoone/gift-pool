@@ -47,34 +47,32 @@ import { type Theme, getTheme } from './utils/theme.server.ts';
 import { makeTimings, time } from './utils/timing.server.ts';
 import { getToast } from './utils/toast.server.ts';
 
-export const links: LinksFunction = () => {
-  return [
-    // Preload svg sprite as a resource to avoid render blocking
-    { rel: 'preload', href: iconsHref, as: 'image' },
-    {
-      rel: 'preload',
-      href: '/fonts/Nunito/Nunito-ExtraLight.woff2',
-      as: 'font',
-      type: 'font/woff2',
-      crossOrigin: 'anonymous',
-    },
-    {
-      rel: 'icon',
-      href: '/favicon.ico',
-      sizes: '48x48',
-    },
-    { rel: 'icon', type: 'image/svg+xml', href: faviconAssetUrl },
-    { rel: 'apple-touch-icon', href: appleTouchIconAssetUrl },
-    {
-      rel: 'manifest',
-      href: '/site.webmanifest',
-      crossOrigin: 'use-credentials',
-    } as const, // necessary to make typescript happy
-    { rel: 'stylesheet', href: tailwindStyleSheetUrl },
-    { rel: 'preload', href: nunitoStyleSheet, as: 'style' },
-    { rel: 'stylesheet', href: nunitoStyleSheet },
-  ].filter(Boolean);
-};
+export const links: LinksFunction = () => [
+  // Preload svg sprite as a resource to avoid render blocking
+  { rel: 'preload', href: iconsHref, as: 'image' },
+  {
+    rel: 'preload',
+    href: '/fonts/Nunito/Nunito-ExtraLight.woff2',
+    as: 'font',
+    type: 'font/woff2',
+    crossOrigin: 'anonymous',
+  },
+  {
+    rel: 'icon',
+    href: '/favicon.ico',
+    sizes: '48x48',
+  },
+  { rel: 'icon', type: 'image/svg+xml', href: faviconAssetUrl },
+  { rel: 'apple-touch-icon', href: appleTouchIconAssetUrl },
+  {
+    rel: 'manifest',
+    href: '/site.webmanifest',
+    crossOrigin: 'use-credentials',
+  },
+  { rel: 'stylesheet', href: tailwindStyleSheetUrl },
+  { rel: 'preload', href: nunitoStyleSheet, as: 'style' },
+  { rel: 'stylesheet', href: nunitoStyleSheet },
+];
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
   return [
