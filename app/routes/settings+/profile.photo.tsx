@@ -375,7 +375,9 @@ const PhotoRoute = () => {
                 showGrid={false}
                 onCropChange={setCrop}
                 onZoomChange={setZoom}
-                onCropComplete={(_, croppedAreaPixels) => setCroppedArea(croppedAreaPixels)}
+                onCropComplete={(_croppedArea: Area, croppedAreaPixels: Area) =>
+                  setCroppedArea(croppedAreaPixels)
+                }
               />
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
