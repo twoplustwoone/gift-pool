@@ -76,6 +76,7 @@ export const WishlistItem = ({
   const imageFetcher = useFetcher();
   const [imageErrored, setImageErrored] = React.useState(false);
   const [imageVersion, setImageVersion] = React.useState(0);
+  const [isClaimInfoOpen, setIsClaimInfoOpen] = React.useState(false);
   const imageSrc = wishlistItem.hasImage
     ? getWishlistItemImgSrc(wishlistItem.id)
     : null;
@@ -244,7 +245,6 @@ export const WishlistItem = ({
   // ---------------- Non-owner: simple, tappable row → read-only view
   if (!isOwner) {
     const imageBlock = renderImageBlock();
-    const [isClaimInfoOpen, setIsClaimInfoOpen] = React.useState(false);
     const statusIsClaimed = isPurchasedByMe || isPurchasedBySomeoneElse;
     const viewPurchaseExtras = isPurchasedBySomeoneElse ? (
       <Flex align="center" gap={2}>
