@@ -314,8 +314,19 @@ const PhotoRoute = () => {
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Button asChild size="lg">
-            <label htmlFor={fields.photoFile.id} className="cursor-pointer">
-              <Icon name="camera">Upload new photo</Icon>
+            <label
+              htmlFor={fields.photoFile.id}
+              className="cursor-pointer"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
+            >
+              <Icon name="camera">Change photo</Icon>
             </label>
           </Button>
         </div>
