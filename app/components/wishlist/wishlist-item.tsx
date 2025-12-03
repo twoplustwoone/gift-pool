@@ -406,7 +406,7 @@ export const WishlistItem = ({
         ) : statusIsClaimed ? (
           <div className="flex h-10 items-center gap-2 bg-pool px-4 text-xs font-semibold text-pool-foreground">
             <LuGift className="h-4 w-4" aria-hidden />
-            <span>You’re on gift duty</span>
+            <span>{purchaseStatusText ?? 'You’re on gift duty for this one'}</span>
           </div>
         ) : (
           <div className="h-px w-full bg-border/70" aria-hidden />
