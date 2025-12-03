@@ -22,7 +22,7 @@ import {
   useNavigation,
 } from '@remix-run/react';
 import type React from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { z } from 'zod';
 import { ErrorList } from '#app/components/forms.tsx';
@@ -48,6 +48,120 @@ export const handle: BreadcrumbHandle & SEOHandle = {
 };
 
 const MAX_SIZE = 1024 * 1024 * 3; // 3MB
+
+const normalizeImageType = (type: string) =>
+  type === 'image/png' ? 'image/png' : 'image/jpeg';
+
+const loadImage = (src: string) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.src = src;
+
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+  });
+
+const createCroppedFile = async ({
+  src,
+  area,
+  imageType,
+  maxSize,
+}: {
+  src: string;
+  area: Area;
+  imageType: string;
+  maxSize: number;
+}) => {
+  try {
+    const image = await loadImage(src);
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      return { file: null, error: 'Unable to prepare the image editor.' };
+    }
+
+    const width = Math.round(area.width);
+    const height = Math.round(area.height);
+
+    canvas.width = width;
+    canvas.height = height;
+
+    context.drawImage(
+      image,
+      area.x,
+      area.y,
+      area.width,
+      area.height,
+      0,
+      0,
+      width,
+      height,
+    );
+
+    const preferredType = normalizeImageType(imageType);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((value) => resolve(value), preferredType, 0.92),
+    );
+
+    if (!blob) {
+      return {
+        file: null,
+        error: 'There was a problem processing the image. Please try again.',
+      };
+    }
+
+    if (blob.size > maxSize) {
+      return {
+        file: null,
+        error: 'Cropped image must be less than 3MB. Try zooming in further.',
+      };
+    }
+
+    return {
+      file: new File(
+        [blob],
+        `profile-photo.${preferredType === 'image/png' ? 'png' : 'jpg'}`,
+        {
+          type: preferredType,
+        },
+      ),
+      error: null,
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      file: null,
+      error: 'We could not edit this image. Please try another one.',
+    };
+  }
+};
+
+const useObjectUrl = () => {
+  const [url, setUrl] = useState<string | null>(null);
+  const previousUrlRef = useRef<string | null>(null);
+
+  const revokeUrl = useCallback(() => {
+    if (previousUrlRef.current?.startsWith('blob:')) {
+      URL.revokeObjectURL(previousUrlRef.current);
+    }
+    previousUrlRef.current = null;
+  }, []);
+
+  const updateUrl = useCallback(
+    (nextUrl: string | null) => {
+      revokeUrl();
+      previousUrlRef.current = nextUrl;
+      setUrl(nextUrl);
+    },
+    [revokeUrl],
+  );
+
+  useEffect(() => revokeUrl, [revokeUrl]);
+
+  return { url, setUrl: updateUrl };
+};
 
 const DeleteImageSchema = z.object({
   intent: z.literal('delete'),
@@ -152,13 +266,13 @@ const PhotoRoute = () => {
     },
   });
 
+  const { url: selectedImageSrc, setUrl: setSelectedImageSrc } = useObjectUrl();
+  const [selectedImageType, setSelectedImageType] = useState('image/jpeg');
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
-  const [selectedImageType, setSelectedImageType] = useState('image/jpeg');
 
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -168,12 +282,6 @@ const PhotoRoute = () => {
   const isDeleting =
     navigation.state !== 'idle' && navigation.formData?.get('intent') === 'delete';
 
-  useEffect(() => {
-    return () => {
-      if (selectedImageSrc?.startsWith('blob:')) URL.revokeObjectURL(selectedImageSrc);
-    };
-  }, [selectedImageSrc]);
-
   const currentImage = useMemo(
     () => selectedImageSrc ?? getUserImgSrc(data.user.image?.id),
     [data.user.image?.id, selectedImageSrc],
@@ -182,8 +290,6 @@ const PhotoRoute = () => {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     if (!file) return;
-
-    if (selectedImageSrc?.startsWith('blob:')) URL.revokeObjectURL(selectedImageSrc);
 
     const objectUrl = URL.createObjectURL(file);
     setSelectedImageSrc(objectUrl);
@@ -195,7 +301,6 @@ const PhotoRoute = () => {
   };
 
   const resetSelection = () => {
-    if (selectedImageSrc?.startsWith('blob:')) URL.revokeObjectURL(selectedImageSrc);
     setSelectedImageSrc(null);
     setSelectedImageType('image/jpeg');
     setCrop({ x: 0, y: 0 });
@@ -214,80 +319,29 @@ const PhotoRoute = () => {
     }
   };
 
-  const createCroppedFile = async () => {
+  const buildCroppedFile = async () => {
     if (!selectedImageSrc || !croppedArea) {
       setLocalError('Select an image and adjust the crop before saving.');
       return null;
     }
 
-    try {
-      const image = new Image();
-      image.src = selectedImageSrc;
+    const { file, error } = await createCroppedFile({
+      src: selectedImageSrc,
+      area: croppedArea,
+      imageType: selectedImageType,
+      maxSize: MAX_SIZE,
+    });
 
-      await new Promise((resolve, reject) => {
-        image.onload = resolve;
-        image.onerror = reject;
-      });
-
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-
-      if (!context) {
-        setLocalError('Unable to prepare the image editor.');
-        return null;
-      }
-
-      const width = Math.round(croppedArea.width);
-      const height = Math.round(croppedArea.height);
-
-      canvas.width = width;
-      canvas.height = height;
-
-      context.drawImage(
-        image,
-        croppedArea.x,
-        croppedArea.y,
-        croppedArea.width,
-        croppedArea.height,
-        0,
-        0,
-        width,
-        height,
-      );
-
-      const preferredType = selectedImageType === 'image/png' ? 'image/png' : 'image/jpeg';
-
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob((value) => resolve(value), preferredType, 0.92),
-      );
-
-      if (!blob) {
-        setLocalError('There was a problem processing the image. Please try again.');
-        return null;
-      }
-
-      if (blob.size > MAX_SIZE) {
-        setLocalError('Cropped image must be less than 3MB. Try zooming in further.');
-        return null;
-      }
-
-      return new File(
-        [blob],
-        `profile-photo.${preferredType === 'image/png' ? 'png' : 'jpg'}`,
-        {
-          type: preferredType,
-        },
-      );
-    } catch (error) {
-      console.error(error);
-      setLocalError('We could not edit this image. Please try another one.');
-      return null;
+    if (error) {
+      setLocalError(error);
     }
+
+    return file;
   };
 
   const handleSave = async () => {
     if (!formRef.current || !fileInputRef.current) return;
-    const croppedFile = await createCroppedFile();
+    const croppedFile = await buildCroppedFile();
     if (!croppedFile) return;
 
     const dataTransfer = new DataTransfer();

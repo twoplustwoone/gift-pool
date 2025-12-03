@@ -2,7 +2,7 @@ import { invariantResponse } from '@epic-web/invariant';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { Link, Outlet, useMatches } from '@remix-run/react';
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useMemo, type ReactNode } from 'react';
 import { z } from 'zod';
 import { Spacer } from '#app/components/spacer.tsx';
 import {
@@ -40,20 +40,29 @@ const BreadcrumbHandleMatch = z.object({
   handle: BreadcrumbHandle,
 });
 
+const useProfileBreadcrumbs = () => {
+  const matches = useMatches();
+
+  return useMemo(
+    () =>
+      matches
+        .map((match) => {
+          const result = BreadcrumbHandleMatch.safeParse(match);
+          if (!result.success || !result.data.handle.breadcrumb) return null;
+          return {
+            id: match.id,
+            to: match.pathname,
+            content: result.data.handle.breadcrumb,
+          };
+        })
+        .filter(Boolean) as { id: string; to: string; content: ReactNode }[],
+    [matches],
+  );
+};
+
 const EditUserProfile = () => {
   const user = useUser();
-  const matches = useMatches();
-  const breadcrumbs = matches
-    .map((m) => {
-      const result = BreadcrumbHandleMatch.safeParse(m);
-      if (!result.success || !result.data.handle.breadcrumb) return null;
-      return {
-        id: m.id,
-        to: m.pathname,
-        content: result.data.handle.breadcrumb,
-      };
-    })
-    .filter(Boolean) as { id: string; to: string; content: ReactNode }[];
+  const breadcrumbs = useProfileBreadcrumbs();
 
   return (
     <div className="m-auto mb-24 mt-16 max-w-3xl">
