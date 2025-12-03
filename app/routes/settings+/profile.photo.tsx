@@ -315,7 +315,7 @@ const PhotoRoute = () => {
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Button asChild size="lg">
             <label htmlFor={fields.photoFile.id} className="cursor-pointer">
-              <Icon name="upload">Upload new photo</Icon>
+              <Icon name="camera">Upload new photo</Icon>
             </label>
           </Button>
         </div>
@@ -379,7 +379,11 @@ const PhotoRoute = () => {
               Zoom
             </label>
             <div className="flex items-center gap-3">
-              <Icon aria-hidden name="minus" className="h-4 w-4 text-muted-foreground" />
+              <Icon
+                aria-hidden
+                name="arrow-left"
+                className="h-4 w-4 text-muted-foreground"
+              />
               <input
                 id="zoom"
                 type="range"
@@ -391,7 +395,11 @@ const PhotoRoute = () => {
                 className="w-full accent-foreground"
                 aria-label="Adjust zoom"
               />
-              <Icon aria-hidden name="plus" className="h-4 w-4 text-muted-foreground" />
+              <Icon
+                aria-hidden
+                name="arrow-right"
+                className="h-4 w-4 text-muted-foreground"
+              />
             </div>
           </div>
 
