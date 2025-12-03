@@ -1,9 +1,8 @@
 import { invariantResponse } from '@epic-web/invariant';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
-import { Link, Outlet, useMatches } from '@remix-run/react';
-import { Fragment, useMemo, type ReactNode } from 'react';
-import { z } from 'zod';
+import { Link, Outlet } from '@remix-run/react';
+import { Fragment } from 'react';
 import { Spacer } from '#app/components/spacer.tsx';
 import {
   Breadcrumb,
@@ -17,9 +16,7 @@ import { Icon } from '#app/components/ui/icon.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { useUser } from '#app/utils/user.ts';
-
-export const BreadcrumbHandle = z.object({ breadcrumb: z.any() });
-export type BreadcrumbHandle = z.infer<typeof BreadcrumbHandle>;
+import { useProfileBreadcrumbs, type BreadcrumbHandle } from './profile-breadcrumbs.tsx';
 
 export const handle: BreadcrumbHandle & SEOHandle = {
   breadcrumb: <Icon name="file-text">Edit Profile</Icon>,
@@ -35,30 +32,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
   invariantResponse(user, 'User not found', { status: 404 });
   return json({});
 }
-
-const BreadcrumbHandleMatch = z.object({
-  handle: BreadcrumbHandle,
-});
-
-const useProfileBreadcrumbs = () => {
-  const matches = useMatches();
-
-  return useMemo(
-    () =>
-      matches
-        .map((match) => {
-          const result = BreadcrumbHandleMatch.safeParse(match);
-          if (!result.success || !result.data.handle.breadcrumb) return null;
-          return {
-            id: match.id,
-            to: match.pathname,
-            content: result.data.handle.breadcrumb,
-          };
-        })
-        .filter(Boolean) as { id: string; to: string; content: ReactNode }[],
-    [matches],
-  );
-};
 
 const EditUserProfile = () => {
   const user = useUser();

@@ -12,7 +12,7 @@ import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { useDoubleCheck } from '#app/utils/misc.tsx';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
-import { type BreadcrumbHandle } from './profile.tsx';
+import { type BreadcrumbHandle } from './profile-breadcrumbs.tsx';
 import { twoFAVerificationType } from './profile.two-factor.tsx';
 
 export const handle: BreadcrumbHandle & SEOHandle = {
