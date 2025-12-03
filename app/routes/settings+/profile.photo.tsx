@@ -313,21 +313,13 @@ const PhotoRoute = () => {
           profile picture looks just right.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <Button asChild size="lg">
-            <label
-              htmlFor={fields.photoFile.id}
-              className="cursor-pointer"
-              role="button"
-              tabIndex={0}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  fileInputRef.current?.click();
-                }
-              }}
-            >
-              <Icon name="camera">Change photo</Icon>
-            </label>
+          <Button
+            type="button"
+            size="lg"
+            onClick={() => fileInputRef.current?.click()}
+            aria-describedby={fields.photoFile.id}
+          >
+            <Icon name="camera">Change photo</Icon>
           </Button>
         </div>
         <input
@@ -335,6 +327,8 @@ const PhotoRoute = () => {
           accept="image/*"
           ref={fileInputRef}
           className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
           onChange={handleFileChange}
         />
         <ErrorList errors={combinedErrors} id={fields.photoFile.id} />
