@@ -183,6 +183,8 @@ const PhotoRoute = () => {
     const file = event.currentTarget.files?.[0];
     if (!file) return;
 
+    if (selectedImageSrc?.startsWith('blob:')) URL.revokeObjectURL(selectedImageSrc);
+
     const objectUrl = URL.createObjectURL(file);
     setSelectedImageSrc(objectUrl);
     setSelectedImageType(file.type || 'image/jpeg');
@@ -192,10 +194,23 @@ const PhotoRoute = () => {
     setDialogOpen(true);
   };
 
+  const resetSelection = () => {
+    if (selectedImageSrc?.startsWith('blob:')) URL.revokeObjectURL(selectedImageSrc);
+    setSelectedImageSrc(null);
+    setSelectedImageType('image/jpeg');
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedArea(null);
+    setLocalError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleDialogToggle = (open: boolean) => {
     setDialogOpen(open);
     if (!open) {
-      setLocalError(null);
+      resetSelection();
     }
   };
 
@@ -281,6 +296,11 @@ const PhotoRoute = () => {
 
     formRef.current.requestSubmit();
     setDialogOpen(false);
+  };
+
+  const handleCancelEditing = () => {
+    setDialogOpen(false);
+    resetSelection();
   };
 
   const fieldErrors = fields.photoFile.errors ?? [];
@@ -416,7 +436,7 @@ const PhotoRoute = () => {
           </div>
 
           <DialogFooter className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={() => handleDialogToggle(false)}>
+            <Button variant="outline" onClick={handleCancelEditing}>
               Cancel
             </Button>
             <StatusButton
