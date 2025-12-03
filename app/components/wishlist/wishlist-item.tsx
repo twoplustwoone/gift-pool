@@ -347,7 +347,7 @@ export const WishlistItem = ({
         {statusIsClaimed ? (
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-background/60 text-muted-foreground opacity-0 transition-opacity sm:flex sm:backdrop-blur group-hover:opacity-100"
+            className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-xl bg-background/60 text-muted-foreground opacity-0 transition-opacity sm:flex sm:backdrop-blur group-hover:opacity-100"
           >
             <div className="flex items-center gap-2 rounded-full bg-background/90 px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-border">
               <LuLock className="h-4 w-4" />
@@ -404,7 +404,7 @@ export const WishlistItem = ({
             </MobileBottomSheetContent>
           </MobileBottomSheet>
         ) : statusIsClaimed ? (
-          <div className="flex h-10 items-center gap-2 bg-pool px-4 text-xs font-semibold text-pool-foreground">
+          <div className="flex h-10 items-center gap-2 rounded-b-xl bg-pool px-4 text-xs font-semibold text-pool-foreground">
             <LuGift className="h-4 w-4" aria-hidden />
             <span>{purchaseStatusText ?? 'You’re on gift duty for this one'}</span>
           </div>
