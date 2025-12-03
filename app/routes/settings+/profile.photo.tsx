@@ -26,7 +26,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { z } from 'zod';
 import { ErrorList } from '#app/components/forms.tsx';
-import { Button } from '#app/components/ui/button.tsx';
+import { Button, buttonVariants } from '#app/components/ui/button.tsx';
 import {
   Dialog,
   DialogContent,
@@ -39,10 +39,7 @@ import { Icon } from '#app/components/ui/icon.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import {
-  getUserImgSrc,
-  useDoubleCheck,
-} from '#app/utils/misc.tsx';
+import { cn, getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx';
 import { type BreadcrumbHandle } from './profile.tsx';
 
 export const handle: BreadcrumbHandle & SEOHandle = {
@@ -313,24 +310,32 @@ const PhotoRoute = () => {
           profile picture looks just right.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <Button
-            type="button"
-            size="lg"
-            onClick={() => fileInputRef.current?.click()}
-            aria-describedby={fields.photoFile.id}
-          >
-            <Icon name="camera">Change photo</Icon>
-          </Button>
+          <div className="relative">
+            <input
+              {...getInputProps(fields.photoFile, { type: 'file' })}
+              accept="image/*"
+              ref={fileInputRef}
+              role="button"
+              aria-label="Change photo"
+              aria-describedby={fields.photoFile.id}
+              className={cn(
+                buttonVariants({ size: 'lg' }),
+                'absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-full border border-input bg-primary text-primary-foreground opacity-0',
+              )}
+              onChange={handleFileChange}
+            />
+            <span
+              aria-hidden
+              className={cn(
+                buttonVariants({ size: 'lg' }),
+                'pointer-events-none gap-2 bg-primary text-primary-foreground',
+              )}
+            >
+              <Icon aria-hidden name="camera" className="h-4 w-4" />
+              Change photo
+            </span>
+          </div>
         </div>
-        <input
-          {...getInputProps(fields.photoFile, { type: 'file' })}
-          accept="image/*"
-          ref={fileInputRef}
-          className="sr-only"
-          tabIndex={-1}
-          aria-hidden="true"
-          onChange={handleFileChange}
-        />
         <ErrorList errors={combinedErrors} id={fields.photoFile.id} />
       </Form>
 
