@@ -28,28 +28,50 @@ type Relationship = {
   outgoingRequestId: string | null;
 };
 
+type LoaderData =
+  | {
+      canViewProfile: false;
+      user: {
+        id: string;
+        name: string | null;
+        username: string;
+      };
+      relationship: Relationship;
+    }
+  | {
+      canViewProfile: true;
+      user: {
+        id: string;
+        name: string | null;
+        username: string;
+        createdAt: Date;
+        image: { id: string } | null;
+      };
+      relationship: Relationship;
+      userJoinedDisplay: string;
+    };
+
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { username } = params;
 
   const userId = await requireUserId(request);
-  const user = await prisma.user.findFirst({
+
+  const targetUser = await prisma.user.findFirst({
     select: {
       id: true,
       name: true,
       username: true,
-      createdAt: true,
-      image: { select: { id: true } },
     },
     where: { username },
   });
 
-  invariantResponse(user, 'User not found', { status: 404 });
+  invariantResponse(targetUser, 'User not found', { status: 404 });
 
-  if (user.id === userId) {
+  if (targetUser.id === userId) {
     return redirect('/me');
   }
 
-  const relationshipDetails = await getRelationshipDetails(userId, user.id);
+  const relationshipDetails = await getRelationshipDetails(userId, targetUser.id);
   const relationship: Relationship = {
     state: relationshipDetails.state,
     friendshipId: relationshipDetails.friendship?.id ?? null,
@@ -59,7 +81,28 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 
   const canViewProfile = relationship.state === 'FRIENDS';
 
-  return json({
+  if (!canViewProfile) {
+    return json<LoaderData>({
+      canViewProfile,
+      user: targetUser,
+      relationship,
+    });
+  }
+
+  const user = await prisma.user.findFirst({
+    select: {
+      id: true,
+      name: true,
+      username: true,
+      createdAt: true,
+      image: { select: { id: true } },
+    },
+    where: { id: targetUser.id },
+  });
+
+  invariantResponse(user, 'User not found', { status: 404 });
+
+  return json<LoaderData>({
     user,
     canViewProfile,
     userJoinedDisplay: user.createdAt.toLocaleDateString(),
