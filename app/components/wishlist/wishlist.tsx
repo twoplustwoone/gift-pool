@@ -6,12 +6,18 @@ import {
 import { Link, useFetcher } from '@remix-run/react';
 import { useEffect, useRef, useState } from 'react';
 
-import { LuCheck, LuPencil, LuPlus, LuTrash, LuX } from 'react-icons/lu';
+import { LuCheck, LuLink, LuPencil, LuPlus, LuTrash, LuX } from 'react-icons/lu';
 import { useToast } from '#app/components/toaster.tsx';
 import { Button } from '#app/components/ui/button';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog';
 import { Icon } from '#app/components/ui/icon';
 import { Input } from '#app/components/ui/input';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '#app/components/ui/tooltip';
 import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
@@ -309,20 +315,27 @@ const WishlistHeader = ({
     <div className="container flex min-h-11 items-center justify-between gap-4">
       <div className="flex items-center gap-3">
         <WishlistAvatar isOwner={isOwner} user={user} />
-        {isOwner ? (
-          <Text size="xl" weight="bold">
-            My Wishlist
-          </Text>
-        ) : (
-          <div className="flex flex-col items-start">
-            <Text size="xl" weight="bold" className="group-hover:underline">
-              {displayName}'s Wishlist
+        <div className="flex items-center gap-2">
+          {isOwner ? (
+            <Text size="xl" weight="bold">
+              My Wishlist
             </Text>
-            <Text size="xs" className="text-muted-foreground">
-              @{user.username}
-            </Text>
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-col items-start">
+              <Text size="xl" weight="bold" className="group-hover:underline">
+                {displayName}'s Wishlist
+              </Text>
+              <Text size="xs" className="text-muted-foreground">
+                @{user.username}
+              </Text>
+            </div>
+          )}
+          <WishlistLinkCopyButton
+            displayName={displayName}
+            isOwner={isOwner}
+            username={user.username}
+          />
+        </div>
       </div>
 
       {isOwner ? (
@@ -334,3 +347,67 @@ const WishlistHeader = ({
     </div>
   </div>
 );
+
+const WishlistLinkCopyButton = ({
+  username,
+  displayName,
+  isOwner,
+}: {
+  username: string;
+  displayName: string;
+  isOwner: boolean;
+}) => {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  const copyLink = async () => {
+    const shareUrl = new URL(
+      `/users/${username}/wishlist`,
+      window.location.origin,
+    ).toString();
+    await navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    timerRef.current = setTimeout(() => setCopied(false), 2000);
+  };
+
+  const ariaLabel = copied
+    ? 'Wishlist link copied'
+    : isOwner
+      ? 'Copy link to my wishlist'
+      : `Copy ${displayName}'s wishlist link`;
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={ariaLabel}
+            onClick={copyLink}
+          >
+            {copied ? (
+              <LuCheck className="h-5 w-5" />
+            ) : (
+              <LuLink className="h-5 w-5" />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent className="text-xs">
+          {copied ? 'Link copied' : 'Copy wishlist link'}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+};

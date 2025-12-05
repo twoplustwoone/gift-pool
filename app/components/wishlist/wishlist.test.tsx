@@ -106,6 +106,54 @@ describe('Wishlist components', () => {
     expect(await screen.findAllByText('Item one')).toHaveLength(2);
   });
 
+  it('shows a copy link control for owners', async () => {
+    const App = createRemixStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={true}
+            user={{
+              username: 'jane',
+              name: 'Jane',
+              image: { id: 'img1' },
+              wishlistItems: [],
+              wishlistCategories: [],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    await screen.findByRole('button', { name: /copy link to my wishlist/i });
+  });
+
+  it("lets viewers copy someone's wishlist link", async () => {
+    const App = createRemixStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={false}
+            user={{
+              username: 'jim',
+              name: 'Jim',
+              image: { id: 'img1' },
+              wishlistItems: [],
+              wishlistCategories: [],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    await screen.findByRole('button', { name: /copy jim's wishlist link/i });
+  });
+
   it('shows empty message for others', async () => {
     const App = createRemixStub([
       {
