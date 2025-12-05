@@ -3,13 +3,11 @@ import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { Outlet, redirect } from '@remix-run/react';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import { requireUsersShareAGroupOrAreFriends } from '#app/utils/groups.server.ts';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { username } = params;
 
   const userId = await requireUserId(request);
-  await requireUsersShareAGroupOrAreFriends({ userId, username });
 
   const user = await prisma.user.findFirst({
     select: {
