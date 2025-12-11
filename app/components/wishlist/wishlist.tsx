@@ -84,10 +84,17 @@ export const Wishlist = ({
   isOwner: boolean;
 }) => {
   const displayName = user.name ?? user.username;
+  const hasDefaultItems = user.wishlistItems.some(
+    (item) => item.categoryId === null,
+  );
   const categories = [
     { id: null, name: 'Default (Uncategorized)', order: -1 },
     ...user.wishlistCategories,
-  ];
+  ].filter((category) => {
+    if (category.id !== null) return true;
+    if (isOwner) return true;
+    return hasDefaultItems;
+  });
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
