@@ -180,6 +180,79 @@ describe('Wishlist components', () => {
     );
   });
 
+  it('hides default category for viewers when it has no items', async () => {
+    const App = createRemixStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={false}
+            user={{
+              username: 'jim',
+              name: 'Jim',
+              image: { id: 'img1' },
+              wishlistItems: [],
+              wishlistCategories: [
+                { id: 'cat1', name: 'Books', order: 0 },
+                { id: 'cat2', name: 'Games', order: 1 },
+              ],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    await screen.findByText(
+      "Jim doesn't have any items in their wishlist yet!",
+    );
+    expect(
+      screen.queryByRole('heading', {
+        name: /default \(uncategorized\)/i,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows default category for viewers when it has items', async () => {
+    const App = createRemixStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={false}
+            user={{
+              username: 'jim',
+              name: 'Jim',
+              image: { id: 'img1' },
+              wishlistItems: [
+                {
+                  id: 'item-1',
+                  title: 'Default item',
+                  ownerId: 'user2',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                  categoryId: null,
+                  purchase: null,
+                  updatedAt: new Date(),
+                },
+              ],
+              wishlistCategories: [],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    await screen.findByRole('heading', {
+      name: /default \(uncategorized\).*1/i,
+    });
+    await screen.findByText('Default item');
+  });
+
   it('renders empty categories', async () => {
     const App = createRemixStub([
       {
