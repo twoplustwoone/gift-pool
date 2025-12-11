@@ -43,8 +43,11 @@ test('profile loader does not expose details to non-friends', async ({ page, log
       },
       string
     >(async (username) => {
-      const response = await fetch(`/users/${username}`, {
-        headers: { Accept: 'application/json' },
+      const response = await fetch(`/users/${username}?_data=routes/users+/$username`, {
+        headers: {
+          Accept: 'application/json',
+          'X-Remix-Data': 'yes',
+        },
       });
       const data = (await response.json()) as {
         canViewProfile: boolean;
