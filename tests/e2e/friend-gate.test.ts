@@ -30,6 +30,7 @@ test('profile loader does not expose details to non-friends', async ({ page, log
 
   try {
     await login({ id: viewer.id });
+    await page.goto('/');
 
     const payload = await page.evaluate<
       {
