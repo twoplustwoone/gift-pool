@@ -62,6 +62,12 @@ export const en = {
     sendSuccess: 'Friend request sent.',
     viewProfile: 'View profile',
     viewWishlist: 'View wishlist',
+    accessRequiredTitle: 'Add {{name}} as a friend to continue',
+    accessRequiredProfile:
+      'Send a friend request to view {{name}}\'s profile details.',
+    accessRequiredWishlist:
+      'You need to be friends with {{name}} to see their wishlist.',
+    navigateAway: 'Go to friends',
   },
   time: {
     justNow: 'just now',

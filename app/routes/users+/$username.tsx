@@ -9,21 +9,85 @@ import {
 } from '@remix-run/react';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
+import { FriendGateCard } from '#app/components/friends/friend-gate-card.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getRelationshipDetails } from '#app/utils/friends.server.ts';
-import { requireUsersShareAGroupOrAreFriends } from '#app/utils/groups.server.ts';
+import { type RelationshipState } from '#app/utils/friends.ts';
+import { useTranslation } from '#app/utils/i18n.tsx';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useOptionalUser } from '#app/utils/user.ts';
+
+type Relationship = {
+  state: RelationshipState;
+  friendshipId: string | null;
+  incomingRequestId: string | null;
+  outgoingRequestId: string | null;
+};
+
+type LoaderData =
+  | {
+      canViewProfile: false;
+      user: {
+        id: string;
+        name: string | null;
+        username: string;
+      };
+      relationship: Relationship;
+    }
+  | {
+      canViewProfile: true;
+      user: {
+        id: string;
+        name: string | null;
+        username: string;
+        createdAt: Date;
+        image: { id: string } | null;
+      };
+      relationship: Relationship;
+      userJoinedDisplay: string;
+    };
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { username } = params;
 
   const userId = await requireUserId(request);
-  await requireUsersShareAGroupOrAreFriends({ userId, username });
+
+  const targetUser = await prisma.user.findFirst({
+    select: {
+      id: true,
+      name: true,
+      username: true,
+    },
+    where: { username },
+  });
+
+  invariantResponse(targetUser, 'User not found', { status: 404 });
+
+  if (targetUser.id === userId) {
+    return redirect('/me');
+  }
+
+  const relationshipDetails = await getRelationshipDetails(userId, targetUser.id);
+  const relationship: Relationship = {
+    state: relationshipDetails.state,
+    friendshipId: relationshipDetails.friendship?.id ?? null,
+    incomingRequestId: relationshipDetails.incoming?.id ?? null,
+    outgoingRequestId: relationshipDetails.outgoing?.id ?? null,
+  };
+
+  const canViewProfile = relationship.state === 'FRIENDS';
+
+  if (!canViewProfile) {
+    return json<LoaderData>({
+      canViewProfile,
+      user: targetUser,
+      relationship,
+    });
+  }
 
   const user = await prisma.user.findFirst({
     select: {
@@ -33,35 +97,41 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       createdAt: true,
       image: { select: { id: true } },
     },
-    where: { username },
+    where: { id: targetUser.id },
   });
 
   invariantResponse(user, 'User not found', { status: 404 });
 
-  if (user.id === userId) {
-    return redirect('/me');
-  }
-
-  const relationshipDetails = await getRelationshipDetails(userId, user.id);
-  return json({
+  return json<LoaderData>({
     user,
+    canViewProfile,
     userJoinedDisplay: user.createdAt.toLocaleDateString(),
-    relationship: {
-      state: relationshipDetails.state,
-      friendshipId: relationshipDetails.friendship?.id ?? null,
-      incomingRequestId: relationshipDetails.incoming?.id ?? null,
-      outgoingRequestId: relationshipDetails.outgoing?.id ?? null,
-    },
+    relationship,
   });
 }
 
 const ProfileRoute = () => {
   const data = useLoaderData<typeof loader>();
+  const { t } = useTranslation();
   const user = data.user;
   const userDisplayName = user.name ?? user.username;
   const loggedInUser = useOptionalUser();
   const isLoggedInUser = data.user.id === loggedInUser?.id;
   const relationship = data.relationship;
+
+  if (!data.canViewProfile) {
+    return (
+      <FriendGateCard
+        title={t('friends.accessRequiredTitle', { name: userDisplayName })}
+        description={t('friends.accessRequiredProfile', { name: userDisplayName })}
+        relationship={relationship}
+        targetUserId={data.user.id}
+        targetUserName={userDisplayName}
+        returnLinkLabel={t('friends.navigateAway')}
+        returnLinkTo="/friends"
+      />
+    );
+  }
 
   return (
     <div className="container mb-48 mt-36 flex flex-col items-center justify-center">
