@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { type AppLoadContext } from '@remix-run/node';
 import { expect, test } from 'vitest';
 import { loader } from './$username.tsx';
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts';
@@ -43,10 +44,12 @@ test('non-friends receive minimal profile data from the loader', async () => {
   });
 
   const request = await buildAuthenticatedRequest(viewer.id, targetUser.username);
+  const context = { cspNonce: undefined, serverBuild: undefined } as unknown as AppLoadContext;
 
   const response = await loader({
     params: { username: targetUser.username },
     request,
+    context,
   });
 
   expect(response.status).toBe(200);
@@ -88,10 +91,12 @@ test('friends can view the full profile details', async () => {
   });
 
   const request = await buildAuthenticatedRequest(viewer.id, targetUser.username);
+  const context = { cspNonce: undefined, serverBuild: undefined } as unknown as AppLoadContext;
 
   const response = await loader({
     params: { username: targetUser.username },
     request,
+    context,
   });
 
   expect(response.status).toBe(200);
