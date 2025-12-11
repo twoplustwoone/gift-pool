@@ -43,7 +43,8 @@ test('profile loader does not expose details to non-friends', async ({ page, log
       },
       string
     >(async (username) => {
-      const response = await fetch(`/users/${username}?_data=routes/users+/$username`, {
+      const params = new URLSearchParams({ _data: 'routes/users+/$username' });
+      const response = await fetch(`/users/${username}?${params.toString()}`, {
         headers: {
           Accept: 'application/json',
           'X-Remix-Data': 'yes',
