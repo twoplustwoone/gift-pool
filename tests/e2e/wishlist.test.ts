@@ -24,7 +24,9 @@ test('users can add wishlist items', async ({ page, login }) => {
   await page.getByLabel('Title').fill('Second Item');
   await page.getByRole('button', { name: /save & add another/i }).click();
 
-  await expect(page.getByText('Wishlist item added.').first()).toBeVisible();
+  const successToast = page.getByText('Wishlist item added.', { exact: true });
+  await expect(successToast.first()).toBeVisible();
+  await expect(successToast).toHaveCount(1);
   await expect(page.getByRole('dialog')).toBeVisible(); // still open
   await expect(page.getByLabel('Title')).toHaveValue('');
   await expect(page.getByText('Second Item').first()).toBeVisible();
