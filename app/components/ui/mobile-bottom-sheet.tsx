@@ -43,6 +43,14 @@ const MobileBottomSheetContent = React.forwardRef<
   const dragStartSnapRef = React.useRef<'peek' | 'full'>('peek');
   const closeRef = React.useRef<HTMLButtonElement>(null);
 
+  React.useEffect(() => {
+    return () => {
+      const body = document.body;
+      body.style.removeProperty('overflow');
+      body.style.removeProperty('paddingRight');
+    };
+  }, []);
+
   const bindHandleDrag = useDrag(
     ({
       first,
