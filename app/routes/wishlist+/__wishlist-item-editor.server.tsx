@@ -1,4 +1,5 @@
 import { parseWithZod } from '@conform-to/zod';
+import { createId as cuid } from '@paralleldrive/cuid2';
 import {
   unstable_createMemoryUploadHandler as createMemoryUploadHandler,
   json,
@@ -171,6 +172,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const toast =
     intent === 'save-add-another'
       ? {
+          id: cuid(),
           type: 'success' as const,
           title: 'Item added',
           description: 'Wishlist item added.',
