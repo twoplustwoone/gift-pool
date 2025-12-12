@@ -18,6 +18,7 @@ import {
   FriendActionButton,
   type RelationshipSnapshot,
 } from '#app/components/friends/friend-action-button.tsx';
+import { FriendSummary } from '#app/components/friends/friend-summary.tsx';
 import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -663,32 +664,12 @@ const FriendsRoute = () => {
                           onRemove={async () => {}}
                           rightActions={null}
                         >
-                          <Avatar size="s" image={user.image} user={user} />
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium text-foreground">
-                              {displayName}
-                            </div>
-                            <div className="truncate text-sm text-muted-foreground">
-                              @{user.username}
-                            </div>
-                            {chips.length > 0 ? (
-                              <div className="mt-1 flex flex-wrap gap-1">
-                                {chips.map((g) => (
-                                  <span
-                                    key={g.id}
-                                    className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
-                                  >
-                                    {g.name}
-                                  </span>
-                                ))}
-                                {mu && mu.more > 0 ? (
-                                  <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
-                                    +{mu.more}
-                                  </span>
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </div>
+                      <FriendSummary
+                        user={user}
+                        displayName={displayName}
+                        mutualGroups={chips}
+                        extraGroupCount={mu?.more ?? 0}
+                      />
                           <div className="flex items-center gap-2">
                             <Button
                               asChild
@@ -794,32 +775,12 @@ const FriendsRoute = () => {
                         onRemove={async () => {}}
                         rightActions={null}
                       >
-                        <Avatar size="s" image={user.image} user={user} />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate font-medium text-foreground">
-                            {displayName}
-                          </div>
-                          <div className="truncate text-sm text-muted-foreground">
-                            @{user.username}
-                          </div>
-                          {chips.length > 0 ? (
-                            <div className="mt-1 flex flex-wrap gap-1">
-                              {chips.map((g) => (
-                                <span
-                                  key={g.id}
-                                  className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
-                                >
-                                  {g.name}
-                                </span>
-                              ))}
-                              {mu && mu.more > 0 ? (
-                                <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
-                                  +{mu.more}
-                                </span>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </div>
+                        <FriendSummary
+                          user={user}
+                          displayName={displayName}
+                          mutualGroups={chips}
+                          extraGroupCount={mu?.more ?? 0}
+                        />
                         <div className="flex items-center gap-2">
                           <Button
                             asChild
