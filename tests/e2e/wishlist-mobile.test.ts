@@ -28,14 +28,19 @@ test.describe('wishlist mobile experience', () => {
     expect(inlineOverflow).toBe('');
     expect(inlinePaddingRight).toBe('');
 
-    const reachedBottom = await page.evaluate(() => {
+    const { reachedBottom, mainOverflowY } = await page.evaluate(() => {
+      const main = document.querySelector('main');
+      const overflowY = main ? getComputedStyle(main).overflowY : '';
+
       window.scrollTo(0, document.documentElement.scrollHeight);
-      return (
+      const atBottom =
         window.scrollY + window.innerHeight >=
-        document.documentElement.scrollHeight - 1
-      );
+        document.documentElement.scrollHeight - 1;
+
+      return { reachedBottom: atBottom, mainOverflowY: overflowY };
     });
 
     expect(reachedBottom).toBe(true);
+    expect(mainOverflowY).not.toBe('auto');
   });
 });
