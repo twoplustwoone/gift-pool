@@ -55,6 +55,7 @@ const valueMinLength = 1;
 const valueMaxLength = 255;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const SAFE_IMAGE_PROTOCOLS = new Set(['http:', 'https:']);
+const wishlistItemStatusOptions = ['ACTIVE', 'ARCHIVED'] as const;
 
 const ImageActionSchema = z
   .enum(['none', 'upload', 'url', 'auto-detect', 'remove'])
@@ -88,6 +89,7 @@ export const WishlistItemSchema = z.object({
   note: z.string().optional(),
   url: z.string().url().optional(),
   type: z.enum(['text', 'link', 'wishlist']).default('text'),
+  status: z.enum(wishlistItemStatusOptions).default('ACTIVE'),
   imageAction: ImageActionSchema,
   imageUrl: z.string().url().optional(),
   imageFile: z.instanceof(File).optional(),
@@ -111,7 +113,14 @@ const getSafePreviewSrc = (value: string | null) => {
 type EditorProps = {
   wishlistItem?: Pick<
     WishlistItem,
-    'id' | 'title' | 'url' | 'note' | 'type' | 'categoryId' | 'updatedAt'
+    | 'id'
+    | 'title'
+    | 'url'
+    | 'note'
+    | 'type'
+    | 'categoryId'
+    | 'status'
+    | 'updatedAt'
   > &
     Partial<{
       hasImage: boolean;
@@ -252,6 +261,7 @@ export const WishlistItemEditor = React.forwardRef<
       note: wishlistItem?.note ?? '',
       categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
       type: wishlistItem?.type ?? 'text',
+      status: wishlistItem?.status ?? 'ACTIVE',
       hasImage: wishlistItem?.hasImage ?? false,
       updatedAt: wishlistItem?.updatedAt ?? null,
     });
@@ -274,6 +284,7 @@ export const WishlistItemEditor = React.forwardRef<
         url: wishlistItem?.url ?? '',
         note: wishlistItem?.note ?? '',
         categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
+        status: wishlistItem?.status ?? 'ACTIVE',
         imageAction: 'none',
         imageUrl: '',
       },
@@ -320,6 +331,7 @@ export const WishlistItemEditor = React.forwardRef<
         note: wishlistItem?.note ?? '',
         categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
         type: wishlistItem?.type ?? 'text',
+        status: wishlistItem?.status ?? 'ACTIVE',
         hasImage: wishlistItem?.hasImage ?? false,
         updatedAt: wishlistItem?.updatedAt ?? null,
       };
@@ -330,6 +342,7 @@ export const WishlistItemEditor = React.forwardRef<
       wishlistItem?.note,
       wishlistItem?.categoryId,
       wishlistItem?.type,
+      wishlistItem?.status,
       wishlistItem?.hasImage,
       wishlistItem?.updatedAt,
       defaultCategoryId,
@@ -784,6 +797,20 @@ export const WishlistItemEditor = React.forwardRef<
                         {cat.name}
                       </option>
                     ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label htmlFor={fields.status.id}>Status</label>
+                  <select
+                    {...getInputProps(fields.status, {
+                      type: 'text',
+                      ariaAttributes: true,
+                    })}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="ACTIVE">Active (show on wishlist)</option>
+                    <option value="ARCHIVED">Gifted (hide from wishlist)</option>
                   </select>
                 </div>
 
