@@ -30,6 +30,7 @@ export async function action({ request }: ActionFunctionArgs) {
       ownerId: true,
       owner: { select: { username: true } },
       purchase: { select: { purchasedById: true } },
+      status: true,
     },
   });
 
@@ -51,6 +52,13 @@ export async function action({ request }: ActionFunctionArgs) {
     return json(
       { error: 'You no longer have access to this wishlist.' },
       { status: 403 },
+    );
+  }
+
+  if (wishlistItem.status !== 'ACTIVE') {
+    return json(
+      { error: 'This item is no longer available to claim.' },
+      { status: 400 },
     );
   }
 

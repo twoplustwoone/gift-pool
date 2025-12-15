@@ -14,37 +14,58 @@ type LoaderData = { user: WishlistUser };
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   await cleanupWishlistPurchasesForOwner(userId);
-  const user = await prisma.user.findFirst({
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      wishlistItems: {
-        select: {
-          id: true,
-          title: true,
-          ownerId: true,
-          categoryId: true,
-          note: true,
-          url: true,
-          type: true,
-          updatedAt: true,
-          image: true,
-          imageSource: true,
+  const [user, archivedWishlistItems] = await Promise.all([
+    prisma.user.findFirst({
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        wishlistItems: {
+          where: { status: 'ACTIVE' },
+          select: {
+            id: true,
+            title: true,
+            ownerId: true,
+            categoryId: true,
+            note: true,
+            url: true,
+            type: true,
+            status: true,
+            updatedAt: true,
+            image: true,
+            imageSource: true,
+          },
         },
-      },
-      wishlistCategories: {
-        select: {
-          id: true,
-          name: true,
-          order: true,
+        wishlistCategories: {
+          select: {
+            id: true,
+            name: true,
+            order: true,
+          },
+          orderBy: { order: 'asc' },
         },
-        orderBy: { order: 'asc' },
+        image: { select: { id: true } },
       },
-      image: { select: { id: true } },
-    },
-    where: { id: userId },
-  });
+      where: { id: userId },
+    }),
+    prisma.wishlistItem.findMany({
+      where: { ownerId: userId, status: 'ARCHIVED' },
+      select: {
+        id: true,
+        title: true,
+        ownerId: true,
+        categoryId: true,
+        note: true,
+        url: true,
+        type: true,
+        status: true,
+        updatedAt: true,
+        image: true,
+        imageSource: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    }),
+  ]);
 
   invariantResponse(user, 'User not found', { status: 404 });
 
@@ -57,7 +78,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }),
   );
 
-  return json<LoaderData>({ user: { ...user, wishlistItems } });
+  const archivedWishlistItemsWithStatus: WishlistUser['archivedWishlistItems'] =
+    archivedWishlistItems.map(({ image, imageSource, ...item }) => ({
+      ...item,
+      hasImage: Boolean(image),
+      imageSource:
+        imageSource as WishlistUser['wishlistItems'][number]['imageSource'],
+    }));
+
+  return json<LoaderData>({
+    user: { ...user, wishlistItems, archivedWishlistItems: archivedWishlistItemsWithStatus },
+  });
 }
 
 const WishlistIndex = () => {
@@ -69,6 +100,10 @@ const WishlistIndex = () => {
       ...item,
       updatedAt: new Date(item.updatedAt),
     })),
+    archivedWishlistItems: data.user.archivedWishlistItems?.map((item) => ({
+      ...item,
+      updatedAt: new Date(item.updatedAt),
+    })) ?? [],
   };
 
   return <Wishlist isOwner user={user} />;

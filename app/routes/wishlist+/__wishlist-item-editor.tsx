@@ -7,13 +7,14 @@ import {
 } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type WishlistItem } from '@prisma/client';
-import { Form, useActionData } from '@remix-run/react';
+import { Form, useActionData, useFetcher } from '@remix-run/react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LuExternalLink,
   LuImage,
   LuLoader,
   LuPlus,
+  LuCircleHelp,
   LuUpload,
   LuX,
 } from 'react-icons/lu';
@@ -24,6 +25,7 @@ import { useToast } from '#app/components/toaster.tsx';
 import { Button } from '#app/components/ui/button';
 import { Icon } from '#app/components/ui/icon';
 import { Input } from '#app/components/ui/input';
+import { Badge } from '#app/components/ui/badge';
 import {
   Dialog,
   DialogClose,
@@ -45,6 +47,7 @@ import {
   MobileBottomSheetDescription,
 } from '#app/components/ui/mobile-bottom-sheet';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '#app/components/ui/tooltip';
 import { Flex, Text } from '#app/components/ui-kit';
 import { getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
 import { type Toast } from '#app/utils/toast.server.ts';
@@ -55,6 +58,7 @@ const valueMinLength = 1;
 const valueMaxLength = 255;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const SAFE_IMAGE_PROTOCOLS = new Set(['http:', 'https:']);
+const wishlistItemStatusOptions = ['ACTIVE', 'ARCHIVED'] as const;
 
 const ImageActionSchema = z
   .enum(['none', 'upload', 'url', 'auto-detect', 'remove'])
@@ -88,6 +92,7 @@ export const WishlistItemSchema = z.object({
   note: z.string().optional(),
   url: z.string().url().optional(),
   type: z.enum(['text', 'link', 'wishlist']).default('text'),
+  status: z.enum(wishlistItemStatusOptions).default('ACTIVE'),
   imageAction: ImageActionSchema,
   imageUrl: z.string().url().optional(),
   imageFile: z.instanceof(File).optional(),
@@ -111,7 +116,14 @@ const getSafePreviewSrc = (value: string | null) => {
 type EditorProps = {
   wishlistItem?: Pick<
     WishlistItem,
-    'id' | 'title' | 'url' | 'note' | 'type' | 'categoryId' | 'updatedAt'
+    | 'id'
+    | 'title'
+    | 'url'
+    | 'note'
+    | 'type'
+    | 'categoryId'
+    | 'status'
+    | 'updatedAt'
   > &
     Partial<{
       hasImage: boolean;
@@ -224,6 +236,12 @@ export const WishlistItemEditor = React.forwardRef<
       actionData?.intent === 'save-add-another' &&
       actionData?.result?.status === 'success';
     const isPending = useIsPending();
+    const markAsGiftedFetcher = useFetcher<
+      | {
+          result: SubmissionResult<z.infer<typeof WishlistItemSchema>>;
+        }
+      | undefined
+    >();
     const formRef = useRef<HTMLFormElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -252,6 +270,7 @@ export const WishlistItemEditor = React.forwardRef<
       note: wishlistItem?.note ?? '',
       categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
       type: wishlistItem?.type ?? 'text',
+      status: wishlistItem?.status ?? 'ACTIVE',
       hasImage: wishlistItem?.hasImage ?? false,
       updatedAt: wishlistItem?.updatedAt ?? null,
     });
@@ -274,6 +293,7 @@ export const WishlistItemEditor = React.forwardRef<
         url: wishlistItem?.url ?? '',
         note: wishlistItem?.note ?? '',
         categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
+        status: wishlistItem?.status ?? 'ACTIVE',
         imageAction: 'none',
         imageUrl: '',
       },
@@ -320,6 +340,7 @@ export const WishlistItemEditor = React.forwardRef<
         note: wishlistItem?.note ?? '',
         categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
         type: wishlistItem?.type ?? 'text',
+        status: wishlistItem?.status ?? 'ACTIVE',
         hasImage: wishlistItem?.hasImage ?? false,
         updatedAt: wishlistItem?.updatedAt ?? null,
       };
@@ -330,6 +351,7 @@ export const WishlistItemEditor = React.forwardRef<
       wishlistItem?.note,
       wishlistItem?.categoryId,
       wishlistItem?.type,
+      wishlistItem?.status,
       wishlistItem?.hasImage,
       wishlistItem?.updatedAt,
       defaultCategoryId,
@@ -445,6 +467,11 @@ export const WishlistItemEditor = React.forwardRef<
         : hasId
           ? 'Edit Wishlist Item'
           : 'Add Wishlist Item';
+    const currentStatusValue =
+      (fields.status.value ??
+        fields.status.defaultValue ??
+        wishlistItem?.status ??
+        'ACTIVE') as z.infer<typeof WishlistItemSchema>['status'];
     const normalize = (value: string | null | undefined) => value ?? '';
     const titleValue = normalize(
       fields.title.value ?? fields.title.defaultValue ?? '',
@@ -477,6 +504,40 @@ export const WishlistItemEditor = React.forwardRef<
       imageActionState === 'url';
     const isDirty = hasFieldChanges || hasImageChanges;
     const saveDisabled = isPending || !isDirty;
+    const canMarkAsGifted =
+      canEdit &&
+      hasId &&
+      currentStatusValue !== 'ARCHIVED' &&
+      (fields.title.value ?? wishlistItem?.title ?? '').trim().length > 0;
+    const handleMarkAsGifted = () => {
+      if (!wishlistItem?.id || !canMarkAsGifted) return;
+
+      const formData = new FormData();
+      formData.set('intent', 'save');
+      formData.set('id', wishlistItem.id);
+      formData.set('title', titleValue || wishlistItem.title);
+      formData.set('type', typeValue || wishlistItem.type || 'text');
+      if (noteValue) formData.set('note', noteValue);
+      if (urlValue) formData.set('url', urlValue);
+      if (categoryValue) formData.set('categoryId', categoryValue);
+      formData.set('status', 'ARCHIVED');
+      formData.set('imageAction', 'none');
+
+      markAsGiftedFetcher.submit(formData, {
+        method: 'post',
+        encType: 'multipart/form-data',
+      });
+    };
+
+    useEffect(() => {
+      const result = markAsGiftedFetcher.data?.result;
+      if (
+        markAsGiftedFetcher.state === 'idle' &&
+        result?.status === 'success'
+      ) {
+        setOpen(false);
+      }
+    }, [markAsGiftedFetcher.data, markAsGiftedFetcher.state]);
     const showImageError = Boolean(imageError && !imageWarning);
     const previewSrc = React.useMemo(() => {
       const safePreview = getSafePreviewSrc(imagePreview);
@@ -610,7 +671,75 @@ export const WishlistItemEditor = React.forwardRef<
           {...(!isDesktop ? { showHandle: true } : {})}
         >
           <DialogHeaderComponent>
-            <DialogTitleComponent>{titleText}</DialogTitleComponent>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <DialogTitleComponent>{titleText}</DialogTitleComponent>
+              {isDesktop ? (
+                <div className="flex items-center gap-2">
+                  {currentStatusValue === 'ARCHIVED' ? (
+                    <Badge variant="secondary">Gifted</Badge>
+                  ) : canMarkAsGifted ? (
+                    <TooltipProvider delayDuration={150}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <StatusButton
+                            type="button"
+                            variant="outline"
+                            status={
+                              markAsGiftedFetcher.state === 'idle'
+                                ? 'idle'
+                                : 'pending'
+                            }
+                            onClick={handleMarkAsGifted}
+                            disabled={!canMarkAsGifted}
+                            className="whitespace-nowrap"
+                          >
+                            Mark as gifted
+                            <LuCircleHelp className="ml-2 h-4 w-4" aria-hidden />
+                          </StatusButton>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-sm">
+                          Gifted items are removed from your wishlist and shown
+                          in your Gifted items list.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            {!isDesktop ? (
+              <div className="mt-2 flex items-center gap-2">
+                {currentStatusValue === 'ARCHIVED' ? (
+                  <Badge variant="secondary">Gifted</Badge>
+                ) : canMarkAsGifted ? (
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <StatusButton
+                          type="button"
+                          variant="outline"
+                          status={
+                            markAsGiftedFetcher.state === 'idle'
+                              ? 'idle'
+                              : 'pending'
+                          }
+                          onClick={handleMarkAsGifted}
+                          disabled={!canMarkAsGifted}
+                          className="w-full justify-center"
+                        >
+                          Mark as gifted
+                          <LuCircleHelp className="ml-2 h-4 w-4" aria-hidden />
+                        </StatusButton>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs text-sm">
+                        Gifted items are removed from your wishlist and shown in
+                        your Gifted items list.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : null}
+              </div>
+            ) : null}
             <DialogDescriptionComponent className="sr-only">
               Update wishlist item details
             </DialogDescriptionComponent>
@@ -727,6 +856,13 @@ export const WishlistItemEditor = React.forwardRef<
                     ) : null}
                   </>
                 ) : null}
+
+                <input
+                  {...getInputProps(fields.status, {
+                    type: 'hidden',
+                    ariaAttributes: true,
+                  })}
+                />
 
                 <Field
                   className="w-full"
