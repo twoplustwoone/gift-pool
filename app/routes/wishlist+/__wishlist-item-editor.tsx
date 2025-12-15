@@ -386,6 +386,7 @@ export const WishlistItemEditor = React.forwardRef<
                 defaultCategoryId ??
                 '') as string,
               type: nextValue?.type ?? initialValuesRef.current.type,
+              status: nextValue?.status ?? 'ACTIVE',
               hasImage: false,
               updatedAt: null,
             }
@@ -397,6 +398,10 @@ export const WishlistItemEditor = React.forwardRef<
                 initialValuesRef.current.categoryId ??
                 '') as string,
               type: nextValue?.type ?? initialValuesRef.current.type,
+              status:
+                nextValue?.status ??
+                wishlistItem?.status ??
+                initialValuesRef.current.status,
               hasImage:
                 (nextValue as any)?.hasImage ??
                 wishlistItem?.hasImage ??

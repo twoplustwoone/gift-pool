@@ -75,11 +75,12 @@ describe('WishlistItem', () => {
           note: null,
           url: null,
           type: 'text',
+          status: 'ACTIVE',
           categoryId: null,
           ownerId: 'owner-id',
           updatedAt: new Date(),
         }}
-      />,
+      />, 
     );
 
     const trigger = screen.getByRole('button', { name: /item one/i });

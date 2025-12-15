@@ -104,8 +104,9 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   invariantResponse(user, 'User not found', { status: 404 });
 
   const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
-    ({ image, imageSource, ...item }) => ({
+    ({ image, imageSource, status, ...item }) => ({
       ...item,
+      status: status as WishlistUser['wishlistItems'][number]['status'],
       updatedAt: item.updatedAt,
       hasImage: Boolean(image),
       imageSource:
@@ -145,6 +146,11 @@ const UserWishlist = () => {
       ...item,
       updatedAt: new Date(item.updatedAt),
     })),
+    archivedWishlistItems:
+      data.user.archivedWishlistItems?.map((item) => ({
+        ...item,
+        updatedAt: new Date(item.updatedAt),
+      })) ?? [],
   };
 
   return <Wishlist isOwner={false} user={user} />;

@@ -70,8 +70,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
   invariantResponse(user, 'User not found', { status: 404 });
 
   const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
-    ({ image, imageSource, ...item }) => ({
+    ({ image, imageSource, status, ...item }) => ({
       ...item,
+      status: status as WishlistUser['wishlistItems'][number]['status'],
       hasImage: Boolean(image),
       imageSource:
         imageSource as WishlistUser['wishlistItems'][number]['imageSource'],
@@ -79,8 +80,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
   );
 
   const archivedWishlistItemsWithStatus: WishlistUser['archivedWishlistItems'] =
-    archivedWishlistItems.map(({ image, imageSource, ...item }) => ({
+    archivedWishlistItems.map(({ image, imageSource, status, ...item }) => ({
       ...item,
+      status: status as WishlistUser['wishlistItems'][number]['status'],
       hasImage: Boolean(image),
       imageSource:
         imageSource as WishlistUser['wishlistItems'][number]['imageSource'],
