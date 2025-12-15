@@ -6,12 +6,37 @@ import {
 import { Link, useFetcher } from '@remix-run/react';
 import { useEffect, useRef, useState } from 'react';
 
-import { LuCheck, LuLink, LuPencil, LuPlus, LuTrash, LuX } from 'react-icons/lu';
+import {
+  LuArchiveRestore,
+  LuCheck,
+  LuExternalLink,
+  LuLink,
+  LuPencil,
+  LuPlus,
+  LuTrash,
+  LuX,
+} from 'react-icons/lu';
 import { useToast } from '#app/components/toaster.tsx';
 import { Button } from '#app/components/ui/button';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '#app/components/ui/dialog';
 import { Icon } from '#app/components/ui/icon';
 import { Input } from '#app/components/ui/input';
+import {
+  MobileBottomSheet,
+  MobileBottomSheetContent,
+  MobileBottomSheetDescription,
+  MobileBottomSheetHeader,
+  MobileBottomSheetTitle,
+  MobileBottomSheetTrigger,
+} from '#app/components/ui/mobile-bottom-sheet';
 import {
   Tooltip,
   TooltipContent,
@@ -26,25 +51,59 @@ import { Flex, Grid, Stack, Text } from '../ui-kit';
 import { CategoryManager } from './category-manager';
 import { WishlistItem } from './wishlist-item';
 
+type WishlistItemStatus = 'ACTIVE' | 'ARCHIVED';
+
+type WishlistListItem = Pick<
+  WishlistItemType,
+  | 'id'
+  | 'title'
+  | 'ownerId'
+  | 'note'
+  | 'url'
+  | 'type'
+  | 'categoryId'
+  | 'status'
+  | 'updatedAt'
+  > & {
+  updatedAt: Date;
+  status: WishlistItemStatus;
+  purchase?: { purchasedById: string } | null;
+  hasImage?: boolean;
+  imageSource?: WishlistItemImageSource | null;
+};
+
 export type WishlistUser = Pick<User, 'username' | 'name'> & {
   image: Pick<UserImage, 'id'> | null;
-  wishlistItems: (Pick<
-    WishlistItemType,
-    | 'id'
-    | 'title'
-    | 'ownerId'
-    | 'note'
-    | 'url'
-    | 'type'
-    | 'categoryId'
-    | 'updatedAt'
-  > & {
-    updatedAt: Date;
-    purchase?: { purchasedById: string } | null;
-    hasImage?: boolean;
-    imageSource?: WishlistItemImageSource | null;
-  })[];
+  wishlistItems: WishlistListItem[];
+  archivedWishlistItems?: WishlistListItem[];
   wishlistCategories: { id: string; name: string; order: number }[];
+};
+
+const useIsDesktop = () => {
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (
+      typeof window === 'undefined' ||
+      typeof window.matchMedia !== 'function'
+    )
+      return false;
+    return window.matchMedia('(min-width: 640px)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined;
+
+    const mediaQuery = window.matchMedia('(min-width: 640px)');
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsDesktop(event.matches);
+    };
+
+    setIsDesktop(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  return isDesktop;
 };
 
 const WishlistAvatar = ({
@@ -84,6 +143,7 @@ export const Wishlist = ({
   isOwner: boolean;
 }) => {
   const displayName = user.name ?? user.username;
+  const archivedWishlistItems = user.archivedWishlistItems ?? [];
   const hasDefaultItems = user.wishlistItems.some(
     (item) => item.categoryId === null,
   );
@@ -123,7 +183,12 @@ export const Wishlist = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WishlistHeader isOwner={isOwner} user={user} displayName={displayName} />
+      <WishlistHeader
+        isOwner={isOwner}
+        user={user}
+        displayName={displayName}
+        archivedWishlistItems={archivedWishlistItems}
+      />
       <div className="container min-h-0 flex-1 py-8">
         <Stack gap={4}>
           {categories.map((category) => {
@@ -304,6 +369,7 @@ const WishlistHeader = ({
   isOwner,
   user,
   displayName,
+  archivedWishlistItems,
 }: {
   isOwner: boolean;
   user: Pick<
@@ -317,6 +383,7 @@ const WishlistHeader = ({
     wishlistCategories: { id: string; name: string; order: number }[];
   };
   displayName: string;
+  archivedWishlistItems: WishlistListItem[];
 }) => (
   <div className="border-b bg-surface px-4 py-4">
     <div className="container flex min-h-11 items-center justify-between gap-4">
@@ -347,6 +414,10 @@ const WishlistHeader = ({
 
       {isOwner ? (
         <div className="flex gap-2">
+          <ArchivedWishlistItemsDialog
+            items={archivedWishlistItems}
+            displayName={displayName}
+          />
           <WishlistItemEditor categories={user.wishlistCategories} />
           <CategoryManager categories={user.wishlistCategories} />
         </div>
@@ -354,6 +425,111 @@ const WishlistHeader = ({
     </div>
   </div>
 );
+
+const ArchivedWishlistItemsDialog = ({
+  items,
+  displayName,
+}: {
+  items: WishlistListItem[];
+  displayName: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  const isDesktop = useIsDesktop();
+  const hasItems = items.length > 0;
+
+  const listContent = (
+    <div className="space-y-3 pt-2">
+      {hasItems ? (
+        items.map((item) => (
+          <div
+            key={item.id}
+            className="rounded-lg border border-border bg-muted/40 p-3"
+          >
+            <Flex justify="between" align="start" className="gap-2">
+              <Text weight="medium">{item.title}</Text>
+              <Text size="xs" className="text-muted-foreground whitespace-nowrap">
+                {item.updatedAt.toLocaleDateString()}
+              </Text>
+            </Flex>
+            {item.note ? (
+              <Text size="sm" className="text-muted-foreground">
+                {item.note}
+              </Text>
+            ) : null}
+            {item.url ? (
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-pool hover:underline"
+              >
+                Open link
+                <LuExternalLink className="h-4 w-4" aria-hidden />
+              </a>
+            ) : null}
+          </div>
+        ))
+      ) : (
+        <Text size="sm" className="text-muted-foreground">
+          No gifted items yet. When you mark wishlist entries as gifted, they will
+          move here for safekeeping.
+        </Text>
+      )}
+    </div>
+  );
+
+  if (isDesktop) {
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className="hidden sm:inline-flex"
+            aria-label="View gifted items"
+          >
+            <LuArchiveRestore className="mr-2 h-4 w-4" aria-hidden />
+            Gifted items
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Gifted items</DialogTitle>
+            <DialogDescription>
+              {displayName}'s wishlist entries that are hidden from the active list.
+            </DialogDescription>
+          </DialogHeader>
+          {listContent}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <MobileBottomSheet open={open} onOpenChange={setOpen}>
+      <MobileBottomSheetTrigger asChild>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          aria-label="View gifted items"
+          className="sm:hidden"
+        >
+          <LuArchiveRestore className="h-4 w-4" aria-hidden />
+        </Button>
+      </MobileBottomSheetTrigger>
+      <MobileBottomSheetContent>
+        <MobileBottomSheetHeader>
+          <MobileBottomSheetTitle>Gifted items</MobileBottomSheetTitle>
+          <MobileBottomSheetDescription>
+            Browse wishlist items that have already been gifted.
+          </MobileBottomSheetDescription>
+        </MobileBottomSheetHeader>
+        {listContent}
+      </MobileBottomSheetContent>
+    </MobileBottomSheet>
+  );
+};
 
 const WishlistLinkCopyButton = ({
   username,

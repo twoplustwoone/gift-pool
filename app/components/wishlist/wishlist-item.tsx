@@ -51,7 +51,15 @@ export const WishlistItem = ({
 }: {
   wishlistItem: Pick<
     WishlistItemType,
-    'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId' | 'updatedAt'
+    | 'id'
+    | 'title'
+    | 'ownerId'
+    | 'note'
+    | 'url'
+    | 'type'
+    | 'categoryId'
+    | 'status'
+    | 'updatedAt'
   > &
     Partial<{
       hasImage: boolean;
@@ -425,6 +433,7 @@ export const WishlistItem = ({
           note: wishlistItem.note ?? null,
           type: wishlistItem.type,
           categoryId: wishlistItem.categoryId ?? null,
+          status: wishlistItem.status,
           hasImage: wishlistItem.hasImage ?? false,
           imageSource: wishlistItem.imageSource ?? null,
           updatedAt: wishlistItem.updatedAt,
@@ -575,6 +584,7 @@ export const WishlistItem = ({
         note: wishlistItem.note ?? null,
         type: wishlistItem.type,
         categoryId: wishlistItem.categoryId ?? null,
+        status: wishlistItem.status,
         hasImage: wishlistItem.hasImage ?? false,
         imageSource: wishlistItem.imageSource ?? null,
         updatedAt: wishlistItem.updatedAt,
