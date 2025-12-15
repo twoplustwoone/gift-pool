@@ -278,6 +278,7 @@ model WishlistItem {
   note       String?
   url        String?
   type       String
+  status     String            @default("ACTIVE")
   image      Bytes?
   imageSource String?
   createdAt  DateTime          @default(now())

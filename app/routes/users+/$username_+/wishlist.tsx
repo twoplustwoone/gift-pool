@@ -76,6 +76,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
       name: true,
       username: true,
       wishlistItems: {
+        where: { status: 'ACTIVE' },
         select: {
           id: true,
           title: true,
@@ -84,6 +85,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
           url: true,
           note: true,
           categoryId: true,
+          status: true,
           updatedAt: true,
           purchase: { select: { purchasedById: true } },
           image: true,
