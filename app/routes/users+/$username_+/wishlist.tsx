@@ -104,8 +104,9 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   invariantResponse(user, 'User not found', { status: 404 });
 
   const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
-    ({ image, imageSource, ...item }) => ({
+    ({ image, imageSource, status, ...item }) => ({
       ...item,
+      status: status as WishlistUser['wishlistItems'][number]['status'],
       updatedAt: item.updatedAt,
       hasImage: Boolean(image),
       imageSource:
@@ -113,9 +114,17 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     }),
   );
 
+  const wishlistUser: WishlistUser = {
+    name: user.name,
+    username: user.username,
+    image: user.image,
+    wishlistCategories: user.wishlistCategories,
+    wishlistItems,
+  };
+
   return json<LoaderData>({
     canViewWishlist,
-    user: { ...user, wishlistItems },
+    user: wishlistUser,
     relationship,
   });
 };
@@ -140,11 +149,16 @@ const UserWishlist = () => {
   }
 
   const user: WishlistUser = {
-    ...data.user,
+    name: data.user.name,
+    username: data.user.username,
+    image: data.user.image,
+    wishlistCategories: data.user.wishlistCategories,
     wishlistItems: data.user.wishlistItems.map((item) => ({
       ...item,
+      status: item.status as WishlistUser['wishlistItems'][number]['status'],
       updatedAt: new Date(item.updatedAt),
     })),
+    archivedWishlistItems: [],
   };
 
   return <Wishlist isOwner={false} user={user} />;

@@ -149,7 +149,7 @@ describe('WishlistItemEditor mark as gifted', () => {
     fireEvent.click(button);
 
     expect(fetcherSubmit).toHaveBeenCalled();
-    const [formData] = fetcherSubmit.mock.calls[0];
+    const [formData] = fetcherSubmit.mock.calls[0]!;
     expect(formData.get('status')).toBe('ARCHIVED');
     expect(formData.get('title')).toBe('Snowboard');
     expect(formData.get('intent')).toBe('save');

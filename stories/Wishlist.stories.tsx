@@ -22,6 +22,7 @@ const items = [
     type: 'link' as const,
     categoryId: 'c2',
     purchase: null,
+    status: 'ACTIVE' as const,
     updatedAt: new Date(),
   },
   {
@@ -33,6 +34,7 @@ const items = [
     type: 'text' as const,
     categoryId: 'c2',
     purchase: null,
+    status: 'ACTIVE' as const,
     updatedAt: new Date(),
   },
   {
@@ -44,6 +46,7 @@ const items = [
     type: 'text' as const,
     categoryId: null,
     purchase: null,
+    status: 'ACTIVE' as const,
     updatedAt: new Date(),
   },
 ];
@@ -58,6 +61,7 @@ const viewerItems = [
     type: 'text' as const,
     categoryId: 'c1',
     purchase: null,
+    status: 'ACTIVE' as const,
     updatedAt: new Date(),
   },
   {
@@ -69,6 +73,7 @@ const viewerItems = [
     type: 'text' as const,
     categoryId: 'c1',
     purchase: { purchasedById: 'friend-1' },
+    status: 'ACTIVE' as const,
     updatedAt: new Date(),
   },
   {
@@ -80,6 +85,7 @@ const viewerItems = [
     type: 'text' as const,
     categoryId: 'c2',
     purchase: null,
+    status: 'ACTIVE' as const,
     updatedAt: new Date(),
   },
 ];

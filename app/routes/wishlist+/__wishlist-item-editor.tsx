@@ -395,6 +395,10 @@ export const WishlistItemEditor = React.forwardRef<
                 defaultCategoryId ??
                 '') as string,
               type: nextValue?.type ?? initialValuesRef.current.type,
+              status:
+                nextValue?.status ??
+                initialValuesRef.current.status ??
+                'ACTIVE',
               hasImage: false,
               updatedAt: null,
             }
@@ -406,6 +410,10 @@ export const WishlistItemEditor = React.forwardRef<
                 initialValuesRef.current.categoryId ??
                 '') as string,
               type: nextValue?.type ?? initialValuesRef.current.type,
+              status:
+                nextValue?.status ??
+                initialValuesRef.current.status ??
+                'ACTIVE',
               hasImage:
                 (nextValue as any)?.hasImage ??
                 wishlistItem?.hasImage ??
@@ -676,7 +684,7 @@ export const WishlistItemEditor = React.forwardRef<
               {isDesktop ? (
                 <div className="flex items-center gap-2">
                   {currentStatusValue === 'ARCHIVED' ? (
-                    <Badge variant="secondary">Gifted</Badge>
+                    <Badge variant="pool">Gifted</Badge>
                   ) : canMarkAsGifted ? (
                     <TooltipProvider delayDuration={150}>
                       <Tooltip>
@@ -710,7 +718,7 @@ export const WishlistItemEditor = React.forwardRef<
             {!isDesktop ? (
               <div className="mt-2 flex items-center gap-2">
                 {currentStatusValue === 'ARCHIVED' ? (
-                  <Badge variant="secondary">Gifted</Badge>
+                  <Badge variant="pool">Gifted</Badge>
                 ) : canMarkAsGifted ? (
                   <TooltipProvider delayDuration={150}>
                     <Tooltip>

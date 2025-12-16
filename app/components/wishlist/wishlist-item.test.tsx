@@ -77,6 +77,7 @@ describe('WishlistItem', () => {
           type: 'text',
           categoryId: null,
           ownerId: 'owner-id',
+          status: 'ACTIVE',
           updatedAt: new Date(),
         }}
       />,
