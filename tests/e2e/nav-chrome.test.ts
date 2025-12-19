@@ -84,6 +84,22 @@ test.describe('navigation chrome', () => {
         const friendBottom = lastFriendBox.y + lastFriendBox.height;
         expect(friendBottom - navTop).toBeLessThanOrEqual(1);
       }
+
+      // Scroll deep, navigate away, and confirm scroll resets to top
+      await scrollArea.evaluate((el) => el.scrollTo({ top: 1200, behavior: 'auto' }));
+      const homeLink = page.getByRole('link', { name: /^home$/i });
+      await homeLink.click();
+      await expect(page).toHaveURL('/');
+      await expect
+        .poll(
+          () =>
+            page.getByTestId('app-scroll-area').evaluate((el) => {
+              const anyEl = el as HTMLElement | null;
+              return anyEl ? anyEl.scrollTop : 0;
+            }),
+          { message: 'scroll position should reset on navigation' },
+        )
+        .toBe(0);
     } finally {
       await prisma.friendship.deleteMany({
         where: {
