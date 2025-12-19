@@ -71,14 +71,18 @@ test.describe('navigation chrome', () => {
       await friendRows.last().scrollIntoViewIfNeeded();
 
       const nav = page.getByTestId('bottom-nav');
-      const [navBox, lastFriendBox] = await Promise.all([nav.boundingBox(), friendRows.last().boundingBox()]);
+      const [navBox, lastFriendBox] = await Promise.all([
+        nav.boundingBox(),
+        friendRows.last().boundingBox(),
+      ]);
 
       expect(navBox).not.toBeNull();
       expect(lastFriendBox).not.toBeNull();
 
       if (navBox && lastFriendBox) {
-        const overlap = lastFriendBox.bottom - navBox.top;
-        expect(overlap).toBeLessThanOrEqual(1);
+        const navTop = navBox.y;
+        const friendBottom = lastFriendBox.y + lastFriendBox.height;
+        expect(friendBottom - navTop).toBeLessThanOrEqual(1);
       }
     } finally {
       await prisma.friendship.deleteMany({
