@@ -35,6 +35,7 @@ export const TopBar = ({
     <header
       ref={headerRef}
       data-hidden={hidden ? 'true' : 'false'}
+      data-testid="top-bar"
       className={cn(
         'sticky top-0 z-40 border-b border-surface-border bg-surface py-3 transition-[transform,opacity,margin] duration-200 ease-out will-change-transform sm:py-4',
         hidden && '-translate-y-full opacity-0 pointer-events-none',

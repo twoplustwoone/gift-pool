@@ -1011,7 +1011,7 @@ function SwipeableFriendRow({
   const deltaX = useRef(0);
   const threshold = 48;
   return (
-    <div className="relative">
+    <div className="relative" data-testid="friend-row">
       {/* Actions behind */}
       <div className="absolute inset-y-0 right-0 flex items-stretch">
         {rightActions}

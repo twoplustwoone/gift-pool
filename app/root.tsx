@@ -314,6 +314,7 @@ const App = () => {
             <div
               ref={scrollRef}
               className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-background to-background-muted pb-bottom-nav sm:pb-0"
+              data-testid="app-scroll-area"
             >
               <Outlet />
             </div>
