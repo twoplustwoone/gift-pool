@@ -19,7 +19,10 @@ export const BottomNav = () => {
   const user = useOptionalUser();
 
   return (
-    <nav className="fixed bottom-0 left-0 w-full border-t border-surface-border bg-surface text-foreground sm:hidden">
+    <nav
+      className="fixed bottom-0 left-0 w-full border-t border-surface-border bg-surface text-foreground sm:hidden"
+      data-testid="bottom-nav"
+    >
       <ul className="flex h-bottom-nav divide-x divide-border">
         {links
           .filter((l) => !l.needsAuth || user)

@@ -1011,7 +1011,7 @@ function SwipeableFriendRow({
   const deltaX = useRef(0);
   const threshold = 48;
   return (
-    <div className="relative">
+    <div className="relative" data-testid="friend-row">
       {/* Actions behind */}
       <div className="absolute inset-y-0 right-0 flex items-stretch">
         {rightActions}
@@ -1019,7 +1019,7 @@ function SwipeableFriendRow({
       {/* Foreground content */}
       <div
         className={cn(
-          'relative z-10 rounded-xl border border-border bg-card p-4 shadow-sm transition-transform',
+          'relative rounded-xl border border-border bg-card p-4 shadow-sm transition-transform',
         )}
         style={{ transform: `translateX(${open ? -140 : 0}px)` }}
         onTouchStart={(e) => {

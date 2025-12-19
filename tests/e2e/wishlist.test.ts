@@ -40,7 +40,7 @@ test('users can create, edit, and delete categories; items follow correctly', as
   await page.goto('/wishlist');
 
   // Create category "Books"
-  await page.getByRole('button', { name: /add category/i }).click();
+  await page.getByRole('button', { name: /categories/i }).click();
   await page.getByPlaceholder('Category name').fill('Books');
   await page.getByRole('button', { name: /create category/i }).click();
   await expect(page.getByText('Category added', { exact: true })).toBeVisible();

@@ -27,7 +27,7 @@ export const TopNav = () => {
   const requestInfo = useRequestInfo();
 
   return (
-    <nav className="container flex h-full items-center justify-between gap-3 md:gap-6">
+    <nav className="container flex items-center justify-between gap-3 md:gap-6">
       <Logo />
       {/* desktop-only primary nav; mobile relies on BottomNav */}
       <div className="hidden items-center gap-3 sm:flex md:gap-4">
