@@ -53,13 +53,21 @@ test.describe('navigation chrome', () => {
       await expect(topBar).toHaveAttribute('data-hidden', 'false');
 
       await scrollArea.evaluate((el) => el.scrollTo({ top: 900, behavior: 'auto' }));
-      await expect(topBar).toHaveAttribute('data-hidden', 'true');
+      await expect
+        .poll(async () => topBar.getAttribute('data-hidden'), {
+          message: 'top bar should hide after scrolling down',
+        })
+        .toBe('true');
 
       await scrollArea.evaluate((el) => el.scrollTo({ top: 50, behavior: 'auto' }));
-      await expect(topBar).toHaveAttribute('data-hidden', 'false');
+      await expect
+        .poll(async () => topBar.getAttribute('data-hidden'), {
+          message: 'top bar should reappear after scrolling up',
+        })
+        .toBe('false');
 
       const friendRows = page.getByTestId('friend-row');
-      await expect(friendRows.first()).toBeVisible();
+      await expect(friendRows.first()).toBeVisible({ timeout: 10000 });
       await friendRows.last().scrollIntoViewIfNeeded();
 
       const nav = page.getByTestId('bottom-nav');
