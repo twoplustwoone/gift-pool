@@ -56,10 +56,10 @@ export const CategoryManager = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline">
-          <Flex gap={1.5}>
+        <Button type="button" variant="outline" className="whitespace-nowrap">
+          <Flex gap={1.5} className="items-center">
             <LuSettings />
-            <Text size="sm">Add Category</Text>
+            <Text size="sm">Categories</Text>
           </Flex>
         </Button>
       </PopoverTrigger>
