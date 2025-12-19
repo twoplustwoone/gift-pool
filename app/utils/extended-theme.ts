@@ -129,7 +129,6 @@ export const extendedTheme = {
   },
   spacing: {
     'bottom-nav': 'var(--bottom-nav-height)',
-    header: 'var(--header-height)',
   },
   backgroundImage: {
     'brand-gradient':
