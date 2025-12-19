@@ -17,7 +17,7 @@ import {
   useLoaderData,
 } from '@remix-run/react';
 import { withSentry } from '@sentry/remix';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { HoneypotProvider } from 'remix-utils/honeypot/react';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -190,7 +190,7 @@ const Document = ({
         <meta name="csp-nonce" content={nonce} />
         <Links />
       </head>
-      <body className="min-h-full bg-background text-foreground">
+      <body className="min-h-screen overflow-hidden bg-background text-foreground">
         {children}
         <script
           nonce={nonce}
@@ -256,13 +256,42 @@ const App = () => {
     return outcome;
   }, [installCapability, promptInstall]);
 
+  const [hideHeader, setHideHeader] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let lastScrollTop = el.scrollTop;
+    const threshold = 6;
+    let ticking = false;
+    const update = () => {
+      const current = el.scrollTop;
+      const delta = current - lastScrollTop;
+      if (current < 8) {
+        setHideHeader(false);
+      } else if (Math.abs(delta) > threshold) {
+        setHideHeader(delta > 0);
+      }
+      lastScrollTop = current;
+      ticking = false;
+    };
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(update);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
       <I18nProvider locale={data.requestInfo.locale}>
         <NotificationsProvider
           initialUnreadCount={data.notifications?.unreadCount ?? 0}
         >
-          <div className="flex min-h-[100dvh] flex-col">
+          <div className="flex min-h-[100dvh] max-h-[100dvh] flex-col overflow-hidden">
             {showPwaInstallBanner ? (
               <PwaInstallBanner
                 capability={installCapability}
@@ -280,9 +309,12 @@ const App = () => {
                 onPromptInstall={handleInstallClick}
               />
             ) : null}
-            <TopBar />
+            <TopBar hidden={hideHeader} />
 
-            <div className="min-h-0 flex-1 bg-gradient-to-br from-background to-background-muted pb-bottom-nav sm:overflow-y-auto sm:pb-0">
+            <div
+              ref={scrollRef}
+              className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-background to-background-muted pb-bottom-nav sm:pb-0"
+            >
               <Outlet />
             </div>
 
