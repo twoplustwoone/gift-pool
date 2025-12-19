@@ -1019,7 +1019,7 @@ function SwipeableFriendRow({
       {/* Foreground content */}
       <div
         className={cn(
-          'relative z-10 rounded-xl border border-border bg-card p-4 shadow-sm transition-transform',
+          'relative rounded-xl border border-border bg-card p-4 shadow-sm transition-transform',
         )}
         style={{ transform: `translateX(${open ? -140 : 0}px)` }}
         onTouchStart={(e) => {
