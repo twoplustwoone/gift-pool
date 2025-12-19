@@ -13,6 +13,8 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
+  useNavigation,
   useFetchers,
   useLoaderData,
 } from '@remix-run/react';
@@ -258,6 +260,11 @@ const App = () => {
 
   const [hideHeader, setHideHeader] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
+  const navigation = useNavigation();
+  const lastRouteKey = useRef(
+    `${location.pathname}${location.search}${location.hash}`,
+  );
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -284,6 +291,17 @@ const App = () => {
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
+
+  // Reset the scroll area on navigation, since window scrolling is disabled
+  useEffect(() => {
+    if (navigation.state !== 'idle') return;
+    const key = `${location.pathname}${location.search}${location.hash}`;
+    if (lastRouteKey.current === key) return;
+    lastRouteKey.current = key;
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    });
+  }, [location, navigation.state]);
 
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
