@@ -1,6 +1,9 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { TopNav } from '#app/components/nav/top/top-nav';
 import { cn } from '#app/utils/misc.tsx';
+
+const useIsomorphicLayoutEffect =
+  typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 export const TopBar = ({
   hidden = false,
@@ -12,7 +15,7 @@ export const TopBar = ({
   const headerRef = useRef<HTMLElement>(null);
   const [measuredHeight, setMeasuredHeight] = useState<number>(0);
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const el = headerRef.current;
     if (!el) return;
     const measure = () => {
