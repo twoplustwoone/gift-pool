@@ -1,14 +1,22 @@
 import { invariantResponse } from '@epic-web/invariant';
 import { json, redirect, type LoaderFunctionArgs } from '@remix-run/node';
 import { useLoaderData } from '@remix-run/react';
+import { useEffect, useRef } from 'react';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { FriendGateCard } from '#app/components/friends/friend-gate-card.tsx';
+import { logEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getRelationshipDetails } from '#app/utils/friends.server.ts';
 import { type RelationshipState } from '#app/utils/friends.ts';
 import { useTranslation } from '#app/utils/i18n.tsx';
+import {
+  applyRequestIdHeader,
+  getRequestContext,
+} from '#app/utils/request-context.server.ts';
 import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
+import { track } from '#app/utils/analytics.client.ts';
+import { useRequestInfo } from '#app/utils/request-info.ts';
 
 type Relationship = {
   state: RelationshipState;
@@ -28,11 +36,17 @@ type LoaderData =
       };
       relationship: Relationship;
     }
-  | { canViewWishlist: true; user: WishlistUser; relationship: Relationship };
+  | {
+      canViewWishlist: true;
+      user: WishlistUser;
+      relationship: Relationship;
+      analytics: { requestId: string; viewEventId: string };
+    };
 
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const { username } = params;
 
+  const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
   const wishlistOwner = await prisma.user.findFirst({
     select: { id: true, name: true, username: true, image: { select: { id: true } } },
@@ -56,16 +70,19 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const canViewWishlist = relationship.state === 'FRIENDS';
 
   if (!canViewWishlist) {
-    return json<LoaderData>({
-      canViewWishlist,
-      user: {
-        id: wishlistOwner.id,
-        name: wishlistOwner.name,
-        username: wishlistOwner.username,
-        image: wishlistOwner.image,
+    return json<LoaderData>(
+      {
+        canViewWishlist,
+        user: {
+          id: wishlistOwner.id,
+          name: wishlistOwner.name,
+          username: wishlistOwner.username,
+          image: wishlistOwner.image,
+        },
+        relationship,
       },
-      relationship,
-    });
+      { headers: applyRequestIdHeader(null, requestId) },
+    );
   }
 
   await cleanupWishlistPurchasesForOwner(wishlistOwner.id);
@@ -111,16 +128,38 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     }),
   );
 
-  return json<LoaderData>({
-    canViewWishlist,
-    user: { ...user, wishlistItems },
-    relationship,
+  const viewEvent = await logEvent({
+    name: 'wishlist_viewed',
+    userId,
+    source: 'server',
+    requestId,
+    sessionId,
+    properties: {
+      wishlistOwnerId: user.id,
+      viewerId: userId,
+      itemCount: wishlistItems.length,
+    },
   });
+
+  return json<LoaderData>(
+    {
+      canViewWishlist,
+      user: { ...user, wishlistItems },
+      relationship,
+      analytics: {
+        requestId,
+        viewEventId: viewEvent.eventId,
+      },
+    },
+    { headers: applyRequestIdHeader(null, requestId) },
+  );
 };
 
 const UserWishlist = () => {
   const data = useLoaderData<typeof loader>();
   const { t } = useTranslation();
+  const requestInfo = useRequestInfo();
+  const trackedViewIdRef = useRef<string | null>(null);
 
   if (!data.canViewWishlist) {
     const userDisplayName = data.user.name ?? data.user.username;
@@ -144,6 +183,28 @@ const UserWishlist = () => {
       updatedAt: new Date(item.updatedAt),
     })),
   };
+
+  useEffect(() => {
+    if (!data.analytics?.viewEventId) return;
+    if (trackedViewIdRef.current === data.analytics.viewEventId) return;
+    trackedViewIdRef.current = data.analytics.viewEventId;
+    track(
+      'wishlist_viewed',
+      {
+        wishlistOwnerId: data.user.id,
+        itemCount: data.user.wishlistItems.length,
+      },
+      {
+        requestId: data.analytics.requestId ?? requestInfo.requestId,
+        eventId: data.analytics.viewEventId,
+      },
+    );
+  }, [
+    data.analytics,
+    data.user.id,
+    data.user.wishlistItems.length,
+    requestInfo.requestId,
+  ]);
 
   return <Wishlist isOwner={false} user={user} />;
 };

@@ -131,7 +131,7 @@ export async function signup({
         },
       },
     },
-    select: { id: true, expirationDate: true },
+    select: { id: true, expirationDate: true, userId: true },
   });
 
   return session;

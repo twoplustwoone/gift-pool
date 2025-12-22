@@ -33,7 +33,9 @@ import {
   WishlistItemEditor,
   type WishlistItemEditorHandle,
 } from '#app/routes/wishlist+/__wishlist-item-editor';
+import { track } from '#app/utils/analytics.client.ts';
 import { cn, getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
+import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
 import { Box, Text, Flex } from '../ui-kit';
@@ -595,7 +597,30 @@ export const DeleteWishlistItem = ({
   className?: string;
 }) => {
   const isPending = useIsPending();
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<{
+    success: boolean;
+    analyticsEventId?: string | null;
+    requestId?: string;
+  }>();
+  const requestInfo = useOptionalRequestInfo();
+  const trackedArchiveIdRef = React.useRef<string | null>(null);
+  const fallbackRequestId = requestInfo?.requestId ?? null;
+
+  React.useEffect(() => {
+    const eventId = fetcher.data?.analyticsEventId ?? null;
+    if (!eventId) return;
+    if (!fetcher.data?.success) return;
+    if (trackedArchiveIdRef.current === eventId) return;
+    trackedArchiveIdRef.current = eventId;
+    track(
+      'wishlist_item_archived',
+      undefined,
+      {
+        eventId,
+        requestId: fetcher.data.requestId ?? fallbackRequestId,
+      },
+    );
+  }, [fallbackRequestId, fetcher.data]);
 
   return (
     <Dialog>

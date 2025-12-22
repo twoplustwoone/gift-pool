@@ -29,9 +29,11 @@ import {
   sessionKey,
   signup,
 } from '#app/utils/auth.server.ts';
+import { logEvent } from '#app/utils/analytics.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { checkHoneypot } from '#app/utils/honeypot.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
+import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { authSessionStorage } from '#app/utils/session.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import {
@@ -75,6 +77,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export async function action({ request }: ActionFunctionArgs) {
   const email = await requireOnboardingEmail(request);
+  const { requestId } = await getRequestContext(request);
   const formData = await request.formData();
   checkHoneypot(formData);
   const submission = await parseWithZod(formData, {
@@ -126,6 +129,15 @@ export async function action({ request }: ActionFunctionArgs) {
     'set-cookie',
     await verifySessionStorage.destroySession(verifySession),
   );
+
+  await logEvent({
+    name: 'user_registered',
+    userId: session.userId,
+    source: 'server',
+    requestId,
+    sessionId: session.id,
+    properties: { remember: remember ?? false },
+  });
 
   return redirectWithToast(
     safeRedirect(redirectTo),
