@@ -40,6 +40,7 @@ model User {
   friendInvitationsCreated FriendInvitation[] @relation("FriendInvitation_CreatedBy")
   friendInvitationsUsed     FriendInvitation[] @relation("FriendInvitation_UsedBy")
   wishlistPurchases        WishlistPurchase[]
+  analyticsEvents          AnalyticsEvent[]
 }
 
 model Friendship {
@@ -296,6 +297,23 @@ model WishlistPurchase {
   purchasedBy     User     @relation(fields: [purchasedById], references: [id], onDelete: Cascade)
 
   @@index([purchasedById])
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(uuid())
+  eventId    String   @unique
+  name       String
+  userId     String?
+  source     String
+  requestId  String?
+  sessionId  String?
+  properties String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([name, createdAt])
+  @@index([userId, createdAt])
 }
 
 model UserImage {
