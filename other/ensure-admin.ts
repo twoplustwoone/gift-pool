@@ -28,12 +28,12 @@ async function main() {
   });
 
   if (!user) {
-    console.error(`User "${TARGET_USERNAME}" not found; skipping admin grant.`);
+    console.error('Target admin user not found; skipping admin grant.');
     return;
   }
 
   if (user.roles.some((role) => role.name === adminRole.name)) {
-    console.log(`User "${TARGET_USERNAME}" already has admin role.`);
+    console.log('Target admin user already has admin role.');
     return;
   }
 
@@ -42,7 +42,7 @@ async function main() {
     data: { roles: { connect: { name: adminRole.name } } },
   });
 
-  console.log(`Granted admin role to "${TARGET_USERNAME}".`);
+  console.log('Granted admin role to target user.');
 }
 
 main()
