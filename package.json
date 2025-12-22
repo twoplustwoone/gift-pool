@@ -35,7 +35,7 @@
     "test:e2e:install": "npx playwright install --with-deps chromium",
     "typecheck": "tsc",
     "validate": "run-p \"test -- --run\" lint typecheck test:e2e:run",
-    "ensure:admin": "tsx other/ensure-admin.ts",
+    "ensure:admin": "node other/ensure-admin.js",
     "storybook": "cross-env STORYBOOK=1 storybook dev -p 6006",
     "build-storybook": "storybook build"
   },

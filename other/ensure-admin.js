@@ -1,8 +1,10 @@
+// A plain JS entrypoint to ensure an admin user exists.
+// Usage: NODE_ENV=production ADMIN_USERNAME=twoplustwoone node other/ensure-admin.js
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const TARGET_USERNAME = process.env.ADMIN_USERNAME;
+const TARGET_USERNAME = process.env.ADMIN_USERNAME?.toLowerCase();
 
 if (!TARGET_USERNAME) {
   console.log(
@@ -15,25 +17,21 @@ async function main() {
   const adminRole = await prisma.role.upsert({
     where: { name: 'admin' },
     update: {},
-    create: {
-      name: 'admin',
-      description: 'Admin role',
-      permissions: { connect: [] },
-    },
+    create: { name: 'admin', description: 'Admin role' },
   });
 
   const user = await prisma.user.findUnique({
-    where: { username: TARGET_USERNAME!.toLowerCase() },
+    where: { username: TARGET_USERNAME },
     select: { id: true, roles: { select: { name: true } } },
   });
 
   if (!user) {
-    console.error('Target admin user not found; skipping admin grant.');
+    console.error(`User "${TARGET_USERNAME}" not found; skipping admin grant.`);
     return;
   }
 
   if (user.roles.some((role) => role.name === adminRole.name)) {
-    console.log('Target admin user already has admin role.');
+    console.log(`User "${TARGET_USERNAME}" already has admin role.`);
     return;
   }
 
@@ -42,7 +40,7 @@ async function main() {
     data: { roles: { connect: { name: adminRole.name } } },
   });
 
-  console.log('Granted admin role to target user.');
+  console.log(`Granted admin role to "${TARGET_USERNAME}".`);
 }
 
 main()
