@@ -11,3 +11,12 @@ export function useRequestInfo() {
 
   return data.requestInfo;
 }
+
+export function useOptionalRequestInfo() {
+  try {
+    const data = useRouteLoaderData<typeof rootLoader>('root');
+    return data?.requestInfo ?? null;
+  } catch (_error) {
+    return null;
+  }
+}

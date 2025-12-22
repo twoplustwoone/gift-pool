@@ -26,7 +26,7 @@ import { Flex, Grid, Stack, Text } from '../ui-kit';
 import { CategoryManager } from './category-manager';
 import { WishlistItem } from './wishlist-item';
 
-export type WishlistUser = Pick<User, 'username' | 'name'> & {
+export type WishlistUser = Pick<User, 'id' | 'username' | 'name'> & {
   image: Pick<UserImage, 'id'> | null;
   wishlistItems: (Pick<
     WishlistItemType,

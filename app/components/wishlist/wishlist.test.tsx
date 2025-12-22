@@ -73,15 +73,16 @@ describe('Wishlist components', () => {
     const App = createRemixStub([
       {
         path: '/',
-        Component: () => (
-          <Wishlist
-            isOwner={true}
-            user={{
-              username: 'jane',
-              name: 'Jane',
-              image: { id: 'img1' },
-              wishlistItems: [
-                {
+            Component: () => (
+              <Wishlist
+                isOwner={true}
+                user={{
+                  id: 'user1',
+                  username: 'jane',
+                  name: 'Jane',
+                  image: { id: 'img1' },
+                  wishlistItems: [
+                    {
                   id: '1',
                   title: 'Item one',
                   ownerId: 'user1',
@@ -110,15 +111,16 @@ describe('Wishlist components', () => {
     const App = createRemixStub([
       {
         path: '/',
-        Component: () => (
-          <Wishlist
-            isOwner={true}
-            user={{
-              username: 'jane',
-              name: 'Jane',
-              image: { id: 'img1' },
-              wishlistItems: [],
-              wishlistCategories: [],
+            Component: () => (
+              <Wishlist
+                isOwner={true}
+                user={{
+                  id: 'user2',
+                  username: 'jane',
+                  name: 'Jane',
+                  image: { id: 'img1' },
+                  wishlistItems: [],
+                  wishlistCategories: [],
             }}
           />
         ),
@@ -134,15 +136,16 @@ describe('Wishlist components', () => {
     const App = createRemixStub([
       {
         path: '/',
-        Component: () => (
-          <Wishlist
-            isOwner={false}
-            user={{
-              username: 'jim',
-              name: 'Jim',
-              image: { id: 'img1' },
-              wishlistItems: [],
-              wishlistCategories: [],
+            Component: () => (
+              <Wishlist
+                isOwner={false}
+                user={{
+                  id: 'user3',
+                  username: 'jim',
+                  name: 'Jim',
+                  image: { id: 'img1' },
+                  wishlistItems: [],
+                  wishlistCategories: [],
             }}
           />
         ),
@@ -158,15 +161,16 @@ describe('Wishlist components', () => {
     const App = createRemixStub([
       {
         path: '/',
-        Component: () => (
-          <Wishlist
-            isOwner={false}
-            user={{
-              username: 'jim',
-              name: 'Jim',
-              image: { id: 'img1' },
-              wishlistItems: [],
-              wishlistCategories: [],
+            Component: () => (
+              <Wishlist
+                isOwner={false}
+                user={{
+                  id: 'user4',
+                  username: 'jim',
+                  name: 'Jim',
+                  image: { id: 'img1' },
+                  wishlistItems: [],
+                  wishlistCategories: [],
             }}
           />
         ),
@@ -184,15 +188,16 @@ describe('Wishlist components', () => {
     const App = createRemixStub([
       {
         path: '/',
-        Component: () => (
-          <Wishlist
-            isOwner={false}
-            user={{
-              username: 'jim',
-              name: 'Jim',
-              image: { id: 'img1' },
-              wishlistItems: [],
-              wishlistCategories: [
+            Component: () => (
+              <Wishlist
+                isOwner={false}
+                user={{
+                  id: 'user5',
+                  username: 'jim',
+                  name: 'Jim',
+                  image: { id: 'img1' },
+                  wishlistItems: [],
+                  wishlistCategories: [
                 { id: 'cat1', name: 'Books', order: 0 },
                 { id: 'cat2', name: 'Games', order: 1 },
               ],
@@ -218,14 +223,15 @@ describe('Wishlist components', () => {
     const App = createRemixStub([
       {
         path: '/',
-        Component: () => (
-          <Wishlist
-            isOwner={false}
-            user={{
-              username: 'jim',
-              name: 'Jim',
-              image: { id: 'img1' },
-              wishlistItems: [
+            Component: () => (
+              <Wishlist
+                isOwner={false}
+                user={{
+                  id: 'user6',
+                  username: 'jim',
+                  name: 'Jim',
+                  image: { id: 'img1' },
+                  wishlistItems: [
                 {
                   id: 'item-1',
                   title: 'Default item',
@@ -257,14 +263,15 @@ describe('Wishlist components', () => {
     const App = createRemixStub([
       {
         path: '/',
-        Component: () => (
-          <Wishlist
-            isOwner={true}
-            user={{
-              username: 'jane',
-              name: 'Jane',
-              image: { id: 'img1' },
-              wishlistItems: [],
+            Component: () => (
+              <Wishlist
+                isOwner={true}
+                user={{
+                  id: 'user7',
+                  username: 'jane',
+                  name: 'Jane',
+                  image: { id: 'img1' },
+                  wishlistItems: [],
               wishlistCategories: [{ id: 'cat1', name: 'Books', order: 0 }],
             }}
           />
@@ -281,14 +288,15 @@ describe('Wishlist components', () => {
     const App = createRemixStub([
       {
         path: '/',
-        Component: () => (
-          <Wishlist
-            isOwner={false}
-            user={{
-              username: 'jim',
-              name: 'Jim',
-              image: { id: 'img1' },
-              wishlistItems: [
+            Component: () => (
+              <Wishlist
+                isOwner={false}
+                user={{
+                  id: 'user8',
+                  username: 'jim',
+                  name: 'Jim',
+                  image: { id: 'img1' },
+                  wishlistItems: [
                 {
                   id: '1',
                   title: 'Item one',
@@ -320,14 +328,15 @@ describe('Wishlist components', () => {
     const PurchasedByViewer = createRemixStub([
       {
         path: '/',
-        Component: () => (
-          <Wishlist
-            isOwner={false}
-            user={{
-              username: 'jim',
-              name: 'Jim',
-              image: { id: 'img1' },
-              wishlistItems: [
+            Component: () => (
+              <Wishlist
+                isOwner={false}
+                user={{
+                  id: 'user9',
+                  username: 'jim',
+                  name: 'Jim',
+                  image: { id: 'img1' },
+                  wishlistItems: [
                 {
                   id: '1',
                   title: 'Item one',
@@ -359,14 +368,15 @@ describe('Wishlist components', () => {
     const PurchasedByOther = createRemixStub([
       {
         path: '/',
-        Component: () => (
-          <Wishlist
-            isOwner={false}
-            user={{
-              username: 'jim',
-              name: 'Jim',
-              image: { id: 'img1' },
-              wishlistItems: [
+            Component: () => (
+              <Wishlist
+                isOwner={false}
+                user={{
+                  id: 'user10',
+                  username: 'jim',
+                  name: 'Jim',
+                  image: { id: 'img1' },
+                  wishlistItems: [
                 {
                   id: '1',
                   title: 'Item one',

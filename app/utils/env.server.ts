@@ -11,6 +11,8 @@ const schema = z.object({
   // If you plan on using Sentry, uncomment this line
   SENTRY_DSN: z.string(),
   NOTIFICATION_TOKEN_SECRET: z.string().optional(),
+  ANALYTICS_ADMIN_EMAILS: z.string().optional(),
+  ANALYTICS_ADMIN_USER_IDS: z.string().optional(),
   // If you plan to use Resend, uncomment this line
   // RESEND_API_KEY: z.string(),
   // If you plan to use GitHub auth, remove the default:

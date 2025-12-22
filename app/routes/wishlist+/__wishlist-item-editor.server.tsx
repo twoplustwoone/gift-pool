@@ -16,10 +16,16 @@ import {
   type WishlistItemImageSource,
 } from '#app/utils/wishlist-images.server.ts';
 import { WishlistItemSchema } from './__wishlist-item-editor';
+import { logEvent } from '#app/utils/analytics.server.ts';
+import {
+  applyRequestIdHeader,
+  getRequestContext,
+} from '#app/utils/request-context.server.ts';
 
 const MAX_UPLOAD_SIZE = 1024 * 1024 * 10; // 10MB
 
 export async function action({ request }: ActionFunctionArgs) {
+  const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
 
   const formData = await parseMultipartFormData(
@@ -159,7 +165,8 @@ export async function action({ request }: ActionFunctionArgs) {
       : {}),
   };
 
-  await prisma.wishlistItem.upsert({
+  const savedItem = await prisma.wishlistItem.upsert({
+    select: { id: true, ownerId: true, categoryId: true, type: true },
     where: { id: wishlistItemId ?? '__new_wishlist_item__' },
     create: {
       ownerId: userId,
@@ -168,6 +175,24 @@ export async function action({ request }: ActionFunctionArgs) {
     },
     update: { ...dataWithImage, categoryId: categoryId || null },
   });
+
+  let analyticsEventId: string | null = null;
+  if (!existingItem && !imageError) {
+    const event = await logEvent({
+      name: 'wishlist_item_added',
+      userId,
+      source: 'server',
+      requestId,
+      sessionId,
+      eventId: formData.get('analyticsEventId')?.toString() || undefined,
+      properties: {
+        wishlistItemId: savedItem.id,
+        categoryId: savedItem.categoryId,
+        type: savedItem.type,
+      },
+    });
+    analyticsEventId = event.eventId;
+  }
 
   const toast =
     intent === 'save-add-another'
@@ -186,7 +211,12 @@ export async function action({ request }: ActionFunctionArgs) {
       toast,
       imageError,
       imageAction,
+      analyticsEventId,
+      requestId,
     },
-    { status: imageError ? 400 : 200 },
+    {
+      status: imageError ? 400 : 200,
+      headers: applyRequestIdHeader(null, requestId),
+    },
   );
 }

@@ -44,6 +44,10 @@ import { honeypot } from './utils/honeypot.server.ts';
 import { I18nProvider, getLocaleFromRequest } from './utils/i18n.tsx';
 import { combineHeaders, getDomainUrl } from './utils/misc.tsx';
 import { useNonce } from './utils/nonce-provider.ts';
+import {
+  applyRequestIdHeader,
+  getRequestContext,
+} from './utils/request-context.server.ts';
 import { useRequestInfo } from './utils/request-info.ts';
 import { type Theme, getTheme } from './utils/theme.server.ts';
 import { makeTimings, time } from './utils/timing.server.ts';
@@ -85,6 +89,7 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const timings = makeTimings('root loader');
+  const { requestId } = await getRequestContext(request);
   const userId = await time(() => getUserId(request), {
     timings,
     type: 'getUserId',
@@ -134,6 +139,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         hints: getHints(request),
         origin: getDomainUrl(request),
         path: new URL(request.url).pathname,
+        requestId,
         userPrefs: {
           theme: getTheme(request),
         },
@@ -152,6 +158,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       headers: combineHeaders(
         { 'Server-Timing': timings.toString() },
         toastHeaders,
+        applyRequestIdHeader(null, requestId),
       ),
     },
   );

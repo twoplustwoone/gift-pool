@@ -2,10 +2,16 @@ import { parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
 import { json, type ActionFunctionArgs } from '@remix-run/node';
 import { z } from 'zod';
+import { logEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { requireUserWithPermission } from '#app/utils/permissions.server.ts';
-import { redirectWithToast } from '#app/utils/toast.server.ts';
+import {
+  applyRequestIdHeader,
+  getRequestContext,
+} from '#app/utils/request-context.server.ts';
+import { combineHeaders } from '#app/utils/misc.tsx';
+import { createToastHeaders } from '#app/utils/toast.server.ts';
 
 const DeleteFormSchema = z.object({
   intent: z.literal('delete-wishlist-item'),
@@ -13,6 +19,7 @@ const DeleteFormSchema = z.object({
 });
 
 export async function action({ request }: ActionFunctionArgs) {
+  const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
   const formData = await request.formData();
   const submission = parseWithZod(formData, {
@@ -40,9 +47,31 @@ export async function action({ request }: ActionFunctionArgs) {
 
   await prisma.wishlistItem.delete({ where: { id: wishlistItem.id } });
 
-  return redirectWithToast(`/wishlist`, {
+  const event = await logEvent({
+    name: 'wishlist_item_archived',
+    userId,
+    source: 'server',
+    requestId,
+    sessionId,
+    properties: {
+      wishlistItemId,
+      ownerId: wishlistItem.ownerId,
+    },
+  });
+
+  const toastHeaders = await createToastHeaders({
     type: 'success',
     title: 'Success',
     description: 'Your wishlist item has been deleted.',
   });
+
+  return json(
+    { success: true, analyticsEventId: event.eventId, requestId },
+    {
+      headers: combineHeaders(
+        toastHeaders,
+        applyRequestIdHeader(null, requestId),
+      ),
+    },
+  );
 }

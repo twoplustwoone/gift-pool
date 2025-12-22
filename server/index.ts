@@ -70,6 +70,13 @@ app.use(compression());
 // http://expressjs.com/en/advanced/best-practice-security.html#at-a-minimum-disable-x-powered-by-header
 app.disable('x-powered-by');
 
+app.use((req, res, next) => {
+  const requestId = req.get('X-Request-ID') ?? crypto.randomUUID();
+  res.set('X-Request-ID', requestId);
+  (req.headers as Record<string, string>)['x-request-id'] = requestId;
+  next();
+});
+
 if (viteDevServer) {
   app.use(viteDevServer.middlewares);
 } else {

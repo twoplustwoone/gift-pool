@@ -46,7 +46,9 @@ import {
 } from '#app/components/ui/mobile-bottom-sheet';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Flex, Text } from '#app/components/ui-kit';
+import { track } from '#app/utils/analytics.client.ts';
 import { getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
+import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { type Toast } from '#app/utils/toast.server.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
 import { type action } from './__wishlist-item-editor.server';
@@ -208,7 +210,7 @@ export const WishlistItemEditor = React.forwardRef<
         openEdit,
         openCreate,
       }),
-      [canEdit, hasId, itemIdLabel, mode],
+      [canEdit, hasId, itemIdLabel, mode, openEdit, openView, openCreate],
     );
 
     const actionData = useActionData<typeof action>() as
@@ -218,8 +220,13 @@ export const WishlistItemEditor = React.forwardRef<
           toast: Toast | null;
           imageError?: string | null;
           imageAction?: z.infer<typeof ImageActionSchema>;
+          analyticsEventId?: string | null;
+          requestId?: string;
         }
       | undefined;
+    const requestInfo = useOptionalRequestInfo();
+    const trackedAnalyticsEventIdRef = useRef<string | null>(null);
+    const requestIdFallback = requestInfo?.requestId ?? null;
     const shouldResetForm =
       actionData?.intent === 'save-add-another' &&
       actionData?.result?.status === 'success';
@@ -257,6 +264,28 @@ export const WishlistItemEditor = React.forwardRef<
     });
 
     useToast(actionData?.toast);
+    const actionStatus = actionData?.result?.status;
+    const analyticsEventId = actionData?.analyticsEventId ?? null;
+    const analyticsRequestId = actionData?.requestId;
+    useEffect(() => {
+      if (!analyticsEventId) return;
+      if (actionStatus !== 'success') return;
+      if (trackedAnalyticsEventIdRef.current === analyticsEventId) return;
+      trackedAnalyticsEventIdRef.current = analyticsEventId;
+      track(
+        'wishlist_item_added',
+        undefined,
+        {
+          eventId: analyticsEventId,
+          requestId: analyticsRequestId ?? requestIdFallback,
+        },
+      );
+    }, [
+      analyticsEventId,
+      analyticsRequestId,
+      actionStatus,
+      requestIdFallback,
+    ]);
 
     const formId = React.useId();
 

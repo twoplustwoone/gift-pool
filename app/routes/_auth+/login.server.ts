@@ -2,9 +2,11 @@ import { invariant } from '@epic-web/invariant';
 import { redirect } from '@remix-run/node';
 import { safeRedirect } from 'remix-utils/safe-redirect';
 import { twoFAVerificationType } from '#app/routes/settings+/profile.two-factor.tsx';
+import { logEvent } from '#app/utils/analytics.server.ts';
 import { getUserId, sessionKey } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { combineResponseInits } from '#app/utils/misc.tsx';
+import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { authSessionStorage } from '#app/utils/session.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import { verifySessionStorage } from '#app/utils/verification.server.ts';
@@ -28,6 +30,7 @@ export async function handleNewSession(
   },
   responseInit?: ResponseInit,
 ) {
+  const { requestId } = await getRequestContext(request);
   const verification = await prisma.verification.findUnique({
     select: { id: true },
     where: {
@@ -63,6 +66,13 @@ export async function handleNewSession(
       request.headers.get('cookie'),
     );
     authSession.set(sessionKey, session.id);
+    await logEvent({
+      name: 'user_logged_in',
+      userId: session.userId,
+      source: 'server',
+      requestId,
+      sessionId: session.id,
+    });
 
     return redirect(
       safeRedirect(redirectTo),
@@ -94,6 +104,7 @@ export async function handleVerification({
   const verifySession = await verifySessionStorage.getSession(
     request.headers.get('cookie'),
   );
+  const { requestId } = await getRequestContext(request);
 
   const remember = verifySession.get(rememberKey);
   const { redirectTo } = submission.value;
@@ -103,7 +114,7 @@ export async function handleVerification({
   const unverifiedSessionId = verifySession.get(unverifiedSessionIdKey);
   if (unverifiedSessionId) {
     const session = await prisma.session.findUnique({
-      select: { expirationDate: true },
+      select: { expirationDate: true, userId: true },
       where: { id: unverifiedSessionId },
     });
     if (!session) {
@@ -114,6 +125,13 @@ export async function handleVerification({
       });
     }
     authSession.set(sessionKey, unverifiedSessionId);
+    await logEvent({
+      name: 'user_logged_in',
+      userId: session.userId,
+      source: 'server',
+      requestId,
+      sessionId: unverifiedSessionId,
+    });
 
     headers.append(
       'set-cookie',
