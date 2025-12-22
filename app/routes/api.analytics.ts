@@ -1,7 +1,8 @@
-import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/node';
+import { json, type ActionFunctionArgs } from '@remix-run/node';
 import { z } from 'zod';
-import { type AnalyticEventName, ANALYTIC_EVENT_NAMES } from '#app/utils/analytics.ts';
+import { Prisma } from '@prisma/client';
 import { logEvent } from '#app/utils/analytics.server.ts';
+import { type AnalyticEventName, ANALYTIC_EVENT_NAMES } from '#app/utils/analytics.ts';
 import { getUserId } from '#app/utils/auth.server.ts';
 import {
   applyRequestIdHeader,
@@ -57,7 +58,7 @@ export async function action({ request }: ActionFunctionArgs) {
     source: 'client',
     requestId: payload.requestId ?? contextRequestId,
     sessionId: sessionId ?? payload.sessionId ?? null,
-    properties: payload.properties,
+    properties: payload.properties as Prisma.InputJsonValue | undefined,
     eventId: payload.eventId,
   });
 

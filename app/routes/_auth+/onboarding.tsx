@@ -24,12 +24,12 @@ import { z } from 'zod';
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
+import { logEvent } from '#app/utils/analytics.server.ts';
 import {
   requireAnonymous,
   sessionKey,
   signup,
 } from '#app/utils/auth.server.ts';
-import { logEvent } from '#app/utils/analytics.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { checkHoneypot } from '#app/utils/honeypot.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';

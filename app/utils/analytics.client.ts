@@ -18,7 +18,7 @@ function generateId() {
 
 async function postAnalytics(
   payload: {
-    name: AnalyticEventName;
+    name: AnalyticEventName | string;
     eventId: string;
     properties?: Record<string, unknown>;
     requestId?: string | null;
@@ -49,7 +49,7 @@ async function postAnalytics(
 }
 
 export function track(
-  name: AnalyticEventName,
+  name: AnalyticEventName | string,
   properties?: Record<string, unknown>,
   options: TrackOptions = {},
 ) {

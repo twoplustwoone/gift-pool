@@ -107,8 +107,8 @@ const WishlistIndex = () => {
     track(
       'wishlist_viewed',
       {
-        wishlistOwnerId: data.user.id,
-        itemCount: data.user.wishlistItems.length,
+        wishlistOwnerId: user.id,
+        itemCount: user.wishlistItems.length,
       },
       {
         requestId: data.analytics.requestId ?? requestInfo.requestId,
@@ -117,8 +117,8 @@ const WishlistIndex = () => {
     );
   }, [
     data.analytics,
-    data.user.id,
-    data.user.wishlistItems.length,
+    user.id,
+    user.wishlistItems.length,
     requestInfo.requestId,
   ]);
 

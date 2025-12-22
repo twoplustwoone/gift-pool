@@ -2,6 +2,7 @@ import { type Meta, type StoryObj } from '@storybook/react-vite';
 import { Wishlist } from '#app/components/wishlist/wishlist';
 
 const baseUser = {
+  id: 'user-story',
   username: 'jane',
   name: 'Jane Doe',
   image: null as { id: string } | null,

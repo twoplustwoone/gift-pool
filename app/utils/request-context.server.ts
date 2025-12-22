@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { authSessionStorage } from './session.server.ts';
 import { sessionKey } from './auth.server.ts';
+import { authSessionStorage } from './session.server.ts';
 
 export const REQUEST_ID_HEADER = 'X-Request-ID';
 

@@ -25,7 +25,9 @@ type Relationship = {
   outgoingRequestId: string | null;
 };
 
-type LoaderData =
+type LoaderData = {
+  analytics: { requestId: string; viewEventId: string | null };
+} & (
   | {
       canViewWishlist: false;
       user: {
@@ -40,8 +42,8 @@ type LoaderData =
       canViewWishlist: true;
       user: WishlistUser;
       relationship: Relationship;
-      analytics: { requestId: string; viewEventId: string };
-    };
+    }
+);
 
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const { username } = params;
@@ -80,6 +82,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
           image: wishlistOwner.image,
         },
         relationship,
+        analytics: { requestId, viewEventId: null },
       },
       { headers: applyRequestIdHeader(null, requestId) },
     );
@@ -160,6 +163,30 @@ const UserWishlist = () => {
   const { t } = useTranslation();
   const requestInfo = useRequestInfo();
   const trackedViewIdRef = useRef<string | null>(null);
+  const viewableWishlist = data.canViewWishlist ? data.user : null;
+
+  useEffect(() => {
+    if (!data.analytics?.viewEventId) return;
+    if (!viewableWishlist) return;
+    if (trackedViewIdRef.current === data.analytics.viewEventId) return;
+    trackedViewIdRef.current = data.analytics.viewEventId;
+    track(
+      'wishlist_viewed',
+      {
+        wishlistOwnerId: viewableWishlist.id,
+        itemCount: viewableWishlist.wishlistItems.length,
+      },
+      {
+        requestId: data.analytics.requestId ?? requestInfo.requestId,
+        eventId: data.analytics.viewEventId,
+      },
+    );
+  }, [
+    data.analytics,
+    viewableWishlist?.id,
+    viewableWishlist?.wishlistItems.length,
+    requestInfo.requestId,
+  ]);
 
   if (!data.canViewWishlist) {
     const userDisplayName = data.user.name ?? data.user.username;
@@ -177,34 +204,12 @@ const UserWishlist = () => {
   }
 
   const user: WishlistUser = {
-    ...data.user,
-    wishlistItems: data.user.wishlistItems.map((item) => ({
+    ...viewableWishlist!,
+    wishlistItems: viewableWishlist!.wishlistItems.map((item) => ({
       ...item,
       updatedAt: new Date(item.updatedAt),
     })),
   };
-
-  useEffect(() => {
-    if (!data.analytics?.viewEventId) return;
-    if (trackedViewIdRef.current === data.analytics.viewEventId) return;
-    trackedViewIdRef.current = data.analytics.viewEventId;
-    track(
-      'wishlist_viewed',
-      {
-        wishlistOwnerId: data.user.id,
-        itemCount: data.user.wishlistItems.length,
-      },
-      {
-        requestId: data.analytics.requestId ?? requestInfo.requestId,
-        eventId: data.analytics.viewEventId,
-      },
-    );
-  }, [
-    data.analytics,
-    data.user.id,
-    data.user.wishlistItems.length,
-    requestInfo.requestId,
-  ]);
 
   return <Wishlist isOwner={false} user={user} />;
 };

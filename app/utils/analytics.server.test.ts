@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { createUser } from '#tests/db-utils.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { logEvent } from './analytics.server.ts';
-import { createUser } from '#tests/db-utils.ts';
 
 describe('logEvent deduplication', () => {
   it('dedupes identical eventIds', async () => {

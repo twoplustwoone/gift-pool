@@ -1,11 +1,11 @@
 import { invariantResponse } from '@epic-web/invariant';
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { useLoaderData } from '@remix-run/react';
+import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
+import { Card } from '#app/components/ui/card.tsx';
 import { type AnalyticsCounts, getAnalyticsCounts } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
-import { Card } from '#app/components/ui/card.tsx';
 
 type LoaderData = {
   analytics: AnalyticsCounts;

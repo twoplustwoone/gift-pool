@@ -1,10 +1,10 @@
+import { type LoaderFunctionArgs, json } from '@remix-run/node';
 import { Link } from '@remix-run/react';
 import { LuActivity, LuDatabase } from 'react-icons/lu';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
-import { Card } from '#app/components/ui/card.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
+import { Card } from '#app/components/ui/card.tsx';
 import { requireUserWithRole } from '#app/utils/permissions.server.ts';
-import { type LoaderFunctionArgs, json } from '@remix-run/node';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireUserWithRole(request, 'admin');

@@ -210,7 +210,7 @@ export const WishlistItemEditor = React.forwardRef<
         openEdit,
         openCreate,
       }),
-      [canEdit, hasId, itemIdLabel, mode],
+      [canEdit, hasId, itemIdLabel, mode, openEdit, openView, openCreate],
     );
 
     const actionData = useActionData<typeof action>() as
