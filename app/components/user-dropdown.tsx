@@ -1,9 +1,15 @@
 import { Form, Link } from '@remix-run/react';
 import { useRef } from 'react';
-import { LuLogOut, LuSettings, LuUser, LuUsers } from 'react-icons/lu';
+import {
+  LuLogOut,
+  LuSettings,
+  LuShield,
+  LuUser,
+  LuUsers,
+} from 'react-icons/lu';
 import { useTranslation } from '#app/utils/i18n.tsx';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
-import { useUser } from '#app/utils/user.ts';
+import { useUser, userHasRole } from '#app/utils/user.ts';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -19,6 +25,7 @@ export const UserDropdown = () => {
   const user = useUser();
   const formRef = useRef<HTMLFormElement>(null);
   const { t } = useTranslation();
+  const isAdmin = userHasRole(user, 'admin');
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -72,6 +79,16 @@ export const UserDropdown = () => {
               </Flex>
             </Link>
           </DropdownMenuItem>
+          {isAdmin ? (
+            <DropdownMenuItem asChild>
+              <Link prefetch="intent" to={`/admin`}>
+                <Flex gap={2}>
+                  <LuShield className="h-3 w-3" />
+                  <Text>Admin</Text>
+                </Flex>
+              </Link>
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuSeparator />
           <Form action="/logout" method="POST" ref={formRef}>
             <DropdownMenuItem asChild>
