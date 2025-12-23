@@ -26,14 +26,14 @@ export const TopNav = () => {
   const requestInfo = useRequestInfo();
 
   return (
-    <nav aria-label="Primary navigation" className="container">
+    <nav aria-label="Primary navigation" className="container max-w-6xl px-4">
       <div className="grid grid-cols-[auto,1fr,auto] items-center gap-3 md:gap-6">
         <div className="flex shrink-0 items-center gap-3">
           <Logo />
         </div>
         {/* desktop-only primary nav; mobile relies on BottomNav */}
         <div className="hidden items-center justify-center sm:flex">
-          <ul className="flex items-center gap-2.5 whitespace-nowrap">
+          <ul className="flex items-center gap-3 whitespace-nowrap" role="list">
             {links
               .filter((l) => !l.needsAuth || user)
               .map((l) => (
