@@ -1,6 +1,5 @@
 import { Link } from '@remix-run/react';
-import { type ReactNode } from 'react';
-import { LuUsers, LuHeart, LuHouse, LuUserCheck } from 'react-icons/lu';
+import { type LucideIcon, Heart, Home, UserCheck, Users } from 'lucide-react';
 import { Logo } from '#app/components/logo';
 import { NotificationBell } from '#app/components/notifications/notification-bell.tsx';
 import { Button } from '#app/components/ui/button';
@@ -12,14 +11,14 @@ import { useOptionalUser } from '#app/utils/user';
 
 const links: {
   to: string;
-  icon: ReactNode;
+  icon: LucideIcon;
   label: string;
   needsAuth: boolean;
 }[] = [
-  { to: '/', icon: <LuHouse />, label: 'Home', needsAuth: false },
-  { to: '/wishlist', icon: <LuHeart />, label: 'Wishlist', needsAuth: true },
-  { to: '/groups', icon: <LuUsers />, label: 'Groups', needsAuth: true },
-  { to: '/friends', icon: <LuUserCheck />, label: 'Friends', needsAuth: true },
+  { to: '/', icon: Home, label: 'Home', needsAuth: false },
+  { to: '/wishlist', icon: Heart, label: 'Wishlist', needsAuth: true },
+  { to: '/groups', icon: Users, label: 'Groups', needsAuth: true },
+  { to: '/friends', icon: UserCheck, label: 'Friends', needsAuth: true },
 ];
 
 export const TopNav = () => {
@@ -27,27 +26,35 @@ export const TopNav = () => {
   const requestInfo = useRequestInfo();
 
   return (
-    <nav className="container flex items-center justify-between gap-3 md:gap-6">
-      <Logo />
-      {/* desktop-only primary nav; mobile relies on BottomNav */}
-      <div className="hidden items-center gap-3 sm:flex md:gap-4">
-        {links
-          .filter((l) => !l.needsAuth || user)
-          .map((l) => (
-            <TopNavItem key={l.to} to={l.to} icon={l.icon} label={l.label} />
-          ))}
-      </div>
+    <nav aria-label="Primary navigation" className="container max-w-6xl px-4">
+      <div className="grid grid-cols-[auto,1fr,auto] items-center gap-3 md:gap-6">
+        <div className="flex shrink-0 items-center gap-3">
+          <Logo />
+        </div>
+        {/* desktop-only primary nav; mobile relies on BottomNav */}
+        <div className="hidden items-center justify-center sm:flex">
+          <ul className="flex items-center gap-3 whitespace-nowrap" role="list">
+            {links
+              .filter((l) => !l.needsAuth || user)
+              .map((l) => (
+                <li key={l.to}>
+                  <TopNavItem to={l.to} icon={l.icon} label={l.label} />
+                </li>
+              ))}
+          </ul>
+        </div>
 
-      <div className="flex items-center gap-2">
-        {user ? <NotificationBell /> : null}
-        <ThemeSwitch userPreference={requestInfo.userPrefs.theme} />
-        {user ? (
-          <UserDropdown />
-        ) : (
-          <Button asChild size="lg">
-            <Link to="/login">Log In</Link>
-          </Button>
-        )}
+        <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
+          {user ? <NotificationBell /> : null}
+          <ThemeSwitch userPreference={requestInfo.userPrefs.theme} />
+          {user ? (
+            <UserDropdown />
+          ) : (
+            <Button asChild size="lg">
+              <Link to="/login">Log In</Link>
+            </Button>
+          )}
+        </div>
       </div>
     </nav>
   );
