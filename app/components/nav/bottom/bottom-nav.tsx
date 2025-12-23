@@ -1,18 +1,17 @@
-import { type ReactNode } from 'react';
-import { LuHeart, LuUsers, LuUserCheck, LuHouse } from 'react-icons/lu';
+import { type LucideIcon, Heart, Home, User, Users } from 'lucide-react';
 import { useOptionalUser } from '#app/utils/user.ts';
 import { BottomNavLink } from './bottom-nav-link.tsx';
 
 const links: {
   to: string;
-  icon: ReactNode;
+  icon: LucideIcon;
   label: string;
   needsAuth: boolean;
 }[] = [
-  { to: '/', icon: <LuHouse />, label: 'Home', needsAuth: false },
-  { to: '/wishlist', icon: <LuHeart />, label: 'Wishlist', needsAuth: true },
-  { to: '/groups', icon: <LuUsers />, label: 'Groups', needsAuth: true },
-  { to: '/friends', icon: <LuUserCheck />, label: 'Friends', needsAuth: true },
+  { to: '/', icon: Home, label: 'Home', needsAuth: false },
+  { to: '/wishlist', icon: Heart, label: 'Wishlist', needsAuth: true },
+  { to: '/groups', icon: Users, label: 'Groups', needsAuth: true },
+  { to: '/friends', icon: User, label: 'Friends', needsAuth: true },
 ];
 
 export const BottomNav = () => {
