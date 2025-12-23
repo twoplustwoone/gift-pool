@@ -32,10 +32,11 @@ export const UserDropdown = () => {
         <Link
           to={`/me`}
           onClick={(e) => e.preventDefault()}
-          className="relative inline-flex items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          aria-label="Open profile menu"
+          className="relative inline-flex h-10 w-10 items-center justify-center rounded-full outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <img
-            className="size-8 rounded-full object-cover"
+            className="size-9 rounded-full object-cover"
             alt={user.name ?? user.username}
             src={getUserImgSrc(user.image?.id)}
             width={256}
