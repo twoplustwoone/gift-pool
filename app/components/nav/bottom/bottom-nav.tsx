@@ -22,7 +22,7 @@ export const BottomNav = () => {
       className="fixed bottom-0 left-0 w-full border-t border-surface-border bg-surface text-foreground sm:hidden"
       data-testid="bottom-nav"
     >
-      <ul className="flex h-bottom-nav divide-x divide-border">
+      <ul className="flex h-bottom-nav gap-1 px-1">
         {links
           .filter((l) => !l.needsAuth || user)
           .map((link) => (

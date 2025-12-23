@@ -5,7 +5,7 @@ import { cn } from '#app/utils/misc.tsx';
 const activeClassName = 'text-primary';
 const inactiveClassName = 'text-muted-foreground';
 const baseClassName =
-  'flex h-full w-full flex-col items-center justify-center gap-1 px-3 py-2 text-[11px] font-medium leading-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+  'flex h-full w-full flex-col items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-medium leading-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
 export const BottomNavLink = ({
   to,
