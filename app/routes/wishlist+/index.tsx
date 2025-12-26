@@ -14,12 +14,15 @@ import {
 } from '#app/utils/request-context.server.ts';
 import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
 import { useRequestInfo } from '#app/utils/request-info.ts';
+import { getDomainUrl } from '#app/utils/misc.tsx';
 // Re-export the server action without importing it in the client bundle
 export { action } from './__wishlist-item-editor.server';
 
 type LoaderData = {
   user: WishlistUser;
   analytics: { requestId: string; viewEventId: string };
+  publicShare: { token: string; createdAt: string } | null;
+  origin: string;
 };
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -78,10 +81,22 @@ export async function loader({ request }: LoaderFunctionArgs) {
     properties: { wishlistOwnerId: userId, itemCount: wishlistItems.length },
   });
 
+  const publicShare = await prisma.wishlistPublicShare.findUnique({
+    select: { token: true, createdAt: true },
+    where: { ownerId: userId },
+  });
+
   return json<LoaderData>(
     {
       user: { ...user, wishlistItems },
       analytics: { requestId, viewEventId: viewEvent.eventId },
+      publicShare: publicShare
+        ? {
+            token: publicShare.token,
+            createdAt: publicShare.createdAt.toISOString(),
+          }
+        : null,
+      origin: getDomainUrl(request),
     },
     { headers: applyRequestIdHeader(null, requestId) },
   );
@@ -99,6 +114,9 @@ const WishlistIndex = () => {
       updatedAt: new Date(item.updatedAt),
     })),
   };
+  const publicShare = data.publicShare
+    ? { ...data.publicShare, createdAt: new Date(data.publicShare.createdAt) }
+    : null;
 
   useEffect(() => {
     if (!data.analytics?.viewEventId) return;
@@ -122,7 +140,14 @@ const WishlistIndex = () => {
     requestInfo.requestId,
   ]);
 
-  return <Wishlist isOwner user={user} />;
+  return (
+    <Wishlist
+      isOwner
+      user={user}
+      origin={data.origin}
+      publicShare={publicShare}
+    />
+  );
 };
 
 export default WishlistIndex;
