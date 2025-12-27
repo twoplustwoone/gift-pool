@@ -10,7 +10,10 @@ import { LRUCache } from 'lru-cache';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { prisma } from '#app/utils/db.server.ts';
-import { findWishlistPublicShareByToken } from '#app/utils/wishlist.server.ts';
+import {
+  cleanupWishlistPurchasesForOwner,
+  findWishlistPublicShareByToken,
+} from '#app/utils/wishlist.server.ts';
 
 const publicViewRateLimiter = remember(
   'public-view-rate-limit',
@@ -90,6 +93,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 
   const share = await findWishlistPublicShareByToken(params.token);
   invariantResponse(share, 'Link not found or revoked', { status: 404 });
+  await cleanupWishlistPurchasesForOwner(share.ownerId);
 
   const user = await prisma.user.findFirst({
     select: {
