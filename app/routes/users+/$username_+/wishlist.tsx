@@ -2,8 +2,9 @@ import { invariantResponse } from '@epic-web/invariant';
 import { json, redirect, type LoaderFunctionArgs } from '@remix-run/node';
 import { useLoaderData } from '@remix-run/react';
 import { useEffect, useRef } from 'react';
-import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { FriendGateCard } from '#app/components/friends/friend-gate-card.tsx';
+import { Wishlist, type WishlistUser } from '#app/components/wishlist';
+import { track } from '#app/utils/analytics.client.ts';
 import { logEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
@@ -14,9 +15,8 @@ import {
   applyRequestIdHeader,
   getRequestContext,
 } from '#app/utils/request-context.server.ts';
-import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
-import { track } from '#app/utils/analytics.client.ts';
 import { useRequestInfo } from '#app/utils/request-info.ts';
+import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
 
 type Relationship = {
   state: RelationshipState;

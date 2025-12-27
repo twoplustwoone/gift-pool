@@ -1,5 +1,5 @@
-import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
 import { expect, test } from '#tests/playwright-utils.ts';
 
 const friendRequestReceivedType = NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED;

@@ -50,6 +50,7 @@ export const WishlistItem = ({
   wishlistItem,
   isOwner = false,
   categories = [],
+  disableClaims = false,
 }: {
   wishlistItem: Pick<
     WishlistItemType,
@@ -62,6 +63,7 @@ export const WishlistItem = ({
     Partial<{ purchase: { purchasedById: string } | null }>;
   isOwner?: boolean;
   categories?: { id: string; name: string; order: number }[];
+  disableClaims?: boolean;
 }) => {
   const user = useOptionalUser();
   const isOwnerByUser = user?.id === wishlistItem.ownerId;
@@ -72,9 +74,10 @@ export const WishlistItem = ({
 
   const purchaseFetcher = useFetcher();
   const isPurchasePending = purchaseFetcher.state !== 'idle';
-  const isPurchasedByMe = wishlistItem.purchase?.purchasedById === user?.id;
-  const isPurchasedBySomeoneElse =
-    !!wishlistItem.purchase && wishlistItem.purchase.purchasedById !== user?.id;
+  const purchaseBy = wishlistItem.purchase?.purchasedById;
+  const isClaimed = Boolean(purchaseBy);
+  const isPurchasedByMe = isClaimed && purchaseBy === user?.id;
+  const isPurchasedBySomeoneElse = isClaimed && purchaseBy !== user?.id;
   const imageFetcher = useFetcher();
   const [imageErrored, setImageErrored] = React.useState(false);
   const [imageVersion, setImageVersion] = React.useState(0);
@@ -246,38 +249,56 @@ export const WishlistItem = ({
 
   // ---------------- Non-owner: simple, tappable row → read-only view
   if (!isOwner) {
+    const allowClaims = !disableClaims;
     const imageBlock = renderImageBlock();
-    const statusIsClaimed = isPurchasedByMe || isPurchasedBySomeoneElse;
-    const viewPurchaseExtras = isPurchasedBySomeoneElse ? (
-      <Flex align="center" gap={2}>
-        <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
-        <Text size="sm" className="text-amber-800">
-          Someone already grabbed this one.
-        </Text>
-      </Flex>
-    ) : (
-      <div className="flex flex-col gap-3">
-        <Text size="sm" className="text-muted-foreground">
-          Claim this gift so everyone else knows it’s handled.
-        </Text>
-        <Button
-          type="button"
-          variant={isPurchasedByMe ? 'secondary' : 'outline'}
-          disabled={isPurchasePending}
-          onClick={handlePurchaseToggle}
-          aria-pressed={isPurchasedByMe}
-          aria-label={purchaseButtonAriaLabel}
-          className={cn('justify-center sm:w-auto', purchaseButtonClassName)}
-        >
-          {purchaseButtonContent}
-        </Button>
-        {purchaseStatusText ? (
-          <Text size="sm" className="text-pool">
-            {purchaseStatusText}
-          </Text>
-        ) : null}
-      </div>
-    );
+    const isClaimed = isPurchasedByMe || isPurchasedBySomeoneElse;
+    const viewPurchaseExtras = allowClaims
+      ? isPurchasedBySomeoneElse
+        ? (
+            <Flex align="center" gap={2}>
+              <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
+              <Text size="sm" className="text-amber-800">
+                Someone already grabbed this one.
+              </Text>
+            </Flex>
+          )
+        : (
+            <div className="flex flex-col gap-3">
+              <Text size="sm" className="text-muted-foreground">
+                Claim this gift so everyone else knows it’s handled.
+              </Text>
+              <Button
+                type="button"
+                variant={isPurchasedByMe ? 'secondary' : 'outline'}
+                disabled={isPurchasePending}
+                onClick={handlePurchaseToggle}
+                aria-pressed={isPurchasedByMe}
+                aria-label={purchaseButtonAriaLabel}
+                className={cn('justify-center sm:w-auto', purchaseButtonClassName)}
+              >
+                {purchaseButtonContent}
+              </Button>
+              {purchaseStatusText ? (
+                <Text size="sm" className="text-pool">
+                  {purchaseStatusText}
+                </Text>
+              ) : null}
+            </div>
+          )
+      : isClaimed
+        ? (
+            <Flex align="center" gap={2}>
+              <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
+              <Text size="sm" className="text-amber-800">
+                Someone already grabbed this one.
+              </Text>
+            </Flex>
+          )
+        : (
+            <Text size="sm" className="text-muted-foreground">
+              View-only link. Sign in to claim gifts.
+            </Text>
+          );
 
     const trigger = (
       <Card
@@ -288,7 +309,9 @@ export const WishlistItem = ({
           'group relative flex min-w-0 cursor-pointer flex-col overflow-hidden [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30',
           isPurchasedBySomeoneElse ? 'opacity-90' : '',
         )}
-        data-claimable={!statusIsClaimed ? 'true' : undefined}
+        data-claimable={
+          allowClaims && !isClaimed ? 'true' : undefined
+        }
         data-pressed={press.pressed ? 'true' : 'false'}
         {...press.rowProps}
       >
@@ -314,25 +337,35 @@ export const WishlistItem = ({
               </Box>
             </Box>
             <div className="flex items-center gap-2">
-              {!isPurchasedBySomeoneElse ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={isPurchasedByMe ? 'secondary' : 'outline'}
-                  disabled={isPurchasePending}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onPointerUp={(event) => event.stopPropagation()}
-                  onClick={handlePurchaseToggle}
-                  className={cn(
-                    'flex items-center whitespace-nowrap',
-                    purchaseButtonClassName,
-                  )}
-                  aria-pressed={isPurchasedByMe}
-                  aria-label={purchaseButtonAriaLabel}
-                >
-                  {purchaseButtonIconOnly}
-                </Button>
-              ) : (
+              {allowClaims ? (
+                !isPurchasedBySomeoneElse ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={isPurchasedByMe ? 'secondary' : 'outline'}
+                    disabled={isPurchasePending}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onPointerUp={(event) => event.stopPropagation()}
+                    onClick={handlePurchaseToggle}
+                    className={cn(
+                      'flex items-center whitespace-nowrap',
+                      purchaseButtonClassName,
+                    )}
+                    aria-pressed={isPurchasedByMe}
+                    aria-label={purchaseButtonAriaLabel}
+                  >
+                    {purchaseButtonIconOnly}
+                  </Button>
+                ) : (
+                  <div
+                    className="flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200"
+                    aria-hidden
+                  >
+                    <LuGift className="h-4 w-4" />
+                    Claimed
+                  </div>
+                )
+              ) : isClaimed ? (
                 <div
                   className="flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200"
                   aria-hidden
@@ -340,13 +373,13 @@ export const WishlistItem = ({
                   <LuGift className="h-4 w-4" />
                   Claimed
                 </div>
-              )}
+              ) : null}
               <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
             </div>
           </Flex>
         </div>
 
-        {statusIsClaimed ? (
+        {isClaimed ? (
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-xl bg-background/60 text-muted-foreground opacity-0 transition-opacity sm:flex sm:backdrop-blur group-hover:opacity-100"
@@ -358,57 +391,66 @@ export const WishlistItem = ({
           </div>
         ) : null}
 
-        {isPurchasedBySomeoneElse ? (
-          <MobileBottomSheet
-            open={isClaimInfoOpen}
-            onOpenChange={setIsClaimInfoOpen}
-          >
-            <MobileBottomSheetTrigger asChild>
-              <button
-                type="button"
-                onClick={(event) => event.stopPropagation()}
-                className="flex h-10 items-center justify-between gap-2 bg-amber-100 px-4 text-left text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-200"
-              >
-                <div className="flex items-center gap-2">
-                  <LuGift className="h-4 w-4" aria-hidden />
-                  <span>Someone already grabbed this</span>
-                </div>
-                <LuChevronRight className="h-4 w-4" aria-hidden />
-              </button>
-            </MobileBottomSheetTrigger>
-            <MobileBottomSheetContent className="gap-3 sm:gap-4">
-              <MobileBottomSheetHeader>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800">
-                    <LuLock className="h-5 w-5" aria-hidden />
+        {allowClaims ? (
+          isPurchasedBySomeoneElse ? (
+            <MobileBottomSheet
+              open={isClaimInfoOpen}
+              onOpenChange={setIsClaimInfoOpen}
+            >
+              <MobileBottomSheetTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(event) => event.stopPropagation()}
+                  className="flex h-10 items-center justify-between gap-2 bg-amber-100 px-4 text-left text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-200"
+                >
+                  <div className="flex items-center gap-2">
+                    <LuGift className="h-4 w-4" aria-hidden />
+                    <span>Someone already grabbed this</span>
                   </div>
-                  <MobileBottomSheetTitle>Already claimed</MobileBottomSheetTitle>
-                </div>
-                <MobileBottomSheetDescription>
-                  This item has already been claimed by someone else to avoid
-                  duplicates.
-                </MobileBottomSheetDescription>
-              </MobileBottomSheetHeader>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  const target = document.querySelector('[data-claimable="true"]');
-                  if (target instanceof HTMLElement) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }
-                  setIsClaimInfoOpen(false);
-                }}
-              >
-                See other ideas
-              </Button>
-            </MobileBottomSheetContent>
-          </MobileBottomSheet>
-        ) : statusIsClaimed ? (
-          <div className="flex h-10 items-center gap-2 rounded-b-xl bg-pool px-4 text-xs font-semibold text-pool-foreground">
+                  <LuChevronRight className="h-4 w-4" aria-hidden />
+                </button>
+              </MobileBottomSheetTrigger>
+              <MobileBottomSheetContent className="gap-3 sm:gap-4">
+                <MobileBottomSheetHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800">
+                      <LuLock className="h-5 w-5" aria-hidden />
+                    </div>
+                    <MobileBottomSheetTitle>Already claimed</MobileBottomSheetTitle>
+                  </div>
+                  <MobileBottomSheetDescription>
+                    This item has already been claimed by someone else to avoid
+                    duplicates.
+                  </MobileBottomSheetDescription>
+                </MobileBottomSheetHeader>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    const target = document.querySelector('[data-claimable="true"]');
+                    if (target instanceof HTMLElement) {
+                      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    setIsClaimInfoOpen(false);
+                  }}
+                >
+                  See other ideas
+                </Button>
+              </MobileBottomSheetContent>
+            </MobileBottomSheet>
+          ) : isClaimed ? (
+            <div className="flex h-10 items-center gap-2 rounded-b-xl bg-pool px-4 text-xs font-semibold text-pool-foreground">
+              <LuGift className="h-4 w-4" aria-hidden />
+              <span>{purchaseStatusText ?? 'You’re on gift duty for this one'}</span>
+            </div>
+          ) : (
+            <div className="h-px w-full bg-border/70" aria-hidden />
+          )
+        ) : isClaimed ? (
+          <div className="flex h-10 items-center gap-2 rounded-b-xl bg-amber-100 px-4 text-xs font-semibold text-amber-800">
             <LuGift className="h-4 w-4" aria-hidden />
-            <span>{purchaseStatusText ?? 'You’re on gift duty for this one'}</span>
+            <span>Already claimed</span>
           </div>
         ) : (
           <div className="h-px w-full bg-border/70" aria-hidden />

@@ -107,7 +107,7 @@ describe('Wishlist components', () => {
     expect(await screen.findAllByText('Item one')).toHaveLength(2);
   });
 
-  it('shows a copy link control for owners', async () => {
+  it('shows a share control for owners', async () => {
     const App = createRemixStub([
       {
         path: '/',
@@ -129,7 +129,7 @@ describe('Wishlist components', () => {
 
     render(<App />);
 
-    await screen.findByRole('button', { name: /copy link to my wishlist/i });
+    await screen.findByRole('button', { name: /share wishlist/i });
   });
 
   it("lets viewers copy someone's wishlist link", async () => {
@@ -155,6 +155,62 @@ describe('Wishlist components', () => {
     render(<App />);
 
     await screen.findByRole('button', { name: /copy jim's wishlist link/i });
+  });
+
+  it('hides claim controls for public viewers', async () => {
+    const App = createRemixStub([
+      {
+        path: '/',
+            Component: () => (
+              <Wishlist
+                isOwner={false}
+                isPublicView
+                user={{
+                  id: 'user-public',
+                  username: 'jane',
+                  name: 'Jane',
+                  image: { id: 'img1' },
+                  wishlistItems: [
+                {
+                  id: '1',
+                  title: 'Item one',
+                  ownerId: 'owner',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                  categoryId: null,
+                  purchase: { purchasedById: 'someone-else' },
+                  updatedAt: new Date(),
+                },
+                {
+                  id: '2',
+                  title: 'Item two',
+                  ownerId: 'owner',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                  categoryId: null,
+                  purchase: null,
+                  updatedAt: new Date(),
+                },
+              ],
+              wishlistCategories: [],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    expect(
+      screen.queryByRole('button', { name: /grab this gift/i }),
+    ).not.toBeInTheDocument();
+    await screen.findByText(/already claimed/i);
+    const itemTwoNode = await screen.findByText('Item two');
+    expect(
+      itemTwoNode.closest('div')?.textContent?.match(/claimed/i)?.length ?? 0,
+    ).toBe(0);
   });
 
   it('shows empty message for others', async () => {

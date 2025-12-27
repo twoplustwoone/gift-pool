@@ -22,8 +22,6 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Field, TextareaField } from '#app/components/forms.tsx';
 import { useToast } from '#app/components/toaster.tsx';
 import { Button } from '#app/components/ui/button';
-import { Icon } from '#app/components/ui/icon';
-import { Input } from '#app/components/ui/input';
 import {
   Dialog,
   DialogClose,
@@ -34,6 +32,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#app/components/ui/dialog';
+import { Icon } from '#app/components/ui/icon';
+import { Input } from '#app/components/ui/input';
 import {
   MobileBottomSheet,
   MobileBottomSheetTrigger,

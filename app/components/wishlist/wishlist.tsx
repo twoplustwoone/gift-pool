@@ -5,13 +5,39 @@ import {
 } from '@prisma/client';
 import { Link, useFetcher } from '@remix-run/react';
 import { useEffect, useRef, useState } from 'react';
+import {
+  LuCheck,
+  LuLink,
+  LuPencil,
+  LuPlus,
+  LuShare2,
+  LuTrash,
+  LuX,
+} from 'react-icons/lu';
+import { toast } from 'sonner';
 
-import { LuCheck, LuLink, LuPencil, LuPlus, LuTrash, LuX } from 'react-icons/lu';
 import { useToast } from '#app/components/toaster.tsx';
+import { Badge } from '#app/components/ui/badge';
 import { Button } from '#app/components/ui/button';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '#app/components/ui/dialog';
 import { Icon } from '#app/components/ui/icon';
 import { Input } from '#app/components/ui/input';
+import {
+  MobileBottomSheet,
+  MobileBottomSheetContent,
+  MobileBottomSheetDescription,
+  MobileBottomSheetHeader,
+  MobileBottomSheetTitle,
+  MobileBottomSheetTrigger,
+} from '#app/components/ui/mobile-bottom-sheet';
 import {
   Tooltip,
   TooltipContent,
@@ -19,7 +45,9 @@ import {
   TooltipTrigger,
 } from '#app/components/ui/tooltip';
 import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
+import  { type action as shareAction } from '#app/routes/wishlist+/share';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
+import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
 import { Heading } from '../ui/heading.tsx';
 import { Flex, Grid, Stack, Text } from '../ui-kit';
@@ -45,6 +73,36 @@ export type WishlistUser = Pick<User, 'id' | 'username' | 'name'> & {
     imageSource?: WishlistItemImageSource | null;
   })[];
   wishlistCategories: { id: string; name: string; order: number }[];
+};
+
+type WishlistPublicShare = { token: string; createdAt: Date };
+
+const useIsDesktop = () => {
+  const getMatches = () => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function')
+      return false;
+    return window.matchMedia('(min-width: 640px)').matches;
+  };
+
+  const [isDesktop, setIsDesktop] = useState(getMatches);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(min-width: 640px)');
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsDesktop(event.matches);
+    };
+
+    setIsDesktop(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  return isDesktop;
 };
 
 const WishlistAvatar = ({
@@ -79,9 +137,15 @@ const WishlistAvatar = ({
 export const Wishlist = ({
   user,
   isOwner,
+  origin,
+  publicShare,
+  isPublicView = false,
 }: {
   user: WishlistUser;
   isOwner: boolean;
+  origin?: string;
+  publicShare?: WishlistPublicShare | null;
+  isPublicView?: boolean;
 }) => {
   const displayName = user.name ?? user.username;
   const hasDefaultItems = user.wishlistItems.some(
@@ -123,7 +187,14 @@ export const Wishlist = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WishlistHeader isOwner={isOwner} user={user} displayName={displayName} />
+      <WishlistHeader
+        isOwner={isOwner}
+        user={user}
+        displayName={displayName}
+        origin={origin}
+        publicShare={publicShare ?? null}
+        isPublicView={isPublicView}
+      />
       <div className="container min-h-0 flex-1 py-8">
         <Stack gap={4}>
           {categories.map((category) => {
@@ -271,6 +342,7 @@ export const Wishlist = ({
                           wishlistItem={item}
                           isOwner={isOwner}
                           categories={user.wishlistCategories}
+                          disableClaims={isPublicView}
                         />
                       ))}
                     </Grid>
@@ -304,6 +376,9 @@ const WishlistHeader = ({
   isOwner,
   user,
   displayName,
+  origin,
+  publicShare,
+  isPublicView,
 }: {
   isOwner: boolean;
   user: Pick<
@@ -317,6 +392,9 @@ const WishlistHeader = ({
     wishlistCategories: { id: string; name: string; order: number }[];
   };
   displayName: string;
+  origin?: string;
+  publicShare: WishlistPublicShare | null;
+  isPublicView: boolean;
 }) => (
   <div className="border-b bg-surface px-4 py-4">
     <div className="container flex min-h-11 items-center justify-between gap-4">
@@ -337,11 +415,21 @@ const WishlistHeader = ({
               </Text>
             </div>
           )}
-          <WishlistLinkCopyButton
-            displayName={displayName}
-            isOwner={isOwner}
-            username={user.username}
-          />
+          {isOwner ? (
+            <WishlistShareDialog
+              username={user.username}
+              displayName={displayName}
+              origin={origin}
+              publicShare={publicShare}
+            />
+          ) : (
+            <WishlistLinkCopyButton
+              displayName={displayName}
+              username={user.username}
+              isPublicView={isPublicView}
+              origin={origin}
+            />
+          )}
         </div>
       </div>
 
@@ -355,14 +443,304 @@ const WishlistHeader = ({
   </div>
 );
 
-const WishlistLinkCopyButton = ({
+const WishlistShareDialog = ({
   username,
   displayName,
-  isOwner,
+  origin,
+  publicShare,
 }: {
   username: string;
   displayName: string;
-  isOwner: boolean;
+  origin?: string;
+  publicShare: WishlistPublicShare | null;
+}) => {
+  const requestInfo = useOptionalRequestInfo();
+  const shareFetcher = useFetcher<typeof shareAction>();
+  useToast((shareFetcher.data as any)?.toast);
+
+  const [open, setOpen] = useState(false);
+  const [activeShare, setActiveShare] =
+    useState<WishlistPublicShare | null>(publicShare);
+  const [copiedType, setCopiedType] = useState<'private' | 'public' | null>(
+    null,
+  );
+  const publicLinkRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setActiveShare(publicShare);
+  }, [publicShare]);
+
+  useEffect(() => {
+    const incomingShare = (shareFetcher.data as any)?.publicShare;
+    if (incomingShare !== undefined) {
+      setActiveShare(
+        incomingShare
+          ? {
+              ...incomingShare,
+              createdAt: new Date(incomingShare.createdAt),
+            }
+          : null,
+      );
+    }
+  }, [shareFetcher.data]);
+
+  const hasLoadedShare = useRef(false);
+  useEffect(() => {
+    if (!open) return;
+    if (hasLoadedShare.current) return;
+    if (publicShare || shareFetcher.data) {
+      hasLoadedShare.current = true;
+      return;
+    }
+    hasLoadedShare.current = true;
+    shareFetcher.load('/wishlist/share');
+  }, [open, publicShare, shareFetcher, shareFetcher.data]);
+
+  useEffect(() => {
+    if (!activeShare) return;
+    if (!publicLinkRef.current) return;
+    publicLinkRef.current.focus();
+    publicLinkRef.current.select();
+  }, [activeShare?.token]);
+
+  const resolvedOrigin =
+    origin ??
+    requestInfo?.origin ??
+    (typeof window !== 'undefined' ? window.location.origin : '');
+
+  const privateLink = resolvedOrigin
+    ? new URL(`/users/${username}/wishlist`, resolvedOrigin).toString()
+    : `/users/${username}/wishlist`;
+  const publicLink =
+    activeShare && resolvedOrigin
+      ? new URL(`/w/public/${activeShare.token}`, resolvedOrigin).toString()
+      : activeShare
+        ? `/w/public/${activeShare.token}`
+        : '';
+  const isPending = shareFetcher.state !== 'idle';
+
+  const copyLink = async (link: string, type: 'private' | 'public') => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedType(type);
+      toast.success(
+        type === 'private' ? 'Private link copied' : 'Public link copied',
+        {
+          description:
+            type === 'private'
+              ? 'Login required to view.'
+              : 'Anyone with the link can view.',
+        },
+      );
+      setTimeout(() => setCopiedType(null), 1500);
+    } catch (_error) {
+      toast.error('Unable to copy link');
+    }
+  };
+
+  const generatePublicLink = () =>
+    shareFetcher.submit(
+      { intent: 'generate-public-link' },
+      { method: 'post', action: '/wishlist/share' },
+    );
+
+  const revokePublicLink = () =>
+    shareFetcher.submit(
+      { intent: 'revoke-public-link' },
+      { method: 'post', action: '/wishlist/share' },
+    );
+
+  const statusLabel = activeShare ? 'On' : 'Off';
+  const hasPublicLink = Boolean(activeShare);
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
+  const isDesktop = useIsDesktop();
+
+  const triggerButton = (
+    <Button
+      size="icon"
+      variant="ghost"
+      aria-label="Share wishlist"
+      data-state={open ? 'open' : 'closed'}
+    >
+      {open ? <LuCheck className="h-5 w-5" /> : <LuShare2 className="h-5 w-5" />}
+    </Button>
+  );
+
+  const shareBody = (
+    <>
+      <Stack gap={4}>
+        <div className="rounded-xl border border-border/80 bg-muted/30 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">
+                Private link (requires login)
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Anyone you share this with must log in.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => copyLink(privateLink, 'private')}
+            >
+              {copiedType === 'private' ? 'Copied' : 'Copy private link'}
+            </Button>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border/80 bg-background p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold">Public link (no login)</p>
+              <Badge
+                variant={hasPublicLink ? 'pool' : 'default'}
+                className={hasPublicLink ? '' : 'bg-muted text-muted-foreground'}
+              >
+                {statusLabel}
+              </Badge>
+            </div>
+            {hasPublicLink ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => copyLink(publicLink, 'public')}
+                >
+                  {copiedType === 'public' ? 'Copied' : 'Copy public link'}
+                </Button>
+                {confirmingRevoke ? (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfirmingRevoke(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        revokePublicLink();
+                        setConfirmingRevoke(false);
+                      }}
+                    >
+                      Revoke link
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => setConfirmingRevoke(true)}
+                  >
+                    Revoke
+                  </Button>
+                )}
+              </div>
+            ) : null}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Anyone with this link can view your wishlist. No login required.
+          </p>
+
+          {hasPublicLink ? (
+            <div className="mt-3 space-y-2">
+              <Input
+                ref={publicLinkRef}
+                readOnly
+                value={publicLink}
+                onClick={(event) => event.currentTarget.select()}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Revoking disables this link immediately. Are you sure?
+              </p>
+            </div>
+          ) : (
+            <div className="mt-3 space-y-3">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Only share with people you trust. Anyone with the link can view.
+              </div>
+              <Button
+                type="button"
+                onClick={generatePublicLink}
+                disabled={isPending}
+                className="w-full sm:w-auto"
+              >
+                Generate public link
+              </Button>
+            </div>
+          )}
+        </div>
+      </Stack>
+
+      <p className="text-[11px] text-muted-foreground">
+        Sharing as {displayName} (@{username})
+      </p>
+    </>
+  );
+
+  if (isDesktop) {
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DialogTrigger asChild>{triggerButton}</DialogTrigger>
+            </TooltipTrigger>
+            <TooltipContent className="text-xs">Share wishlist</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Share wishlist</DialogTitle>
+            <DialogDescription>
+              Send a private link for friends or a public view-only link.
+            </DialogDescription>
+          </DialogHeader>
+          {shareBody}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <MobileBottomSheet open={open} onOpenChange={setOpen}>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <MobileBottomSheetTrigger asChild>
+              {triggerButton}
+            </MobileBottomSheetTrigger>
+          </TooltipTrigger>
+          <TooltipContent className="text-xs">Share wishlist</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <MobileBottomSheetContent className="sm:max-w-lg">
+        <MobileBottomSheetHeader>
+          <MobileBottomSheetTitle>Share wishlist</MobileBottomSheetTitle>
+          <MobileBottomSheetDescription>
+            Send a private link for friends or a public view-only link.
+          </MobileBottomSheetDescription>
+        </MobileBottomSheetHeader>
+        {shareBody}
+      </MobileBottomSheetContent>
+    </MobileBottomSheet>
+  );
+};
+
+const WishlistLinkCopyButton = ({
+  username,
+  displayName,
+  isPublicView,
+  origin,
+}: {
+  username: string;
+  displayName: string;
+  isPublicView: boolean;
+  origin?: string;
 }) => {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -376,10 +754,13 @@ const WishlistLinkCopyButton = ({
   }, []);
 
   const copyLink = async () => {
-    const shareUrl = new URL(
-      `/users/${username}/wishlist`,
-      window.location.origin,
-    ).toString();
+    const base =
+      origin ??
+      (typeof window !== 'undefined' ? window.location.origin : undefined);
+    const path = isPublicView
+      ? window.location.pathname + window.location.search
+      : `/users/${username}/wishlist`;
+    const shareUrl = base ? new URL(path, base).toString() : path;
     await navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     if (timerRef.current) {
@@ -390,8 +771,8 @@ const WishlistLinkCopyButton = ({
 
   const ariaLabel = copied
     ? 'Wishlist link copied'
-    : isOwner
-      ? 'Copy link to my wishlist'
+    : isPublicView
+      ? 'Copy public wishlist link'
       : `Copy ${displayName}'s wishlist link`;
 
   return (
@@ -412,7 +793,11 @@ const WishlistLinkCopyButton = ({
           </Button>
         </TooltipTrigger>
         <TooltipContent className="text-xs">
-          {copied ? 'Link copied' : 'Copy wishlist link'}
+          {copied
+            ? 'Link copied'
+            : isPublicView
+              ? 'Copy public link'
+              : 'Copy wishlist link'}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

@@ -1,5 +1,5 @@
-import { type ComponentProps } from 'react';
 import { Link } from '@remix-run/react';
+import { type ComponentProps } from 'react';
 import { Spacer } from '#app/components/spacer.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { FriendActionButton } from './friend-action-button.tsx';

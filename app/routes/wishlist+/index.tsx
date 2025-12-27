@@ -3,23 +3,26 @@ import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { useLoaderData } from '@remix-run/react';
 import { useEffect, useRef } from 'react';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
-import { logEvent } from '#app/utils/analytics.server.ts';
-import { track } from '#app/utils/analytics.client.ts';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
+import { track } from '#app/utils/analytics.client.ts';
+import { logEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { getDomainUrl } from '#app/utils/misc.tsx';
 import {
   applyRequestIdHeader,
   getRequestContext,
 } from '#app/utils/request-context.server.ts';
-import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
 import { useRequestInfo } from '#app/utils/request-info.ts';
+import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
 // Re-export the server action without importing it in the client bundle
 export { action } from './__wishlist-item-editor.server';
 
 type LoaderData = {
   user: WishlistUser;
   analytics: { requestId: string; viewEventId: string };
+  publicShare: { token: string; createdAt: string } | null;
+  origin: string;
 };
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -78,10 +81,22 @@ export async function loader({ request }: LoaderFunctionArgs) {
     properties: { wishlistOwnerId: userId, itemCount: wishlistItems.length },
   });
 
+  const publicShare = await prisma.wishlistPublicShare.findUnique({
+    select: { token: true, createdAt: true },
+    where: { ownerId: userId },
+  });
+
   return json<LoaderData>(
     {
       user: { ...user, wishlistItems },
       analytics: { requestId, viewEventId: viewEvent.eventId },
+      publicShare: publicShare
+        ? {
+            token: publicShare.token,
+            createdAt: publicShare.createdAt.toISOString(),
+          }
+        : null,
+      origin: getDomainUrl(request),
     },
     { headers: applyRequestIdHeader(null, requestId) },
   );
@@ -99,6 +114,9 @@ const WishlistIndex = () => {
       updatedAt: new Date(item.updatedAt),
     })),
   };
+  const publicShare = data.publicShare
+    ? { ...data.publicShare, createdAt: new Date(data.publicShare.createdAt) }
+    : null;
 
   useEffect(() => {
     if (!data.analytics?.viewEventId) return;
@@ -122,7 +140,14 @@ const WishlistIndex = () => {
     requestInfo.requestId,
   ]);
 
-  return <Wishlist isOwner user={user} />;
+  return (
+    <Wishlist
+      isOwner
+      user={user}
+      origin={data.origin}
+      publicShare={publicShare}
+    />
+  );
 };
 
 export default WishlistIndex;
