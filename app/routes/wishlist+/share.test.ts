@@ -62,6 +62,9 @@ async function generateShareToken(cookie: string) {
 
   const response = await shareAction({ request, params: {}, context });
   const data = await response.json();
+  if (!('publicShare' in data) || !data.publicShare) {
+    throw new Error('Expected publicShare in response');
+  }
   return data.publicShare.token as string;
 }
 
@@ -91,7 +94,8 @@ test('generate public link makes wishlist available without login', async () => 
   expect(response.status).toBe(200);
 
   const data = await response.json();
-  expect(data.user.wishlistItems[0].title).toBe('Shared item');
+  expect(data.user.wishlistItems.length).toBeGreaterThan(0);
+  expect(data.user.wishlistItems[0]?.title).toBe('Shared item');
 });
 
 test('revoking disables the public link immediately', async () => {
