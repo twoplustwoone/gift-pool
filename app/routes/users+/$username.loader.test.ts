@@ -3,11 +3,11 @@
  */
 import { type AppLoadContext } from '@remix-run/node';
 import { expect, test } from 'vitest';
-import { loader } from './$username.tsx';
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
 import { getSessionCookieHeader } from '#tests/utils.ts';
+import { loader } from './$username.tsx';
 
 const ensureUserRole = () =>
   prisma.role.upsert({ where: { name: 'user' }, update: {}, create: { name: 'user' } });

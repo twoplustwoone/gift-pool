@@ -5,8 +5,6 @@ import {
 } from '@prisma/client';
 import { Link, useFetcher } from '@remix-run/react';
 import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
-
 import {
   LuCheck,
   LuLink,
@@ -16,9 +14,11 @@ import {
   LuTrash,
   LuX,
 } from 'react-icons/lu';
+import { toast } from 'sonner';
+
 import { useToast } from '#app/components/toaster.tsx';
-import { Button } from '#app/components/ui/button';
 import { Badge } from '#app/components/ui/badge';
+import { Button } from '#app/components/ui/button';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog';
 import {
   Dialog,
@@ -44,8 +44,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '#app/components/ui/tooltip';
-import type { action as shareAction } from '#app/routes/wishlist+/share';
 import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
+import  { type action as shareAction } from '#app/routes/wishlist+/share';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';

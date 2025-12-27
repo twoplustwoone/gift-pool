@@ -136,8 +136,8 @@ test('revoking and regenerating public link rotates token and invalidates old li
     await page.goto('/wishlist');
     await page.getByRole('button', { name: /share wishlist/i }).click();
     await page.getByRole('button', { name: /generate public link/i }).click();
-    const secondLink = await page.getByRole('textbox').inputValue();
-    await expect(secondLink).not.toBe(firstLink);
+    const secondLink = page.getByRole('textbox');
+    await await expect(secondLink).not.toHaveValue(firstLink);
 
     await page.context().clearCookies();
     await page.goto(secondLink);

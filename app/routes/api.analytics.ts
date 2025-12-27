@@ -1,6 +1,6 @@
+import { type Prisma } from '@prisma/client';
 import { json, type ActionFunctionArgs } from '@remix-run/node';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
 import { logEvent } from '#app/utils/analytics.server.ts';
 import { type AnalyticEventName, ANALYTIC_EVENT_NAMES } from '#app/utils/analytics.ts';
 import { getUserId } from '#app/utils/auth.server.ts';

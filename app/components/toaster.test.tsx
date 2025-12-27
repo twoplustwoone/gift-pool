@@ -3,10 +3,10 @@
  */
 import { render } from '@testing-library/react';
 import React from 'react';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { resetToastHistory, useToast } from './toaster.tsx';
-import type { Toast } from '#app/utils/toast.server.ts';
 import { toast as sonnerToast } from 'sonner';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import  { type Toast } from '#app/utils/toast.server.ts';
+import { resetToastHistory, useToast } from './toaster.tsx';
 
 vi.mock('sonner', () => {
   const success = vi.fn();

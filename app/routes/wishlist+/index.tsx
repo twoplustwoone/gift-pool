@@ -3,18 +3,18 @@ import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { useLoaderData } from '@remix-run/react';
 import { useEffect, useRef } from 'react';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
-import { logEvent } from '#app/utils/analytics.server.ts';
-import { track } from '#app/utils/analytics.client.ts';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
+import { track } from '#app/utils/analytics.client.ts';
+import { logEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { getDomainUrl } from '#app/utils/misc.tsx';
 import {
   applyRequestIdHeader,
   getRequestContext,
 } from '#app/utils/request-context.server.ts';
-import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
 import { useRequestInfo } from '#app/utils/request-info.ts';
-import { getDomainUrl } from '#app/utils/misc.tsx';
+import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
 // Re-export the server action without importing it in the client bundle
 export { action } from './__wishlist-item-editor.server';
 
