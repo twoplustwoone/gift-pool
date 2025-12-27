@@ -1,11 +1,11 @@
 import { NavLink } from '@remix-run/react';
-import { type ReactNode } from 'react';
+import { type LucideIcon } from 'lucide-react';
 import { cn } from '#app/utils/misc.tsx';
 
-const activeClassName =
-  'bg-brand-gradient text-primary-foreground shadow-inner';
-const inactiveClassName =
-  'text-muted-foreground hover:bg-accent hover:text-accent-foreground';
+const activeClassName = 'text-primary';
+const inactiveClassName = 'text-muted-foreground';
+const baseClassName =
+  'flex h-full w-full flex-col items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-medium leading-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
 export const BottomNavLink = ({
   to,
@@ -13,7 +13,7 @@ export const BottomNavLink = ({
   label,
 }: {
   to: string;
-  icon: ReactNode;
+  icon: LucideIcon;
   label: string;
 }) => {
   return (
@@ -23,12 +23,24 @@ export const BottomNavLink = ({
       aria-label={label}
       className={({ isActive }) =>
         cn(
-          'inline-flex h-full w-full items-center justify-center p-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          baseClassName,
           isActive ? activeClassName : inactiveClassName,
         )
       }
     >
-      {icon}
+      {({ isActive }) => {
+        const Icon = icon;
+        return (
+          <>
+            <Icon
+              aria-hidden
+              className="h-[22px] w-[22px]"
+              strokeWidth={isActive ? 2.4 : 2}
+            />
+            <span>{label}</span>
+          </>
+        );
+      }}
     </NavLink>
   );
 };
