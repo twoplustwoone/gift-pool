@@ -7,11 +7,18 @@ import {
 } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type WishlistItem } from '@prisma/client';
-import { Form, useActionData } from '@remix-run/react';
+import {
+  Form,
+  useActionData,
+  useFetcher,
+  useRevalidator,
+} from '@remix-run/react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  LuArchive,
   LuExternalLink,
   LuImage,
+  LuListChecks,
   LuLoader,
   LuPlus,
   LuUpload,
@@ -47,10 +54,11 @@ import {
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Flex, Text } from '#app/components/ui-kit';
 import { track } from '#app/utils/analytics.client.ts';
+import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
+import { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
 import { getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { type Toast } from '#app/utils/toast.server.ts';
-import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
 import { type action } from './__wishlist-item-editor.server';
 
 const valueMinLength = 1;
@@ -111,10 +119,17 @@ const getSafePreviewSrc = (value: string | null) => {
 };
 
 type EditorProps = {
-  wishlistItem?: Pick<
+  wishlistItem?: (Pick<
     WishlistItem,
-    'id' | 'title' | 'url' | 'note' | 'type' | 'categoryId' | 'updatedAt'
-  > &
+    | 'id'
+    | 'title'
+    | 'url'
+    | 'note'
+    | 'type'
+    | 'categoryId'
+    | 'updatedAt'
+    | 'status'
+  > & { status: WishlistItemStatusValue }) &
     Partial<{
       hasImage: boolean;
       imageSource: WishlistItemImageSource | null;
@@ -125,6 +140,10 @@ type EditorProps = {
   categories?: { id: string; name: string }[];
   defaultCategoryId?: string | null;
   viewExtras?: React.ReactNode;
+  onStatusChange?: (
+    itemId: string,
+    status: WishlistItemStatusValue,
+  ) => boolean | void;
 };
 
 export type WishlistItemEditorHandle = {
@@ -149,15 +168,16 @@ export const WishlistItemEditor = React.forwardRef<
       categories = [],
       defaultCategoryId = null,
       viewExtras,
+      onStatusChange,
     },
     ref,
   ) => {
     const hasId = Boolean(wishlistItem?.id);
-    const computedInitial: 'view' | 'edit' | 'create' =
-      initialMode === 'auto'
-        ? hasId
-          ? canEdit
-            ? 'edit'
+  const computedInitial: 'view' | 'edit' | 'create' =
+    initialMode === 'auto'
+      ? hasId
+        ? canEdit
+          ? 'edit'
             : 'view'
           : 'create'
         : initialMode === 'view'
@@ -210,8 +230,30 @@ export const WishlistItemEditor = React.forwardRef<
         openEdit,
         openCreate,
       }),
-      [canEdit, hasId, itemIdLabel, mode, openEdit, openView, openCreate],
+      [canEdit, hasId, itemIdLabel, mode, openCreate, openEdit, openView],
     );
+
+    const [currentStatus, setCurrentStatus] =
+      useState<WishlistItemStatusValue>(wishlistItem?.status ?? 'ACTIVE');
+    const statusFetcher = useFetcher<{
+      ok?: boolean;
+      status?: WishlistItemStatusValue;
+      error?: string;
+      toast?: Toast;
+    }>();
+    const statusPending = statusFetcher.state !== 'idle';
+    const revalidator = useRevalidator();
+    const statusError =
+      statusFetcher.state === 'idle'
+        ? ((statusFetcher.data as any)?.error as string | undefined) ?? null
+        : null;
+    const toggleStatus = currentStatus === 'ACTIVE' ? 'ARCHIVED' : 'ACTIVE';
+    const toggleLabel =
+      currentStatus === 'ACTIVE'
+        ? 'Remove from wishlist'
+        : 'Restore to wishlist';
+    const ToggleIcon = currentStatus === 'ACTIVE' ? LuArchive : LuListChecks;
+    useToast((statusFetcher.data as any)?.toast);
 
     const actionData = useActionData<typeof action>() as
       | {
@@ -286,6 +328,39 @@ export const WishlistItemEditor = React.forwardRef<
       actionStatus,
       requestIdFallback,
     ]);
+
+    useEffect(() => {
+      setCurrentStatus(wishlistItem?.status ?? 'ACTIVE');
+    }, [wishlistItem?.id, wishlistItem?.status]);
+
+    useEffect(() => {
+      if (statusFetcher.state !== 'idle') return;
+      if ((statusFetcher.data as any)?.ok) {
+        const nextStatus =
+          ((statusFetcher.data as any)?.status as WishlistItemStatusValue) ??
+          currentStatus;
+        setCurrentStatus(nextStatus);
+        revalidator.revalidate();
+      }
+    }, [statusFetcher.data, statusFetcher.state, revalidator, currentStatus]);
+
+    const handleStatusChange = (status: WishlistItemStatusValue) => {
+      if (!wishlistItem?.id) return;
+      setCurrentStatus(status);
+      const shouldSubmit =
+        onStatusChange?.(wishlistItem.id, status) !== false;
+      const formData = new FormData();
+      formData.set('intent', 'update-wishlist-item-status');
+      formData.set('wishlistItemId', wishlistItem.id);
+      formData.set('status', status);
+      if (shouldSubmit) {
+        statusFetcher.submit(formData, {
+          method: 'post',
+          action: '/wishlist/status',
+        });
+        revalidator.revalidate();
+      }
+    };
 
     const formId = React.useId();
 
@@ -468,9 +543,10 @@ export const WishlistItemEditor = React.forwardRef<
       }
     };
 
+    const itemTitle = wishlistItem?.title ?? 'Wishlist Item';
     const titleText =
       mode === 'view'
-        ? 'Wishlist Item'
+        ? itemTitle
         : hasId
           ? 'Edit Wishlist Item'
           : 'Add Wishlist Item';
@@ -639,7 +715,12 @@ export const WishlistItemEditor = React.forwardRef<
           {...(!isDesktop ? { showHandle: true } : {})}
         >
           <DialogHeaderComponent>
-            <DialogTitleComponent>{titleText}</DialogTitleComponent>
+            <div>
+              <DialogDescriptionComponent className="mb-1 text-xs text-muted-foreground">
+                Wishlist item
+              </DialogDescriptionComponent>
+              <DialogTitleComponent>{titleText}</DialogTitleComponent>
+            </div>
             <DialogDescriptionComponent className="sr-only">
               Update wishlist item details
             </DialogDescriptionComponent>
@@ -647,6 +728,55 @@ export const WishlistItemEditor = React.forwardRef<
 
           {/* Shared width container for BOTH modes */}
           <div className="mx-auto w-full sm:w-[28rem]">
+            {wishlistItem?.id ? (
+              <div className="mb-4 flex flex-col gap-3 rounded-lg border border-dashed border-border bg-muted/40 px-3 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground">
+                    {currentStatus === 'ACTIVE' ? 'On wishlist' : 'Past item'}
+                  </span>
+                  <div className="flex flex-col">
+                    <Text size="xs" className="text-muted-foreground">
+                      Item status
+                    </Text>
+                    <Text size="sm" weight="medium">
+                      {currentStatus === 'ACTIVE' ? 'On wishlist' : 'Past item'}
+                    </Text>
+                    <Text size="xs" className="text-muted-foreground">
+                      {currentStatus === 'ACTIVE'
+                        ? 'Visible to friends'
+                        : 'Not shown on your wishlist'}
+                    </Text>
+                  </div>
+                </div>
+
+                {canEdit ? (
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      type="button"
+                      size={isDesktop ? 'sm' : 'default'}
+                      variant={currentStatus === 'ACTIVE' ? 'secondary' : 'default'}
+                      className="w-full gap-2"
+                      disabled={statusPending}
+                      aria-label={toggleLabel}
+                      onClick={() => handleStatusChange(toggleStatus)}
+                    >
+                      <ToggleIcon className="h-4 w-4" aria-hidden />
+                      <span className="flex-1 text-center">{toggleLabel}</span>
+                    </Button>
+                    <Text size="xs" className="text-muted-foreground">
+                      {currentStatus === 'ACTIVE'
+                        ? 'This moves the item to Past items. You can restore it anytime.'
+                        : 'Restoring will add this item back to your wishlist.'}
+                    </Text>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {statusError ? (
+              <Text size="xs" className="mb-2 text-destructive">
+                {statusError}
+              </Text>
+            ) : null}
             {mode === 'view' ? (
               <div className="flex flex-col gap-5">
                 {wishlistItem?.hasImage ? (
@@ -711,7 +841,7 @@ export const WishlistItemEditor = React.forwardRef<
                       onClick={() => setMode('edit')}
                       className="w-full sm:w-auto"
                     >
-                      Edit
+                      Edit item
                     </Button>
                   ) : null}
 

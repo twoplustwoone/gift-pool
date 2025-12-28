@@ -282,6 +282,7 @@ model WishlistItem {
   type       String
   image      Bytes?
   imageSource String?
+  status     String            @default("ACTIVE")
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
   owner      User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)

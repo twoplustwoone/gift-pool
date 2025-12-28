@@ -2,6 +2,7 @@ import { type WishlistItem as WishlistItemType } from '@prisma/client';
 import { useFetcher } from '@remix-run/react';
 import * as React from 'react';
 import {
+  LuArchive,
   LuChevronRight,
   LuGift,
   LuImage,
@@ -38,8 +39,13 @@ import { cn, getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
+import {
+  isWishlistItemActive,
+  type WishlistItemStatusValue,
+} from '#app/utils/wishlist.ts';
 import { Box, Text, Flex } from '../ui-kit';
 import { usePressFeedback } from './hooks/use-press-feedback.ts';
+import { WishlistStatusBadge, getWishlistStatusMeta } from './status';
 
 export const DeleteFormSchema = z.object({
   intent: z.literal('delete-wishlist-item'),
@@ -51,11 +57,22 @@ export const WishlistItem = ({
   isOwner = false,
   categories = [],
   disableClaims = false,
+  onStatusChange,
 }: {
-  wishlistItem: Pick<
+  wishlistItem: (Pick<
     WishlistItemType,
-    'id' | 'title' | 'ownerId' | 'note' | 'url' | 'type' | 'categoryId' | 'updatedAt'
-  > &
+    | 'id'
+    | 'title'
+    | 'ownerId'
+    | 'note'
+    | 'url'
+    | 'type'
+    | 'categoryId'
+    | 'updatedAt'
+    | 'status'
+  > & {
+    status: WishlistItemStatusValue;
+  }) &
     Partial<{
       hasImage: boolean;
       imageSource: WishlistItemImageSource | null;
@@ -64,6 +81,10 @@ export const WishlistItem = ({
   isOwner?: boolean;
   categories?: { id: string; name: string; order: number }[];
   disableClaims?: boolean;
+  onStatusChange?: (
+    itemId: string,
+    status: WishlistItemStatusValue,
+  ) => boolean | void;
 }) => {
   const user = useOptionalUser();
   const isOwnerByUser = user?.id === wishlistItem.ownerId;
@@ -71,6 +92,11 @@ export const WishlistItem = ({
     user,
     isOwnerByUser ? `delete:wishlistItem:own` : `delete:wishlistItem:any`,
   );
+  const normalizedStatus =
+    (wishlistItem.status as WishlistItemStatusValue | undefined) ?? 'ACTIVE';
+  const isActiveStatus = isWishlistItemActive(normalizedStatus);
+  const statusMeta = getWishlistStatusMeta(normalizedStatus);
+  const editorRef = React.useRef<WishlistItemEditorHandle>(null);
 
   const purchaseFetcher = useFetcher();
   const isPurchasePending = purchaseFetcher.state !== 'idle';
@@ -170,6 +196,7 @@ export const WishlistItem = ({
       </div>
     );
   };
+
   const purchaseStatusText = isPurchasedBySomeoneElse
     ? 'Someone already grabbed this'
     : isPurchasedByMe
@@ -235,8 +262,6 @@ export const WishlistItem = ({
     );
   };
 
-  const editorRef = React.useRef<WishlistItemEditorHandle>(null);
-
   const press = usePressFeedback<HTMLDivElement>(
     isOwner
       ? {
@@ -247,58 +272,117 @@ export const WishlistItem = ({
       : undefined,
   );
 
+  if (!isActiveStatus) {
+    return (
+      <WishlistItemEditor
+        key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
+        ref={editorRef}
+        wishlistItem={{
+          id: wishlistItem.id,
+          title: wishlistItem.title,
+          url: wishlistItem.url ?? null,
+          note: wishlistItem.note ?? null,
+          type: wishlistItem.type,
+          categoryId: wishlistItem.categoryId ?? null,
+          hasImage: wishlistItem.hasImage ?? false,
+          imageSource: wishlistItem.imageSource ?? null,
+          updatedAt: wishlistItem.updatedAt,
+          status: normalizedStatus,
+        }}
+        canEdit={isOwner}
+        categories={categories}
+        initialMode="view"
+        onStatusChange={onStatusChange}
+        trigger={
+          <Card
+            variant="interactive"
+            padding="md"
+            className="group h-full cursor-pointer"
+          >
+            <div className="flex h-full flex-col gap-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <Text
+                    size="base"
+                    weight="medium"
+                    className="block truncate"
+                    aria-label={wishlistItem.title}
+                  >
+                    {wishlistItem.title}
+                  </Text>
+                  <Text
+                    size="xs"
+                    className="line-clamp-2 text-muted-foreground"
+                    aria-label={wishlistItem.note ?? 'No description'}
+                  >
+                    {wishlistItem.note ?? 'No description'}
+                  </Text>
+                </div>
+                <WishlistStatusBadge status={normalizedStatus} />
+              </div>
+              <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground">
+                <span className="truncate">{statusMeta.description}</span>
+                <div className="flex items-center gap-1 text-primary">
+                  <LuArchive className="h-3.5 w-3.5" aria-hidden />
+                  <span className="hidden sm:inline">View</span>
+                  <span className="sm:hidden">View</span>
+                </div>
+              </div>
+            </div>
+          </Card>
+        }
+      />
+    );
+  }
+
   // ---------------- Non-owner: simple, tappable row → read-only view
   if (!isOwner) {
     const allowClaims = !disableClaims;
     const imageBlock = renderImageBlock();
     const isClaimed = isPurchasedByMe || isPurchasedBySomeoneElse;
-    const viewPurchaseExtras = allowClaims
-      ? isPurchasedBySomeoneElse
-        ? (
-            <Flex align="center" gap={2}>
-              <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
-              <Text size="sm" className="text-amber-800">
-                Someone already grabbed this one.
-              </Text>
-            </Flex>
-          )
-        : (
-            <div className="flex flex-col gap-3">
-              <Text size="sm" className="text-muted-foreground">
-                Claim this gift so everyone else knows it’s handled.
-              </Text>
-              <Button
-                type="button"
-                variant={isPurchasedByMe ? 'secondary' : 'outline'}
-                disabled={isPurchasePending}
-                onClick={handlePurchaseToggle}
-                aria-pressed={isPurchasedByMe}
-                aria-label={purchaseButtonAriaLabel}
-                className={cn('justify-center sm:w-auto', purchaseButtonClassName)}
-              >
-                {purchaseButtonContent}
-              </Button>
-              {purchaseStatusText ? (
-                <Text size="sm" className="text-pool">
-                  {purchaseStatusText}
-                </Text>
-              ) : null}
-            </div>
-          )
-      : isClaimed
-        ? (
-            <Flex align="center" gap={2}>
-              <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
-              <Text size="sm" className="text-amber-800">
-                Someone already grabbed this one.
-              </Text>
-            </Flex>
-          )
-        : (
-            <Text size="sm" className="text-muted-foreground">
-              View-only link. Sign in to claim gifts.
+    const viewPurchaseExtras = allowClaims ? (
+      isPurchasedBySomeoneElse ? (
+        <Flex align="center" gap={2}>
+          <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
+          <Text size="sm" className="text-amber-800">
+            Someone already grabbed this one.
+          </Text>
+        </Flex>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <Text size="sm" className="text-muted-foreground">
+            Claim this gift so everyone else knows it’s handled.
+          </Text>
+          <Button
+            type="button"
+            variant={isPurchasedByMe ? 'secondary' : 'outline'}
+            disabled={isPurchasePending}
+            onClick={handlePurchaseToggle}
+            aria-pressed={isPurchasedByMe}
+            aria-label={purchaseButtonAriaLabel}
+            className={cn('justify-center sm:w-auto', purchaseButtonClassName)}
+          >
+            {purchaseButtonContent}
+          </Button>
+          {purchaseStatusText ? (
+            <Text size="sm" className="text-pool">
+              {purchaseStatusText}
             </Text>
-          );
+          ) : null}
+        </div>
+      )
+    ) : isClaimed ? (
+      <Flex align="center" gap={2}>
+        <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
+        <Text size="sm" className="text-amber-800">
+          Someone already grabbed this one.
+        </Text>
+      </Flex>
+    ) : (
+      <Text size="sm" className="text-muted-foreground">
+        View-only link. Sign in to claim gifts.
+      </Text>
+    );
 
     const trigger = (
       <Card
@@ -309,9 +393,7 @@ export const WishlistItem = ({
           'group relative flex min-w-0 cursor-pointer flex-col overflow-hidden [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30',
           isPurchasedBySomeoneElse ? 'opacity-90' : '',
         )}
-        data-claimable={
-          allowClaims && !isClaimed ? 'true' : undefined
-        }
+        data-claimable={allowClaims && !isClaimed ? 'true' : undefined}
         data-pressed={press.pressed ? 'true' : 'false'}
         {...press.rowProps}
       >
@@ -382,11 +464,13 @@ export const WishlistItem = ({
         {isClaimed ? (
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-xl bg-background/60 text-muted-foreground opacity-0 transition-opacity sm:flex sm:backdrop-blur group-hover:opacity-100"
+            className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-xl bg-background/60 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 sm:flex sm:backdrop-blur"
           >
             <div className="flex items-center gap-2 rounded-full bg-background/90 px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-border">
               <LuLock className="h-4 w-4" />
-              {isPurchasedBySomeoneElse ? 'Locked by a friend' : 'You claimed this'}
+              {isPurchasedBySomeoneElse
+                ? 'Locked by a friend'
+                : 'You claimed this'}
             </div>
           </div>
         ) : null}
@@ -416,7 +500,9 @@ export const WishlistItem = ({
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800">
                       <LuLock className="h-5 w-5" aria-hidden />
                     </div>
-                    <MobileBottomSheetTitle>Already claimed</MobileBottomSheetTitle>
+                    <MobileBottomSheetTitle>
+                      Already claimed
+                    </MobileBottomSheetTitle>
                   </div>
                   <MobileBottomSheetDescription>
                     This item has already been claimed by someone else to avoid
@@ -428,9 +514,14 @@ export const WishlistItem = ({
                   variant="secondary"
                   onClick={(event) => {
                     event.stopPropagation();
-                    const target = document.querySelector('[data-claimable="true"]');
+                    const target = document.querySelector(
+                      '[data-claimable="true"]',
+                    );
                     if (target instanceof HTMLElement) {
-                      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                      });
                     }
                     setIsClaimInfoOpen(false);
                   }}
@@ -442,7 +533,9 @@ export const WishlistItem = ({
           ) : isClaimed ? (
             <div className="flex h-10 items-center gap-2 rounded-b-xl bg-pool px-4 text-xs font-semibold text-pool-foreground">
               <LuGift className="h-4 w-4" aria-hidden />
-              <span>{purchaseStatusText ?? 'You’re on gift duty for this one'}</span>
+              <span>
+                {purchaseStatusText ?? 'You’re on gift duty for this one'}
+              </span>
             </div>
           ) : (
             <div className="h-px w-full bg-border/70" aria-hidden />
@@ -460,7 +553,7 @@ export const WishlistItem = ({
 
     return (
       <WishlistItemEditor
-        key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}`}
+        key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
         ref={editorRef}
         wishlistItem={{
           id: wishlistItem.id,
@@ -472,11 +565,13 @@ export const WishlistItem = ({
           hasImage: wishlistItem.hasImage ?? false,
           imageSource: wishlistItem.imageSource ?? null,
           updatedAt: wishlistItem.updatedAt,
+          status: normalizedStatus,
         }}
         canEdit={false}
         initialMode="view"
         categories={categories}
         viewExtras={viewPurchaseExtras}
+        onStatusChange={onStatusChange}
         trigger={trigger}
       />
     );
@@ -610,7 +705,7 @@ export const WishlistItem = ({
   // ---------------- Owner: mobile row (explicit actions + chevron); row tap → read-only view
   return (
     <WishlistItemEditor
-      key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}`}
+      key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
       ref={editorRef}
       wishlistItem={{
         id: wishlistItem.id,
@@ -622,13 +717,14 @@ export const WishlistItem = ({
         hasImage: wishlistItem.hasImage ?? false,
         imageSource: wishlistItem.imageSource ?? null,
         updatedAt: wishlistItem.updatedAt,
+        status: normalizedStatus,
       }}
       trigger={Trigger} // desktop: row-as-trigger (edit/create); mobile: tap-to-view
       canEdit={true}
       categories={categories}
+      onStatusChange={onStatusChange}
     />
   );
-
 };
 
 export const DeleteWishlistItem = ({
@@ -654,14 +750,10 @@ export const DeleteWishlistItem = ({
     if (!fetcher.data?.success) return;
     if (trackedArchiveIdRef.current === eventId) return;
     trackedArchiveIdRef.current = eventId;
-    track(
-      'wishlist_item_archived',
-      undefined,
-      {
-        eventId,
-        requestId: fetcher.data.requestId ?? fallbackRequestId,
-      },
-    );
+    track('wishlist_item_archived', undefined, {
+      eventId,
+      requestId: fetcher.data.requestId ?? fallbackRequestId,
+    });
   }, [fallbackRequestId, fetcher.data]);
 
   return (
