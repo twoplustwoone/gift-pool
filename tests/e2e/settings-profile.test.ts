@@ -1,5 +1,6 @@
 import { invariant } from '@epic-web/invariant';
 import { faker } from '@faker-js/faker';
+import type { Page } from '@playwright/test';
 import { verifyUserPassword } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { readEmail } from '#tests/mocks/utils.ts';
@@ -7,7 +8,7 @@ import { expect, test, createUser, waitFor } from '#tests/playwright-utils.ts';
 
 const CODE_REGEX = /Here's your verification code: (?<code>\d+)/;
 
-const dismissInstallPrompt = async (page: Parameters<typeof test>[0]['page']) => {
+const dismissInstallPrompt = async (page: Page) => {
   const notNow = page.getByRole('button', { name: /not now/i });
   if ((await notNow.count()) > 0) {
     await notNow.click();

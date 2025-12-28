@@ -1,8 +1,9 @@
+import type { Page } from '@playwright/test';
 import { prisma } from '#app/utils/db.server.ts';
 import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
 import { expect, test, waitFor } from '#tests/playwright-utils.ts';
 
-const dismissInstallPrompt = async (page: Parameters<typeof test>[0]['page']) => {
+const dismissInstallPrompt = async (page: Page) => {
   const notNow = page.getByRole('button', { name: /not now/i });
   if ((await notNow.count()) > 0) {
     await notNow.click();

@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
 import { expect, test } from '#tests/playwright-utils.ts';
@@ -10,7 +11,7 @@ const createFriendship = async (userOneId: string, userTwoId: string) => {
   await prisma.friendship.create({ data: { userAId, userBId } });
 };
 
-const dismissInstallPrompt = async (page: Parameters<typeof test>[0]['page']) => {
+const dismissInstallPrompt = async (page: Page) => {
   const notNow = page.getByRole('button', { name: /not now/i });
   if ((await notNow.count()) > 0) {
     await notNow.click();

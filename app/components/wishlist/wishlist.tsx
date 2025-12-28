@@ -169,7 +169,7 @@ export const Wishlist = ({
   const lastRemovalRef = useRef<{
     itemId: string;
     prevIndex: number;
-    toastId?: string;
+    toastId?: string | number;
     timestamp: number;
   } | null>(null);
   const statusUpdateFetcher = useFetcher();
@@ -316,6 +316,7 @@ export const Wishlist = ({
       const index = prev.findIndex((item) => item.id === itemId);
       if (index === -1) return prev;
       const prevItem = prev[index];
+      if (!prevItem) return prev;
       const next = [...prev];
       next[index] = { ...prevItem, status };
 

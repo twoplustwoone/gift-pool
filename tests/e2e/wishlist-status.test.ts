@@ -1,6 +1,7 @@
+import type { Page } from '@playwright/test';
 import { expect, test } from '#tests/playwright-utils.ts';
 
-const dismissInstallPrompt = async (page: Parameters<typeof test>[0]['page']) => {
+const dismissInstallPrompt = async (page: Page) => {
   const notNow = page.getByRole('button', { name: /not now/i });
   if ((await notNow.count()) > 0) {
     await notNow.click();
