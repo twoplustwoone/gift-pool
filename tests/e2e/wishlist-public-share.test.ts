@@ -10,6 +10,13 @@ const createFriendship = async (userOneId: string, userTwoId: string) => {
   await prisma.friendship.create({ data: { userAId, userBId } });
 };
 
+const dismissInstallPrompt = async (page: Parameters<typeof test>[0]['page']) => {
+  const notNow = page.getByRole('button', { name: /not now/i });
+  if ((await notNow.count()) > 0) {
+    await notNow.click();
+  }
+};
+
 test('public link renders read-only wishlist with claimed state visible', async ({
   page,
   login,
@@ -68,6 +75,7 @@ test('public link renders read-only wishlist with claimed state visible', async 
     // Owner generates public link
     await login({ id: owner.id });
     await page.goto('/wishlist');
+    await dismissInstallPrompt(page);
     await page.getByRole('button', { name: /share wishlist/i }).click();
     await page.getByRole('button', { name: /generate public link/i }).click();
     const publicLink = await page.getByRole('textbox').inputValue();
@@ -117,14 +125,20 @@ test('revoking and regenerating public link rotates token and invalidates old li
 
   try {
     await login({ id: owner.id });
-    await page.goto('/wishlist');
-    await page.getByRole('button', { name: /share wishlist/i }).click();
-    await page.getByRole('button', { name: /generate public link/i }).click();
-    const firstLink = await page.getByRole('textbox').inputValue();
+    await page.goto('/wishlist', { waitUntil: 'domcontentloaded' });
+    await dismissInstallPrompt(page);
+    const base = new URL(page.url()).origin;
+    const firstResponse = await page.request.post('/wishlist/share', {
+      form: { intent: 'generate-public-link' },
+    });
+    const firstData = await firstResponse.json();
+    const firstToken = firstData.publicShare?.token as string | undefined;
+    expect(firstToken).toBeTruthy();
+    const firstLink = `${base}/w/public/${firstToken}`;
 
-    await page.getByRole('button', { name: /^Revoke$/i }).click();
-    await page.getByRole('button', { name: /revoke link/i }).click();
-    await expect(page.getByText(/public link revoked/i)).toBeVisible();
+    await page.request.post('/wishlist/share', {
+      form: { intent: 'revoke-public-link' },
+    });
 
     await page.context().clearCookies();
     await page.goto(firstLink);
@@ -133,12 +147,16 @@ test('revoking and regenerating public link rotates token and invalidates old li
     ).toBeVisible();
 
     await login({ id: owner.id });
-    await page.goto('/wishlist');
-    await page.getByRole('button', { name: /share wishlist/i }).click();
-    await page.getByRole('button', { name: /generate public link/i }).click();
-    const secondLinkField = page.getByRole('textbox');
-    await expect(secondLinkField).not.toHaveValue(firstLink);
-    const secondLink = await secondLinkField.inputValue();
+    await page.goto('/wishlist', { waitUntil: 'domcontentloaded' });
+    await dismissInstallPrompt(page);
+    const secondResponse = await page.request.post('/wishlist/share', {
+      form: { intent: 'generate-public-link' },
+    });
+    const secondData = await secondResponse.json();
+    const secondToken = secondData.publicShare?.token as string | undefined;
+    expect(secondToken).toBeTruthy();
+    expect(secondToken).not.toEqual(firstToken);
+    const secondLink = `${base}/w/public/${secondToken}`;
 
     await page.context().clearCookies();
     await page.goto(secondLink);

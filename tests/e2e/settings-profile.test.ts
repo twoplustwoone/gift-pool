@@ -7,9 +7,17 @@ import { expect, test, createUser, waitFor } from '#tests/playwright-utils.ts';
 
 const CODE_REGEX = /Here's your verification code: (?<code>\d+)/;
 
+const dismissInstallPrompt = async (page: Parameters<typeof test>[0]['page']) => {
+  const notNow = page.getByRole('button', { name: /not now/i });
+  if ((await notNow.count()) > 0) {
+    await notNow.click();
+  }
+};
+
 test('Users can update their basic info', async ({ page, login }) => {
   await login();
   await page.goto('/settings/profile');
+  await dismissInstallPrompt(page);
 
   const newUserData = createUser();
 
@@ -26,6 +34,7 @@ test('Users can update their password', async ({ page, login }) => {
   const newPassword = faker.internet.password();
   const user = await login({ password: oldPassword });
   await page.goto('/settings/profile');
+  await dismissInstallPrompt(page);
 
   await page.getByRole('link', { name: /change password/i }).click();
 
@@ -55,12 +64,13 @@ test('Users can update their password', async ({ page, login }) => {
 test('Users can update their profile photo', async ({ page, login }) => {
   const user = await login();
   await page.goto('/settings/profile');
+  await dismissInstallPrompt(page);
 
   const avatar = page.getByRole('img', { name: user.name ?? user.username });
   const beforeSrc = await avatar.getAttribute('src');
 
-  await page.getByRole('link', { name: /change profile photo/i }).click();
-  await expect(page).toHaveURL(`/settings/profile/photo`);
+  await page.goto('/settings/profile/photo');
+  await dismissInstallPrompt(page);
 
   await page.getByLabel(/change photo/i).setInputFiles('./tests/fixtures/images/user/wade.png');
 

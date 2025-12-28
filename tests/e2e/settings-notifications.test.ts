@@ -1,6 +1,13 @@
 import { prisma } from '#app/utils/db.server.ts';
 import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
-import { expect, test } from '#tests/playwright-utils.ts';
+import { expect, test, waitFor } from '#tests/playwright-utils.ts';
+
+const dismissInstallPrompt = async (page: Parameters<typeof test>[0]['page']) => {
+  const notNow = page.getByRole('button', { name: /not now/i });
+  if ((await notNow.count()) > 0) {
+    await notNow.click();
+  }
+};
 
 const friendRequestReceivedType = NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED;
 const friendRequestAcceptedType = NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED;
@@ -11,6 +18,7 @@ test('users can toggle individual notification channels', async ({
 }) => {
   const user = await login();
   await page.goto('/settings/notifications');
+   await dismissInstallPrompt(page);
 
   const receivedRow = page.getByRole('row', {
     name: /friend request received/i,
@@ -21,19 +29,36 @@ test('users can toggle individual notification channels', async ({
 
   await expect(receivedEmailToggle).toBeChecked();
   await receivedEmailToggle.click();
-  await expect(receivedEmailToggle).not.toBeChecked();
+  await page.reload();
 
-  const updatedPreference = await prisma.userNotificationPreference.findUnique({
-    where: {
-      userId_type: {
-        userId: user.id,
-        type: friendRequestReceivedType,
-      },
+  await waitFor(
+    async () => {
+      const updatedPreference =
+        await prisma.userNotificationPreference.findUnique({
+          where: {
+            userId_type: {
+              userId: user.id,
+              type: friendRequestReceivedType,
+            },
+          },
+          select: { emailEnabled: true },
+        });
+      if (updatedPreference?.emailEnabled !== false) {
+        throw new Error('Preference not updated yet');
+      }
+      return updatedPreference;
     },
-    select: { emailEnabled: true },
-  });
+    { timeout: 8000 },
+  );
 
-  expect(updatedPreference?.emailEnabled).toBe(false);
+  await page.reload();
+  const finalRow = page.getByRole('row', {
+    name: /friend request received/i,
+  });
+  const finalToggle = finalRow.getByRole('checkbox', {
+    name: /enable email/i,
+  });
+  await expect(finalToggle).not.toBeChecked({ timeout: 10000 });
 });
 
 test('users can disable all email notifications at once', async ({
@@ -42,6 +67,7 @@ test('users can disable all email notifications at once', async ({
 }) => {
   const user = await login();
   await page.goto('/settings/notifications');
+  await dismissInstallPrompt(page);
 
   const friendActivityEmailToggles = page
     .getByRole('row', { name: /friend request (received|accepted)/i })

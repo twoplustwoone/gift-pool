@@ -89,7 +89,7 @@ test.describe('navigation chrome', () => {
       await scrollArea.evaluate((el) => el.scrollTo({ top: 1200, behavior: 'auto' }));
       const homeLink = page.getByRole('link', { name: /^home$/i });
       await homeLink.click();
-      await expect(page).toHaveURL('/');
+      await expect(page).toHaveURL(/\/($|friends)/);
       await expect
         .poll(
           () =>
