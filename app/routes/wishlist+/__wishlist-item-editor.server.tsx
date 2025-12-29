@@ -174,7 +174,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const savedItem = wishlistItemId
     ? await prisma.wishlistItem.update({
         select: { id: true, ownerId: true, categoryId: true, type: true },
-        where: { id: wishlistItemId, ownerId: userId },
+        where: { id: wishlistItemId },
         data: { ...dataWithImage, categoryId: categoryId || null },
       })
     : await prisma.wishlistItem.create({
