@@ -112,6 +112,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
           purchase: { select: { purchasedById: true } },
           image: true,
           imageSource: true,
+          status: true,
         },
       },
       wishlistCategories: {
@@ -126,8 +127,9 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   invariantResponse(user, 'Wishlist not found', { status: 404 });
 
   const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
-    ({ image, imageSource, ...item }) => ({
+    ({ image, imageSource, status, ...item }) => ({
       ...item,
+      status: status === 'ACTIVE' ? 'ACTIVE' : 'ARCHIVED',
       ownerId: 'public-view',
       purchase: item.purchase
         ? { purchasedById: item.purchase.purchasedById }

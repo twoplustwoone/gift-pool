@@ -30,6 +30,7 @@ export async function action({ request }: ActionFunctionArgs) {
       ownerId: true,
       owner: { select: { username: true } },
       purchase: { select: { purchasedById: true } },
+      status: true,
     },
   });
 
@@ -38,6 +39,13 @@ export async function action({ request }: ActionFunctionArgs) {
   if (wishlistItem.ownerId === userId) {
     return json(
       { error: 'You cannot mark your own wishlist item as purchased.' },
+      { status: 400 },
+    );
+  }
+
+  if (wishlistItem.status !== 'ACTIVE') {
+    return json(
+      { error: 'This item is no longer available on the wishlist.' },
       { status: 400 },
     );
   }

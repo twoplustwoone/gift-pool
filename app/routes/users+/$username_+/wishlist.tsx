@@ -108,6 +108,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
           purchase: { select: { purchasedById: true } },
           image: true,
           imageSource: true,
+          status: true,
         },
       },
       wishlistCategories: {
@@ -122,13 +123,18 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   invariantResponse(user, 'User not found', { status: 404 });
 
   const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
-    ({ image, imageSource, ...item }) => ({
-      ...item,
-      updatedAt: item.updatedAt,
-      hasImage: Boolean(image),
-      imageSource:
-        imageSource as WishlistUser['wishlistItems'][number]['imageSource'],
-    }),
+    ({ image, imageSource, status, ...item }) => {
+      const normalizedStatus =
+        status === 'ACTIVE' ? 'ACTIVE' : ('ARCHIVED' as const);
+      return {
+        ...item,
+        status: normalizedStatus,
+        updatedAt: item.updatedAt,
+        hasImage: Boolean(image),
+        imageSource:
+          imageSource as WishlistUser['wishlistItems'][number]['imageSource'],
+      };
+    },
   );
 
   const viewEvent = await logEvent({

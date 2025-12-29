@@ -2,7 +2,7 @@ import { type Meta, type StoryObj } from '@storybook/react-vite';
 import { Wishlist } from '#app/components/wishlist/wishlist';
 
 const baseUser = {
-  id: 'user-story',
+  id: 'user-1',
   username: 'jane',
   name: 'Jane Doe',
   image: null as { id: string } | null,
@@ -24,6 +24,7 @@ const items = [
     categoryId: 'c2',
     purchase: null,
     updatedAt: new Date(),
+    status: 'ACTIVE' as const,
   },
   {
     id: 'i2',
@@ -35,6 +36,7 @@ const items = [
     categoryId: 'c2',
     purchase: null,
     updatedAt: new Date(),
+    status: 'ACTIVE' as const,
   },
   {
     id: 'i3',
@@ -46,6 +48,7 @@ const items = [
     categoryId: null,
     purchase: null,
     updatedAt: new Date(),
+    status: 'ACTIVE' as const,
   },
 ];
 
@@ -60,6 +63,7 @@ const viewerItems = [
     categoryId: 'c1',
     purchase: null,
     updatedAt: new Date(),
+    status: 'ACTIVE' as const,
   },
   {
     id: 'i5',
@@ -71,6 +75,7 @@ const viewerItems = [
     categoryId: 'c1',
     purchase: { purchasedById: 'friend-1' },
     updatedAt: new Date(),
+    status: 'ACTIVE' as const,
   },
   {
     id: 'i6',
@@ -82,6 +87,7 @@ const viewerItems = [
     categoryId: 'c2',
     purchase: null,
     updatedAt: new Date(),
+    status: 'ACTIVE' as const,
   },
 ];
 

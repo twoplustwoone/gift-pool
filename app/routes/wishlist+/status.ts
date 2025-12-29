@@ -1,0 +1,76 @@
+import { parseWithZod } from '@conform-to/zod';
+import { createId as cuid } from '@paralleldrive/cuid2';
+import { invariantResponse } from '@epic-web/invariant';
+import { json, type ActionFunctionArgs } from '@remix-run/node';
+import { z } from 'zod';
+import { requireUserId } from '#app/utils/auth.server.ts';
+import { prisma } from '#app/utils/db.server.ts';
+import { wishlistItemStatusSchema } from '#app/utils/wishlist.ts';
+
+const WishlistStatusSchema = z.object({
+  intent: z.literal('update-wishlist-item-status'),
+  wishlistItemId: z.string(),
+  status: wishlistItemStatusSchema,
+});
+
+export async function action({ request }: ActionFunctionArgs) {
+  const userId = await requireUserId(request);
+  const formData = await request.formData();
+
+  const submission = parseWithZod(formData, { schema: WishlistStatusSchema });
+
+  if (submission.status !== 'success') {
+    const errorMessage =
+      (submission.error as any)?.formErrors?.[0] ??
+      (submission.error as any)?.fieldErrors?.status?.[0] ??
+      'Invalid request.';
+    return json({ error: errorMessage }, { status: 400 });
+  }
+
+  const { wishlistItemId, status } = submission.value;
+  const wishlistItem = await prisma.wishlistItem.findUnique({
+    select: { id: true, ownerId: true, status: true },
+    where: { id: wishlistItemId },
+  });
+
+  invariantResponse(wishlistItem, 'Wishlist item not found', { status: 404 });
+
+  if (wishlistItem.ownerId !== userId) {
+    return json(
+      { error: 'Only the owner can update this wishlist item.' },
+      { status: 403 },
+    );
+  }
+
+  if (wishlistItem.status !== status) {
+    await prisma.wishlistItem.update({
+      where: { id: wishlistItemId },
+      data: { status },
+    });
+  }
+
+  await prisma.wishlistPurchase.deleteMany({ where: { wishlistItemId } });
+
+  const statusTextMap: Record<string, { title: string; description: string }> = {
+    ARCHIVED: {
+      title: 'Moved to Past items',
+      description: 'Undo available.',
+    },
+    ACTIVE: {
+      title: 'Returned to wishlist',
+      description: 'Item restored.',
+    },
+  };
+
+  return json({
+    ok: true,
+    status,
+    toast: {
+      id: cuid(),
+      type: 'success' as const,
+      title: statusTextMap[status]?.title ?? 'Wishlist updated',
+      description:
+        statusTextMap[status]?.description ?? 'Status updated.',
+    },
+  });
+}
