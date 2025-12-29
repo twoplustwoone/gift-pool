@@ -1,4 +1,5 @@
-import { expect, test } from '#tests/playwright-utils.ts';
+import { expect, test, waitFor } from '#tests/playwright-utils.ts';
+import { prisma } from '#app/utils/db.server.ts';
 
 test('users can add wishlist items', async ({ page, login }) => {
   await login();
@@ -86,4 +87,41 @@ test('users can create, edit, and delete categories; items follow correctly', as
   await page.locator('.rounded-xl.border.border-card-border').first();
   await page.getByRole('button', { name: 'Edit item' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
+});
+
+test('owners can clear a wishlist item description', async ({ page, login }) => {
+  await login();
+  await page.goto('/wishlist');
+  await page.waitForLoadState('networkidle');
+
+  await page.getByRole('button', { name: /^Add Item$/ }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByLabel('Title').fill('Clearable Note Item');
+  await page.getByRole('textbox', { name: /description/i }).fill('Remove me');
+  await page.getByRole('button', { name: /^save$/i }).click();
+  await expect(page.getByText('Clearable Note Item').first()).toBeVisible();
+  await expect(page.getByText('Remove me').first()).toBeVisible();
+
+  await page.getByText('Clearable Note Item').first().click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('textbox', { name: /description/i }).fill('');
+  await page.getByRole('button', { name: /^save$/i }).click();
+
+  await waitFor(async () => {
+    const saved = await prisma.wishlistItem.findFirst({
+      where: { title: 'Clearable Note Item' },
+      select: { note: true },
+    });
+    if (saved?.note !== null) {
+      throw new Error('Note not cleared yet');
+    }
+    return saved;
+  }, { timeout: 8000 });
+
+  await page.reload();
+  await expect(page.getByText('Clearable Note Item').first()).toBeVisible();
+  await expect(page.getByText('Remove me')).toHaveCount(0);
+
+  await page.getByText('Clearable Note Item').first().click();
+  await expect(page.getByRole('textbox', { name: /description/i })).toHaveValue('');
 });
