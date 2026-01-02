@@ -115,6 +115,10 @@ export async function action({ request }: ActionFunctionArgs) {
     ...data
   } = submission.value;
 
+  const normalizedNote =
+    data.note?.trim() === '' ? null : data.note ?? null;
+  const normalizedUrl = data.url?.trim() === '' ? null : data.url ?? null;
+
   const existingItem = wishlistItemId
     ? await prisma.wishlistItem.findUnique({
         select: {
@@ -160,21 +164,27 @@ export async function action({ request }: ActionFunctionArgs) {
 
   const dataWithImage = {
     ...data,
+    note: normalizedNote,
+    url: normalizedUrl,
     ...(typeof nextImage !== 'undefined'
       ? { image: nextImage, imageSource: nextImageSource ?? null }
       : {}),
   };
 
-  const savedItem = await prisma.wishlistItem.upsert({
-    select: { id: true, ownerId: true, categoryId: true, type: true },
-    where: { id: wishlistItemId ?? '__new_wishlist_item__' },
-    create: {
-      ownerId: userId,
-      categoryId: categoryId || null,
-      ...dataWithImage,
-    },
-    update: { ...dataWithImage, categoryId: categoryId || null },
-  });
+  const savedItem = wishlistItemId
+    ? await prisma.wishlistItem.update({
+        select: { id: true, ownerId: true, categoryId: true, type: true },
+        where: { id: wishlistItemId },
+        data: { ...dataWithImage, categoryId: categoryId || null },
+      })
+    : await prisma.wishlistItem.create({
+        select: { id: true, ownerId: true, categoryId: true, type: true },
+        data: {
+          ownerId: userId,
+          categoryId: categoryId || null,
+          ...dataWithImage,
+        },
+      });
 
   let analyticsEventId: string | null = null;
   if (!existingItem && !imageError) {

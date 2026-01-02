@@ -344,6 +344,12 @@ export const WishlistItemEditor = React.forwardRef<
       }
     }, [statusFetcher.data, statusFetcher.state, revalidator, currentStatus]);
 
+    useEffect(() => {
+      if (actionStatus === 'success') {
+        revalidator.revalidate();
+      }
+    }, [actionStatus, revalidator]);
+
     const handleStatusChange = (status: WishlistItemStatusValue) => {
       if (!wishlistItem?.id) return;
       setCurrentStatus(status);
@@ -580,7 +586,7 @@ export const WishlistItemEditor = React.forwardRef<
       hasPendingImageChange ||
       imageActionState === 'remove' ||
       imageActionState === 'url';
-    const isDirty = hasFieldChanges || hasImageChanges;
+    const isDirty = form.dirty || hasFieldChanges || hasImageChanges;
     const saveDisabled = isPending || !isDirty;
     const showImageError = Boolean(imageError && !imageWarning);
     const previewSrc = React.useMemo(() => {
@@ -1147,7 +1153,7 @@ export const WishlistItemEditor = React.forwardRef<
                     type="submit"
                     disabled={saveDisabled}
                     status={isPending ? 'pending' : 'idle'}
-                    variant="secondary"
+                    variant="default"
                     name="intent"
                     value="save"
                     className="w-full sm:w-auto"
