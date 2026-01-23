@@ -166,7 +166,7 @@
     "eslint-plugin-storybook": "^9.1.5",
     "eslint-plugin-unicorn": "^60.0.0",
     "fs-extra": "^11.2.0",
-    "jsdom": "^24.1.0",
+    "jsdom": "^27.0.0",
     "msw": "2.11.6",
     "nanoid": "^3.3.7",
     "node-html-parser": "^6.1.13",
