@@ -193,3 +193,71 @@ test('non-friend wishlist prompts request and sends invite', async ({ page, logi
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   }
 });
+
+test('non-friend wishlist request is optimistic and rolls back on failure', async ({
+  page,
+  login,
+}) => {
+  const createdUserIds: string[] = [];
+  const viewerData = createUser();
+  const targetData = createUser();
+
+  const [viewer, target] = await Promise.all([
+    prisma.user.create({
+      select: { id: true, username: true, name: true },
+      data: {
+        ...viewerData,
+        roles: { connect: { name: 'user' } },
+        password: { create: createPassword(viewerData.username) },
+      },
+    }),
+    prisma.user.create({
+      select: { id: true, username: true, name: true },
+      data: {
+        ...targetData,
+        roles: { connect: { name: 'user' } },
+        password: { create: createPassword(targetData.username) },
+      },
+    }),
+  ]);
+
+  createdUserIds.push(viewer.id, target.id);
+
+  try {
+    await login({ id: viewer.id });
+    await page.goto(`/users/${target.username}/wishlist`);
+
+    await page.route('**/api/friends/requests', async (route) => {
+      await page.waitForTimeout(500);
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'forced failure' }),
+      });
+    });
+
+    const addButton = page.getByRole('button', { name: /add friend/i });
+    await expect(addButton).toBeVisible();
+    await addButton.click();
+
+    await expect(page.getByRole('button', { name: /request sent/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /add friend/i })).toBeVisible({
+      timeout: 10000,
+    });
+
+    const request = await prisma.friendRequest.findFirst({
+      where: { fromUserId: viewer.id, toUserId: target.id },
+    });
+    expect(request).toBeNull();
+  } finally {
+    await prisma.friendRequest.deleteMany({
+      where: {
+        OR: [
+          { fromUserId: viewer.id, toUserId: target.id },
+          { fromUserId: target.id, toUserId: viewer.id },
+        ],
+      },
+    });
+    await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
+  }
+});

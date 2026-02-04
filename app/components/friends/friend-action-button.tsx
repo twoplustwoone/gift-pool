@@ -132,6 +132,15 @@ export const FriendActionButton = ({
   const buttonSize: ButtonProps['size'] = variant === 'primary' ? 'lg' : 'sm';
 
   const sendRequest = useCallback(async () => {
+    const previous = current;
+    const optimisticNext: RelationshipSnapshot = {
+      state: 'PENDING_OUTGOING' as RelationshipState,
+      friendshipId: null,
+      incomingRequestId: null,
+      outgoingRequestId: current.outgoingRequestId,
+    };
+    setCurrent(optimisticNext);
+    dispatchFriendshipUpdate({ userId: targetUserId, ...optimisticNext });
     setPendingAction('send');
     try {
       track('friend_request_send', { targetUserId });
@@ -155,14 +164,19 @@ export const FriendActionButton = ({
       toast.success(t('friends.sendSuccess'));
     } catch (err) {
       console.error(err);
+      setCurrent(previous);
+      dispatchFriendshipUpdate({ userId: targetUserId, ...previous });
       toast.error(t('toasts.genericError'));
     } finally {
       setPendingAction(null);
     }
-  }, [t, targetUserId]);
+  }, [current, t, targetUserId]);
 
   const cancelRequest = useCallback(async () => {
     if (!current.outgoingRequestId) return;
+    const previous = current;
+    setCurrent(EMPTY_SNAPSHOT);
+    dispatchFriendshipUpdate({ userId: targetUserId, ...EMPTY_SNAPSHOT });
     setPendingAction('cancel');
     try {
       const response = await fetch(
@@ -186,14 +200,23 @@ export const FriendActionButton = ({
       toast.success(t('friends.cancelSuccess'));
     } catch (err) {
       console.error(err);
+      setCurrent(previous);
+      dispatchFriendshipUpdate({ userId: targetUserId, ...previous });
       toast.error(t('toasts.genericError'));
     } finally {
       setPendingAction(null);
     }
-  }, [current.outgoingRequestId, t, targetUserId]);
+  }, [current, t, targetUserId]);
 
   const acceptRequest = useCallback(async () => {
     if (!current.incomingRequestId) return;
+    const previous = current;
+    const optimisticNext: RelationshipSnapshot = {
+      ...EMPTY_SNAPSHOT,
+      state: 'FRIENDS' as RelationshipState,
+    };
+    setCurrent(optimisticNext);
+    dispatchFriendshipUpdate({ userId: targetUserId, ...optimisticNext });
     setPendingAction(FRIEND_ACCEPT_EVENT);
     try {
       track('friend_request_accept', { targetUserId });
@@ -223,14 +246,19 @@ export const FriendActionButton = ({
       toast.success(t('friends.acceptSuccess'));
     } catch (err) {
       console.error(err);
+      setCurrent(previous);
+      dispatchFriendshipUpdate({ userId: targetUserId, ...previous });
       toast.error(t('toasts.genericError'));
     } finally {
       setPendingAction(null);
     }
-  }, [current.incomingRequestId, setUnreadCount, t, targetUserId]);
+  }, [current, setUnreadCount, t, targetUserId]);
 
   const rejectRequest = useCallback(async () => {
     if (!current.incomingRequestId) return;
+    const previous = current;
+    setCurrent(EMPTY_SNAPSHOT);
+    dispatchFriendshipUpdate({ userId: targetUserId, ...EMPTY_SNAPSHOT });
     setPendingAction(FRIEND_REJECT_EVENT);
     try {
       track('friend_request_reject', { targetUserId });
@@ -260,13 +288,18 @@ export const FriendActionButton = ({
       toast.success(t('friends.rejectSuccess'));
     } catch (err) {
       console.error(err);
+      setCurrent(previous);
+      dispatchFriendshipUpdate({ userId: targetUserId, ...previous });
       toast.error(t('toasts.genericError'));
     } finally {
       setPendingAction(null);
     }
-  }, [current.incomingRequestId, setUnreadCount, t, targetUserId]);
+  }, [current, setUnreadCount, t, targetUserId]);
 
   const removeFriend = useCallback(async () => {
+    const previous = current;
+    setCurrent(EMPTY_SNAPSHOT);
+    dispatchFriendshipUpdate({ userId: targetUserId, ...EMPTY_SNAPSHOT });
     setPendingAction('remove');
     try {
       track('friend_remove', { targetUserId });
@@ -288,12 +321,14 @@ export const FriendActionButton = ({
       toast.success(t('friends.removeSuccess', { name: targetUserName }));
     } catch (err) {
       console.error(err);
+      setCurrent(previous);
+      dispatchFriendshipUpdate({ userId: targetUserId, ...previous });
       toast.error(t('toasts.genericError'));
     } finally {
       setPendingAction(null);
       setConfirmOpen(false);
     }
-  }, [t, targetUserId, targetUserName]);
+  }, [current, t, targetUserId, targetUserName]);
 
   const isPending = useCallback(
     (actionKey: string) => pendingAction === actionKey,
