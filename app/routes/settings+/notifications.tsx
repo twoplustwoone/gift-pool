@@ -1,10 +1,11 @@
 import { invariantResponse } from '@epic-web/invariant';
 import {
   json,
+  redirect,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from '@remix-run/node';
-import { Form, Link, useLoaderData, useSubmit } from '@remix-run/react';
+import { Link, useFetcher, useLoaderData } from '@remix-run/react';
 import React from 'react';
 import { Button } from '#app/components/ui/button.tsx';
 import { Checkbox } from '#app/components/ui/checkbox.tsx';
@@ -78,9 +79,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const tokenPayload = tokenParam ? verifyPreferenceToken(tokenParam) : null;
 
   const targetUserId = tokenPayload?.uid ?? userId ?? null;
-  invariantResponse(targetUserId, 'Unable to resolve user preferences', {
-    status: 400,
-  });
+  if (!targetUserId) {
+    throw redirect('/login?redirectTo=/settings/notifications');
+  }
 
   const canReadPreferences =
     (userId && userId === targetUserId) ||
@@ -116,6 +117,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const intent = formData.get('intent');
+  const requestId =
+    typeof formData.get('requestId') === 'string'
+      ? String(formData.get('requestId'))
+      : null;
 
   const userId = await requireUserId(request);
 
@@ -141,49 +146,205 @@ export async function action({ request }: ActionFunctionArgs) {
       normalizedEnabled,
       'settings:notifications',
     );
-    return json({ ok: true });
+    return json({ ok: true, requestId });
   }
 
   if (intent === 'disable-email') {
     await disableEmailForAll(userId, 'settings:notifications');
-    return json({ ok: true });
+    return json({ ok: true, requestId });
   }
 
-  return json({ ok: false }, { status: 400 });
+  return json({ ok: false, requestId }, { status: 400 });
 }
 
-const channelLabels: Record<NotificationChannel, string> = {
-  [NOTIFICATION_CHANNELS.IN_APP]: 'In-app',
-  [NOTIFICATION_CHANNELS.EMAIL]: 'Email',
+type NotificationPreferenceState = Record<
+  NotificationType,
+  { inAppEnabled: boolean; emailEnabled: boolean }
+>;
+
+type PreferenceKey = `${NotificationType}:${NotificationChannel}`;
+
+type PreferencesActionResult = {
+  ok: boolean;
+  requestId?: string | null;
 };
 
 const NotificationsSettingsRoute = () => {
   const data = useLoaderData<typeof loader>();
-  const submit = useSubmit();
+  const toggleFetcher = useFetcher<PreferencesActionResult>();
+  const disableEmailFetcher = useFetcher<PreferencesActionResult>();
+  const [preferences, setPreferences] =
+    React.useState<NotificationPreferenceState>(() =>
+      buildPreferenceState(data.preferences),
+    );
+  const [pendingKeys, setPendingKeys] = React.useState<Set<PreferenceKey>>(
+    () => new Set(),
+  );
+  const requestCounterRef = React.useRef(0);
+  const togglePendingRef = React.useRef<{
+    requestId: string;
+    key: PreferenceKey;
+    type: NotificationType;
+    channel: NotificationChannel;
+    previousValue: boolean;
+  } | null>(null);
+  const toggleFetcherWasPendingRef = React.useRef(false);
+  const disableEmailPendingRef = React.useRef<{
+    requestId: string;
+    previousValues: Record<NotificationType, boolean>;
+    keys: PreferenceKey[];
+  } | null>(null);
+  const disableEmailFetcherWasPendingRef = React.useRef(false);
 
-  const preferenceMap = new Map<
-    NotificationType,
-    { inAppEnabled: boolean; emailEnabled: boolean }
-  >();
-  for (const pref of data.preferences) {
-    preferenceMap.set(pref.type, {
-      inAppEnabled: pref.inAppEnabled,
-      emailEnabled: pref.emailEnabled,
-    });
-  }
+  React.useEffect(() => {
+    setPreferences(buildPreferenceState(data.preferences));
+  }, [data.preferences]);
+
+  const createRequestId = React.useCallback(() => {
+    requestCounterRef.current += 1;
+    return `notifications-${Date.now()}-${requestCounterRef.current}`;
+  }, []);
 
   const handleToggle = (
     type: NotificationType,
     channel: NotificationChannel,
     enabled: boolean,
   ) => {
+    if (toggleFetcher.state !== 'idle') return;
+    const key = getPreferenceKey(type, channel);
+    if (pendingKeys.has(key)) return;
+    const nextEnabled = !enabled;
+    const requestId = createRequestId();
+    const channelField = getChannelField(channel);
+
+    togglePendingRef.current = {
+      requestId,
+      key,
+      type,
+      channel,
+      previousValue: enabled,
+    };
+    setPreferences((previous) => ({
+      ...previous,
+      [type]: {
+        ...previous[type],
+        [channelField]: nextEnabled,
+      },
+    }));
+    setPendingKeys((previous) => {
+      const next = new Set(previous);
+      next.add(key);
+      return next;
+    });
+
     const formData = new FormData();
     formData.set('intent', 'toggle');
     formData.set('type', type);
     formData.set('channel', channel);
-    formData.set('enabled', String(!enabled));
-    submit(formData, { method: 'POST', replace: true });
+    formData.set('enabled', String(nextEnabled));
+    formData.set('requestId', requestId);
+    toggleFetcher.submit(formData, { method: 'POST' });
   };
+
+  const handleDisableAllEmail = React.useCallback(() => {
+    if (disableEmailFetcher.state !== 'idle') return;
+    const requestId = createRequestId();
+    const previousValues = {} as Record<NotificationType, boolean>;
+    const keys: PreferenceKey[] = [];
+
+    for (const type of PREFERENCE_TYPES) {
+      previousValues[type] = preferences[type].emailEnabled;
+      keys.push(getPreferenceKey(type, NOTIFICATION_CHANNELS.EMAIL));
+    }
+
+    disableEmailPendingRef.current = { requestId, previousValues, keys };
+
+    setPreferences((previous) => {
+      const next = { ...previous };
+      for (const type of PREFERENCE_TYPES) {
+        next[type] = { ...next[type], emailEnabled: false };
+      }
+      return next;
+    });
+    setPendingKeys((previous) => {
+      const next = new Set(previous);
+      for (const key of keys) next.add(key);
+      return next;
+    });
+
+    const formData = new FormData();
+    formData.set('intent', 'disable-email');
+    formData.set('requestId', requestId);
+    disableEmailFetcher.submit(formData, { method: 'POST' });
+  }, [createRequestId, disableEmailFetcher, preferences]);
+
+  React.useEffect(() => {
+    if (toggleFetcher.state !== 'idle') {
+      toggleFetcherWasPendingRef.current = true;
+      return;
+    }
+    if (!toggleFetcherWasPendingRef.current) return;
+    toggleFetcherWasPendingRef.current = false;
+
+    const pending = togglePendingRef.current;
+    if (!pending) return;
+
+    const didSucceed =
+      toggleFetcher.data?.ok === true &&
+      toggleFetcher.data.requestId === pending.requestId;
+    if (!didSucceed) {
+      const channelField = getChannelField(pending.channel);
+      setPreferences((previous) => ({
+        ...previous,
+        [pending.type]: {
+          ...previous[pending.type],
+          [channelField]: pending.previousValue,
+        },
+      }));
+    }
+
+    setPendingKeys((previous) => {
+      const next = new Set(previous);
+      next.delete(pending.key);
+      return next;
+    });
+    togglePendingRef.current = null;
+  }, [toggleFetcher.data, toggleFetcher.state]);
+
+  React.useEffect(() => {
+    if (disableEmailFetcher.state !== 'idle') {
+      disableEmailFetcherWasPendingRef.current = true;
+      return;
+    }
+    if (!disableEmailFetcherWasPendingRef.current) return;
+    disableEmailFetcherWasPendingRef.current = false;
+
+    const pending = disableEmailPendingRef.current;
+    if (!pending) return;
+
+    const didSucceed =
+      disableEmailFetcher.data?.ok === true &&
+      disableEmailFetcher.data.requestId === pending.requestId;
+    if (!didSucceed) {
+      setPreferences((previous) => {
+        const next = { ...previous };
+        for (const type of PREFERENCE_TYPES) {
+          next[type] = {
+            ...next[type],
+            emailEnabled: pending.previousValues[type],
+          };
+        }
+        return next;
+      });
+    }
+
+    setPendingKeys((previous) => {
+      const next = new Set(previous);
+      for (const key of pending.keys) next.delete(key);
+      return next;
+    });
+    disableEmailPendingRef.current = null;
+  }, [disableEmailFetcher.data, disableEmailFetcher.state]);
 
   return (
     <div className="space-y-6">
@@ -235,9 +396,13 @@ const NotificationsSettingsRoute = () => {
                   </tr>
                 ) : null}
                 {group.items.map((item) => {
-                  const pref =
-                    preferenceMap.get(item.type) ??
-                    DEFAULT_CHANNEL_FALLBACK[item.type];
+                  const pref = preferences[item.type];
+                  const pendingInApp = pendingKeys.has(
+                    getPreferenceKey(item.type, NOTIFICATION_CHANNELS.IN_APP),
+                  );
+                  const pendingEmail = pendingKeys.has(
+                    getPreferenceKey(item.type, NOTIFICATION_CHANNELS.EMAIL),
+                  );
                   const disableToggles = item.disabled || !data.isAuthenticated;
                   return (
                     <tr key={item.type} className="even:bg-muted/10">
@@ -249,7 +414,7 @@ const NotificationsSettingsRoute = () => {
                         <PreferenceCheckbox
                           checked={pref.inAppEnabled}
                           label="Enable in-app"
-                          disabled={disableToggles}
+                          disabled={disableToggles || pendingInApp}
                           onChange={() =>
                             handleToggle(
                               item.type,
@@ -265,7 +430,8 @@ const NotificationsSettingsRoute = () => {
                           label="Enable email"
                           disabled={
                             disableToggles ||
-                            (!item.emailDefault && item.disabled)
+                            (!item.emailDefault && item.disabled) ||
+                            pendingEmail
                           }
                           onChange={() =>
                             handleToggle(
@@ -286,12 +452,15 @@ const NotificationsSettingsRoute = () => {
       </div>
 
       {data.isAuthenticated ? (
-        <Form method="post">
-          <input type="hidden" name="intent" value="disable-email" />
-          <Button type="submit" variant="ghost" className="text-sm">
-            Turn off all email notifications
-          </Button>
-        </Form>
+        <Button
+          type="button"
+          variant="ghost"
+          className="text-sm"
+          disabled={disableEmailFetcher.state !== 'idle'}
+          onClick={handleDisableAllEmail}
+        >
+          Turn off all email notifications
+        </Button>
       ) : null}
     </div>
   );
@@ -308,6 +477,40 @@ const DEFAULT_CHANNEL_FALLBACK: Record<
     value,
   ]),
 ) as Record<NotificationType, { inAppEnabled: boolean; emailEnabled: boolean }>;
+
+const PREFERENCE_TYPES = preferenceGroups.flatMap((group) =>
+  group.items.map((item) => item.type),
+);
+
+function buildPreferenceState(
+  preferences: Array<{
+    type: NotificationType;
+    inAppEnabled: boolean;
+    emailEnabled: boolean;
+  }>,
+): NotificationPreferenceState {
+  const next = { ...DEFAULT_CHANNEL_FALLBACK } as NotificationPreferenceState;
+  for (const pref of preferences) {
+    next[pref.type] = {
+      inAppEnabled: pref.inAppEnabled,
+      emailEnabled: pref.emailEnabled,
+    };
+  }
+  return next;
+}
+
+function getChannelField(channel: NotificationChannel) {
+  return channel === NOTIFICATION_CHANNELS.IN_APP
+    ? 'inAppEnabled'
+    : 'emailEnabled';
+}
+
+function getPreferenceKey(
+  type: NotificationType,
+  channel: NotificationChannel,
+) {
+  return `${type}:${channel}` as PreferenceKey;
+}
 
 function PreferenceCheckbox({
   checked,
@@ -330,7 +533,7 @@ function PreferenceCheckbox({
       <Checkbox
         checked={checked}
         disabled={disabled}
-        onCheckedChange={(value) => {
+        onCheckedChange={(_value) => {
           if (!disabled) onChange();
         }}
       />
