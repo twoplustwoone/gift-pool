@@ -1,6 +1,5 @@
 import { parseWithZod } from '@conform-to/zod';
 import { createId as cuid } from '@paralleldrive/cuid2';
-import { invariantResponse } from '@epic-web/invariant';
 import { json, type ActionFunctionArgs } from '@remix-run/node';
 import { z } from 'zod';
 import { requireUserId } from '#app/utils/auth.server.ts';
@@ -11,11 +10,17 @@ const WishlistStatusSchema = z.object({
   intent: z.literal('update-wishlist-item-status'),
   wishlistItemId: z.string(),
   status: wishlistItemStatusSchema,
+  clientMutationId: z.string().min(1).optional(),
 });
 
 export async function action({ request }: ActionFunctionArgs) {
   const userId = await requireUserId(request);
   const formData = await request.formData();
+  const clientMutationIdRaw = formData.get('clientMutationId');
+  const clientMutationId =
+    typeof clientMutationIdRaw === 'string' && clientMutationIdRaw.length > 0
+      ? clientMutationIdRaw
+      : null;
 
   const submission = parseWithZod(formData, { schema: WishlistStatusSchema });
 
@@ -24,7 +29,10 @@ export async function action({ request }: ActionFunctionArgs) {
       (submission.error as any)?.formErrors?.[0] ??
       (submission.error as any)?.fieldErrors?.status?.[0] ??
       'Invalid request.';
-    return json({ error: errorMessage }, { status: 400 });
+    return json(
+      { ok: false, error: errorMessage, clientMutationId },
+      { status: 400 },
+    );
   }
 
   const { wishlistItemId, status } = submission.value;
@@ -33,11 +41,20 @@ export async function action({ request }: ActionFunctionArgs) {
     where: { id: wishlistItemId },
   });
 
-  invariantResponse(wishlistItem, 'Wishlist item not found', { status: 404 });
+  if (!wishlistItem) {
+    return json(
+      { ok: false, error: 'Wishlist item not found.', clientMutationId },
+      { status: 404 },
+    );
+  }
 
   if (wishlistItem.ownerId !== userId) {
     return json(
-      { error: 'Only the owner can update this wishlist item.' },
+      {
+        ok: false,
+        error: 'Only the owner can update this wishlist item.',
+        clientMutationId,
+      },
       { status: 403 },
     );
   }
@@ -65,6 +82,7 @@ export async function action({ request }: ActionFunctionArgs) {
   return json({
     ok: true,
     status,
+    clientMutationId,
     toast: {
       id: cuid(),
       type: 'success' as const,

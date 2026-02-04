@@ -10,6 +10,7 @@ import {
   LuPencil,
   LuTrash,
 } from 'react-icons/lu';
+import { toast } from 'sonner';
 import { z } from 'zod';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
@@ -36,6 +37,7 @@ import {
   type WishlistItemEditorHandle,
 } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { track } from '#app/utils/analytics.client.ts';
+import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
 import { cn, getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
@@ -59,6 +61,13 @@ export const DeleteFormSchema = z.object({
 
 export type WishlistItemOwnerLayout = 'default' | 'reorder';
 type WishlistItemDragState = 'idle' | 'dragging-item' | 'dragging-category';
+type WishlistPurchasePayload = { purchasedById: string } | null;
+type WishlistPurchaseActionResponse = {
+  ok: boolean;
+  wishlistItemId: string;
+  purchase: WishlistPurchasePayload;
+  error?: string;
+};
 
 export const WishlistItem = ({
   wishlistItem,
@@ -112,9 +121,14 @@ export const WishlistItem = ({
   const statusMeta = getWishlistStatusMeta(normalizedStatus);
   const editorRef = React.useRef<WishlistItemEditorHandle>(null);
 
-  const purchaseFetcher = useFetcher();
+  const purchaseFetcher = useFetcher<WishlistPurchaseActionResponse>();
   const isPurchasePending = purchaseFetcher.state !== 'idle';
-  const purchaseBy = wishlistItem.purchase?.purchasedById;
+  const serverPurchaseBy = wishlistItem.purchase?.purchasedById ?? null;
+  const [purchaseBy, setPurchaseBy] = React.useState<string | null>(
+    serverPurchaseBy,
+  );
+  const purchaseRollbackRef = React.useRef<string | null>(serverPurchaseBy);
+  const hasPendingPurchaseMutationRef = React.useRef(false);
   const isClaimed = Boolean(purchaseBy);
   const isPurchasedByMe = isClaimed && purchaseBy === user?.id;
   const isPurchasedBySomeoneElse = isClaimed && purchaseBy !== user?.id;
@@ -132,6 +146,42 @@ export const WishlistItem = ({
   React.useEffect(() => {
     setImageErrored(false);
   }, [displayImageSrc]);
+
+  React.useEffect(() => {
+    if (purchaseFetcher.state !== 'idle') return;
+    setPurchaseBy(serverPurchaseBy);
+    purchaseRollbackRef.current = serverPurchaseBy;
+  }, [serverPurchaseBy, purchaseFetcher.state, wishlistItem.id]);
+
+  React.useEffect(() => {
+    if (purchaseFetcher.state !== 'idle') return;
+    if (!hasPendingPurchaseMutationRef.current) return;
+    hasPendingPurchaseMutationRef.current = false;
+
+    const actionData = purchaseFetcher.data;
+    const isFailedMutation =
+      actionData?.wishlistItemId === wishlistItem.id && actionData.ok === false;
+    if (actionData?.wishlistItemId === wishlistItem.id) {
+      const reconciledPurchaseBy = actionData.purchase?.purchasedById ?? null;
+      if (actionData.ok) {
+        setPurchaseBy(reconciledPurchaseBy);
+        purchaseRollbackRef.current = reconciledPurchaseBy;
+        return;
+      }
+
+      // Prefer server truth when present, even for rejected mutations.
+      if (reconciledPurchaseBy !== purchaseRollbackRef.current) {
+        setPurchaseBy(reconciledPurchaseBy);
+        purchaseRollbackRef.current = reconciledPurchaseBy;
+        return;
+      }
+    }
+
+    setPurchaseBy(purchaseRollbackRef.current);
+    if (isFailedMutation) {
+      toast.error(actionData.error ?? 'Unable to update gift claim.');
+    }
+  }, [purchaseFetcher.data, purchaseFetcher.state, wishlistItem.id]);
 
   const handleImageError = (event?: React.SyntheticEvent) => {
     event?.stopPropagation();
@@ -267,6 +317,13 @@ export const WishlistItem = ({
 
   const handlePurchaseToggle = (event: React.SyntheticEvent) => {
     event.stopPropagation();
+    if (!user?.id || isPurchasePending || isPurchasedBySomeoneElse) return;
+
+    const nextPurchaseBy = isPurchasedByMe ? null : user.id;
+    purchaseRollbackRef.current = purchaseBy;
+    hasPendingPurchaseMutationRef.current = true;
+    setPurchaseBy(nextPurchaseBy);
+
     purchaseFetcher.submit(
       {
         intent: isPurchasedByMe ? 'unpurchase' : 'purchase',
@@ -792,6 +849,25 @@ export const DeleteWishlistItem = ({
   const requestInfo = useOptionalRequestInfo();
   const trackedArchiveIdRef = React.useRef<string | null>(null);
   const fallbackRequestId = requestInfo?.requestId ?? null;
+  const attachClientMutationId = (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    const formElement = event.currentTarget;
+    const mutationId = createClientMutationId();
+    const existingInput = formElement.elements.namedItem(
+      'clientMutationId',
+    ) as HTMLInputElement | null;
+    if (existingInput) {
+      existingInput.value = mutationId;
+      return;
+    }
+
+    const hiddenInput = document.createElement('input');
+    hiddenInput.type = 'hidden';
+    hiddenInput.name = 'clientMutationId';
+    hiddenInput.value = mutationId;
+    formElement.append(hiddenInput);
+  };
 
   React.useEffect(() => {
     const eventId = fetcher.data?.analyticsEventId ?? null;
@@ -840,8 +916,10 @@ export const DeleteWishlistItem = ({
             method="DELETE"
             action={`/wishlist/${id}`}
             className="flex w-full gap-4"
+            onSubmit={attachClientMutationId}
           >
             <input type="hidden" name="wishlistItemId" value={id} />
+            <input type="hidden" name="clientMutationId" value="" />
             <Button
               type="submit"
               name="intent"

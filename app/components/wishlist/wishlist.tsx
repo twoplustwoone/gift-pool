@@ -25,8 +25,23 @@ import {
   type UserImage,
   type WishlistItem as WishlistItemType,
 } from '@prisma/client';
-import { Link, useFetcher, useRevalidator, useSearchParams } from '@remix-run/react';
-import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Link,
+  useFetcher,
+  useFetchers,
+  useNavigation,
+  useSearchParams,
+} from '@remix-run/react';
+import {
+  type FormEvent,
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   LuCheck,
   LuArchive,
@@ -75,6 +90,7 @@ import {
 } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { type action as shareAction } from '#app/routes/wishlist+/share';
 import { track } from '#app/utils/analytics.client.ts';
+import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
@@ -181,6 +197,28 @@ const ITEM_DRAG_PREFIX = 'item:';
 const CATEGORY_DROP_PREFIX = 'category-drop:';
 type ReorderMode = 'off' | 'items' | 'categories';
 type SortableListeners = ReturnType<typeof useSortable>['listeners'];
+type WishlistStatusMutationResponse = {
+  ok: boolean;
+  status?: WishlistItemStatusValue;
+  error?: string;
+  clientMutationId?: string | null;
+};
+type WishlistReorderMutationResponse = {
+  ok: boolean;
+  error?: string;
+  clientMutationId?: string | null;
+};
+type PendingStatusMutation = {
+  itemId: string;
+  previousStatus: WishlistItemStatusValue;
+  nextStatus: WishlistItemStatusValue;
+  clientMutationId: string;
+};
+type PendingReorderMutation = {
+  clientMutationId: string;
+  previousItems: WishlistUser['wishlistItems'];
+  previousCategories: { id: string; name: string; order: number }[];
+};
 
 const categoryKeyFromId = (categoryId: string | null) =>
   categoryId ?? DEFAULT_CATEGORY_KEY;
@@ -247,6 +285,12 @@ const moveItemIdBetweenLists = ({
   return { sourceIds: nextSource, targetIds: nextTarget };
 };
 
+const cloneItemsSnapshot = (items: WishlistUser['wishlistItems']) =>
+  items.map((item) => ({ ...item }));
+const cloneCategoriesSnapshot = (
+  categories: { id: string; name: string; order: number }[],
+) => categories.map((category) => ({ ...category }));
+
 const applyCategoryItemOrder = ({
   prevItems,
   categoryId,
@@ -267,6 +311,205 @@ const applyCategoryItemOrder = ({
       sortOrder: rank.get(item.id) ?? item.sortOrder,
     };
   });
+};
+
+type PendingCategoryMutation =
+  | {
+      type: 'create';
+      clientMutationId: string;
+      name: string;
+      order: number;
+    }
+  | {
+      type: 'rename';
+      clientMutationId: string;
+      categoryId: string;
+      name: string;
+    }
+  | {
+      type: 'delete';
+      clientMutationId: string;
+      categoryId: string;
+    };
+
+type PendingItemMutation =
+  | {
+      type: 'upsert';
+      clientMutationId: string;
+      itemId: string;
+      title: string;
+      note: string | null;
+      url: string | null;
+      itemType: string;
+      categoryId: string | null;
+      hasImage: boolean;
+      imageSource: WishlistItemImageSource | null;
+      status: WishlistItemStatusValue;
+      updatedAt: Date;
+    }
+  | {
+      type: 'delete';
+      clientMutationId: string;
+      itemId: string;
+    };
+
+const normalizeFormActionPath = (action: string | null | undefined) => {
+  if (!action) return null;
+  try {
+    return new URL(action, 'https://gift-pool.local').pathname;
+  } catch {
+    return action;
+  }
+};
+
+const getFormString = (formData: FormData, key: string) => {
+  const value = formData.get(key);
+  return typeof value === 'string' ? value : null;
+};
+
+const normalizeNullableFormValue = (value: string | null) => {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+};
+
+const getNextSortOrder = (
+  items: WishlistUser['wishlistItems'],
+  categoryId: string | null,
+) => {
+  const max = items
+    .filter((item) => item.categoryId === categoryId)
+    .reduce((currentMax, item) => Math.max(currentMax, item.sortOrder), -1);
+  return max + 1;
+};
+
+const redensifyCategorySortOrder = (
+  items: WishlistUser['wishlistItems'],
+  categoryId: string | null,
+) => {
+  const ordered = items
+    .filter((item) => item.categoryId === categoryId)
+    .sort(compareItemsBySortOrder);
+
+  if (ordered.length === 0) return items;
+
+  const nextSortOrder = new Map(
+    ordered.map((item, index) => [item.id, index]),
+  );
+  return items.map((item) => {
+    if (item.categoryId !== categoryId) return item;
+    return {
+      ...item,
+      sortOrder: nextSortOrder.get(item.id) ?? item.sortOrder,
+    };
+  });
+};
+
+const applyPendingCategoryMutations = ({
+  categories,
+  pendingMutations,
+}: {
+  categories: { id: string; name: string; order: number }[];
+  pendingMutations: PendingCategoryMutation[];
+}) => {
+  let next = [...categories];
+
+  for (const mutation of pendingMutations) {
+    if (mutation.type === 'create') {
+      const optimisticId = `optimistic-category:${mutation.clientMutationId}`;
+      if (next.some((category) => category.id === optimisticId)) continue;
+      next.push({
+        id: optimisticId,
+        name: mutation.name,
+        order: mutation.order,
+      });
+      continue;
+    }
+
+    if (mutation.type === 'rename') {
+      next = next.map((category) =>
+        category.id === mutation.categoryId
+          ? { ...category, name: mutation.name }
+          : category,
+      );
+      continue;
+    }
+
+    next = next.filter((category) => category.id !== mutation.categoryId);
+  }
+
+  return next
+    .sort((a, b) => a.order - b.order)
+    .map((category, index) => ({ ...category, order: index }));
+};
+
+const applyPendingItemMutations = ({
+  items,
+  pendingMutations,
+  ownerId,
+}: {
+  items: WishlistUser['wishlistItems'];
+  pendingMutations: PendingItemMutation[];
+  ownerId: string;
+}) => {
+  let nextItems = [...items];
+
+  for (const mutation of pendingMutations) {
+    if (mutation.type === 'delete') {
+      nextItems = nextItems.filter((item) => item.id !== mutation.itemId);
+      continue;
+    }
+
+    const existingIndex = nextItems.findIndex(
+      (item) => item.id === mutation.itemId,
+    );
+
+    if (existingIndex === -1) {
+      nextItems.push({
+        id: mutation.itemId,
+        title: mutation.title,
+        ownerId,
+        note: mutation.note,
+        url: mutation.url,
+        type: mutation.itemType,
+        categoryId: mutation.categoryId,
+        sortOrder: getNextSortOrder(nextItems, mutation.categoryId),
+        updatedAt: mutation.updatedAt,
+        status: mutation.status,
+        hasImage: mutation.hasImage,
+        imageSource: mutation.imageSource,
+      });
+      continue;
+    }
+
+    const existingItem = nextItems[existingIndex]!;
+    let nextSortOrder = existingItem.sortOrder;
+    if (existingItem.categoryId !== mutation.categoryId) {
+      const withoutCurrent = nextItems.filter((_, index) => index !== existingIndex);
+      nextSortOrder = getNextSortOrder(withoutCurrent, mutation.categoryId);
+    }
+
+    nextItems[existingIndex] = {
+      ...existingItem,
+      title: mutation.title,
+      note: mutation.note,
+      url: mutation.url,
+      type: mutation.itemType,
+      categoryId: mutation.categoryId,
+      sortOrder: nextSortOrder,
+      updatedAt: mutation.updatedAt,
+      status: mutation.status,
+      hasImage: mutation.hasImage,
+      imageSource: mutation.imageSource,
+    };
+
+    if (existingItem.categoryId !== mutation.categoryId) {
+      nextItems = redensifyCategorySortOrder(nextItems, existingItem.categoryId);
+      nextItems = redensifyCategorySortOrder(nextItems, mutation.categoryId);
+    }
+  }
+
+  return nextItems.sort(compareItemsBySortOrder);
 };
 
 const DragHandle = ({
@@ -407,7 +650,6 @@ export const Wishlist = ({
 }) => {
   const displayName = user.name ?? user.username;
   const [searchParams, setSearchParams] = useSearchParams();
-  const revalidator = useRevalidator();
   const initialView =
     searchParams.get('view') === 'past' ? ('past' as const) : ('wishlist' as const);
   const [view, setView] = useState<'wishlist' | 'past'>(initialView);
@@ -426,9 +668,13 @@ export const Wishlist = ({
     toastId?: string | number;
     timestamp: number;
   } | null>(null);
-  const statusUpdateFetcher = useFetcher();
+  const statusUpdateFetcher = useFetcher<WishlistStatusMutationResponse>();
   const actionFetcher = useFetcher();
-  const reorderFetcher = useFetcher<{ ok: boolean; error?: string }>();
+  const pendingFetchers = useFetchers();
+  const navigation = useNavigation();
+  const reorderFetcher = useFetcher<WishlistReorderMutationResponse>();
+  const pendingStatusMutationRef = useRef<PendingStatusMutation | null>(null);
+  const pendingReorderMutationRef = useRef<PendingReorderMutation | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [reorderMode, setReorderMode] = useState<ReorderMode>('off');
@@ -442,16 +688,200 @@ export const Wishlist = ({
   const [quickAddCategoryId, setQuickAddCategoryId] = useState<string | null>(null);
   const quickAddEditorRef = useRef<WishlistItemEditorHandle>(null);
 
+  const pendingCategoryMutations = useMemo<PendingCategoryMutation[]>(() => {
+    return pendingFetchers.reduce<PendingCategoryMutation[]>(
+      (mutations, fetcher, index) => {
+        if (!fetcher.formData) return mutations;
+        if (normalizeFormActionPath(fetcher.formAction) !== '/wishlist/categories') {
+          return mutations;
+        }
+
+        const intent = getFormString(fetcher.formData, 'intent');
+        const clientMutationId =
+          normalizeNullableFormValue(
+            getFormString(fetcher.formData, 'clientMutationId'),
+          ) ?? `fetcher-category-${index}`;
+
+        if (intent === 'create') {
+          const name = normalizeNullableFormValue(
+            getFormString(fetcher.formData, 'name'),
+          );
+          if (!name) return mutations;
+          mutations.push({
+            type: 'create',
+            clientMutationId,
+            name,
+            order: orderedCategories.length,
+          });
+          return mutations;
+        }
+
+        if (intent === 'rename') {
+          const categoryId = normalizeNullableFormValue(
+            getFormString(fetcher.formData, 'id'),
+          );
+          const name = normalizeNullableFormValue(
+            getFormString(fetcher.formData, 'name'),
+          );
+          if (!categoryId || !name) return mutations;
+          mutations.push({
+            type: 'rename',
+            clientMutationId,
+            categoryId,
+            name,
+          });
+          return mutations;
+        }
+
+        if (intent === 'delete') {
+          const categoryId = normalizeNullableFormValue(
+            getFormString(fetcher.formData, 'id'),
+          );
+          if (!categoryId) return mutations;
+          mutations.push({
+            type: 'delete',
+            clientMutationId,
+            categoryId,
+          });
+          return mutations;
+        }
+
+        return mutations;
+      },
+      [],
+    );
+  }, [orderedCategories.length, pendingFetchers]);
+
+  const optimisticCategories = useMemo(
+    () =>
+      applyPendingCategoryMutations({
+        categories: orderedCategories,
+        pendingMutations: pendingCategoryMutations,
+      }),
+    [orderedCategories, pendingCategoryMutations],
+  );
+
+  const pendingItemMutations = useMemo(() => {
+    const collectPending = (
+      formData: FormData,
+      formAction: string | null | undefined,
+      fallbackMutationId: string,
+    ): PendingItemMutation[] => {
+      const actionPath = normalizeFormActionPath(formAction);
+      const clientMutationId =
+        normalizeNullableFormValue(getFormString(formData, 'clientMutationId')) ??
+        fallbackMutationId;
+
+      if (actionPath === '/wishlist') {
+        const intent = getFormString(formData, 'intent');
+        if (intent !== 'save' && intent !== 'save-add-another') return [];
+
+        const title = normalizeNullableFormValue(getFormString(formData, 'title'));
+        if (!title) return [];
+
+        const rawItemId = normalizeNullableFormValue(getFormString(formData, 'id'));
+        const itemId = rawItemId ?? `optimistic-item:${clientMutationId}`;
+        const existingItem = items.find((entry) => entry.id === rawItemId) ?? null;
+        const categoryId =
+          normalizeNullableFormValue(getFormString(formData, 'categoryId')) ?? null;
+        const imageAction =
+          normalizeNullableFormValue(getFormString(formData, 'imageAction')) ?? 'none';
+        const hasImage =
+          imageAction === 'remove'
+            ? false
+            : imageAction === 'upload' || imageAction === 'url'
+              ? true
+              : (existingItem?.hasImage ?? false);
+        const imageSource: WishlistItemImageSource | null =
+          imageAction === 'upload'
+            ? 'MANUAL_UPLOAD'
+            : imageAction === 'url'
+              ? 'MANUAL_URL'
+              : imageAction === 'remove'
+                ? null
+                : (existingItem?.imageSource ?? null);
+
+        return [
+          {
+            type: 'upsert',
+            clientMutationId,
+            itemId,
+            title,
+            note: normalizeNullableFormValue(getFormString(formData, 'note')),
+            url: normalizeNullableFormValue(getFormString(formData, 'url')),
+            itemType:
+              normalizeNullableFormValue(getFormString(formData, 'type')) ??
+              existingItem?.type ??
+              'text',
+            categoryId,
+            hasImage,
+            imageSource,
+            status: existingItem?.status ?? 'ACTIVE',
+            updatedAt: new Date(),
+          },
+        ];
+      }
+
+      if (actionPath?.startsWith('/wishlist/')) {
+        const intent = getFormString(formData, 'intent');
+        if (intent !== 'delete-wishlist-item') return [];
+        const itemId =
+          normalizeNullableFormValue(getFormString(formData, 'wishlistItemId')) ??
+          actionPath.replace('/wishlist/', '');
+        if (!itemId) return [];
+        return [
+          {
+            type: 'delete',
+            clientMutationId,
+            itemId,
+          },
+        ];
+      }
+
+      return [];
+    };
+
+    const fromFetchers = pendingFetchers.flatMap((fetcher, index) => {
+      if (!fetcher.formData) return [];
+      return collectPending(
+        fetcher.formData,
+        fetcher.formAction,
+        `fetcher-item-${index}`,
+      );
+    });
+
+    const fromNavigation =
+      navigation.state !== 'idle' && navigation.formData
+        ? collectPending(
+            navigation.formData,
+            navigation.formAction,
+            'navigation-item',
+          )
+        : [];
+
+    return [...fromFetchers, ...fromNavigation];
+  }, [items, navigation.formAction, navigation.formData, navigation.state, pendingFetchers]);
+
+  const optimisticItems = useMemo(
+    () =>
+      applyPendingItemMutations({
+        items,
+        pendingMutations: pendingItemMutations,
+        ownerId: user.id,
+      }),
+    [items, pendingItemMutations, user.id],
+  );
+
   const activeItems = useMemo(
     () =>
-      items
+      optimisticItems
         .filter((item) => isWishlistItemActive(item.status))
         .sort(compareItemsBySortOrder),
-    [items],
+    [optimisticItems],
   );
   const archivedItems = useMemo(
-    () => items.filter((item) => !isWishlistItemActive(item.status)),
-    [items],
+    () => optimisticItems.filter((item) => !isWishlistItemActive(item.status)),
+    [optimisticItems],
   );
 
   useEffect(() => {
@@ -508,7 +938,7 @@ export const Wishlist = ({
   const hasDefaultItems = activeItems.some((item) => item.categoryId === null);
   const categories = [
     { id: null, name: 'Default (Uncategorized)', order: -1 },
-    ...orderedCategories,
+    ...optimisticCategories,
   ].filter((category) => {
     if (category.id !== null) return true;
     if (isOwner) return true;
@@ -529,35 +959,32 @@ export const Wishlist = ({
     }
   }, [actionFetcher.state, actionFetcher.data]);
 
-  const reorderHandledRef = useRef(false);
   useEffect(() => {
     if (reorderFetcher.state !== 'idle') {
-      reorderHandledRef.current = false;
       return;
     }
 
-    if (reorderHandledRef.current) return;
-    if (!reorderFetcher.data) return;
-    reorderHandledRef.current = true;
+    const pendingMutation = pendingReorderMutationRef.current;
+    if (!pendingMutation) return;
 
-    if (!reorderFetcher.data.ok) {
+    const actionData = reorderFetcher.data;
+    if (
+      actionData?.clientMutationId &&
+      actionData.clientMutationId !== pendingMutation.clientMutationId
+    ) {
+      return;
+    }
+    pendingReorderMutationRef.current = null;
+
+    if (!actionData?.ok) {
       toast.error('Unable to save reorder', {
         description:
-          reorderFetcher.data.error ?? 'The list changed. Reloading latest order.',
+          actionData?.error ?? 'The list changed. Please try again.',
       });
-      setItems([...user.wishlistItems].sort(compareItemsBySortOrder));
-      setOrderedCategories(
-        [...user.wishlistCategories].sort((a, b) => a.order - b.order),
-      );
-      revalidator.revalidate();
+      setItems(pendingMutation.previousItems);
+      setOrderedCategories(pendingMutation.previousCategories);
     }
-  }, [
-    reorderFetcher.state,
-    reorderFetcher.data,
-    revalidator,
-    user.wishlistItems,
-    user.wishlistCategories,
-  ]);
+  }, [reorderFetcher.data, reorderFetcher.state]);
 
   const toggle = (id: string | null) => {
     setCollapsed((prev) => ({
@@ -566,26 +993,127 @@ export const Wishlist = ({
     }));
   };
 
-  const clearUndoTimer = () => {
+  const clearUndoTimer = useCallback(() => {
     if (undoTimerRef.current) {
       clearTimeout(undoTimerRef.current);
       undoTimerRef.current = null;
     }
-  };
+  }, []);
 
-  const submitStatusUpdate = (
-    itemId: string,
-    status: WishlistItemStatusValue,
-  ) => {
+  const clearRemovalState = useCallback((itemId: string) => {
+    if (lastRemovalRef.current?.itemId !== itemId) return;
+    if (lastRemovalRef.current?.toastId) {
+      toast.dismiss(lastRemovalRef.current.toastId);
+    }
+    lastRemovalRef.current = null;
+    clearUndoTimer();
+  }, [clearUndoTimer]);
+
+  const attachClientMutationIdToForm = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      const formElement = event.currentTarget;
+      const mutationId = createClientMutationId();
+      const existingInput = formElement.elements.namedItem(
+        'clientMutationId',
+      ) as HTMLInputElement | null;
+
+      if (existingInput) {
+        existingInput.value = mutationId;
+        return;
+      }
+
+      const hiddenInput = document.createElement('input');
+      hiddenInput.type = 'hidden';
+      hiddenInput.name = 'clientMutationId';
+      hiddenInput.value = mutationId;
+      formElement.append(hiddenInput);
+    },
+    [],
+  );
+
+  const rollbackStatusMutation = useCallback(
+    (mutation: PendingStatusMutation, errorMessage?: string) => {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === mutation.itemId
+            ? { ...item, status: mutation.previousStatus }
+            : item,
+        ),
+      );
+
+      if (
+        mutation.nextStatus === 'ARCHIVED' &&
+        mutation.previousStatus !== 'ARCHIVED'
+      ) {
+        clearRemovalState(mutation.itemId);
+        setShowEducation(false);
+      }
+
+      toast.error('Unable to update wishlist item', {
+        description: errorMessage ?? 'Please try again.',
+      });
+    },
+    [clearRemovalState],
+  );
+
+  const submitStatusUpdate = ({
+    itemId,
+    previousStatus,
+    status,
+  }: {
+    itemId: string;
+    previousStatus: WishlistItemStatusValue;
+    status: WishlistItemStatusValue;
+  }) => {
+    const clientMutationId = createClientMutationId();
+    pendingStatusMutationRef.current = {
+      itemId,
+      previousStatus,
+      nextStatus: status,
+      clientMutationId,
+    };
+
     const formData = new FormData();
     formData.set('intent', 'update-wishlist-item-status');
     formData.set('wishlistItemId', itemId);
     formData.set('status', status);
+    formData.set('clientMutationId', clientMutationId);
     statusUpdateFetcher.submit(formData, {
       method: 'post',
       action: '/wishlist/status',
     });
   };
+
+  useEffect(() => {
+    if (statusUpdateFetcher.state !== 'idle') return;
+    const pendingMutation = pendingStatusMutationRef.current;
+    if (!pendingMutation) return;
+
+    const actionData = statusUpdateFetcher.data;
+    if (
+      actionData?.clientMutationId &&
+      actionData.clientMutationId !== pendingMutation.clientMutationId
+    ) {
+      return;
+    }
+    pendingStatusMutationRef.current = null;
+
+    if (actionData?.ok) {
+      const confirmedStatus = actionData.status ?? pendingMutation.nextStatus;
+      if (confirmedStatus !== pendingMutation.nextStatus) {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === pendingMutation.itemId
+              ? { ...item, status: confirmedStatus }
+              : item,
+          ),
+        );
+      }
+      return;
+    }
+
+    rollbackStatusMutation(pendingMutation, actionData?.error);
+  }, [rollbackStatusMutation, statusUpdateFetcher.data, statusUpdateFetcher.state]);
 
   const handleUndo = () => {
     const removal = lastRemovalRef.current;
@@ -596,7 +1124,11 @@ export const Wishlist = ({
         item.id === removal.itemId ? { ...item, status: 'ACTIVE' } : item,
       ),
     );
-    submitStatusUpdate(removal.itemId, 'ACTIVE');
+    submitStatusUpdate({
+      itemId: removal.itemId,
+      previousStatus: 'ARCHIVED',
+      status: 'ACTIVE',
+    });
     if (removal.toastId) {
       toast.dismiss(removal.toastId);
     }
@@ -619,11 +1151,13 @@ export const Wishlist = ({
     itemId: string,
     status: WishlistItemStatusValue,
   ) => {
+    let previousStatus: WishlistItemStatusValue | null = null;
     setItems((prev) => {
       const index = prev.findIndex((item) => item.id === itemId);
       if (index === -1) return prev;
       const prevItem = prev[index];
       if (!prevItem) return prev;
+      previousStatus = prevItem.status;
       const next = [...prev];
       next[index] = { ...prevItem, status };
 
@@ -688,7 +1222,11 @@ export const Wishlist = ({
       return next;
     });
 
-    submitStatusUpdate(itemId, status);
+    submitStatusUpdate({
+      itemId,
+      previousStatus: previousStatus ?? 'ACTIVE',
+      status,
+    });
     return false;
   };
 
@@ -762,10 +1300,25 @@ export const Wishlist = ({
     }),
   );
 
-  const submitCategoryReorder = (ids: string[]) => {
+  const submitCategoryReorder = ({
+    ids,
+    previousItems,
+    previousCategories,
+  }: {
+    ids: string[];
+    previousItems: WishlistUser['wishlistItems'];
+    previousCategories: { id: string; name: string; order: number }[];
+  }) => {
+    const clientMutationId = createClientMutationId();
+    pendingReorderMutationRef.current = {
+      clientMutationId,
+      previousItems: cloneItemsSnapshot(previousItems),
+      previousCategories: cloneCategoriesSnapshot(previousCategories),
+    };
     const formData = new FormData();
     formData.set('intent', 'reorder-categories');
     formData.set('orderedCategoryIds', JSON.stringify(ids));
+    formData.set('clientMutationId', clientMutationId);
     reorderFetcher.submit(formData, {
       method: 'post',
       action: '/wishlist/reorder',
@@ -777,17 +1330,28 @@ export const Wishlist = ({
     targetCategoryId,
     sourceOrderedItemIds,
     targetOrderedItemIds,
+    previousItems,
+    previousCategories,
   }: {
     sourceCategoryId: string | null;
     targetCategoryId: string | null;
     sourceOrderedItemIds: string[];
     targetOrderedItemIds?: string[];
+    previousItems: WishlistUser['wishlistItems'];
+    previousCategories: { id: string; name: string; order: number }[];
   }) => {
+    const clientMutationId = createClientMutationId();
+    pendingReorderMutationRef.current = {
+      clientMutationId,
+      previousItems: cloneItemsSnapshot(previousItems),
+      previousCategories: cloneCategoriesSnapshot(previousCategories),
+    };
     const formData = new FormData();
     formData.set('intent', 'reorder-items');
     formData.set('sourceCategoryId', sourceCategoryId ?? '');
     formData.set('targetCategoryId', targetCategoryId ?? '');
     formData.set('sourceOrderedItemIds', JSON.stringify(sourceOrderedItemIds));
+    formData.set('clientMutationId', clientMutationId);
     if (targetOrderedItemIds) {
       formData.set('targetOrderedItemIds', JSON.stringify(targetOrderedItemIds));
     }
@@ -868,6 +1432,8 @@ export const Wishlist = ({
       }
 
       const nextCategoryIds = arrayMove(customCategoryIds, oldIndex, newIndex);
+      const previousItems = items;
+      const previousCategories = orderedCategories;
       const nextCategories = nextCategoryIds
         .map((id, order) => {
           const category = orderedCategories.find((entry) => entry.id === id);
@@ -877,7 +1443,11 @@ export const Wishlist = ({
         .filter(Boolean) as typeof orderedCategories;
 
       setOrderedCategories(nextCategories);
-      submitCategoryReorder(nextCategoryIds);
+      submitCategoryReorder({
+        ids: nextCategoryIds,
+        previousItems,
+        previousCategories,
+      });
       handleDragCancel();
       return;
     }
@@ -928,6 +1498,8 @@ export const Wishlist = ({
         : sourceIds;
 
       if (nextSourceIds.join('|') !== sourceIds.join('|')) {
+        const previousItems = items;
+        const previousCategories = orderedCategories;
         setItems((prev) =>
           applyCategoryItemOrder({
             prevItems: prev,
@@ -939,6 +1511,8 @@ export const Wishlist = ({
           sourceCategoryId,
           targetCategoryId,
           sourceOrderedItemIds: nextSourceIds,
+          previousItems,
+          previousCategories,
         });
       }
 
@@ -958,6 +1532,8 @@ export const Wishlist = ({
         targetIndex,
       });
 
+    const previousItems = items;
+    const previousCategories = orderedCategories;
     setItems((prev) => {
       const sourceUpdated = applyCategoryItemOrder({
         prevItems: prev,
@@ -976,6 +1552,8 @@ export const Wishlist = ({
       targetCategoryId,
       sourceOrderedItemIds: nextSourceIds,
       targetOrderedItemIds: nextTargetIds,
+      previousItems,
+      previousCategories,
     });
 
     handleDragCancel();
@@ -1075,7 +1653,7 @@ export const Wishlist = ({
                   key={item.id}
                   wishlistItem={item}
                   isOwner={isOwner}
-                  categories={user.wishlistCategories}
+                  categories={optimisticCategories}
                   disableClaims={isPublicView}
                   layout="default"
                   isReorderMode={false}
@@ -1119,7 +1697,11 @@ export const Wishlist = ({
               confirmText="Delete"
               onConfirm={() =>
                 actionFetcher.submit(
-                  { intent: 'delete', id: category.id! },
+                  {
+                    intent: 'delete',
+                    id: category.id!,
+                    clientMutationId: createClientMutationId(),
+                  },
                   {
                     method: 'post',
                     action: '/wishlist/categories',
@@ -1175,9 +1757,11 @@ export const Wishlist = ({
                   action="/wishlist/categories"
                   className="flex items-center gap-2"
                   onClick={(event) => event.stopPropagation()}
+                  onSubmit={attachClientMutationIdToForm}
                 >
                   <input type="hidden" name="intent" value="rename" />
                   <input type="hidden" name="id" value={category.id ?? ''} />
+                  <input type="hidden" name="clientMutationId" value="" />
                   <Input name="name" defaultValue={category.name} className="h-8" />
                   <Button
                     type="submit"
@@ -1240,19 +1824,19 @@ export const Wishlist = ({
         <WishlistItemEditor
           key={`quick-add-${quickAddCategoryId ?? 'default'}`}
           ref={quickAddEditorRef}
-          categories={user.wishlistCategories}
+          categories={optimisticCategories}
           defaultCategoryId={quickAddCategoryId}
           onStatusChange={handleStatusChange}
           showDefaultTrigger={false}
           hideFloatingTrigger
         />
       ) : null}
-      <WishlistHeader
-        isOwner={isOwner}
-        user={user}
-        displayName={displayName}
-        origin={origin}
-        publicShare={publicShare ?? null}
+        <WishlistHeader
+          isOwner={isOwner}
+          user={{ ...user, wishlistCategories: optimisticCategories }}
+          displayName={displayName}
+          origin={origin}
+          publicShare={publicShare ?? null}
         isPublicView={isPublicView}
         hideOwnerControls={isReorderMode}
         hideFloatingAddButton={isReorderMode}
@@ -1466,7 +2050,7 @@ export const Wishlist = ({
             <PastWishlistItems
               items={archivedItems}
               isOwner={isOwner}
-              categories={user.wishlistCategories}
+              categories={optimisticCategories}
               showEducation={showEducation}
               onDismissEducation={markEducationSeen}
               onViewPast={() => {
@@ -1627,7 +2211,7 @@ const WishlistShareDialog = ({
     if (!publicLinkRef.current) return;
     publicLinkRef.current.focus();
     publicLinkRef.current.select();
-  }, [activeShare?.token]);
+  }, [activeShare]);
 
   const resolvedOrigin =
     origin ??
@@ -1659,7 +2243,7 @@ const WishlistShareDialog = ({
         },
       );
       setTimeout(() => setCopiedType(null), 1500);
-    } catch (_error) {
+    } catch {
       toast.error('Unable to copy link');
     }
   };

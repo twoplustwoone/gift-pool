@@ -11,7 +11,6 @@ import {
   Form,
   useActionData,
   useFetcher,
-  useRevalidator,
 } from '@remix-run/react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -54,11 +53,12 @@ import {
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Flex, Text } from '#app/components/ui-kit';
 import { track } from '#app/utils/analytics.client.ts';
-import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
-import { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
+import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
 import { getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { type Toast } from '#app/utils/toast.server.ts';
+import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
+import { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
 import { type action } from './__wishlist-item-editor.server';
 
 const valueMinLength = 1;
@@ -177,11 +177,11 @@ export const WishlistItemEditor = React.forwardRef<
     ref,
   ) => {
     const hasId = Boolean(wishlistItem?.id);
-  const computedInitial: 'view' | 'edit' | 'create' =
-    initialMode === 'auto'
-      ? hasId
-        ? canEdit
-          ? 'edit'
+    const computedInitial: 'view' | 'edit' | 'create' =
+      initialMode === 'auto'
+        ? hasId
+          ? canEdit
+            ? 'edit'
             : 'view'
           : 'create'
         : initialMode === 'view'
@@ -246,7 +246,6 @@ export const WishlistItemEditor = React.forwardRef<
       toast?: Toast;
     }>();
     const statusPending = statusFetcher.state !== 'idle';
-    const revalidator = useRevalidator();
     const statusError =
       statusFetcher.state === 'idle'
         ? ((statusFetcher.data as any)?.error as string | undefined) ?? null
@@ -344,15 +343,8 @@ export const WishlistItemEditor = React.forwardRef<
           ((statusFetcher.data as any)?.status as WishlistItemStatusValue) ??
           currentStatus;
         setCurrentStatus(nextStatus);
-        revalidator.revalidate();
       }
-    }, [statusFetcher.data, statusFetcher.state, revalidator, currentStatus]);
-
-    useEffect(() => {
-      if (actionStatus === 'success') {
-        revalidator.revalidate();
-      }
-    }, [actionStatus, revalidator]);
+    }, [statusFetcher.data, statusFetcher.state, currentStatus]);
 
     const handleStatusChange = (status: WishlistItemStatusValue) => {
       if (!wishlistItem?.id) return;
@@ -363,14 +355,35 @@ export const WishlistItemEditor = React.forwardRef<
       formData.set('intent', 'update-wishlist-item-status');
       formData.set('wishlistItemId', wishlistItem.id);
       formData.set('status', status);
+      formData.set('clientMutationId', createClientMutationId());
       if (shouldSubmit) {
         statusFetcher.submit(formData, {
           method: 'post',
           action: '/wishlist/status',
         });
-        revalidator.revalidate();
       }
     };
+
+    const attachClientMutationId = React.useCallback(
+      (event: React.FormEvent<HTMLFormElement>) => {
+        const formElement = event.currentTarget;
+        const existing = formElement.elements.namedItem(
+          'clientMutationId',
+        ) as HTMLInputElement | null;
+        const mutationId = createClientMutationId();
+        if (existing) {
+          existing.value = mutationId;
+          return;
+        }
+
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'clientMutationId';
+        hiddenInput.value = mutationId;
+        formElement.append(hiddenInput);
+      },
+      [],
+    );
 
     const formId = React.useId();
 
@@ -874,7 +887,9 @@ export const WishlistItemEditor = React.forwardRef<
                 className="flex flex-col gap-4"
                 encType="multipart/form-data"
                 ref={formRef}
+                onSubmit={attachClientMutationId}
               >
+                <input type="hidden" name="clientMutationId" value="" />
                 {mode === 'create' ? (
                   <button
                     type="submit"

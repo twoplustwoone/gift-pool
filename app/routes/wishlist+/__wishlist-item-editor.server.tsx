@@ -88,6 +88,11 @@ export async function action({ request }: ActionFunctionArgs) {
   const intent = z
     .enum(['save', 'save-add-another'])
     .parse(formData.get('intent'));
+  const clientMutationIdRaw = formData.get('clientMutationId');
+  const clientMutationId =
+    typeof clientMutationIdRaw === 'string' && clientMutationIdRaw.trim().length > 0
+      ? clientMutationIdRaw.trim()
+      : null;
 
   const submission = await parseWithZod(formData, {
     schema: WishlistItemSchema.superRefine(async (data, ctx) => {
@@ -153,9 +158,15 @@ export async function action({ request }: ActionFunctionArgs) {
   });
 
   if (submission.status !== 'success') {
-    return json(submission.reply(), {
-      status: submission.status === 'error' ? 400 : 200,
-    });
+    return json(
+      {
+        ...submission.reply(),
+        clientMutationId,
+      },
+      {
+        status: submission.status === 'error' ? 400 : 200,
+      },
+    );
   }
 
   const {
@@ -234,7 +245,20 @@ export async function action({ request }: ActionFunctionArgs) {
         const categoryChanged = existingItem.categoryId !== nextCategoryId;
         if (!categoryChanged) {
           return prisma.wishlistItem.update({
-            select: { id: true, ownerId: true, categoryId: true, type: true },
+            select: {
+              id: true,
+              title: true,
+              ownerId: true,
+              note: true,
+              url: true,
+              type: true,
+              categoryId: true,
+              sortOrder: true,
+              updatedAt: true,
+              status: true,
+              image: true,
+              imageSource: true,
+            },
             where: { id: wishlistItemId },
             data: { ...dataWithImage, categoryId: nextCategoryId },
           });
@@ -247,7 +271,20 @@ export async function action({ request }: ActionFunctionArgs) {
 
         const updatedItem = await prisma.$transaction(async (tx) => {
           const updated = await tx.wishlistItem.update({
-            select: { id: true, ownerId: true, categoryId: true, type: true },
+            select: {
+              id: true,
+              title: true,
+              ownerId: true,
+              note: true,
+              url: true,
+              type: true,
+              categoryId: true,
+              sortOrder: true,
+              updatedAt: true,
+              status: true,
+              image: true,
+              imageSource: true,
+            },
             where: { id: wishlistItemId },
             data: {
               ...dataWithImage,
@@ -275,7 +312,20 @@ export async function action({ request }: ActionFunctionArgs) {
         });
 
         return prisma.wishlistItem.create({
-          select: { id: true, ownerId: true, categoryId: true, type: true },
+          select: {
+            id: true,
+            title: true,
+            ownerId: true,
+            note: true,
+            url: true,
+            type: true,
+            categoryId: true,
+            sortOrder: true,
+            updatedAt: true,
+            status: true,
+            image: true,
+            imageSource: true,
+          },
           data: {
             ownerId: userId,
             categoryId: nextCategoryId,
@@ -317,6 +367,21 @@ export async function action({ request }: ActionFunctionArgs) {
     {
       result: submission.reply(),
       intent,
+      item: {
+        id: savedItem.id,
+        title: savedItem.title,
+        ownerId: savedItem.ownerId,
+        note: savedItem.note,
+        url: savedItem.url,
+        type: savedItem.type,
+        categoryId: savedItem.categoryId,
+        sortOrder: savedItem.sortOrder,
+        updatedAt: savedItem.updatedAt,
+        status: savedItem.status,
+        hasImage: Boolean(savedItem.image),
+        imageSource: savedItem.imageSource,
+      },
+      clientMutationId,
       toast,
       imageError,
       imageAction,
