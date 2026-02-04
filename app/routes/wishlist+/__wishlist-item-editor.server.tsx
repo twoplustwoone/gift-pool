@@ -24,6 +24,58 @@ import { WishlistItemSchema } from './__wishlist-item-editor';
 
 const MAX_UPLOAD_SIZE = 1024 * 1024 * 10; // 10MB
 
+async function getNextSortOrderForCategory({
+  ownerId,
+  categoryId,
+}: {
+  ownerId: string;
+  categoryId: string | null;
+}) {
+  const max = await prisma.wishlistItem.aggregate({
+    where: { ownerId, categoryId },
+    _max: { sortOrder: true },
+  });
+
+  return (max._max.sortOrder ?? -1) + 1;
+}
+
+async function redensifyCategory({
+  tx,
+  ownerId,
+  categoryId,
+  excludeId,
+}: {
+  tx: Pick<typeof prisma, 'wishlistItem'>;
+  ownerId: string;
+  categoryId: string | null;
+  excludeId?: string;
+}) {
+  const items = await tx.wishlistItem.findMany({
+    where: {
+      ownerId,
+      categoryId,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true },
+    orderBy: [
+      { sortOrder: 'asc' },
+      { createdAt: 'asc' },
+      { id: 'asc' },
+    ],
+  });
+
+  if (items.length === 0) return;
+
+  await Promise.all(
+    items.map((item, index) =>
+      tx.wishlistItem.update({
+        where: { id: item.id },
+        data: { sortOrder: index },
+      }),
+    ),
+  );
+}
+
 export async function action({ request }: ActionFunctionArgs) {
   const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
@@ -124,6 +176,7 @@ export async function action({ request }: ActionFunctionArgs) {
         select: {
           id: true,
           ownerId: true,
+          categoryId: true,
           url: true,
           image: true,
           imageSource: true,
@@ -170,21 +223,67 @@ export async function action({ request }: ActionFunctionArgs) {
       ? { image: nextImage, imageSource: nextImageSource ?? null }
       : {}),
   };
+  const nextCategoryId = categoryId || null;
 
   const savedItem = wishlistItemId
-    ? await prisma.wishlistItem.update({
-        select: { id: true, ownerId: true, categoryId: true, type: true },
-        where: { id: wishlistItemId },
-        data: { ...dataWithImage, categoryId: categoryId || null },
-      })
-    : await prisma.wishlistItem.create({
-        select: { id: true, ownerId: true, categoryId: true, type: true },
-        data: {
+    ? await (async () => {
+        if (!existingItem) {
+          throw new Error('Wishlist item not found');
+        }
+
+        const categoryChanged = existingItem.categoryId !== nextCategoryId;
+        if (!categoryChanged) {
+          return prisma.wishlistItem.update({
+            select: { id: true, ownerId: true, categoryId: true, type: true },
+            where: { id: wishlistItemId },
+            data: { ...dataWithImage, categoryId: nextCategoryId },
+          });
+        }
+
+        const nextSortOrder = await getNextSortOrderForCategory({
           ownerId: userId,
-          categoryId: categoryId || null,
-          ...dataWithImage,
-        },
-      });
+          categoryId: nextCategoryId,
+        });
+
+        const updatedItem = await prisma.$transaction(async (tx) => {
+          const updated = await tx.wishlistItem.update({
+            select: { id: true, ownerId: true, categoryId: true, type: true },
+            where: { id: wishlistItemId },
+            data: {
+              ...dataWithImage,
+              categoryId: nextCategoryId,
+              sortOrder: nextSortOrder,
+            },
+          });
+
+          await redensifyCategory({
+            tx,
+            ownerId: userId,
+            categoryId: existingItem.categoryId,
+            excludeId: wishlistItemId,
+          });
+
+          return updated;
+        });
+
+        return updatedItem;
+      })()
+    : await (async () => {
+        const nextSortOrder = await getNextSortOrderForCategory({
+          ownerId: userId,
+          categoryId: nextCategoryId,
+        });
+
+        return prisma.wishlistItem.create({
+          select: { id: true, ownerId: true, categoryId: true, type: true },
+          data: {
+            ownerId: userId,
+            categoryId: nextCategoryId,
+            sortOrder: nextSortOrder,
+            ...dataWithImage,
+          },
+        });
+      })();
 
   let analyticsEventId: string | null = null;
   if (!existingItem && !imageError) {

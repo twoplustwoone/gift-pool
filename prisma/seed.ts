@@ -84,11 +84,12 @@ async function seed() {
           wishlistItems: {
             create: Array.from({
               length: faker.number.int({ min: 1, max: 3 }),
-            }).map(() => ({
+            }).map((_, index) => ({
               title: faker.commerce.productName(),
               url: faker.internet.url(),
               note: faker.commerce.productDescription(),
               type: 'text',
+              sortOrder: index,
             })),
           },
         },
@@ -134,6 +135,7 @@ async function seed() {
             url: 'https://example.com/katana',
             note: 'Engraved with Deadpool logo. Red + black colorway.',
             type: 'text',
+            sortOrder: 0,
           },
         ],
       },

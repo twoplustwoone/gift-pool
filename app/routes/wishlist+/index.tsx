@@ -44,6 +44,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
           url: true,
           type: true,
           updatedAt: true,
+          sortOrder: true,
           image: true,
           imageSource: true,
           status: true,

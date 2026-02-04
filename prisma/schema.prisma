@@ -276,6 +276,7 @@ model WishlistItem {
   id         String            @id @default(cuid())
   ownerId    String
   categoryId String?
+  sortOrder  Int
   title      String
   note       String?
   url        String?
@@ -288,6 +289,8 @@ model WishlistItem {
   owner      User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   category   WishlistCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   purchase   WishlistPurchase?
+
+  @@index([ownerId, categoryId, sortOrder])
 }
 
 model WishlistPurchase {
