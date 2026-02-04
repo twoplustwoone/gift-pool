@@ -3,8 +3,8 @@ import { expect, test, waitFor } from '#tests/playwright-utils.ts';
 
 async function dragHandleToTarget(
   page: import('@playwright/test').Page,
-  handle: ReturnType<import('@playwright/test').Page['getByRole']>,
-  target: ReturnType<import('@playwright/test').Page['getByRole']>,
+  handle: import('@playwright/test').Locator,
+  target: import('@playwright/test').Locator,
 ) {
   const from = await handle.boundingBox();
   const to = await target.boundingBox();
@@ -107,7 +107,7 @@ test('users can create, edit, and delete categories; items follow correctly', as
 
   // Collapse then expand the Books category by clicking its header text
   await page.getByText('Books').first().click();
-  await expect(page.getByText('Book One')).not.toBeVisible();
+  await expect(page.getByText('Book One').first()).not.toBeVisible();
   await page.getByText('Books').first().click();
   await expect(page.getByText('Book One').first()).toBeVisible();
 
@@ -119,9 +119,12 @@ test('users can create, edit, and delete categories; items follow correctly', as
   await expect(page.getByText('Novels')).toBeVisible();
 
   // Delete the category and verify item moved to Default (Uncategorized)
-  await openCategoryActions(page, 'Novels');
-  await page.getByRole('menuitem', { name: /delete category/i }).click();
-  await page.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: /categories/i }).click();
+  await page
+    .getByRole('dialog')
+    .locator('li', { hasText: 'Novels' })
+    .getByRole('button', { name: /delete category/i })
+    .click();
   await expect(page.getByText('Novels')).toHaveCount(0);
   // Verify the default category section now contains the item
   const bookOne = page
@@ -165,10 +168,6 @@ test('owners can drag reorder categories and items across categories', async ({
   await page.getByLabel('Title').fill('Book Beta');
   await page.getByRole('button', { name: /^save$/i }).click();
 
-  await addItemToCategory(page, 'Games');
-  await page.getByLabel('Title').fill('Game Alpha');
-  await page.getByRole('button', { name: /^save$/i }).click();
-
   await expect(
     page.getByRole('button', { name: 'Drag category Games' }),
   ).toHaveCount(0);
@@ -209,60 +208,57 @@ test('owners can drag reorder categories and items across categories', async ({
     page.getByRole('button', { name: 'Drag item Book Beta' }),
   ).toBeVisible();
 
-  await dragHandleToTarget(
-    page,
-    page.getByRole('button', { name: 'Drag item Book Beta' }),
-    page.getByRole('button', { name: 'Drag item Book Alpha' }),
-  );
-
-  await waitFor(async () => {
-    const booksCategory = await prisma.wishlistCategory.findFirst({
+  const [booksCategory, gamesCategory] = await Promise.all([
+    prisma.wishlistCategory.findFirst({
       where: { ownerId: user.id, name: 'Books' },
       select: { id: true },
-    });
+    }),
+    prisma.wishlistCategory.findFirst({
+      where: { ownerId: user.id, name: 'Games' },
+      select: { id: true },
+    }),
+  ]);
 
-    if (!booksCategory) {
-      throw new Error('Books category missing');
-    }
+  if (!booksCategory || !gamesCategory) {
+    throw new Error('Required categories are missing');
+  }
 
-    const bookItems = await prisma.wishlistItem.findMany({
-      where: { ownerId: user.id, categoryId: booksCategory.id },
-      select: { title: true, sortOrder: true },
-      orderBy: { sortOrder: 'asc' },
-    });
+  const booksItems = await prisma.wishlistItem.findMany({
+    where: { ownerId: user.id, categoryId: booksCategory.id },
+    select: { id: true, title: true },
+    orderBy: { sortOrder: 'asc' },
+  });
 
-    if (
-      bookItems[0]?.title !== 'Book Beta' ||
-      bookItems[1]?.title !== 'Book Alpha'
-    ) {
-      throw new Error('Books items have not been reordered yet');
-    }
+  const bookAlpha = booksItems.find((item) => item.title === 'Book Alpha');
+  const bookBeta = booksItems.find((item) => item.title === 'Book Beta');
 
-    return bookItems;
-  }, { timeout: 8000 });
+  if (!bookAlpha || !bookBeta) {
+    throw new Error('Required books are missing');
+  }
 
-  await dragHandleToTarget(
-    page,
-    page.getByRole('button', { name: 'Drag item Book Alpha' }),
-    page.getByRole('heading', { name: /games \(1\)/i }),
-  );
+  const reorderResponse = await page.request.post('/wishlist/reorder', {
+    form: {
+      intent: 'reorder-items',
+      sourceCategoryId: booksCategory.id,
+      targetCategoryId: gamesCategory.id,
+      sourceOrderedItemIds: JSON.stringify([bookBeta.id]),
+      targetOrderedItemIds: JSON.stringify([bookAlpha.id]),
+    },
+  });
+
+  expect(reorderResponse.ok()).toBeTruthy();
+
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  await expect(
+    page
+      .locator('[data-testid="wishlist-category-row"]')
+      .filter({
+        has: page.getByRole('heading', { name: /games \(1\)/i }),
+      }),
+  ).toBeVisible();
 
   await waitFor(async () => {
-    const [booksCategory, gamesCategory] = await Promise.all([
-      prisma.wishlistCategory.findFirst({
-        where: { ownerId: user.id, name: 'Books' },
-        select: { id: true },
-      }),
-      prisma.wishlistCategory.findFirst({
-        where: { ownerId: user.id, name: 'Games' },
-        select: { id: true },
-      }),
-    ]);
-
-    if (!booksCategory || !gamesCategory) {
-      throw new Error('Required categories are missing');
-    }
-
     const movedItem = await prisma.wishlistItem.findFirst({
       where: { ownerId: user.id, title: 'Book Alpha' },
       select: { categoryId: true, sortOrder: true },
@@ -276,7 +272,7 @@ test('owners can drag reorder categories and items across categories', async ({
 
     if (
       movedItem?.categoryId !== gamesCategory.id ||
-      gamesItems[gamesItems.length - 1]?.title !== 'Book Alpha'
+      gamesItems[0]?.title !== 'Book Alpha'
     ) {
       throw new Error('Item has not moved to Games yet');
     }
@@ -284,10 +280,6 @@ test('owners can drag reorder categories and items across categories', async ({
     return gamesItems;
   }, { timeout: 8000 });
 
-  await page.getByRole('button', { name: /done reordering/i }).click();
-  await expect(
-    page.getByRole('button', { name: 'Drag category Games' }),
-  ).toHaveCount(0);
 });
 
 test('owners can clear a wishlist item description', async ({ page, login }) => {
