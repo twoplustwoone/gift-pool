@@ -105,6 +105,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
           note: true,
           categoryId: true,
           updatedAt: true,
+          sortOrder: true,
           purchase: { select: { purchasedById: true } },
           image: true,
           imageSource: true,

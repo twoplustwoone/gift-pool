@@ -67,6 +67,7 @@ test('friends can claim a gift and owner cannot see the claim', async ({
       title: 'Coffee Grinder',
       type: 'text',
       note: 'Conical burr grinder',
+      sortOrder: 0,
     },
   });
 

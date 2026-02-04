@@ -56,6 +56,7 @@ test('public link renders read-only wishlist with claimed state visible', async 
       title: 'Public Claimed Item',
       type: 'text',
       note: 'Should show claimed badge',
+      sortOrder: 0,
     },
   });
   const openItem = await prisma.wishlistItem.create({
@@ -65,6 +66,7 @@ test('public link renders read-only wishlist with claimed state visible', async 
       title: 'Public Open Item',
       type: 'text',
       note: 'Should remain open',
+      sortOrder: 1,
     },
   });
 
@@ -118,7 +120,14 @@ test('revoking and regenerating public link rotates token and invalidates old li
       roles: connectUserRole,
       password: { create: createPassword(ownerData.username) },
       wishlistItems: {
-        create: [{ title: 'Rotate Link Item', type: 'text', note: 'Public view' }],
+        create: [
+          {
+            title: 'Rotate Link Item',
+            type: 'text',
+            note: 'Public view',
+            sortOrder: 0,
+          },
+        ],
       },
     },
   });

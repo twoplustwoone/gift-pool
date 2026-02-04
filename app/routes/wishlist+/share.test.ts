@@ -37,6 +37,7 @@ async function createOwnerWithSession() {
       title: 'Shared item',
       type: 'text',
       ownerId: user.id,
+      sortOrder: 0,
     },
   });
 
