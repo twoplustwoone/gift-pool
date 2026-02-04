@@ -1,5 +1,10 @@
-import { Link, useFetcher, useRouteLoaderData } from '@remix-run/react';
-import { LuUserPlus } from 'react-icons/lu';
+import {
+  Link,
+  useFetcher,
+  useFetchers,
+  useRouteLoaderData,
+} from '@remix-run/react';
+import { useMemo } from 'react';
 
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
@@ -9,21 +14,88 @@ import { Card } from '#app/components/ui/card.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { type loader as routeLoader } from './__route.server';
 
+const SETTINGS_MEMBER_INTENTS = new Set([
+  'member-promote-admin',
+  'member-demote-member',
+  'member-remove',
+  'ownership-transfer',
+]);
+
+const getPathname = (action: string | undefined) => {
+  if (!action) return null;
+  try {
+    return new URL(action, 'http://localhost').pathname;
+  } catch {
+    return action;
+  }
+};
+
 const GroupMembersRoute = () => {
   const { giftGroup, viewer } = useRouteLoaderData<typeof routeLoader>(
     'routes/groups+/$giftGroupId_+/_layout',
   )!;
   const fetcher = useFetcher();
+  const fetchers = useFetchers();
+  const settingsAction = `/groups/${giftGroup.id}/settings`;
+  const optimisticMembers = useMemo(() => {
+    let nextMembers = [...giftGroup.groupMembers];
+    for (const pending of fetchers) {
+      if (!pending.formData || pending.formMethod?.toLowerCase() !== 'post') {
+        continue;
+      }
+      if (getPathname(pending.formAction) !== settingsAction) continue;
+      const intent = pending.formData.get('intent');
+      if (typeof intent !== 'string' || !SETTINGS_MEMBER_INTENTS.has(intent)) {
+        continue;
+      }
 
-  const totalMembers = giftGroup.groupMembers.length;
+      if (intent === 'member-remove') {
+        const memberUserId = pending.formData.get('memberUserId');
+        if (typeof memberUserId !== 'string') continue;
+        nextMembers = nextMembers.filter((m) => m.user.id !== memberUserId);
+        continue;
+      }
+
+      if (intent === 'ownership-transfer') {
+        const newOwnerUserId = pending.formData.get('newOwnerUserId');
+        if (typeof newOwnerUserId !== 'string') continue;
+        nextMembers = nextMembers.map((member) => {
+          if (member.user.id === newOwnerUserId) {
+            return { ...member, role: 'OWNER' };
+          }
+          if (member.role === 'OWNER') {
+            return { ...member, role: 'ADMIN' };
+          }
+          return member;
+        });
+        continue;
+      }
+
+      const memberUserId = pending.formData.get('memberUserId');
+      if (typeof memberUserId !== 'string') continue;
+      nextMembers = nextMembers.map((member) => {
+        if (member.user.id !== memberUserId) return member;
+        return {
+          ...member,
+          role: intent === 'member-promote-admin' ? 'ADMIN' : 'MEMBER',
+        };
+      });
+    }
+    return nextMembers;
+  }, [fetchers, giftGroup.groupMembers, settingsAction]);
+  const optimisticViewerRole =
+    optimisticMembers.find((member) => member.user.id === viewer.userId)
+      ?.role ?? viewer.role;
+  const totalMembers = optimisticMembers.length;
 
   const sumBudgetForRecipient = (userId: string) =>
-    giftGroup.groupMembers
+    optimisticMembers
       .filter((gm) => gm.user.id !== userId)
       .reduce((acc, gm) => acc + (gm.contributionCents ?? 0), 0);
 
-  const canOwner = viewer.role === 'OWNER';
-  const canAdmin = viewer.role === 'OWNER' || viewer.role === 'ADMIN';
+  const canOwner = optimisticViewerRole === 'OWNER';
+  const canAdmin =
+    optimisticViewerRole === 'OWNER' || optimisticViewerRole === 'ADMIN';
 
   return (
     <Card padding="lg">
@@ -34,7 +106,7 @@ const GroupMembersRoute = () => {
         Manage members and their gift budgets
       </div>
       <ul className="divide-y divide-border rounded-xl border bg-subcard">
-        {giftGroup.groupMembers.map((m) => {
+        {optimisticMembers.map((m) => {
           const isViewer = m.user.id === viewer.userId;
           const giftBudget = sumBudgetForRecipient(m.user.id);
           const birthday = m.user.birthday

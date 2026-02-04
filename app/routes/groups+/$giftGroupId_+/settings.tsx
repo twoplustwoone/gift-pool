@@ -10,7 +10,13 @@ import {
   json,
   type LoaderFunctionArgs,
 } from '@remix-run/node';
-import { Form, useActionData, useLoaderData } from '@remix-run/react';
+import {
+  Form,
+  useActionData,
+  useFetcher,
+  useFetchers,
+  useLoaderData,
+} from '@remix-run/react';
 import * as React from 'react';
 import { z } from 'zod';
 import { ErrorList } from '#app/components/forms.tsx';
@@ -255,6 +261,22 @@ export enum SettingsIntent {
   MemberUpdateSelf = 'member-update-self',
   DeleteGroup = 'delete-group',
 }
+
+const SETTINGS_MEMBER_INTENTS = new Set<string>([
+  SettingsIntent.MemberPromoteAdmin,
+  SettingsIntent.MemberDemoteMember,
+  SettingsIntent.MemberRemove,
+  SettingsIntent.OwnershipTransfer,
+]);
+
+const getPathname = (action: string | undefined) => {
+  if (!action) return null;
+  try {
+    return new URL(action, 'http://localhost').pathname;
+  } catch {
+    return action;
+  }
+};
 
 const UpdateSettingsSchema = z.object({
   intent: z.literal(SettingsIntent.UpdateSettings),
@@ -519,14 +541,70 @@ const GroupSettingsRoute = () => {
     giftGroup,
     canDelete,
     canLeave,
-    canPromote,
-    canDemote,
-    canRemove,
-    canBan,
-    canTransfer,
     viewerMember,
   } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
+  const fetchers = useFetchers();
+  const memberActionFetcher = useFetcher<typeof action>();
+  const settingsAction = `/groups/${giftGroup.id}/settings`;
+  const optimisticMembers = React.useMemo(() => {
+    let nextMembers = [...giftGroup.groupMembers];
+    for (const pending of fetchers) {
+      if (!pending.formData || pending.formMethod?.toLowerCase() !== 'post') {
+        continue;
+      }
+      if (getPathname(pending.formAction) !== settingsAction) continue;
+      const intent = pending.formData.get('intent');
+      if (typeof intent !== 'string' || !SETTINGS_MEMBER_INTENTS.has(intent)) {
+        continue;
+      }
+
+      if (intent === SettingsIntent.MemberRemove) {
+        const memberUserId = pending.formData.get('memberUserId');
+        if (typeof memberUserId !== 'string') continue;
+        nextMembers = nextMembers.filter((m) => m.userId !== memberUserId);
+        continue;
+      }
+
+      if (intent === SettingsIntent.OwnershipTransfer) {
+        const newOwnerUserId = pending.formData.get('newOwnerUserId');
+        if (typeof newOwnerUserId !== 'string') continue;
+        nextMembers = nextMembers.map((member) => {
+          if (member.userId === newOwnerUserId) {
+            return { ...member, role: 'OWNER' };
+          }
+          if (member.role === 'OWNER') {
+            return { ...member, role: 'ADMIN' };
+          }
+          return member;
+        });
+        continue;
+      }
+
+      const memberUserId = pending.formData.get('memberUserId');
+      if (typeof memberUserId !== 'string') continue;
+      nextMembers = nextMembers.map((member) => {
+        if (member.userId !== memberUserId) return member;
+        return {
+          ...member,
+          role:
+            intent === SettingsIntent.MemberPromoteAdmin ? 'ADMIN' : 'MEMBER',
+        };
+      });
+    }
+    return nextMembers;
+  }, [fetchers, giftGroup.groupMembers, settingsAction]);
+  const optimisticViewerRole =
+    optimisticMembers.find((m) => m.userId === viewerMember?.userId)?.role ??
+    viewerMember?.role ??
+    'MEMBER';
+  const canTransfer = optimisticViewerRole === 'OWNER';
+  const canPromote = optimisticViewerRole === 'OWNER';
+  const canDemote = optimisticViewerRole === 'OWNER';
+  const canRemove =
+    optimisticViewerRole === 'OWNER' || optimisticViewerRole === 'ADMIN';
+  const canBan =
+    optimisticViewerRole === 'OWNER' || optimisticViewerRole === 'ADMIN';
 
   return (
     <div className="space-y-6">
@@ -561,7 +639,10 @@ const GroupSettingsRoute = () => {
           <div className="mb-4 text-sm text-muted-foreground">
             Make another admin the owner of this group
           </div>
-          <TransferOwnershipForm giftGroup={giftGroup} />
+          <TransferOwnershipForm
+            giftGroupId={giftGroup.id}
+            members={optimisticMembers}
+          />
         </div>
       ) : null}
 
@@ -572,7 +653,7 @@ const GroupSettingsRoute = () => {
           Promote or demote admins, remove or ban members
         </div>
         <ul className="divide-y divide-border rounded-md border">
-          {giftGroup.groupMembers.map((m: any) => {
+          {optimisticMembers.map((m: any) => {
             const isViewer = m.userId === viewerMember?.userId;
             return (
               <li
@@ -597,7 +678,7 @@ const GroupSettingsRoute = () => {
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Promote / Demote (owner only) */}
                   {canPromote && m.role === 'MEMBER' && !isViewer ? (
-                    <Form method="post">
+                    <memberActionFetcher.Form method="post" action={settingsAction}>
                       <input
                         type="hidden"
                         name="giftGroupId"
@@ -616,10 +697,10 @@ const GroupSettingsRoute = () => {
                       >
                         Promote to Admin
                       </Button>
-                    </Form>
+                    </memberActionFetcher.Form>
                   ) : null}
                   {canDemote && m.role === 'ADMIN' && !isViewer ? (
-                    <Form method="post">
+                    <memberActionFetcher.Form method="post" action={settingsAction}>
                       <input
                         type="hidden"
                         name="giftGroupId"
@@ -638,7 +719,7 @@ const GroupSettingsRoute = () => {
                       >
                         Demote to Member
                       </Button>
-                    </Form>
+                    </memberActionFetcher.Form>
                   ) : null}
 
                   <MemberActions
@@ -790,10 +871,12 @@ const MemberActions = ({
   canRemove: boolean;
   canBan: boolean;
 }) => {
+  const fetcher = useFetcher<typeof action>();
+  const settingsAction = `/groups/${giftGroupId}/settings`;
   return (
     <div className="flex items-center gap-2">
       {canRemove && (
-        <Form method="post">
+        <fetcher.Form method="post" action={settingsAction}>
           <input type="hidden" name="giftGroupId" value={giftGroupId} />
           <input type="hidden" name="memberUserId" value={memberUserId} />
           <Button
@@ -803,10 +886,10 @@ const MemberActions = ({
           >
             Remove
           </Button>
-        </Form>
+        </fetcher.Form>
       )}
       {canBan && (
-        <Form method="post">
+        <fetcher.Form method="post" action={settingsAction}>
           <input type="hidden" name="giftGroupId" value={giftGroupId} />
           <input type="hidden" name="memberUserId" value={memberUserId} />
           {bannedUntil ? (
@@ -835,7 +918,7 @@ const MemberActions = ({
               </Button>
             </>
           )}
-        </Form>
+        </fetcher.Form>
       )}
     </div>
   );
@@ -1037,16 +1120,24 @@ const MemberPreferencesForm = ({
   );
 };
 
-const TransferOwnershipForm = ({ giftGroup }: { giftGroup: any }) => {
+const TransferOwnershipForm = ({
+  giftGroupId,
+  members,
+}: {
+  giftGroupId: string;
+  members: Array<{ userId: string; role: string; user: { username: string } }>;
+}) => {
+  const fetcher = useFetcher<typeof action>();
   const [form] = useForm({ id: 'transfer-owner' });
-  const admins = giftGroup.groupMembers.filter((m: any) => m.role === 'ADMIN');
+  const admins = members.filter((m) => m.role === 'ADMIN');
   return (
-    <Form
+    <fetcher.Form
       method="post"
+      action={`/groups/${giftGroupId}/settings`}
       {...getFormProps(form)}
       className="flex items-center gap-2"
     >
-      <input type="hidden" name="giftGroupId" value={giftGroup.id} />
+      <input type="hidden" name="giftGroupId" value={giftGroupId} />
       <Select name="newOwnerUserId">
         <SelectTrigger>
           <SelectValue placeholder="Select admin" />
@@ -1062,6 +1153,6 @@ const TransferOwnershipForm = ({ giftGroup }: { giftGroup: any }) => {
       <Button name="intent" value={SettingsIntent.OwnershipTransfer}>
         Transfer
       </Button>
-    </Form>
+    </fetcher.Form>
   );
 };
