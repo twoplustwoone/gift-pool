@@ -1,10 +1,11 @@
+import { type Page, type Locator } from '@playwright/test';
 import { prisma } from '#app/utils/db.server.ts';
 import { expect, test, waitFor } from '#tests/playwright-utils.ts';
 
 async function dragHandleToTarget(
-  page: import('@playwright/test').Page,
-  handle: import('@playwright/test').Locator,
-  target: import('@playwright/test').Locator,
+  page: Page,
+  handle: Locator,
+  target: Locator,
 ) {
   const from = await handle.boundingBox();
   const to = await target.boundingBox();
@@ -21,7 +22,7 @@ async function dragHandleToTarget(
 }
 
 const openCategoryActions = async (
-  page: import('@playwright/test').Page,
+  page: Page,
   categoryName: string,
 ) => {
   await page
@@ -30,7 +31,7 @@ const openCategoryActions = async (
 };
 
 const startReorderMode = async (
-  page: import('@playwright/test').Page,
+  page: Page,
   mode: 'items' | 'categories',
 ) => {
   await page.getByRole('button', { name: /categories/i }).click();
@@ -42,7 +43,7 @@ const startReorderMode = async (
 };
 
 const addItemToCategory = async (
-  page: import('@playwright/test').Page,
+  page: Page,
   categoryName: string,
 ) => {
   await openCategoryActions(page, categoryName);
@@ -252,7 +253,7 @@ test('owners can drag reorder categories and items across categories', async ({
   await page.waitForLoadState('networkidle');
   await expect(
     page
-      .locator('[data-testid="wishlist-category-row"]')
+      .getByTestId("wishlist-category-row")
       .filter({
         has: page.getByRole('heading', { name: /games \(1\)/i }),
       }),
