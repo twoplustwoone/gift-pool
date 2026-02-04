@@ -83,11 +83,84 @@ describe('WishlistItem', () => {
       />,
     );
 
-    const trigger = screen.getByRole('button', { name: /item one/i });
+    const trigger = screen
+      .getAllByTestId('wishlist-item-row')
+      .find((element) => element.getAttribute('role') === 'button');
+    if (!trigger) {
+      throw new Error('Expected mobile wishlist row trigger');
+    }
 
     fireEvent.pointerDown(trigger, { pointerType: 'touch', clientX: 0, clientY: 0 });
     fireEvent.pointerUp(trigger, { pointerType: 'touch' });
 
     expect(mockOpenView).toHaveBeenCalledWith({ fromTrigger: true });
+  });
+
+  it('renders owner row hooks and action menu without opening viewer', () => {
+    render(
+      <WishlistItem
+        isOwner
+        categories={[]}
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Item one',
+          note: 'A note',
+          url: null,
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    const row = screen.getAllByTestId('wishlist-item-row')[0];
+    expect(row).toHaveAttribute('data-drag-state', 'idle');
+    const actionsButton = screen.getAllByRole('button', {
+      name: /item actions for item one/i,
+    })[0];
+    if (!actionsButton) {
+      throw new Error('Expected item actions button');
+    }
+    fireEvent.click(actionsButton);
+    expect(mockOpenView).not.toHaveBeenCalled();
+  });
+
+  it('disables owner row open behavior and hides actions in reorder mode', () => {
+    render(
+      <WishlistItem
+        isOwner
+        categories={[]}
+        layout="reorder"
+        isReorderMode
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Item one',
+          note: 'A note',
+          url: null,
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    const trigger = screen
+      .getAllByTestId('wishlist-item-row')
+      .find((element) => element.getAttribute('role') === 'button');
+    if (!trigger) {
+      throw new Error('Expected mobile wishlist row trigger');
+    }
+
+    fireEvent.pointerDown(trigger, { pointerType: 'touch', clientX: 0, clientY: 0 });
+    fireEvent.pointerUp(trigger, { pointerType: 'touch' });
+
+    expect(mockOpenView).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('button', { name: /item actions for item one/i }),
+    ).not.toBeInTheDocument();
   });
 });

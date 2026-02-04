@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { createRemixStub } from '@remix-run/testing';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { vi, describe, it, expect } from 'vitest';
 import { Wishlist } from './index';
 
@@ -65,7 +65,20 @@ vi.mock('#app/routes/wishlist+/__wishlist-item-editor', () => {
 });
 
 vi.mock('./category-manager', () => ({
-  CategoryManager: () => <div />,
+  CategoryManager: ({ onStartItemReorder, onStartCategoryReorder }: any) => (
+    <div>
+      {onStartItemReorder ? (
+        <button type="button" onClick={onStartItemReorder}>
+          Start item reorder
+        </button>
+      ) : null}
+      {onStartCategoryReorder ? (
+        <button type="button" onClick={onStartCategoryReorder}>
+          Start category reorder
+        </button>
+      ) : null}
+    </div>
+  ),
 }));
 
 describe('Wishlist components', () => {
@@ -90,6 +103,7 @@ describe('Wishlist components', () => {
                   url: null,
                   type: 'text',
                   categoryId: null,
+                  sortOrder: 0,
                   updatedAt: new Date(),
                   status: 'ACTIVE',
                 },
@@ -181,6 +195,7 @@ describe('Wishlist components', () => {
                   type: 'text',
                   categoryId: null,
                   purchase: { purchasedById: 'someone-else' },
+                  sortOrder: 0,
                   updatedAt: new Date(),
                   status: 'ACTIVE',
                 },
@@ -193,6 +208,7 @@ describe('Wishlist components', () => {
                   type: 'text',
                   categoryId: null,
                   purchase: null,
+                  sortOrder: 1,
                   updatedAt: new Date(),
                   status: 'ACTIVE',
                 },
@@ -296,6 +312,7 @@ describe('Wishlist components', () => {
                   type: 'text',
                   categoryId: null,
                   purchase: null,
+                  sortOrder: 0,
                   updatedAt: new Date(),
                   status: 'ACTIVE',
                 },
@@ -362,6 +379,7 @@ describe('Wishlist components', () => {
                   type: 'text',
                   categoryId: null,
                   purchase: null,
+                  sortOrder: 0,
                   updatedAt: new Date(),
                   status: 'ACTIVE',
                 },
@@ -403,6 +421,7 @@ describe('Wishlist components', () => {
                   type: 'text',
                   categoryId: null,
                   purchase: { purchasedById: 'user1' },
+                  sortOrder: 0,
                   updatedAt: new Date(),
                   status: 'ACTIVE',
                 },
@@ -444,6 +463,7 @@ describe('Wishlist components', () => {
                   type: 'text',
                   categoryId: null,
                   purchase: { purchasedById: 'someone-else' },
+                  sortOrder: 0,
                   updatedAt: new Date(),
                   status: 'ACTIVE',
                 },
@@ -460,6 +480,123 @@ describe('Wishlist components', () => {
     await screen.findByText(/someone already grabbed this/i);
     expect(
       screen.queryByRole('button', { name: /grab this/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows reorder handles for owners only after entering reorder mode', async () => {
+    const App = createRemixStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner
+            user={{
+              id: 'user11',
+              username: 'jane',
+              name: 'Jane',
+              image: { id: 'img1' },
+              wishlistItems: [
+                {
+                  id: 'item-1',
+                  title: 'Item One',
+                  ownerId: 'user11',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                  categoryId: 'cat-1',
+                  sortOrder: 0,
+                  updatedAt: new Date(),
+                  status: 'ACTIVE',
+                },
+              ],
+              wishlistCategories: [{ id: 'cat-1', name: 'Books', order: 0 }],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    expect(
+      screen.queryByRole('button', { name: /drag category books/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /drag item item one/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /start item reorder/i }));
+    await screen.findByRole('button', { name: /drag item item one/i });
+    expect(
+      screen.queryByRole('button', { name: /category actions for books/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /category reorder mode/i }));
+    await screen.findByRole('button', { name: /drag category books/i });
+    expect(
+      screen.queryByRole('button', { name: /drag item item one/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /done reordering/i }));
+    expect(
+      screen.queryByRole('button', { name: /drag category books/i }),
+    ).not.toBeInTheDocument();
+
+    await screen.findByRole('button', { name: /category actions for books/i });
+    expect(screen.getAllByRole('button', { name: /item actions for item one/i })).toHaveLength(2);
+
+    const categoryRows = await screen.findAllByTestId('wishlist-category-row');
+    expect(categoryRows[0]).toHaveAttribute('data-drag-state', 'idle');
+    const itemRows = await screen.findAllByTestId('wishlist-item-row');
+    expect(itemRows[0]).toHaveAttribute('data-drag-state', 'idle');
+  });
+
+  it('does not show drag handles for viewers', async () => {
+    const App = createRemixStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={false}
+            user={{
+              id: 'user12',
+              username: 'jim',
+              name: 'Jim',
+              image: { id: 'img1' },
+              wishlistItems: [
+                {
+                  id: 'item-1',
+                  title: 'Item One',
+                  ownerId: 'user11',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                  categoryId: null,
+                  sortOrder: 0,
+                  updatedAt: new Date(),
+                  status: 'ACTIVE',
+                },
+              ],
+              wishlistCategories: [{ id: 'cat-1', name: 'Books', order: 0 }],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    expect(
+      screen.queryByRole('button', { name: /drag category/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /drag item/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /category actions for/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /item actions for/i }),
     ).not.toBeInTheDocument();
   });
 });
