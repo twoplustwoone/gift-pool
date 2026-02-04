@@ -140,6 +140,8 @@ type EditorProps = {
   categories?: { id: string; name: string }[];
   defaultCategoryId?: string | null;
   viewExtras?: React.ReactNode;
+  showDefaultTrigger?: boolean;
+  hideFloatingTrigger?: boolean;
   onStatusChange?: (
     itemId: string,
     status: WishlistItemStatusValue,
@@ -168,6 +170,8 @@ export const WishlistItemEditor = React.forwardRef<
       categories = [],
       defaultCategoryId = null,
       viewExtras,
+      showDefaultTrigger = true,
+      hideFloatingTrigger = false,
       onStatusChange,
     },
     ref,
@@ -682,7 +686,7 @@ export const WishlistItemEditor = React.forwardRef<
           <DialogTriggerComponent asChild>
             {trigger}
           </DialogTriggerComponent>
-        ) : !wishlistItem ? (
+        ) : !wishlistItem && showDefaultTrigger ? (
           <>
             {/* Desktop add button */}
             <DialogTriggerComponent asChild>
@@ -698,7 +702,7 @@ export const WishlistItemEditor = React.forwardRef<
               </Button>
             </DialogTriggerComponent>
             {/* Mobile FAB add button */}
-            {!open && (
+            {!open && !hideFloatingTrigger && (
               <DialogTriggerComponent asChild>
                 <Button
                   type="button"

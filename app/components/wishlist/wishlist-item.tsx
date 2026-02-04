@@ -22,6 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#app/components/ui/dialog.tsx';
+import { DropdownMenuItem } from '#app/components/ui/dropdown-menu.tsx';
 import {
   MobileBottomSheet,
   MobileBottomSheetContent,
@@ -46,17 +47,27 @@ import {
 import { Box, Text, Flex } from '../ui-kit';
 import { usePressFeedback } from './hooks/use-press-feedback.ts';
 import { WishlistStatusBadge, getWishlistStatusMeta } from './status';
+import {
+  WishlistRowActionsItem,
+  WishlistRowActionsMenu,
+} from './wishlist-row-actions';
 
 export const DeleteFormSchema = z.object({
   intent: z.literal('delete-wishlist-item'),
   wishlistItemId: z.string(),
 });
 
+export type WishlistItemOwnerLayout = 'default' | 'reorder';
+type WishlistItemDragState = 'idle' | 'dragging-item' | 'dragging-category';
+
 export const WishlistItem = ({
   wishlistItem,
   isOwner = false,
   categories = [],
   disableClaims = false,
+  layout = 'default',
+  isReorderMode = false,
+  dragState = 'idle',
   onStatusChange,
 }: {
   wishlistItem: (Pick<
@@ -81,6 +92,9 @@ export const WishlistItem = ({
   isOwner?: boolean;
   categories?: { id: string; name: string; order: number }[];
   disableClaims?: boolean;
+  layout?: WishlistItemOwnerLayout;
+  isReorderMode?: boolean;
+  dragState?: WishlistItemDragState;
   onStatusChange?: (
     itemId: string,
     status: WishlistItemStatusValue,
@@ -263,7 +277,7 @@ export const WishlistItem = ({
   };
 
   const press = usePressFeedback<HTMLDivElement>(
-    isOwner
+    isOwner && !isReorderMode
       ? {
           onClick: () => {
             editorRef.current?.openView({ fromTrigger: true });
@@ -395,6 +409,9 @@ export const WishlistItem = ({
         )}
         data-claimable={allowClaims && !isClaimed ? 'true' : undefined}
         data-pressed={press.pressed ? 'true' : 'false'}
+        data-testid="wishlist-item-row"
+        data-drag-state={dragState}
+        data-drop-target="false"
         {...press.rowProps}
       >
         <div className="flex h-full flex-col gap-3 px-4 py-3 sm:flex-row">
@@ -577,15 +594,63 @@ export const WishlistItem = ({
     );
   }
 
-  // ---------------- Owner: desktop trigger keeps click-to-edit behavior
   const imageBlock = renderImageBlock();
-  const DesktopTrigger = (
+  const isCompactLayout = layout === 'reorder';
+
+  const actionMenu = !isReorderMode ? (
+    <WishlistRowActionsMenu label={`Item actions for ${wishlistItem.title}`}>
+      <WishlistRowActionsItem
+        onSelect={() => {
+          editorRef.current?.openEdit();
+        }}
+      >
+        <LuPencil className="h-4 w-4 text-muted-foreground" aria-hidden />
+        Edit item
+      </WishlistRowActionsItem>
+      {onStatusChange ? (
+        <WishlistRowActionsItem
+          onSelect={() => {
+            onStatusChange(wishlistItem.id, 'ARCHIVED');
+          }}
+        >
+          <LuArchive className="h-4 w-4 text-muted-foreground" aria-hidden />
+          Move to past items
+        </WishlistRowActionsItem>
+      ) : null}
+      {canDelete ? (
+        <DeleteWishlistItem
+          id={wishlistItem.id}
+          trigger={
+            <DropdownMenuItem className="gap-2 rounded-md px-2 py-2 text-sm text-red-600 focus:text-red-700">
+              <LuTrash className="h-4 w-4" aria-hidden />
+              Delete item
+            </DropdownMenuItem>
+          }
+        />
+      ) : null}
+    </WishlistRowActionsMenu>
+  ) : null;
+
+  const desktopCardClass = cn(
+    'group min-w-0 rounded-xl border border-border/80 bg-card shadow-sm transition hover:border-border hover:shadow-md',
+    dragState === 'dragging-item' ? 'opacity-75' : '',
+    dragState === 'dragging-category' ? 'opacity-80' : '',
+  );
+
+  const DesktopTrigger = !isCompactLayout ? (
     <div className="hidden sm:block">
-      <Card variant="interactive" padding="md" className="group min-w-0">
+      <Card
+        variant="interactive"
+        padding="sm"
+        className={desktopCardClass}
+        data-testid="wishlist-item-row"
+        data-drag-state={dragState}
+        data-drop-target="false"
+      >
         <div className="flex gap-3">
           {imageBlock}
           <div className="min-w-0 flex-1">
-            <Flex justify="between" align="center" className="min-w-0 gap-3">
+            <Flex justify="between" align="center" className="min-w-0 gap-2">
               <Text
                 size="base"
                 weight="medium"
@@ -593,103 +658,85 @@ export const WishlistItem = ({
               >
                 {wishlistItem.title}
               </Text>
-              <div className="flex items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                <Flex>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Edit item"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      editorRef.current?.openEdit();
-                    }}
-                  >
-                    <LuPencil className="h-4 w-4" />
-                  </Button>
-                  {canDelete && (
-                    <DeleteWishlistItem
-                      id={wishlistItem.id}
-                      className="items-center justify-center text-red-600 hover:text-red-800"
-                    />
-                  )}
-                </Flex>
+              <div
+                className="flex flex-shrink-0 items-center gap-2"
+                onClick={(event) => event.stopPropagation()}
+              >
+                {actionMenu}
               </div>
             </Flex>
-            <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-              <Text size="xs" className="break-words text-muted-foreground">
-                {wishlistItem.note ?? ''}
-              </Text>
-            </Box>
+            {wishlistItem.note ? (
+              <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
+                <Text size="xs" className="break-words text-muted-foreground">
+                  {wishlistItem.note}
+                </Text>
+              </Box>
+            ) : null}
           </div>
         </div>
       </Card>
     </div>
-  );
+  ) : null;
+
+  const mobileImageThumb =
+    displayImageSrc && !imageErrored ? (
+      <img
+        src={displayImageSrc}
+        alt={wishlistItem.title}
+        className="h-10 w-10 flex-shrink-0 rounded-lg border border-border/60 object-cover"
+        onError={handleImageError}
+        loading="lazy"
+      />
+    ) : wishlistItem.hasImage ? (
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40 text-muted-foreground">
+        <LuImage className="h-4 w-4" aria-hidden />
+      </div>
+    ) : null;
 
   const MobileTrigger = (
-    <div className="sm:hidden">
+    <div className={isCompactLayout ? 'block' : 'sm:hidden'}>
       <Card
         variant="interactive"
-        padding="md"
+        padding="none"
         role="button"
-        className="h-28 min-w-0 cursor-pointer touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30"
+        className={cn(
+          'min-h-[4.25rem] min-w-0 cursor-pointer rounded-xl border border-border/80 bg-card shadow-sm touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/20',
+          dragState === 'dragging-item' ? 'opacity-75' : '',
+          dragState === 'dragging-category' ? 'opacity-80' : '',
+        )}
         data-pressed={press.pressed ? 'true' : 'false'}
+        data-testid="wishlist-item-row"
+        data-drag-state={dragState}
+        data-drop-target="false"
         {...press.rowProps}
       >
-        <div className="flex h-full min-w-0 flex-col gap-3">
-          {imageBlock}
-          <Flex className="min-w-0" align="center" justify="between" gap={3}>
-            <Box className="w-0 min-w-0 flex-1 overflow-hidden">
-              <Text
-                size="base"
-                weight="medium"
-                className="block min-w-0 max-w-full truncate"
-              >
-                {wishlistItem.title}
+        <div className="flex min-w-0 items-center gap-2 px-3 py-2.5">
+          {mobileImageThumb}
+          <Box className="min-w-0 flex-1 overflow-hidden">
+            <Text
+              size="base"
+              weight="medium"
+              className="block min-w-0 max-w-full truncate"
+            >
+              {wishlistItem.title}
+            </Text>
+            {wishlistItem.note ? (
+              <Text size="xs" className="truncate text-muted-foreground">
+                {wishlistItem.note}
               </Text>
-              <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-                <Text size="xs" className="break-words text-muted-foreground">
-                  {wishlistItem.note ?? ''}
-                </Text>
-              </Box>
-            </Box>
+            ) : null}
+          </Box>
 
-            <Flex align="center" className="flex-shrink-0" gap={1}>
-              {/* EDIT → flip current modal to edit mode */}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onPointerDown={(e) => e.stopPropagation()}
-                onPointerUp={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  editorRef.current?.openEdit();
-                }}
-                aria-label="Edit item"
-                title="Edit"
-                className="h-9 w-9 text-muted-foreground [-webkit-tap-highlight-color:transparent] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:opacity-80"
-              >
-                <LuPencil className="h-4 w-4" />
-              </Button>
-
-              {/* DELETE */}
-              {canDelete && (
-                <DeleteWishlistItem
-                  id={wishlistItem.id}
-                  className="h-9 w-9 text-red-600 [-webkit-tap-highlight-color:transparent] hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:opacity-80"
-                />
-              )}
-
-              {/* Divider + Chevron */}
-              <div className="mx-1 h-6 border-l border-border/40" />
-              <LuChevronRight
-                className="h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform data-[pressed=true]:translate-x-0.5"
-                data-pressed={press.pressed ? 'true' : 'false'}
-              />
+          {actionMenu ? (
+            <Flex
+              align="center"
+              className="flex-shrink-0"
+              gap={1}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {actionMenu}
             </Flex>
-          </Flex>
+          ) : null}
         </div>
       </Card>
     </div>
@@ -730,9 +777,11 @@ export const WishlistItem = ({
 export const DeleteWishlistItem = ({
   id,
   className,
+  trigger,
 }: {
   id: string;
   className?: string;
+  trigger?: React.ReactNode;
 }) => {
   const isPending = useIsPending();
   const fetcher = useFetcher<{
@@ -759,21 +808,23 @@ export const DeleteWishlistItem = ({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          className={className}
-          size="icon"
-          type="button"
-          aria-label="Delete item"
-          title="Delete"
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onPointerUp={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-          onKeyUp={(e) => e.stopPropagation()}
-        >
-          <LuTrash className="h-4 w-4" />
-        </Button>
+        {trigger ?? (
+          <Button
+            variant="ghost"
+            className={className}
+            size="icon"
+            type="button"
+            aria-label="Delete item"
+            title="Delete"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            onKeyUp={(e) => e.stopPropagation()}
+          >
+            <LuTrash className="h-4 w-4" />
+          </Button>
+        )}
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-[425px]">

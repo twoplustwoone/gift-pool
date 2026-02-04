@@ -1,9 +1,16 @@
 import { useFetcher } from '@remix-run/react';
 import { useEffect, useRef, useState } from 'react';
-import { LuCheck, LuPencil, LuPlus, LuSettings, LuX } from 'react-icons/lu';
+import {
+  LuArrowUpDown,
+  LuCheck,
+  LuPencil,
+  LuPlus,
+  LuSettings,
+  LuTrash,
+  LuX,
+} from 'react-icons/lu';
 import { useToast } from '#app/components/toaster.tsx';
 import { Button } from '#app/components/ui/button';
-import { Icon } from '#app/components/ui/icon';
 import { Input } from '#app/components/ui/input';
 import {
   Popover,
@@ -16,8 +23,14 @@ export type WishlistCategory = { id: string; name: string; order: number };
 
 export const CategoryManager = ({
   categories,
+  compact = false,
+  onStartItemReorder,
+  onStartCategoryReorder,
 }: {
   categories: WishlistCategory[];
+  compact?: boolean;
+  onStartItemReorder?: () => void;
+  onStartCategoryReorder?: () => void;
 }) => {
   const [open, setOpen] = useState(false);
   const createFetcher = useFetcher();
@@ -56,15 +69,59 @@ export const CategoryManager = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" className="whitespace-nowrap">
-          <Flex gap={1.5} className="items-center">
+        {compact ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-10 w-10 rounded-xl"
+            aria-label="Categories"
+          >
             <LuSettings />
-            <Text size="sm">Categories</Text>
-          </Flex>
-        </Button>
+          </Button>
+        ) : (
+          <Button type="button" variant="outline" className="whitespace-nowrap">
+            <Flex gap={1.5} className="items-center">
+              <LuSettings />
+              <Text size="sm">Categories</Text>
+            </Flex>
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent className="flex flex-col gap-4" align="end">
         <h3 className="text-sm font-semibold">Manage Categories</h3>
+        {onStartItemReorder || onStartCategoryReorder ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-border/80 bg-muted/20 p-2">
+            {onStartItemReorder ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 justify-start gap-2 rounded-lg"
+                onClick={() => {
+                  onStartItemReorder();
+                  setOpen(false);
+                }}
+              >
+                <LuArrowUpDown className="h-4 w-4" />
+                Reorder items
+              </Button>
+            ) : null}
+            {onStartCategoryReorder ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 justify-start gap-2 rounded-lg"
+                onClick={() => {
+                  onStartCategoryReorder();
+                  setOpen(false);
+                }}
+              >
+                <LuArrowUpDown className="h-4 w-4" />
+                Reorder categories
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         <createFetcher.Form
           ref={formRef}
           method="post"
@@ -86,7 +143,7 @@ export const CategoryManager = ({
           <li className="flex items-center justify-between text-sm text-muted-foreground">
             Default (Uncategorized) <span className="text-xs">(Default)</span>
           </li>
-          {categories.map((cat, index) => (
+          {categories.map((cat) => (
             <li key={cat.id} className="flex items-center gap-2">
               {editingId === cat.id ? (
                 <actionFetcher.Form
@@ -124,36 +181,6 @@ export const CategoryManager = ({
               ) : (
                 <>
                   <span className="flex-1">{cat.name}</span>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Move up"
-                    disabled={index === 0}
-                    onClick={() =>
-                      actionFetcher.submit(
-                        { intent: 'move', id: cat.id, direction: 'up' },
-                        { method: 'post', action: '/wishlist/categories' },
-                      )
-                    }
-                  >
-                    <Icon name="chevron-up" className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Move down"
-                    disabled={index === categories.length - 1}
-                    onClick={() =>
-                      actionFetcher.submit(
-                        { intent: 'move', id: cat.id, direction: 'down' },
-                        { method: 'post', action: '/wishlist/categories' },
-                      )
-                    }
-                  >
-                    <Icon name="chevron-down" className="h-4 w-4" />
-                  </Button>
                   <Flex>
                     <Button
                       type="button"
@@ -176,7 +203,7 @@ export const CategoryManager = ({
                         )
                       }
                     >
-                      <Icon name="trash" className="h-4 w-4" />
+                      <LuTrash className="h-4 w-4" />
                     </Button>
                   </Flex>
                 </>
