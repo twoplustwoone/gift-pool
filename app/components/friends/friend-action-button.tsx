@@ -335,6 +335,8 @@ export const FriendActionButton = ({
     [pendingAction],
   );
 
+  const canCancelOutgoing = Boolean(current.outgoingRequestId);
+
   const renderActions = useMemo(() => {
     switch (current.state) {
       case 'NONE':
@@ -364,7 +366,7 @@ export const FriendActionButton = ({
               size={buttonSize}
               variant="ghost"
               onClick={() => void cancelRequest()}
-              disabled={isPending('cancel')}
+              disabled={isPending('cancel') || !canCancelOutgoing}
             >
               {isPending('cancel') ? (
                 <LuLoader className="mr-2 h-4 w-4 animate-spin" aria-hidden />
@@ -467,6 +469,7 @@ export const FriendActionButton = ({
     }
   }, [
     buttonSize,
+    canCancelOutgoing,
     cancelRequest,
     className,
     confirmOpen,
