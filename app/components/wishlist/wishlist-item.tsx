@@ -93,11 +93,11 @@ export const WishlistItem = ({
   > & {
     status: WishlistItemStatusValue;
   }) &
-    Partial<{
-      hasImage: boolean;
-      imageSource: WishlistItemImageSource | null;
-    }> &
-    Partial<{ purchase: { purchasedById: string } | null }>;
+  Partial<{
+    hasImage: boolean;
+    imageSource: WishlistItemImageSource | null;
+  }> &
+  Partial<{ purchase: { purchasedById: string } | null }>;
   isOwner?: boolean;
   categories?: { id: string; name: string; order: number }[];
   disableClaims?: boolean;
@@ -336,10 +336,10 @@ export const WishlistItem = ({
   const press = usePressFeedback<HTMLDivElement>(
     isOwner && !isReorderMode
       ? {
-          onClick: () => {
-            editorRef.current?.openView({ fromTrigger: true });
-          },
-        }
+        onClick: () => {
+          editorRef.current?.openView({ fromTrigger: true });
+        },
+      }
       : undefined,
   );
 
