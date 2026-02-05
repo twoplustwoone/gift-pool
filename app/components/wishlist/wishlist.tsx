@@ -885,11 +885,17 @@ export const Wishlist = ({
   );
 
   useEffect(() => {
+    if (statusUpdateFetcher.state !== 'idle') {
+      return;
+    }
     setItems([...user.wishlistItems].sort(compareItemsBySortOrder));
+  }, [statusUpdateFetcher.state, user.wishlistItems]);
+
+  useEffect(() => {
     setOrderedCategories(
       [...user.wishlistCategories].sort((a, b) => a.order - b.order),
     );
-  }, [user.wishlistItems, user.wishlistCategories]);
+  }, [user.wishlistCategories]);
 
   useEffect(() => {
     const paramsView =
