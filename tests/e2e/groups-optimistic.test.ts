@@ -128,13 +128,23 @@ test('overview budget rolls back after forced settings failure', async ({
 
       await new Promise((resolve) => setTimeout(resolve, 600));
       await route.fulfill({
-        status: 500,
-        body: JSON.stringify({ error: 'forced budget failure' }),
+        status: 200,
+        body: JSON.stringify({
+          status: 'error',
+          error: 'forced budget failure',
+        }),
         contentType: 'application/json',
       });
     });
 
     await page.goto(`/groups/${groupId}`);
+
+    const budgetResponsePromise = page.waitForResponse((response) => {
+      return (
+        response.url().includes(`/groups/${groupId}/settings`) &&
+        response.request().method() === 'POST'
+      );
+    });
 
     await page.getByRole('button', { name: /edit your budget/i }).click();
     const budgetInput = page.getByLabel('Your budget');
@@ -143,6 +153,7 @@ test('overview budget rolls back after forced settings failure', async ({
 
     const budgetAmount = page.getByTestId('budget-amount');
     await expect(budgetAmount).toHaveText('$25.00');
+    await budgetResponsePromise;
     await expect(budgetAmount).toHaveText('$10.00');
   } finally {
     await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => { });

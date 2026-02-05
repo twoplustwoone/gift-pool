@@ -74,7 +74,7 @@ test('archive status is optimistic before delayed server response', async ({
   await dismissInstallPrompt(page);
   await createWishlistItem({ page, title: 'Delayed status item' });
 
-  await page.route('**/wishlist/status', async (route) => {
+  await page.route('**/wishlist/status*', async (route) => {
     if (route.request().method() !== 'POST') {
       await route.continue();
       return;
@@ -112,7 +112,7 @@ test('archive status is optimistic before delayed server response', async ({
 
     await statusResponsePromise;
   } finally {
-    await page.unroute('**/wishlist/status');
+    await page.unroute('**/wishlist/status*');
   }
 });
 
@@ -125,7 +125,7 @@ test('archive rollback restores item when status mutation fails', async ({
   await dismissInstallPrompt(page);
   await createWishlistItem({ page, title: 'Rollback status item' });
 
-  await page.route('**/wishlist/status', async (route) => {
+  await page.route('**/wishlist/status*', async (route) => {
     if (route.request().method() !== 'POST') {
       await route.continue();
       return;
@@ -134,7 +134,7 @@ test('archive rollback restores item when status mutation fails', async ({
     const payload = new URLSearchParams(route.request().postData() ?? '');
     await new Promise((resolve) => setTimeout(resolve, 800));
     await route.fulfill({
-      status: 400,
+      status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         ok: false,
@@ -165,6 +165,6 @@ test('archive rollback restores item when status mutation fails', async ({
     await statusResponsePromise;
     await expect(itemRows).toHaveCount(2);
   } finally {
-    await page.unroute('**/wishlist/status');
+    await page.unroute('**/wishlist/status*');
   }
 });
