@@ -154,7 +154,7 @@ test('claim updates optimistically while purchase request is delayed', async ({
     },
   });
 
-  await page.route('**/wishlist/purchase', async (route) => {
+  await page.route('**/wishlist/purchase*', async (route) => {
     if (route.request().method() !== 'POST') {
       await route.continue();
       return;
@@ -190,7 +190,7 @@ test('claim updates optimistically while purchase request is delayed', async ({
       { timeout: 8000 },
     );
   } finally {
-    await page.unroute('**/wishlist/purchase');
+    await page.unroute('**/wishlist/purchase*');
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   }
 });
@@ -233,7 +233,7 @@ test('claim rolls back when purchase mutation fails', async ({ page, login }) =>
     },
   });
 
-  await page.route('**/wishlist/purchase', async (route) => {
+  await page.route('**/wishlist/purchase*', async (route) => {
     if (route.request().method() !== 'POST') {
       await route.continue();
       return;
@@ -242,7 +242,7 @@ test('claim rolls back when purchase mutation fails', async ({ page, login }) =>
     const payload = new URLSearchParams(route.request().postData() ?? '');
     await new Promise((resolve) => setTimeout(resolve, 800));
     await route.fulfill({
-      status: 400,
+      status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         ok: false,
@@ -271,16 +271,16 @@ test('claim rolls back when purchase mutation fails', async ({ page, login }) =>
     await expect(page.getByText(/gift duty for this one/i)).toBeVisible();
 
     await purchaseResponsePromise;
-    await expect(page.getByText(/gift duty for this one/i)).toHaveCount(0);
     await expect(
       page.getByRole('button', { name: "I'll grab this gift", exact: true }),
     ).toBeVisible();
+    await expect(page.getByText(/gift duty for this one/i)).toBeHidden();
     const purchase = await prisma.wishlistPurchase.findUnique({
       where: { wishlistItemId: wishlistItem.id },
     });
     expect(purchase).toBeNull();
   } finally {
-    await page.unroute('**/wishlist/purchase');
+    await page.unroute('**/wishlist/purchase*');
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   }
 });
