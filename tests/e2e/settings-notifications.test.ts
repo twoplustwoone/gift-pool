@@ -91,7 +91,7 @@ test('failed toggle requests rollback optimistic notification channel updates', 
   await page.goto('/settings/notifications');
   await dismissInstallPrompt(page);
 
-  await page.route('**/settings/notifications', async (route) => {
+  await page.route('**/settings/notifications*', async (route) => {
     const request = route.request();
     if (request.method() !== 'POST') {
       await route.continue();
@@ -121,11 +121,29 @@ test('failed toggle requests rollback optimistic notification channel updates', 
     name: /enable email/i,
   });
 
-  await expect(receivedEmailToggle).toBeChecked();
+  const initiallyChecked =
+    (await receivedEmailToggle.getAttribute('aria-checked')) === 'true';
+
+  const toggleResponse = page.waitForResponse((response) => {
+    return (
+      response.url().includes('/settings/notifications') &&
+      response.request().method() === 'POST'
+    );
+  });
+
   await receivedEmailToggle.click();
-  await expect(receivedEmailToggle).not.toBeChecked({ timeout: 500 });
-  await expect(receivedEmailToggle).toBeChecked({ timeout: 3000 });
+  await expect(receivedEmailToggle).toHaveAttribute(
+    'aria-checked',
+    initiallyChecked ? 'false' : 'true',
+    { timeout: 500 },
+  );
+  await toggleResponse;
   await expect(receivedEmailToggle).not.toBeDisabled();
+  await expect(receivedEmailToggle).toHaveAttribute(
+    'aria-checked',
+    initiallyChecked ? 'true' : 'false',
+    { timeout: 3000 },
+  );
 
   const unchangedPreference =
     await prisma.userNotificationPreference.findUnique({
@@ -137,9 +155,9 @@ test('failed toggle requests rollback optimistic notification channel updates', 
       },
       select: { emailEnabled: true },
     });
-  expect(unchangedPreference?.emailEnabled).toBe(true);
+  expect(unchangedPreference?.emailEnabled).toBe(initiallyChecked);
 
-  await page.unroute('**/settings/notifications');
+  await page.unroute('**/settings/notifications*');
 });
 
 test('users can disable all email notifications at once', async ({
