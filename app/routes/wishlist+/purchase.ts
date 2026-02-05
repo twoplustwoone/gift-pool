@@ -1,5 +1,4 @@
 import { parseWithZod } from '@conform-to/zod';
-import { invariantResponse } from '@epic-web/invariant';
 import { json, type ActionFunctionArgs } from '@remix-run/node';
 import { z } from 'zod';
 import { requireUserId } from '#app/utils/auth.server.ts';
@@ -14,12 +13,22 @@ const PurchaseFormSchema = z.object({
 export async function action({ request }: ActionFunctionArgs) {
   const userId = await requireUserId(request);
   const formData = await request.formData();
+  const submittedWishlistItemId =
+    typeof formData.get('wishlistItemId') === 'string'
+      ? String(formData.get('wishlistItemId'))
+      : '';
   const submission = parseWithZod(formData, { schema: PurchaseFormSchema });
 
   if (submission.status !== 'success') {
-    return json(submission.reply(), {
-      status: submission.status === 'error' ? 400 : 200,
-    });
+    return json(
+      {
+        ok: false,
+        wishlistItemId: submittedWishlistItemId,
+        purchase: null,
+        error: 'Invalid purchase request.',
+      },
+      { status: 400 },
+    );
   }
 
   const { wishlistItemId, intent } = submission.value;
@@ -28,24 +37,47 @@ export async function action({ request }: ActionFunctionArgs) {
     where: { id: wishlistItemId },
     select: {
       ownerId: true,
-      owner: { select: { username: true } },
       purchase: { select: { purchasedById: true } },
       status: true,
     },
   });
 
-  invariantResponse(wishlistItem, 'Wishlist item not found', { status: 404 });
+  if (!wishlistItem) {
+    return json(
+      {
+        ok: false,
+        wishlistItemId,
+        purchase: null,
+        error: 'Wishlist item not found.',
+      },
+      { status: 404 },
+    );
+  }
+
+  const currentPurchase = wishlistItem.purchase
+    ? { purchasedById: wishlistItem.purchase.purchasedById }
+    : null;
 
   if (wishlistItem.ownerId === userId) {
     return json(
-      { error: 'You cannot mark your own wishlist item as purchased.' },
+      {
+        ok: false,
+        wishlistItemId,
+        purchase: currentPurchase,
+        error: 'You cannot mark your own wishlist item as purchased.',
+      },
       { status: 400 },
     );
   }
 
   if (wishlistItem.status !== 'ACTIVE') {
     return json(
-      { error: 'This item is no longer available on the wishlist.' },
+      {
+        ok: false,
+        wishlistItemId,
+        purchase: currentPurchase,
+        error: 'This item is no longer available on the wishlist.',
+      },
       { status: 400 },
     );
   }
@@ -57,7 +89,12 @@ export async function action({ request }: ActionFunctionArgs) {
 
   if (!hasAccess) {
     return json(
-      { error: 'You no longer have access to this wishlist.' },
+      {
+        ok: false,
+        wishlistItemId,
+        purchase: currentPurchase,
+        error: 'You no longer have access to this wishlist.',
+      },
       { status: 403 },
     );
   }
@@ -68,7 +105,12 @@ export async function action({ request }: ActionFunctionArgs) {
       wishlistItem.purchase.purchasedById !== userId
     ) {
       return json(
-        { error: 'This item has already been marked as purchased.' },
+        {
+          ok: false,
+          wishlistItemId,
+          purchase: currentPurchase,
+          error: 'This item has already been marked as purchased.',
+        },
         { status: 400 },
       );
     }
@@ -78,16 +120,27 @@ export async function action({ request }: ActionFunctionArgs) {
       create: { wishlistItemId, purchasedById: userId },
       update: { purchasedById: userId },
     });
-  } else {
-    if (wishlistItem.purchase?.purchasedById !== userId) {
-      return json(
-        { error: 'You can only unmark items you marked as purchased.' },
-        { status: 400 },
-      );
-    }
 
-    await prisma.wishlistPurchase.delete({ where: { wishlistItemId } });
+    return json({
+      ok: true,
+      wishlistItemId,
+      purchase: { purchasedById: userId },
+    });
   }
 
-  return json({ ok: true });
+  if (wishlistItem.purchase?.purchasedById !== userId) {
+    return json(
+      {
+        ok: false,
+        wishlistItemId,
+        purchase: currentPurchase,
+        error: 'You can only unmark items you marked as purchased.',
+      },
+      { status: 400 },
+    );
+  }
+
+  await prisma.wishlistPurchase.delete({ where: { wishlistItemId } });
+
+  return json({ ok: true, wishlistItemId, purchase: null });
 }

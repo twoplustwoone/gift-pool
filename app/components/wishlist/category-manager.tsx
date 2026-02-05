@@ -1,5 +1,5 @@
 import { useFetcher } from '@remix-run/react';
-import { useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import {
   LuArrowUpDown,
   LuCheck,
@@ -17,6 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '#app/components/ui/popover';
+import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
 import { Flex, Text } from '../ui-kit';
 
 export type WishlistCategory = { id: string; name: string; order: number };
@@ -37,6 +38,23 @@ export const CategoryManager = ({
   const actionFetcher = useFetcher();
   const [editingId, setEditingId] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const attachClientMutationIdToForm = (event: FormEvent<HTMLFormElement>) => {
+    const formElement = event.currentTarget;
+    const mutationId = createClientMutationId();
+    const existingInput = formElement.elements.namedItem(
+      'clientMutationId',
+    ) as HTMLInputElement | null;
+    if (existingInput) {
+      existingInput.value = mutationId;
+      return;
+    }
+
+    const hiddenInput = document.createElement('input');
+    hiddenInput.type = 'hidden';
+    hiddenInput.name = 'clientMutationId';
+    hiddenInput.value = mutationId;
+    formElement.append(hiddenInput);
+  };
 
   useToast(
     (createFetcher.data as any)?.toast ?? (actionFetcher.data as any)?.toast,
@@ -127,8 +145,10 @@ export const CategoryManager = ({
           method="post"
           action="/wishlist/categories"
           className="flex gap-2"
+          onSubmit={attachClientMutationIdToForm}
         >
           <input type="hidden" name="intent" value="create" />
+          <input type="hidden" name="clientMutationId" value="" />
           <Input
             name="name"
             placeholder="Category name"
@@ -150,9 +170,11 @@ export const CategoryManager = ({
                   method="post"
                   action="/wishlist/categories"
                   className="flex flex-1 items-center gap-2"
+                  onSubmit={attachClientMutationIdToForm}
                 >
                   <input type="hidden" name="intent" value="rename" />
                   <input type="hidden" name="id" value={cat.id} />
+                  <input type="hidden" name="clientMutationId" value="" />
                   <Input
                     name="name"
                     defaultValue={cat.name}
@@ -198,7 +220,11 @@ export const CategoryManager = ({
                       aria-label="Delete category"
                       onClick={() =>
                         actionFetcher.submit(
-                          { intent: 'delete', id: cat.id },
+                          {
+                            intent: 'delete',
+                            id: cat.id,
+                            clientMutationId: createClientMutationId(),
+                          },
                           { method: 'post', action: '/wishlist/categories' },
                         )
                       }

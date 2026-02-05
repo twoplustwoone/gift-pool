@@ -79,7 +79,6 @@ const NOTIFICATIONS_ENDPOINT = '/api/notifications';
 const MARK_ALL_ENDPOINT = '/api/notifications/read-all';
 
 const FRIEND_ACCEPT_EVENT = 'FRIEND_ACCEPT';
-const FRIEND_REJECT_EVENT = 'FRIEND_REJECT';
 
 type PendingActionKey = `${string}:${string}`;
 
@@ -95,10 +94,24 @@ export const NotificationBell = () => {
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [markAllPending, setMarkAllPending] = useState(false);
-  const [pendingAction, setPendingAction] = useState<PendingActionKey | null>(
-    null,
+  const [pendingActionKeys, setPendingActionKeys] = useState<
+    Set<PendingActionKey>
+  >(new Set());
+  const [pendingReadIds, setPendingReadIds] = useState<Set<string>>(new Set());
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(
+    new Set(),
   );
+  const notificationsRef = useRef<ApiNotification[]>([]);
+  const unreadCountRef = useRef(unreadCount);
   const openEventHandlerRef = useRef<(event: Event) => void>();
+
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
+
+  useEffect(() => {
+    unreadCountRef.current = unreadCount;
+  }, [unreadCount]);
 
   const loadNotifications = useCallback(
     async ({ cursor, append }: { cursor?: string; append?: boolean } = {}) => {
@@ -159,6 +172,26 @@ export const NotificationBell = () => {
 
   const markNotificationRead = useCallback(
     async (notificationId: string) => {
+      if (pendingReadIds.has(notificationId)) return;
+      const targetNotification = notificationsRef.current.find(
+        (notification) => notification.id === notificationId,
+      );
+      if (!targetNotification || targetNotification.status !== 'UNREAD') {
+        return;
+      }
+
+      const previousUnreadCount = unreadCountRef.current;
+      const previousNotifications = notificationsRef.current;
+      setPendingReadIds((prev) => new Set(prev).add(notificationId));
+      setNotifications((prev) =>
+        prev.map((notification) =>
+          notification.id === notificationId
+            ? { ...notification, status: 'READ' }
+            : notification,
+        ),
+      );
+      setUnreadCount(Math.max(0, previousUnreadCount - 1));
+
       try {
         const response = await fetch(
           `${NOTIFICATIONS_ENDPOINT}/${notificationId}/read`,
@@ -175,23 +208,40 @@ export const NotificationBell = () => {
         if (typeof payload.unreadCount === 'number') {
           setUnreadCount(payload.unreadCount);
         }
-        setNotifications((prev) =>
-          prev.map((notification) =>
-            notification.id === notificationId
-              ? { ...notification, status: 'READ' }
-              : notification,
-          ),
-        );
       } catch (err) {
         console.error(err);
+        setNotifications(previousNotifications);
+        setUnreadCount(previousUnreadCount);
         toast.error(t('toasts.genericError'));
+      } finally {
+        setPendingReadIds((prev) => {
+          const next = new Set(prev);
+          next.delete(notificationId);
+          return next;
+        });
       }
     },
-    [setUnreadCount, t],
+    [pendingReadIds, setUnreadCount, t],
   );
 
   const deleteNotification = useCallback(
     async (notificationId: string) => {
+      if (pendingDeleteIds.has(notificationId)) return;
+      const previousNotifications = notificationsRef.current;
+      const notificationIndex = previousNotifications.findIndex(
+        (notification) => notification.id === notificationId,
+      );
+      if (notificationIndex < 0) return;
+      const deletedNotification = previousNotifications[notificationIndex];
+      if (!deletedNotification) return;
+      const previousUnreadCount = unreadCountRef.current;
+
+      setPendingDeleteIds((prev) => new Set(prev).add(notificationId));
+      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+      if (deletedNotification.status === 'UNREAD') {
+        setUnreadCount(Math.max(0, previousUnreadCount - 1));
+      }
+
       try {
         const response = await fetch(
           `${NOTIFICATIONS_ENDPOINT}/${notificationId}/delete`,
@@ -205,13 +255,20 @@ export const NotificationBell = () => {
         const payload = (await response.json()) as { unreadCount?: number };
         if (typeof payload.unreadCount === 'number')
           setUnreadCount(payload.unreadCount);
-        setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
       } catch (err) {
         console.error(err);
+        setNotifications(previousNotifications);
+        setUnreadCount(previousUnreadCount);
         toast.error(t('toasts.genericError'));
+      } finally {
+        setPendingDeleteIds((prev) => {
+          const next = new Set(prev);
+          next.delete(notificationId);
+          return next;
+        });
       }
     },
-    [setUnreadCount, t],
+    [pendingDeleteIds, setUnreadCount, t],
   );
 
   const handleNotificationClick = useCallback(
@@ -229,8 +286,21 @@ export const NotificationBell = () => {
   );
 
   const markAllAsRead = useCallback(async () => {
-    if (markAllPending || unreadCount === 0) return;
+    if (markAllPending || unreadCountRef.current === 0) return;
     setMarkAllPending(true);
+    const previousUnreadCount = unreadCountRef.current;
+    const previousStatuses = new Map(
+      notificationsRef.current.map((notification) => [
+        notification.id,
+        notification.status,
+      ]),
+    );
+
+    setNotifications((prev) =>
+      prev.map((notification) => ({ ...notification, status: 'READ' })),
+    );
+    setUnreadCount(0);
+
     try {
       track('notifications_mark_all_read');
       const response = await fetch(MARK_ALL_ENDPOINT, {
@@ -243,17 +313,23 @@ export const NotificationBell = () => {
       }
       const payload = (await response.json()) as { unreadCount?: number };
       setUnreadCount(payload.unreadCount ?? 0);
-      setNotifications((prev) =>
-        prev.map((notification) => ({ ...notification, status: 'READ' })),
-      );
       toast.success(t('notifications.markAllReadSuccess'));
     } catch (err) {
       console.error(err);
+      setNotifications((prev) =>
+        prev.map((notification) => {
+          const previousStatus = previousStatuses.get(notification.id);
+          return previousStatus
+            ? { ...notification, status: previousStatus }
+            : notification;
+        }),
+      );
+      setUnreadCount(previousUnreadCount);
       toast.error(t('toasts.genericError'));
     } finally {
       setMarkAllPending(false);
     }
-  }, [markAllPending, setUnreadCount, t, unreadCount]);
+  }, [markAllPending, setUnreadCount, t]);
 
   const handleFriendAction = useCallback(
     async (
@@ -262,7 +338,17 @@ export const NotificationBell = () => {
     ) => {
       if (!notification.friendRequestId) return;
       const actionKey: PendingActionKey = `${notification.id}:${action.kind}`;
-      setPendingAction(actionKey);
+      if (pendingActionKeys.has(actionKey)) return;
+      const previousNotifications = notificationsRef.current;
+      const previousUnreadCount = unreadCountRef.current;
+      const wasUnread = notification.status === 'UNREAD';
+      setPendingActionKeys((prev) => new Set(prev).add(actionKey));
+      setNotifications((prev) =>
+        prev.filter((item) => item.id !== notification.id),
+      );
+      if (wasUnread) {
+        setUnreadCount(Math.max(0, previousUnreadCount - 1));
+      }
       const endpoint =
         action.kind === FRIEND_ACCEPT_EVENT
           ? `/api/friends/requests/${notification.friendRequestId}/accept`
@@ -283,9 +369,6 @@ export const NotificationBell = () => {
         if (typeof payload.unreadCount === 'number') {
           setUnreadCount(payload.unreadCount);
         }
-        setNotifications((prev) =>
-          prev.filter((item) => item.id !== notification.id),
-        );
         track('notification_inline_action', {
           kind: action.kind,
           success: true,
@@ -310,16 +393,22 @@ export const NotificationBell = () => {
         }
       } catch (err) {
         console.error(err);
+        setNotifications(previousNotifications);
+        setUnreadCount(previousUnreadCount);
         track('notification_inline_action', {
           kind: action.kind,
           success: false,
         });
         toast.error(t('toasts.genericError'));
       } finally {
-        setPendingAction((current) => (current === actionKey ? null : current));
+        setPendingActionKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(actionKey);
+          return next;
+        });
       }
     },
-    [setUnreadCount, t],
+    [pendingActionKeys, setUnreadCount, t],
   );
 
   const displayCount = unreadCount > 9 ? '9+' : unreadCount.toString();
@@ -365,6 +454,7 @@ export const NotificationBell = () => {
                   e.stopPropagation();
                   void deleteNotification(notification.id);
                 }}
+                disabled={pendingDeleteIds.has(notification.id)}
               >
                 <LuX className="h-4 w-4" aria-hidden />
               </button>
@@ -410,11 +500,13 @@ export const NotificationBell = () => {
                       onClick={() =>
                         void handleFriendAction(notification, action)
                       }
-                      disabled={
-                        pendingAction === `${notification.id}:${action.kind}`
-                      }
+                      disabled={pendingActionKeys.has(
+                        `${notification.id}:${action.kind}`,
+                      )}
                     >
-                      {pendingAction === `${notification.id}:${action.kind}` ? (
+                      {pendingActionKeys.has(
+                        `${notification.id}:${action.kind}`,
+                      ) ? (
                         <LuLoader
                           className="mr-2 h-4 w-4 animate-spin"
                           aria-hidden
@@ -438,12 +530,14 @@ export const NotificationBell = () => {
       </ul>
     );
   }, [
+    deleteNotification,
     handleNotificationClick,
     handleFriendAction,
     locale,
     loading,
     notifications,
-    pendingAction,
+    pendingActionKeys,
+    pendingDeleteIds,
     t,
   ]);
 

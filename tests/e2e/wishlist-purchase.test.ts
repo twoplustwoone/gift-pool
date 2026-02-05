@@ -112,3 +112,175 @@ test('friends can claim a gift and owner cannot see the claim', async ({
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   }
 });
+
+test('claim updates optimistically while purchase request is delayed', async ({
+  page,
+  login,
+}) => {
+  const createdUserIds: string[] = [];
+
+  const ownerData = createUser();
+  const claimerData = createUser();
+
+  const [owner, claimer] = await Promise.all([
+    prisma.user.create({
+      select: { id: true, username: true },
+      data: {
+        ...ownerData,
+        roles: connectUserRole,
+        password: { create: createPassword(ownerData.username) },
+      },
+    }),
+    prisma.user.create({
+      select: { id: true, username: true },
+      data: {
+        ...claimerData,
+        roles: connectUserRole,
+        password: { create: createPassword(claimerData.username) },
+      },
+    }),
+  ]);
+
+  createdUserIds.push(owner.id, claimer.id);
+  await createFriendship(owner.id, claimer.id);
+
+  const wishlistItem = await prisma.wishlistItem.create({
+    select: { id: true },
+    data: {
+      ownerId: owner.id,
+      title: 'Delayed claim item',
+      type: 'text',
+      sortOrder: 0,
+    },
+  });
+
+  await page.route('**/wishlist/purchase*', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.continue();
+  });
+
+  try {
+    await page.context().clearCookies();
+    await login({ id: claimer.id });
+    await page.goto(`/users/${owner.username}/wishlist`);
+    await dismissInstallPrompt(page);
+
+    const purchaseResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/wishlist/purchase') &&
+        response.request().method() === 'POST',
+    );
+
+    await page
+      .getByRole('button', { name: "I'll grab this gift", exact: true })
+      .click();
+    await expect(page.getByText(/gift duty for this one/i)).toBeVisible();
+
+    await purchaseResponsePromise;
+    await waitFor(
+      () =>
+        prisma.wishlistPurchase.findUnique({
+          where: { wishlistItemId: wishlistItem.id },
+        }),
+      { timeout: 8000 },
+    );
+  } finally {
+    await page.unroute('**/wishlist/purchase*');
+    await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
+  }
+});
+
+test('claim rolls back when purchase mutation fails', async ({ page, login }) => {
+  const createdUserIds: string[] = [];
+
+  const ownerData = createUser();
+  const claimerData = createUser();
+
+  const [owner, claimer] = await Promise.all([
+    prisma.user.create({
+      select: { id: true, username: true },
+      data: {
+        ...ownerData,
+        roles: connectUserRole,
+        password: { create: createPassword(ownerData.username) },
+      },
+    }),
+    prisma.user.create({
+      select: { id: true, username: true },
+      data: {
+        ...claimerData,
+        roles: connectUserRole,
+        password: { create: createPassword(claimerData.username) },
+      },
+    }),
+  ]);
+
+  createdUserIds.push(owner.id, claimer.id);
+  await createFriendship(owner.id, claimer.id);
+
+  const wishlistItem = await prisma.wishlistItem.create({
+    select: { id: true },
+    data: {
+      ownerId: owner.id,
+      title: 'Rollback claim item',
+      type: 'text',
+      sortOrder: 0,
+    },
+  });
+
+  await page.route('**/wishlist/purchase*', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+
+    const payload = new URLSearchParams(route.request().postData() ?? '');
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: false,
+        wishlistItemId: payload.get('wishlistItemId') ?? wishlistItem.id,
+        purchase: null,
+        error: 'This item has already been marked as purchased.',
+      }),
+    });
+  });
+
+  try {
+    await page.context().clearCookies();
+    await login({ id: claimer.id });
+    await page.goto(`/users/${owner.username}/wishlist`);
+    await dismissInstallPrompt(page);
+
+    const purchaseResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/wishlist/purchase') &&
+        response.request().method() === 'POST',
+    );
+
+    await page
+      .getByRole('button', { name: "I'll grab this gift", exact: true })
+      .click();
+    await expect(page.getByText(/gift duty for this one/i)).toBeVisible();
+
+    await purchaseResponsePromise;
+    await expect(
+      page.getByRole('button', { name: "I'll grab this gift", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(/gift duty for this one/i)).toBeHidden();
+    const purchase = await prisma.wishlistPurchase.findUnique({
+      where: { wishlistItemId: wishlistItem.id },
+    });
+    expect(purchase).toBeNull();
+  } finally {
+    await page.unroute('**/wishlist/purchase*');
+    await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
+  }
+});

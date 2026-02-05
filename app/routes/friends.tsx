@@ -129,6 +129,8 @@ const FriendsRoute = () => {
   };
 
   async function batchAccept(ids: string[]) {
+    const snapshot = incomingState.filter((req) => ids.includes(req.id));
+    setIncomingState((prev) => prev.filter((r) => !ids.includes(r.id)));
     const results = await Promise.allSettled(
       ids.map((id) =>
         fetch(`/api/friends/requests/${id}/accept`, {
@@ -142,20 +144,30 @@ const FriendsRoute = () => {
       ),
     );
     let unread: number | null = null;
-    results.forEach((res) => {
+    const failedIds: string[] = [];
+    results.forEach((res, index) => {
       if (res.status === 'fulfilled' && res.value.ok) {
         const j = res.value.json as any;
         if (typeof j?.unreadCount === 'number') unread = j.unreadCount;
+      } else if (res.status === 'rejected') {
+        failedIds.push(ids[index] ?? '');
+      } else if (!res.value.ok) {
+        failedIds.push(ids[index] ?? '');
       }
     });
     if (unread != null) setUnreadCount(unread);
-    setIncomingState((prev) => prev.filter((r) => !ids.includes(r.id)));
-    toast.success(
-      `Accepted ${ids.length} request${ids.length > 1 ? 's' : ''}.`,
-    );
+    if (failedIds.length > 0) {
+      const failed = snapshot.filter((request) => failedIds.includes(request.id));
+      setIncomingState((prev) => [...failed, ...prev]);
+      toast.error('Some requests could not be accepted.');
+    } else {
+      toast.success(`Accepted ${ids.length} request${ids.length > 1 ? 's' : ''}.`);
+    }
   }
 
   async function batchDecline(ids: string[]) {
+    const snapshot = incomingState.filter((req) => ids.includes(req.id));
+    setIncomingState((prev) => prev.filter((r) => !ids.includes(r.id)));
     const results = await Promise.allSettled(
       ids.map((id) =>
         fetch(`/api/friends/requests/${id}/reject`, {
@@ -169,21 +181,31 @@ const FriendsRoute = () => {
       ),
     );
     let unread: number | null = null;
-    results.forEach((res) => {
+    const failedIds: string[] = [];
+    results.forEach((res, index) => {
       if (res.status === 'fulfilled' && res.value.ok) {
         const j = res.value.json as any;
         if (typeof j?.unreadCount === 'number') unread = j.unreadCount;
+      } else if (res.status === 'rejected') {
+        failedIds.push(ids[index] ?? '');
+      } else if (!res.value.ok) {
+        failedIds.push(ids[index] ?? '');
       }
     });
     if (unread != null) setUnreadCount(unread);
-    setIncomingState((prev) => prev.filter((r) => !ids.includes(r.id)));
-    toast.success(
-      `Declined ${ids.length} request${ids.length > 1 ? 's' : ''}.`,
-    );
+    if (failedIds.length > 0) {
+      const failed = snapshot.filter((request) => failedIds.includes(request.id));
+      setIncomingState((prev) => [...failed, ...prev]);
+      toast.error('Some requests could not be declined.');
+    } else {
+      toast.success(`Declined ${ids.length} request${ids.length > 1 ? 's' : ''}.`);
+    }
   }
 
   async function batchCancel(ids: string[]) {
-    await Promise.allSettled(
+    const snapshot = outgoingState.filter((req) => ids.includes(req.id));
+    setOutgoingState((prev) => prev.filter((r) => !ids.includes(r.id)));
+    const results = await Promise.allSettled(
       ids.map((id) =>
         fetch(`/api/friends/requests/${id}/cancel`, {
           method: 'POST',
@@ -191,10 +213,21 @@ const FriendsRoute = () => {
         }),
       ),
     );
-    setOutgoingState((prev) => prev.filter((r) => !ids.includes(r.id)));
-    toast.success(
-      `Cancelled ${ids.length} request${ids.length > 1 ? 's' : ''}.`,
-    );
+    const failedIds: string[] = [];
+    results.forEach((res, index) => {
+      if (res.status === 'fulfilled' && !res.value.ok) {
+        failedIds.push(ids[index] ?? '');
+      } else if (res.status === 'rejected') {
+        failedIds.push(ids[index] ?? '');
+      }
+    });
+    if (failedIds.length > 0) {
+      const failed = snapshot.filter((request) => failedIds.includes(request.id));
+      setOutgoingState((prev) => [...failed, ...prev]);
+      toast.error('Some requests could not be cancelled.');
+    } else {
+      toast.success(`Cancelled ${ids.length} request${ids.length > 1 ? 's' : ''}.`);
+    }
   }
 
   // Keep local state in sync when loader data changes (e.g., after accepting an invite)

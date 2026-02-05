@@ -19,16 +19,29 @@ import {
   type loader as routeLoader,
   type action as routeAction,
 } from './__route.server';
+import { type action as settingsAction } from './settings';
 
 const GiftGroupOverview = () => {
   const { giftGroup, inviteLink, viewer, canInvite } = useRouteLoaderData<
     typeof routeLoader
   >('routes/groups+/$giftGroupId_+/_layout')!;
   const createFetcher = useFetcher<typeof routeAction>();
+  const [localInviteLink, setLocalInviteLink] = useState<string | null>(
+    inviteLink,
+  );
+  const createInvitePending =
+    createFetcher.state !== 'idle' &&
+    createFetcher.formData?.get('intent') === 'create-invite-link';
+  const resolvedInviteLink = localInviteLink ?? inviteLink;
+
+  useEffect(() => {
+    setLocalInviteLink(inviteLink);
+  }, [inviteLink]);
 
   useEffect(() => {
     const url = (createFetcher.data as any)?.inviteUrl as string | undefined;
     if (createFetcher.state === 'idle' && url) {
+      setLocalInviteLink(url);
       void navigator.clipboard.writeText(url);
     }
   }, [createFetcher.state, createFetcher.data]);
@@ -76,11 +89,11 @@ const GiftGroupOverview = () => {
         <div className="mb-4 text-sm text-muted-foreground">
           Share this link to invite new members to the group
         </div>
-        {inviteLink ? (
+        {resolvedInviteLink ? (
           <Button
             className="w-full"
             onClick={async () => {
-              await navigator.clipboard.writeText(inviteLink);
+              await navigator.clipboard.writeText(resolvedInviteLink);
             }}
           >
             <Icon name="copy" className="mr-2" /> Copy Invite Link
@@ -98,7 +111,10 @@ const GiftGroupOverview = () => {
               className="w-full"
               disabled={createFetcher.state !== 'idle'}
             >
-              <Icon name="link-2" className="mr-2" /> Create & Copy Invite Link
+              <Icon name="link-2" className="mr-2" />
+              {createInvitePending
+                ? 'Creating Invite Link...'
+                : 'Create & Copy Invite Link'}
             </Button>
           </createFetcher.Form>
         ) : (
@@ -235,14 +251,43 @@ const InlineBudgetEditor = ({
   giftGroupId: string;
   initialCents: number;
 }) => {
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<typeof settingsAction>();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState<number>(initialCents);
+  const pendingChangeRef = useRef<{ previous: number } | null>(null);
+  const wasPendingRef = useRef(false);
   const dollars = (value / 100).toFixed(2);
   const pending = fetcher.state !== 'idle';
 
+  useEffect(() => {
+    if (!pendingChangeRef.current) {
+      setValue(initialCents);
+    }
+  }, [initialCents]);
+
+  useEffect(() => {
+    if (fetcher.state !== 'idle') {
+      wasPendingRef.current = true;
+      return;
+    }
+    if (!wasPendingRef.current) return;
+    wasPendingRef.current = false;
+
+    const status = (fetcher.data as { status?: string } | undefined)?.status;
+    if (status === 'success') {
+      pendingChangeRef.current = null;
+      return;
+    }
+
+    if (pendingChangeRef.current) {
+      setValue(pendingChangeRef.current.previous);
+      pendingChangeRef.current = null;
+    }
+  }, [fetcher.state, fetcher.data]);
+
   const submit = (next: number) => {
     const cents = Math.max(0, Math.round(next));
+    pendingChangeRef.current = { previous: value };
     setValue(cents); // optimistic
     const fd = new FormData();
     fd.set('intent', 'member-update-self');
@@ -338,7 +383,10 @@ const InlineBudgetEditor = ({
         <span className="hidden items-center gap-2 sm:inline-flex">
           {value > 0 ? (
             <>
-              <span className="text-xl font-bold text-foreground">
+              <span
+                className="text-xl font-bold text-foreground"
+                data-testid="budget-amount"
+              >
                 ${dollars}
               </span>
               <Button

@@ -9,6 +9,7 @@ const CategoryActionSchema = z.object({
   id: z.string().optional(),
   name: z.string().optional(),
   direction: z.enum(['up', 'down']).optional(),
+  clientMutationId: z.string().optional(),
 });
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -20,20 +21,27 @@ export async function action({ request }: ActionFunctionArgs) {
     return json(submission.reply(), { status: 400 });
   }
 
-  const { intent, id, name, direction } = submission.value;
+  const { intent, id, name, direction, clientMutationId } = submission.value;
+
+  const normalizedClientMutationId = clientMutationId?.trim() || null;
 
   let toast: { type: 'success'; title: string; description: string } | null =
+    null;
+  let category: { id: string; name: string; order: number } | null = null;
+  let deletedCategory: { id: string; name: string; order: number } | null =
     null;
 
   switch (intent) {
     case 'create': {
-      if (!name) return json({ ok: false });
+      if (!name)
+        return json({ ok: false, clientMutationId: normalizedClientMutationId });
       const max = await prisma.wishlistCategory.aggregate({
         where: { ownerId: userId },
         _max: { order: true },
       });
       const order = (max._max.order ?? -1) + 1;
-      await prisma.wishlistCategory.create({
+      category = await prisma.wishlistCategory.create({
+        select: { id: true, name: true, order: true },
         data: { ownerId: userId, name, order },
       });
       toast = {
@@ -44,20 +52,34 @@ export async function action({ request }: ActionFunctionArgs) {
       break;
     }
     case 'rename': {
-      if (!id || !name) return json({ ok: false });
-      await prisma.wishlistCategory.update({
-        where: { id },
+      if (!id || !name)
+        return json({ ok: false, clientMutationId: normalizedClientMutationId });
+      category = await prisma.wishlistCategory.update({
+        select: { id: true, name: true, order: true },
+        where: { id, ownerId: userId },
         data: { name },
       });
       break;
     }
     case 'delete': {
-      if (!id) return json({ ok: false });
-      await prisma.wishlistCategory.delete({ where: { id } });
+      if (!id)
+        return json({ ok: false, clientMutationId: normalizedClientMutationId });
+
+      const existingCategory = await prisma.wishlistCategory.findFirst({
+        select: { id: true, name: true, order: true },
+        where: { id, ownerId: userId },
+      });
+      if (!existingCategory) {
+        return json({ ok: false, clientMutationId: normalizedClientMutationId });
+      }
+
+      await prisma.wishlistCategory.delete({ where: { id: existingCategory.id } });
+      deletedCategory = existingCategory;
       break;
     }
     case 'move': {
-      if (!id || !direction) return json({ ok: false });
+      if (!id || !direction)
+        return json({ ok: false, clientMutationId: normalizedClientMutationId });
       const categories = await prisma.wishlistCategory.findMany({
         where: { ownerId: userId },
         orderBy: { order: 'asc' },
@@ -78,9 +100,22 @@ export async function action({ request }: ActionFunctionArgs) {
           data: { order: current.order },
         }),
       ]);
+      category = {
+        id: current.id,
+        name: current.name,
+        order: swap.order,
+      };
       break;
     }
   }
 
-  return json({ ok: true, toast });
+  return json({
+    ok: true,
+    intent,
+    toast,
+    category,
+    deletedCategoryId: deletedCategory?.id ?? null,
+    deletedCategory,
+    clientMutationId: normalizedClientMutationId,
+  });
 }

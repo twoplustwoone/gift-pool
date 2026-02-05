@@ -13,6 +13,11 @@ export async function action({ request }: ActionFunctionArgs) {
   const userId = await requireUserId(request);
   const formData = await request.formData();
   const intent = formData.get('intent');
+  const clientMutationIdRaw = formData.get('clientMutationId');
+  const clientMutationId =
+    typeof clientMutationIdRaw === 'string' && clientMutationIdRaw.length > 0
+      ? clientMutationIdRaw
+      : null;
 
   try {
     if (intent === 'reorder-categories') {
@@ -41,7 +46,7 @@ export async function action({ request }: ActionFunctionArgs) {
         ),
       );
 
-      return json({ ok: true });
+      return json({ ok: true, clientMutationId });
     }
 
     if (intent === 'reorder-items') {
@@ -182,10 +187,13 @@ export async function action({ request }: ActionFunctionArgs) {
           ];
 
       await prisma.$transaction(updateItems);
-      return json({ ok: true });
+      return json({ ok: true, clientMutationId });
     }
 
-    return json({ ok: false, error: 'Invalid intent.' }, { status: 400 });
+    return json(
+      { ok: false, error: 'Invalid intent.', clientMutationId },
+      { status: 400 },
+    );
   } catch (error) {
     const responseError =
       error instanceof Response
@@ -196,6 +204,7 @@ export async function action({ request }: ActionFunctionArgs) {
       {
         ok: false,
         error: await responseError.text(),
+        clientMutationId,
       },
       { status: responseError.status || 400 },
     );
