@@ -20,6 +20,9 @@ const createWishlistItem = async ({
   await expect(editor).toBeVisible();
   await editor.getByLabel('Title').fill(title);
   await page.getByRole('button', { name: /^save$/i }).click();
+  // Wait for the Remix navigation to fully complete (action + loader revalidation)
+  // so the item has its real database ID, not an optimistic one
+  await expect(editor).not.toBeVisible();
 };
 
 test('owners can archive and unarchive wishlist items', async ({ page, login }) => {
