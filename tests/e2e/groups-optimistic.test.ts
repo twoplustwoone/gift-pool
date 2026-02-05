@@ -58,7 +58,7 @@ test('members page shows optimistic role change before promote request resolves'
   login,
 }) => {
   const { groupId, owner, member } = await createGroupWithOwnerAndMember();
-  let resolvePromoteGate = () => {};
+  let resolvePromoteGate = () => { };
   const promoteGate = new Promise<void>((resolve) => {
     resolvePromoteGate = resolve;
   });
@@ -66,7 +66,7 @@ test('members page shows optimistic role change before promote request resolves'
   try {
     await login({ id: owner.id });
 
-    await page.route(`**/groups/${groupId}/settings`, async (route) => {
+    await page.route(`**/groups/${groupId}/settings*`, async (route) => {
       const request = route.request();
       const isPromoteRequest =
         request.method() === 'POST' &&
@@ -98,10 +98,10 @@ test('members page shows optimistic role change before promote request resolves'
     resolvePromoteGate();
     await expect(demoteButton).toBeVisible();
   } finally {
-    await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => {});
+    await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => { });
     await prisma.user
       .deleteMany({ where: { id: { in: [owner.id, member.id] } } })
-      .catch(() => {});
+      .catch(() => { });
   }
 });
 
@@ -116,7 +116,7 @@ test('overview budget rolls back after forced settings failure', async ({
   try {
     await login({ id: owner.id });
 
-    await page.route(`**/groups/${groupId}/settings`, async (route) => {
+    await page.route(`**/groups/${groupId}/settings*`, async (route) => {
       const request = route.request();
       const isBudgetUpdate =
         request.method() === 'POST' &&
@@ -141,14 +141,13 @@ test('overview budget rolls back after forced settings failure', async ({
     await budgetInput.fill('25');
     await page.getByRole('button', { name: /^save$/i }).click();
 
-    await expect(page.getByText('$25.00')).toBeVisible();
-
-    await page.getByRole('button', { name: /edit your budget/i }).click();
-    await expect(page.getByLabel('Your budget')).toHaveValue('10.00');
+    const budgetAmount = page.getByTestId('budget-amount');
+    await expect(budgetAmount).toHaveText('$25.00');
+    await expect(budgetAmount).toHaveText('$10.00');
   } finally {
-    await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => {});
+    await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => { });
     await prisma.user
       .deleteMany({ where: { id: { in: [owner.id, member.id] } } })
-      .catch(() => {});
+      .catch(() => { });
   }
 });

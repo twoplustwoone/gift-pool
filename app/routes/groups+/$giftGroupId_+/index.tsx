@@ -383,7 +383,10 @@ const InlineBudgetEditor = ({
         <span className="hidden items-center gap-2 sm:inline-flex">
           {value > 0 ? (
             <>
-              <span className="text-xl font-bold text-foreground">
+              <span
+                className="text-xl font-bold text-foreground"
+                data-testid="budget-amount"
+              >
                 ${dollars}
               </span>
               <Button
