@@ -23,7 +23,7 @@ test('users can optimistically toggle notification channels while request is pen
   await page.goto('/settings/notifications');
   await dismissInstallPrompt(page);
 
-  await page.route('**/settings/notifications', async (route) => {
+  await page.route('**/settings/notifications*', async (route) => {
     const request = route.request();
     if (request.method() !== 'POST') {
       await route.continue();
@@ -182,15 +182,30 @@ test('users can disable all email notifications at once', async ({
   await expect(friendActivityEmailToggles.first()).not.toBeChecked();
   await expect(friendActivityEmailToggles.nth(1)).not.toBeChecked();
 
-  const updatedPreferences = await prisma.userNotificationPreference.findMany({
-    where: {
-      userId: user.id,
-      type: {
-        in: [friendRequestReceivedType, friendRequestAcceptedType],
-      },
+  const updatedPreferences = await waitFor(
+    async () => {
+      const preferences = await prisma.userNotificationPreference.findMany({
+        where: {
+          userId: user.id,
+          type: {
+            in: [friendRequestReceivedType, friendRequestAcceptedType],
+          },
+        },
+        select: { type: true, emailEnabled: true },
+      });
+
+      if (preferences.length !== 2) {
+        throw new Error('Preferences not updated yet');
+      }
+
+      if (preferences.some((pref) => pref.emailEnabled !== false)) {
+        throw new Error('Email preferences not disabled yet');
+      }
+
+      return preferences;
     },
-    select: { type: true, emailEnabled: true },
-  });
+    { timeout: 8000 },
+  );
 
   expect(updatedPreferences).toHaveLength(2);
   for (const pref of updatedPreferences) {
