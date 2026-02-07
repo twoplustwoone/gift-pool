@@ -170,7 +170,7 @@
     "eslint-plugin-unicorn": "^60.0.0",
     "fs-extra": "^11.2.0",
     "jsdom": "^24.1.0",
-    "msw": "2.11.6",
+    "msw": "2.12.9",
     "nanoid": "^3.3.7",
     "node-html-parser": "^6.1.13",
     "npm-run-all2": "^5.0.0",
