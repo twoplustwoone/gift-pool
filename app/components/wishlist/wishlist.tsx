@@ -1825,7 +1825,7 @@ export const Wishlist = ({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-x-clip">
       {isOwner ? (
         <WishlistItemEditor
           key={`quick-add-${quickAddCategoryId ?? 'default'}`}
@@ -1849,7 +1849,7 @@ export const Wishlist = ({
         onStartItemReorder={startItemReorderMode}
         onStartCategoryReorder={startCategoryReorderMode}
       />
-      <div className="container min-h-0 flex-1 py-8">
+      <div className="mx-auto min-h-0 w-full max-w-6xl flex-1 px-3 py-8 sm:px-6">
         <Stack gap={4}>
           <div className="inline-flex w-full max-w-md rounded-full bg-muted p-1 text-sm">
             <button
@@ -2104,45 +2104,51 @@ const WishlistHeader = ({
   onStartItemReorder: () => void;
   onStartCategoryReorder: () => void;
 }) => (
-  <div className="border-b bg-surface px-4 py-3">
-    <div className="container flex min-h-11 items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
+  <div className="w-full border-b bg-surface">
+    <div className="mx-auto flex min-h-11 w-full max-w-6xl items-center justify-between gap-3 px-3 py-3 sm:px-6">
+      <div className="flex min-w-0 items-center gap-3">
         <WishlistAvatar isOwner={isOwner} user={user} />
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {isOwner ? (
-            <Text size="xl" weight="bold">
+            <Text size="xl" weight="bold" className="truncate">
               My Wishlist
             </Text>
           ) : (
-            <div className="flex flex-col items-start">
-              <Text size="xl" weight="bold" className="group-hover:underline">
+            <div className="flex min-w-0 flex-col items-start">
+              <Text
+                size="xl"
+                weight="bold"
+                className="w-full truncate group-hover:underline"
+              >
                 {displayName}'s Wishlist
               </Text>
-              <Text size="xs" className="text-muted-foreground">
+              <Text size="xs" className="w-full truncate text-muted-foreground">
                 @{user.username}
               </Text>
             </div>
           )}
-          {isOwner ? (
-            <WishlistShareDialog
-              username={user.username}
-              displayName={displayName}
-              origin={origin}
-              publicShare={publicShare}
-            />
-          ) : (
-            <WishlistLinkCopyButton
-              displayName={displayName}
-              username={user.username}
-              isPublicView={isPublicView}
-              origin={origin}
-            />
-          )}
+          <div className="shrink-0">
+            {isOwner ? (
+              <WishlistShareDialog
+                username={user.username}
+                displayName={displayName}
+                origin={origin}
+                publicShare={publicShare}
+              />
+            ) : (
+              <WishlistLinkCopyButton
+                displayName={displayName}
+                username={user.username}
+                isPublicView={isPublicView}
+                origin={origin}
+              />
+            )}
+          </div>
         </div>
       </div>
 
       {isOwner && !hideOwnerControls ? (
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           <WishlistItemEditor
             categories={user.wishlistCategories}
             hideFloatingTrigger={hideFloatingAddButton}

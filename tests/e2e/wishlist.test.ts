@@ -1,5 +1,6 @@
 import { type Page, type Locator } from '@playwright/test';
 import { prisma } from '#app/utils/db.server.ts';
+import { createPassword, createUser } from '#tests/db-utils.ts';
 import { expect, test, waitFor } from '#tests/playwright-utils.ts';
 
 async function dragHandleToTarget(
@@ -49,6 +50,90 @@ const addItemToCategory = async (
   await openCategoryActions(page, categoryName);
   await page.getByRole('menuitem', { name: /add item/i }).click();
 };
+
+const createFriendship = async (userOneId: string, userTwoId: string) => {
+  const [userAId, userBId] =
+    userOneId < userTwoId ? [userOneId, userTwoId] : [userTwoId, userOneId];
+  await prisma.friendship.create({ data: { userAId, userBId } });
+};
+
+const assertNoHorizontalOverflow = async (page: Page) => {
+  const metrics = await page.evaluate(() => {
+    const documentElement = document.documentElement;
+    const appScrollArea = document.querySelector(
+      '[data-testid="app-scroll-area"]',
+    ) as HTMLElement | null;
+
+    return {
+      documentScrollWidth: documentElement.scrollWidth,
+      documentClientWidth: documentElement.clientWidth,
+      appScrollWidth: appScrollArea?.scrollWidth ?? null,
+      appClientWidth: appScrollArea?.clientWidth ?? null,
+    };
+  });
+
+  expect(metrics.documentScrollWidth).toBeLessThanOrEqual(
+    metrics.documentClientWidth + 1,
+  );
+  expect(metrics.appScrollWidth).not.toBeNull();
+  expect(metrics.appClientWidth).not.toBeNull();
+  expect(metrics.appScrollWidth ?? 0).toBeLessThanOrEqual(
+    (metrics.appClientWidth ?? 0) + 1,
+  );
+};
+
+test('owner wishlist does not horizontally overflow on mobile', async ({
+  page,
+  login,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login();
+  await page.goto('/wishlist');
+  await page.waitForLoadState('networkidle');
+
+  await assertNoHorizontalOverflow(page);
+});
+
+test('friend wishlist does not horizontally overflow on mobile', async ({
+  page,
+  login,
+}) => {
+  const ownerData = createUser();
+  const viewerData = createUser();
+  const [owner, viewer] = await Promise.all([
+    prisma.user.create({
+      select: { id: true, username: true },
+      data: {
+        ...ownerData,
+        roles: { connect: { name: 'user' } },
+        password: { create: createPassword(ownerData.username) },
+      },
+    }),
+    prisma.user.create({
+      select: { id: true, username: true },
+      data: {
+        ...viewerData,
+        roles: { connect: { name: 'user' } },
+        password: { create: createPassword(viewerData.username) },
+      },
+    }),
+  ]);
+
+  await createFriendship(owner.id, viewer.id);
+
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await login({ id: viewer.id });
+    await page.goto(`/users/${owner.username}/wishlist`);
+    await page.waitForLoadState('networkidle');
+
+    await assertNoHorizontalOverflow(page);
+  } finally {
+    await prisma.user
+      .deleteMany({ where: { id: { in: [owner.id, viewer.id] } } })
+      .catch(() => {});
+  }
+});
 
 test('users can add wishlist items', async ({ page, login }) => {
   await login();
