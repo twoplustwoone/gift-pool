@@ -769,7 +769,7 @@ export const WishlistItem = ({
       >
         <div className="flex min-w-0 items-center gap-2 px-3 py-2.5">
           {mobileImageThumb}
-          <Box className="min-w-0 flex-1 overflow-hidden">
+          <Box className="w-0 min-w-0 flex-1 overflow-hidden">
             <Text
               size="base"
               weight="medium"
@@ -778,7 +778,7 @@ export const WishlistItem = ({
               {wishlistItem.title}
             </Text>
             {wishlistItem.note ? (
-              <Text size="xs" className="truncate text-muted-foreground">
+              <Text size="xs" className="block min-w-0 max-w-full truncate text-muted-foreground">
                 {wishlistItem.note}
               </Text>
             ) : null}
