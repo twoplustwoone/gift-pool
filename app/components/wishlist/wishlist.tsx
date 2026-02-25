@@ -1653,7 +1653,7 @@ export const Wishlist = ({
               </div>
             </SortableContext>
           ) : (
-            <Grid columns={{ sm: 2, md: 3, lg: 4 }} gap={3}>
+            <Grid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} gap={3}>
               {itemsForCategory.map((item) => (
                 <WishlistItem
                   key={item.id}
