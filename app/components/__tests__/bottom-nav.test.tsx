@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { createRemixStub } from '@remix-run/testing';
+import { createRoutesStub } from 'react-router';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { afterEach, vi, describe, test, expect } from 'vitest';
@@ -37,7 +37,7 @@ describe('<BottomNav />', () => {
   });
 
   test('renders a navigation landmark', () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => <BottomNav />,
@@ -52,7 +52,7 @@ describe('<BottomNav />', () => {
   test('contains four navigation items when authenticated', () => {
     vi.mocked(useOptionalUser).mockReturnValue({ id: 'user1' } as any);
 
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => <BottomNav />,
@@ -68,9 +68,9 @@ describe('<BottomNav />', () => {
   });
 
   test('contains only the public navigation item when unauthenticated', () => {
-    vi.mocked(useOptionalUser).mockReturnValue(null);
+    vi.mocked(useOptionalUser).mockReturnValue(undefined);
 
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => <BottomNav />,
@@ -88,7 +88,7 @@ describe('<BottomNav />', () => {
   test('buttons have accessible names', () => {
     vi.mocked(useOptionalUser).mockReturnValue({ id: 'user1' } as any);
 
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => <BottomNav />,

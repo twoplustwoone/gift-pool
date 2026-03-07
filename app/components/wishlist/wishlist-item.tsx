@@ -1,5 +1,5 @@
 import { type WishlistItem as WishlistItemType } from '@prisma/client';
-import { useFetcher } from '@remix-run/react';
+import { useFetcher } from 'react-router';
 import * as React from 'react';
 import {
   LuArchive,
@@ -93,11 +93,11 @@ export const WishlistItem = ({
   > & {
     status: WishlistItemStatusValue;
   }) &
-  Partial<{
-    hasImage: boolean;
-    imageSource: WishlistItemImageSource | null;
-  }> &
-  Partial<{ purchase: { purchasedById: string } | null }>;
+    Partial<{
+      hasImage: boolean;
+      imageSource: WishlistItemImageSource | null;
+    }> &
+    Partial<{ purchase: { purchasedById: string } | null }>;
   isOwner?: boolean;
   categories?: { id: string; name: string; order: number }[];
   disableClaims?: boolean;
@@ -336,10 +336,10 @@ export const WishlistItem = ({
   const press = usePressFeedback<HTMLDivElement>(
     isOwner && !isReorderMode
       ? {
-        onClick: () => {
-          editorRef.current?.openView({ fromTrigger: true });
-        },
-      }
+          onClick: () => {
+            editorRef.current?.openView({ fromTrigger: true });
+          },
+        }
       : undefined,
   );
 
@@ -757,7 +757,7 @@ export const WishlistItem = ({
         padding="none"
         role="button"
         className={cn(
-          'min-h-[4.25rem] min-w-0 cursor-pointer rounded-xl border border-border/80 bg-card shadow-sm touch-pan-y transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/20',
+          'min-h-[4.25rem] min-w-0 cursor-pointer touch-pan-y rounded-xl border border-border/80 bg-card shadow-sm transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/20',
           dragState === 'dragging-item' ? 'opacity-75' : '',
           dragState === 'dragging-category' ? 'opacity-80' : '',
         )}
@@ -778,7 +778,10 @@ export const WishlistItem = ({
               {wishlistItem.title}
             </Text>
             {wishlistItem.note ? (
-              <Text size="xs" className="block min-w-0 max-w-full truncate text-muted-foreground">
+              <Text
+                size="xs"
+                className="block min-w-0 max-w-full truncate text-muted-foreground"
+              >
                 {wishlistItem.note}
               </Text>
             ) : null}
@@ -849,9 +852,7 @@ export const DeleteWishlistItem = ({
   const requestInfo = useOptionalRequestInfo();
   const trackedArchiveIdRef = React.useRef<string | null>(null);
   const fallbackRequestId = requestInfo?.requestId ?? null;
-  const attachClientMutationId = (
-    event: React.FormEvent<HTMLFormElement>,
-  ) => {
+  const attachClientMutationId = (event: React.FormEvent<HTMLFormElement>) => {
     const formElement = event.currentTarget;
     const mutationId = createClientMutationId();
     const existingInput = formElement.elements.namedItem(

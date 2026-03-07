@@ -1,4 +1,4 @@
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
+import { data, type LoaderFunctionArgs } from 'react-router';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import {
@@ -12,7 +12,6 @@ import {
   listNotifications,
   type NotificationRecord,
 } from '#app/utils/notifications.server.ts';
-
 function serializeNotification(record: NotificationRecord, locale: Locale) {
   const messageParams = sanitizeTranslationParams(record.messageParams);
   const message = translate(locale, record.messageKey as any, messageParams);
@@ -23,7 +22,6 @@ function serializeNotification(record: NotificationRecord, locale: Locale) {
       ? translate(locale, action.labelKey as any, messageParams)
       : (action.label ?? null),
   }));
-
   return {
     id: record.id,
     type: record.type,
@@ -39,7 +37,6 @@ function serializeNotification(record: NotificationRecord, locale: Locale) {
     friendRequestId: record.friendRequestId,
   };
 }
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   const url = new URL(request.url);
@@ -47,18 +44,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const status = statusParam === 'unread' ? 'unread' : 'all';
   const cursor = url.searchParams.get('cursor') ?? undefined;
   const locale = getLocaleFromRequest(request);
-
   const { items, hasMore, nextCursor } = await listNotifications({
     userId,
     status,
     cursor,
   });
-
   const unreadCount = await prisma.notification.count({
-    where: { userId, status: 'UNREAD' },
+    where: {
+      userId,
+      status: 'UNREAD',
+    },
   });
-
-  return json(
+  return data(
     {
       notifications: items.map((item) => serializeNotification(item, locale)),
       hasMore,

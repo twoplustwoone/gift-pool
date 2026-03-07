@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { createRemixStub } from '@remix-run/testing';
+import { createRoutesStub } from 'react-router';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { vi, describe, it, expect } from 'vitest';
 import { Wishlist } from './index';
@@ -23,8 +23,8 @@ vi.mock('#app/utils/misc.tsx', async () => {
   };
 });
 
-vi.mock('@remix-run/react', async () => {
-  const actual = await vi.importActual('@remix-run/react');
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual('react-router');
   return {
     ...actual,
     useActionData: () => undefined,
@@ -83,7 +83,7 @@ vi.mock('./category-manager', () => ({
 
 describe('Wishlist components', () => {
   it('renders wishlist with items', async () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => (
@@ -123,7 +123,7 @@ describe('Wishlist components', () => {
   });
 
   it('shows a share control for owners', async () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => (
@@ -148,7 +148,7 @@ describe('Wishlist components', () => {
   });
 
   it("lets viewers copy someone's wishlist link", async () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => (
@@ -173,7 +173,7 @@ describe('Wishlist components', () => {
   });
 
   it('hides claim controls for public viewers', async () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => (
@@ -233,7 +233,7 @@ describe('Wishlist components', () => {
   });
 
   it('shows empty message for others', async () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => (
@@ -258,7 +258,7 @@ describe('Wishlist components', () => {
   });
 
   it('hides default category for viewers when it has no items', async () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => (
@@ -291,7 +291,7 @@ describe('Wishlist components', () => {
   });
 
   it('shows default category for viewers when it has items', async () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => (
@@ -333,7 +333,7 @@ describe('Wishlist components', () => {
   });
 
   it('renders empty categories', async () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => (
@@ -358,7 +358,7 @@ describe('Wishlist components', () => {
   });
 
   it('lets viewers mark an item as purchased', async () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => (
@@ -400,7 +400,7 @@ describe('Wishlist components', () => {
   });
 
   it('shows purchase status for viewers', async () => {
-    const PurchasedByViewer = createRemixStub([
+    const PurchasedByViewer = createRoutesStub([
       {
         path: '/',
         Component: () => (
@@ -442,7 +442,7 @@ describe('Wishlist components', () => {
     expect(unmarkButton.tagName).toBe('BUTTON');
     expect(unmarkButton).toBeEnabled();
 
-    const PurchasedByOther = createRemixStub([
+    const PurchasedByOther = createRoutesStub([
       {
         path: '/',
         Component: () => (
@@ -484,7 +484,7 @@ describe('Wishlist components', () => {
   });
 
   it('shows reorder handles for owners only after entering reorder mode', async () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => (
@@ -525,13 +525,17 @@ describe('Wishlist components', () => {
       screen.queryByRole('button', { name: /drag item item one/i }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /start item reorder/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /start item reorder/i }),
+    );
     await screen.findByRole('button', { name: /drag item item one/i });
     expect(
       screen.queryByRole('button', { name: /category actions for books/i }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /category reorder mode/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /category reorder mode/i }),
+    );
     await screen.findByRole('button', { name: /drag category books/i });
     expect(
       screen.queryByRole('button', { name: /drag item item one/i }),
@@ -543,7 +547,9 @@ describe('Wishlist components', () => {
     ).not.toBeInTheDocument();
 
     await screen.findByRole('button', { name: /category actions for books/i });
-    expect(screen.getAllByRole('button', { name: /item actions for item one/i })).toHaveLength(2);
+    expect(
+      screen.getAllByRole('button', { name: /item actions for item one/i }),
+    ).toHaveLength(2);
 
     const categoryRows = await screen.findAllByTestId('wishlist-category-row');
     expect(categoryRows[0]).toHaveAttribute('data-drag-state', 'idle');
@@ -552,7 +558,7 @@ describe('Wishlist components', () => {
   });
 
   it('does not show drag handles for viewers', async () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => (

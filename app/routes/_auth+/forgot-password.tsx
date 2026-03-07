@@ -8,12 +8,12 @@ import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import * as E from '@react-email/components';
 import {
-  json,
+  data,
   redirect,
   type ActionFunctionArgs,
   type MetaFunction,
-} from '@remix-run/node';
-import { Link, useFetcher } from '@remix-run/react';
+} from 'react-router';
+import { Link, useFetcher } from 'react-router';
 import { HoneypotInputs } from 'remix-utils/honeypot/react';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
@@ -24,15 +24,12 @@ import { sendEmail } from '#app/utils/email.server.ts';
 import { checkHoneypot } from '#app/utils/honeypot.server.ts';
 import { EmailSchema, UsernameSchema } from '#app/utils/user-validation.ts';
 import { prepareVerification } from './verify.server.ts';
-
 export const handle: SEOHandle = {
   getSitemapEntries: () => null,
 };
-
 const ForgotPasswordSchema = z.object({
   usernameOrEmail: z.union([EmailSchema, UsernameSchema]),
 });
-
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   checkHoneypot(formData);
@@ -41,11 +38,17 @@ export async function action({ request }: ActionFunctionArgs) {
       const user = await prisma.user.findFirst({
         where: {
           OR: [
-            { email: data.usernameOrEmail },
-            { username: data.usernameOrEmail },
+            {
+              email: data.usernameOrEmail,
+            },
+            {
+              username: data.usernameOrEmail,
+            },
           ],
         },
-        select: { id: true },
+        select: {
+          id: true,
+        },
       });
       if (!user) {
         ctx.addIssue({
@@ -59,25 +62,38 @@ export async function action({ request }: ActionFunctionArgs) {
     async: true,
   });
   if (submission.status !== 'success') {
-    return json(
-      { result: submission.reply() },
-      { status: submission.status === 'error' ? 400 : 200 },
+    return data(
+      {
+        result: submission.reply(),
+      },
+      {
+        status: submission.status === 'error' ? 400 : 200,
+      },
     );
   }
   const { usernameOrEmail } = submission.value;
-
   const user = await prisma.user.findFirstOrThrow({
-    where: { OR: [{ email: usernameOrEmail }, { username: usernameOrEmail }] },
-    select: { email: true, username: true },
+    where: {
+      OR: [
+        {
+          email: usernameOrEmail,
+        },
+        {
+          username: usernameOrEmail,
+        },
+      ],
+    },
+    select: {
+      email: true,
+      username: true,
+    },
   });
-
   const { verifyUrl, redirectTo, otp } = await prepareVerification({
     period: 10 * 60,
     request,
     type: 'reset-password',
     target: usernameOrEmail,
   });
-
   const response = await sendEmail({
     to: user.email,
     subject: `GiftPool Password Reset`,
@@ -85,17 +101,21 @@ export async function action({ request }: ActionFunctionArgs) {
       <ForgotPasswordEmail onboardingUrl={verifyUrl.toString()} otp={otp} />
     ),
   });
-
   if (response.status === 'success') {
     return redirect(redirectTo.toString());
   } else {
-    return json(
-      { result: submission.reply({ formErrors: [response.error.message] }) },
-      { status: 500 },
+    return data(
+      {
+        result: submission.reply({
+          formErrors: [response.error.message],
+        }),
+      },
+      {
+        status: 500,
+      },
     );
   }
 }
-
 const ForgotPasswordEmail = ({
   onboardingUrl,
   otp,
@@ -122,24 +142,28 @@ const ForgotPasswordEmail = ({
     </E.Html>
   );
 };
-
 export const meta: MetaFunction = () => {
-  return [{ title: 'Password Recovery for GiftPool' }];
+  return [
+    {
+      title: 'Password Recovery for GiftPool',
+    },
+  ];
 };
-
 const ForgotPasswordRoute = () => {
-  const forgotPassword = useFetcher<{ result: SubmissionResult<string[]> }>();
-
+  const forgotPassword = useFetcher<{
+    result: SubmissionResult<string[]>;
+  }>();
   const [form, fields] = useForm<z.input<typeof ForgotPasswordSchema>>({
     id: 'forgot-password-form',
     constraint: getZodConstraint(ForgotPasswordSchema),
     lastResult: forgotPassword.data?.result,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: ForgotPasswordSchema }) as any;
+      return parseWithZod(formData, {
+        schema: ForgotPasswordSchema,
+      }) as any;
     },
     shouldRevalidate: 'onBlur',
   });
-
   return (
     <div className="container pb-32 pt-20">
       <div className="flex flex-col justify-center">
@@ -160,7 +184,9 @@ const ForgotPasswordRoute = () => {
                 }}
                 inputProps={{
                   autoFocus: true,
-                  ...getInputProps(fields.usernameOrEmail, { type: 'text' }),
+                  ...getInputProps(fields.usernameOrEmail, {
+                    type: 'text',
+                  }),
                 }}
                 errors={fields.usernameOrEmail.errors}
               />
@@ -193,9 +219,7 @@ const ForgotPasswordRoute = () => {
     </div>
   );
 };
-
 export default ForgotPasswordRoute;
-
 export const ErrorBoundary = () => {
   return <GeneralErrorBoundary />;
 };

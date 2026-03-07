@@ -1,12 +1,12 @@
 // form utilities are not needed here anymore
 import { parseWithZod } from '@conform-to/zod';
 import {
-  json,
+  data,
   type LoaderFunctionArgs,
   type HeadersFunction,
   type LinksFunction,
   type MetaFunction,
-} from '@remix-run/node';
+} from 'react-router';
 import {
   Links,
   Meta,
@@ -17,8 +17,7 @@ import {
   useNavigation,
   useFetchers,
   useLoaderData,
-} from '@remix-run/react';
-import { withSentry } from '@sentry/remix';
+} from 'react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { HoneypotProvider } from 'remix-utils/honeypot/react';
 import { toast } from 'sonner';
@@ -52,10 +51,13 @@ import { useRequestInfo } from './utils/request-info.ts';
 import { type Theme, getTheme } from './utils/theme.server.ts';
 import { makeTimings, time } from './utils/timing.server.ts';
 import { getToast } from './utils/toast.server.ts';
-
 export const links: LinksFunction = () => [
   // Preload svg sprite as a resource to avoid render blocking
-  { rel: 'preload', href: iconsHref, as: 'image' },
+  {
+    rel: 'preload',
+    href: iconsHref,
+    as: 'image',
+  },
   {
     rel: 'preload',
     href: '/fonts/Nunito/Nunito-ExtraLight.woff2',
@@ -68,25 +70,45 @@ export const links: LinksFunction = () => [
     href: '/favicon.ico',
     sizes: '48x48',
   },
-  { rel: 'icon', type: 'image/svg+xml', href: faviconAssetUrl },
-  { rel: 'apple-touch-icon', href: appleTouchIconAssetUrl },
+  {
+    rel: 'icon',
+    type: 'image/svg+xml',
+    href: faviconAssetUrl,
+  },
+  {
+    rel: 'apple-touch-icon',
+    href: appleTouchIconAssetUrl,
+  },
   {
     rel: 'manifest',
     href: '/site.webmanifest',
     crossOrigin: 'use-credentials',
   },
-  { rel: 'stylesheet', href: tailwindStyleSheetUrl },
-  { rel: 'preload', href: nunitoStyleSheet, as: 'style' },
-  { rel: 'stylesheet', href: nunitoStyleSheet },
+  {
+    rel: 'stylesheet',
+    href: tailwindStyleSheetUrl,
+  },
+  {
+    rel: 'preload',
+    href: nunitoStyleSheet,
+    as: 'style',
+  },
+  {
+    rel: 'stylesheet',
+    href: nunitoStyleSheet,
+  },
 ];
-
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
   return [
-    { title: data ? 'GiftPool' : 'Error | GiftPool' },
-    { name: 'description', content: `Your own captain's log` },
+    {
+      title: data ? 'GiftPool' : 'Error | GiftPool',
+    },
+    {
+      name: 'description',
+      content: `Your own captain's log`,
+    },
   ];
 };
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const timings = makeTimings('root loader');
   const { requestId } = await getRequestContext(request);
@@ -96,7 +118,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
     desc: 'getUserId in root',
   });
   const locale = getLocaleFromRequest(request);
-
   const user = userId
     ? await time(
         () =>
@@ -105,34 +126,55 @@ export async function loader({ request }: LoaderFunctionArgs) {
               id: true,
               name: true,
               username: true,
-              image: { select: { id: true } },
+              image: {
+                select: {
+                  id: true,
+                },
+              },
               roles: {
                 select: {
                   name: true,
                   permissions: {
-                    select: { entity: true, action: true, access: true },
+                    select: {
+                      entity: true,
+                      action: true,
+                      access: true,
+                    },
                   },
                 },
               },
             },
-            where: { id: userId },
+            where: {
+              id: userId,
+            },
           }),
-        { timings, type: 'find user', desc: 'find user in root' },
+        {
+          timings,
+          type: 'find user',
+          desc: 'find user in root',
+        },
       )
     : null;
   if (userId && !user) {
     console.info('something weird happened');
     // something weird happened... The user is authenticated but we can't find
     // them in the database. Maybe they were deleted? Let's log them out.
-    await logout({ request, redirectTo: '/' });
+    await logout({
+      request,
+      redirectTo: '/',
+    });
   }
   const { toast, headers: toastHeaders } = await getToast(request);
   const unreadCount = userId
-    ? await prisma.notification.count({ where: { userId, status: 'UNREAD' } })
+    ? await prisma.notification.count({
+        where: {
+          userId,
+          status: 'UNREAD',
+        },
+      })
     : 0;
-  const honeyProps = honeypot.getInputProps();
-
-  return json(
+  const honeyProps = await honeypot.getInputProps();
+  return data(
     {
       user,
       requestInfo: {
@@ -151,30 +193,31 @@ export async function loader({ request }: LoaderFunctionArgs) {
         ALLOW_INDEXING: process.env.ALLOW_INDEXING,
       },
       toast,
-      notifications: { unreadCount },
+      notifications: {
+        unreadCount,
+      },
       honeyProps,
     },
     {
       headers: combineHeaders(
-        { 'Server-Timing': timings.toString() },
+        {
+          'Server-Timing': timings.toString(),
+        },
         toastHeaders,
         applyRequestIdHeader(null, requestId),
       ),
     },
   );
 }
-
 export const headers: HeadersFunction = ({ loaderHeaders }) => {
   const headers = {
     'Server-Timing': loaderHeaders.get('Server-Timing') ?? '',
   };
   return headers;
 };
-
 const ThemeFormSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']),
 });
-
 const Document = ({
   children,
   nonce,
@@ -184,7 +227,7 @@ const Document = ({
   children: React.ReactNode;
   nonce: string;
   theme?: Theme;
-  env?: Record<string, string>;
+  env?: Record<string, string | undefined>;
 }) => {
   return (
     <html lang="en" className={`${theme} min-h-full overflow-x-hidden`}>
@@ -213,7 +256,6 @@ const Document = ({
     </html>
   );
 };
-
 const Footer = () => {
   return (
     <div className="sm:hidden">
@@ -221,7 +263,6 @@ const Footer = () => {
     </div>
   );
 };
-
 const App = () => {
   const data = useLoaderData<typeof loader>();
   const nonce = useNonce();
@@ -235,12 +276,10 @@ const App = () => {
     promptInstall,
     shouldShowBanner: showPwaInstallBanner,
   } = usePwaInstallPrompt();
-
   const handleInstallClick = useCallback(async () => {
     if (installCapability !== 'prompt') {
       return 'unavailable' as const;
     }
-
     const outcome = await promptInstall();
     if (outcome === 'manual') {
       return outcome;
@@ -264,7 +303,6 @@ const App = () => {
     }
     return outcome;
   }, [installCapability, promptInstall]);
-
   const [hideHeader, setHideHeader] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
@@ -272,7 +310,6 @@ const App = () => {
   const lastRouteKey = useRef(
     `${location.pathname}${location.search}${location.hash}`,
   );
-
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -295,7 +332,9 @@ const App = () => {
       ticking = true;
       window.requestAnimationFrame(update);
     };
-    el.addEventListener('scroll', onScroll, { passive: true });
+    el.addEventListener('scroll', onScroll, {
+      passive: true,
+    });
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
 
@@ -306,17 +345,20 @@ const App = () => {
     if (lastRouteKey.current === key) return;
     lastRouteKey.current = key;
     requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      scrollRef.current?.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: 'auto',
+      });
     });
   }, [location, navigation.state]);
-
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
       <I18nProvider locale={data.requestInfo.locale}>
         <NotificationsProvider
           initialUnreadCount={data.notifications?.unreadCount ?? 0}
         >
-          <div className="flex min-h-[100dvh] max-h-[100dvh] flex-col overflow-hidden">
+          <div className="flex max-h-[100dvh] min-h-[100dvh] flex-col overflow-hidden">
             {showPwaInstallBanner ? (
               <PwaInstallBanner
                 capability={installCapability}
@@ -329,7 +371,9 @@ const App = () => {
                 manualPlatform={manualPlatform}
                 onDismiss={dismissInstallBanner}
                 onDismissPermanently={() =>
-                  dismissInstallBanner({ persist: true })
+                  dismissInstallBanner({
+                    persist: true,
+                  })
                 }
                 onPromptInstall={handleInstallClick}
               />
@@ -364,8 +408,7 @@ const AppWithProviders = () => {
     </HoneypotProvider>
   );
 };
-
-export default withSentry(AppWithProviders);
+export default AppWithProviders;
 
 /**
  * @returns the user's theme preference, or the client hint theme if the user
@@ -390,7 +433,6 @@ export function useOptimisticThemeMode() {
   const themeFetcher = fetchers.find(
     (f) => f.formAction === '/' || f.formAction === '/resources/theme-switch',
   );
-
   if (themeFetcher && themeFetcher.formData) {
     const submission = parseWithZod(themeFetcher.formData, {
       schema: ThemeFormSchema,
@@ -398,7 +440,6 @@ export function useOptimisticThemeMode() {
     return submission.status === 'success' ? submission.value.theme : null;
   }
 }
-
 export const ErrorBoundary = () => {
   // the nonce doesn't rely on the loader so we can access that
   const nonce = useNonce();

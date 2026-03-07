@@ -1,7 +1,6 @@
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
+import { type LoaderFunctionArgs } from 'react-router';
 import { getUserId } from '#app/utils/auth.server';
 import { prisma } from '#app/utils/db.server';
-
 function formatDateLabel(date: Date) {
   return new Intl.DateTimeFormat('en', {
     month: 'short',
@@ -19,7 +18,6 @@ function nextBirthdayDate(birthday: Date, now = new Date()) {
   }
   return new Date(now.getFullYear() + 1, bMonth, bDate);
 }
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const mockParam = url.searchParams.get('mock');
@@ -30,7 +28,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   // Mocked responses for tests
   if (mock === 'empty') {
-    return json({ birthdays: [], activity: [] });
+    return {
+      birthdays: [],
+      activity: [],
+    };
   }
   if (mock === 'data') {
     const now = new Date();
@@ -39,7 +40,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       now.getMonth(),
       now.getDate() + 10,
     );
-    return json({
+    return {
       birthdays: [
         {
           id: 'u_mock_1',
@@ -58,17 +59,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
           timestampISO: now.toISOString(),
         },
       ],
-    });
+    };
   }
-
   const userId = await getUserId(request);
   if (!userId) {
-    return json({ birthdays: [], activity: [] });
+    return {
+      birthdays: [],
+      activity: [],
+    };
   }
 
   // Upcoming birthdays for users sharing at least one group with the current user
   const memberships = await prisma.usersInGiftGroups.findMany({
-    where: { userId },
+    where: {
+      userId,
+    },
     select: {
       giftGroup: {
         select: {
@@ -89,7 +94,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
       },
     },
   });
-
   const now = new Date();
   const sixtyDays = 60 * 24 * 60 * 60 * 1000;
 
@@ -121,7 +125,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
       }
     }
   }
-
   const birthdays = Array.from(birthdayMap.values())
     .filter((b) => b.date.getTime() - now.getTime() <= sixtyDays)
     .sort((a, b) => a.date.getTime() - b.date.getTime())
@@ -141,8 +144,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
     description: string;
     timestampISO: string;
   }> = [];
-
-  return json({ birthdays, activity });
+  return {
+    birthdays,
+    activity,
+  };
 }
-
 export default null;

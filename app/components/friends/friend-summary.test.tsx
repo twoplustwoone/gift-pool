@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { createRemixStub } from '@remix-run/testing';
+import { createRoutesStub } from 'react-router';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, test, vi } from 'vitest';
@@ -25,7 +25,7 @@ describe('<FriendSummary />', () => {
   };
 
   test('links the profile summary to the wishlist', () => {
-    const App = createRemixStub([
+    const App = createRoutesStub([
       {
         path: '/',
         Component: () => (

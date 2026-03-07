@@ -7,12 +7,12 @@ import {
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
-  json,
+  data,
   redirect,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
-} from '@remix-run/node';
-import { Form, Link, useActionData } from '@remix-run/react';
+} from 'react-router';
+import { Form, Link, useActionData } from 'react-router';
 import { ErrorList, Field } from '#app/components/forms.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
@@ -22,30 +22,29 @@ import { prisma } from '#app/utils/db.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { PasswordAndConfirmPasswordSchema } from '#app/utils/user-validation.ts';
 import { type BreadcrumbHandle } from './profile-breadcrumbs.tsx';
-
 export const handle: BreadcrumbHandle & SEOHandle = {
   breadcrumb: <Icon name="dots-horizontal">Password</Icon>,
   getSitemapEntries: () => null,
 };
-
 const CreatePasswordForm = PasswordAndConfirmPasswordSchema;
-
 async function requireNoPassword(userId: string) {
   const password = await prisma.password.findUnique({
-    select: { userId: true },
-    where: { userId },
+    select: {
+      userId: true,
+    },
+    where: {
+      userId,
+    },
   });
   if (password) {
     throw redirect('/settings/profile/password');
   }
 }
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   await requireNoPassword(userId);
-  return json({});
+  return {};
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   const userId = await requireUserId(request);
   await requireNoPassword(userId);
@@ -55,21 +54,25 @@ export async function action({ request }: ActionFunctionArgs) {
     schema: CreatePasswordForm,
   });
   if (submission.status !== 'success') {
-    return json(
+    return data(
       {
         result: submission.reply({
           hideFields: ['password', 'confirmPassword'],
         }),
       },
-      { status: submission.status === 'error' ? 400 : 200 },
+      {
+        status: submission.status === 'error' ? 400 : 200,
+      },
     );
   }
-
   const { password } = submission.value;
-
   await prisma.user.update({
-    select: { username: true },
-    where: { id: userId },
+    select: {
+      username: true,
+    },
+    where: {
+      id: userId,
+    },
     data: {
       password: {
         create: {
@@ -78,38 +81,45 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     },
   });
-
-  return redirect(`/settings/profile`, { status: 302 });
+  return redirect(`/settings/profile`, {
+    status: 302,
+  });
 }
-
 const CreatePasswordRoute = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
-
-  const [form, fields] = useForm<{ password: string; confirmPassword: string }>(
-    {
-      id: 'password-create-form',
-      constraint: getZodConstraint(CreatePasswordForm),
-      lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
-      onValidate({ formData }) {
-        return parseWithZod(formData, { schema: CreatePasswordForm }) as any;
-      },
-      shouldRevalidate: 'onBlur',
+  const [form, fields] = useForm<{
+    password: string;
+    confirmPassword: string;
+  }>({
+    id: 'password-create-form',
+    constraint: getZodConstraint(CreatePasswordForm),
+    lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
+    onValidate({ formData }) {
+      return parseWithZod(formData, {
+        schema: CreatePasswordForm,
+      }) as any;
     },
-  );
-
+    shouldRevalidate: 'onBlur',
+  });
   return (
     <Form method="POST" {...getFormProps(form)} className="mx-auto max-w-md">
       <Field
-        labelProps={{ children: 'New Password' }}
+        labelProps={{
+          children: 'New Password',
+        }}
         inputProps={{
-          ...getInputProps(fields.password, { type: 'password' }),
+          ...getInputProps(fields.password, {
+            type: 'password',
+          }),
           autoComplete: 'new-password',
         }}
         errors={fields.password.errors}
       />
       <Field
-        labelProps={{ children: 'Confirm New Password' }}
+        labelProps={{
+          children: 'Confirm New Password',
+        }}
         inputProps={{
           ...getInputProps(fields.confirmPassword, {
             type: 'password',
@@ -133,5 +143,4 @@ const CreatePasswordRoute = () => {
     </Form>
   );
 };
-
 export default CreatePasswordRoute;

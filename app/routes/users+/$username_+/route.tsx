@@ -1,34 +1,41 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
-import { Outlet, redirect } from '@remix-run/react';
+import { type LoaderFunctionArgs } from 'react-router';
+import { Outlet, redirect } from 'react-router';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { username } = params;
-
   const userId = await requireUserId(request);
-
   const user = await prisma.user.findFirst({
     select: {
       id: true,
       name: true,
       username: true,
-      wishlistItems: { select: { id: true, title: true, ownerId: true } },
-      image: { select: { id: true } },
+      wishlistItems: {
+        select: {
+          id: true,
+          title: true,
+          ownerId: true,
+        },
+      },
+      image: {
+        select: {
+          id: true,
+        },
+      },
     },
-    where: { username },
+    where: {
+      username,
+    },
   });
-
-  invariantResponse(user, 'User not found', { status: 404 });
-
+  invariantResponse(user, 'User not found', {
+    status: 404,
+  });
   if (user.id === userId) {
     return redirect('/me');
   }
-
-  return json({});
+  return {};
 }
-
 const Username = () => {
   return (
     <main className="h-full min-h-0 overflow-y-auto">
@@ -38,5 +45,4 @@ const Username = () => {
     </main>
   );
 };
-
 export default Username;

@@ -1,7 +1,6 @@
 import { type Password, type User } from '@prisma/client';
-import { redirect } from '@remix-run/node';
+import { redirect } from 'react-router';
 import bcrypt from 'bcryptjs';
-import { Authenticator } from 'remix-auth';
 import { safeRedirect } from 'remix-utils/safe-redirect';
 import { prisma } from './db.server.ts';
 import { combineHeaders } from './misc.tsx';
@@ -12,8 +11,6 @@ export const getSessionExpirationDate = () =>
   new Date(Date.now() + SESSION_EXPIRATION_TIME);
 
 export const sessionKey = 'sessionId';
-
-export const authenticator = new Authenticator<any>(authSessionStorage);
 
 export async function getUserId(request: Request) {
   const authSession = await authSessionStorage.getSession(

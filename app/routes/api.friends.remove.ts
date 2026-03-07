@@ -1,7 +1,6 @@
-import { json, type ActionFunctionArgs } from '@remix-run/node';
+import { type ActionFunctionArgs } from 'react-router';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { removeFriend } from '#app/utils/friends.server.ts';
-
 async function extractUserId(request: Request) {
   const contentType = request.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) {
@@ -14,7 +13,6 @@ async function extractUserId(request: Request) {
       })
       .catch(() => null);
   }
-
   return request
     .formData()
     .then((formData) => {
@@ -23,17 +21,24 @@ async function extractUserId(request: Request) {
     })
     .catch(() => null);
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
-    throw new Response('Method not allowed', { status: 405 });
+    throw new Response('Method not allowed', {
+      status: 405,
+    });
   }
   const currentUserId = await requireUserId(request);
   const friendUserId = await extractUserId(request);
   if (!friendUserId) {
-    throw new Response('userId is required', { status: 400 });
+    throw new Response('userId is required', {
+      status: 400,
+    });
   }
-
   await removeFriend(currentUserId, friendUserId);
-  return json({ success: true, relationship: { state: 'NONE' } });
+  return {
+    success: true,
+    relationship: {
+      state: 'NONE',
+    },
+  };
 }

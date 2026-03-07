@@ -1,19 +1,16 @@
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
+import { type LoaderFunctionArgs } from 'react-router';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { type BreadcrumbHandle } from './profile-breadcrumbs.tsx';
-
 export const handle: BreadcrumbHandle & SEOHandle = {
   breadcrumb: <Icon name="link-2">Connections</Icon>,
   getSitemapEntries: () => null,
 };
-
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireUserId(request);
-  return json({});
+  return {};
 }
-
 const Connections = () => {
   return (
     <div className="mx-auto max-w-md">
@@ -23,5 +20,4 @@ const Connections = () => {
     </div>
   );
 };
-
 export default Connections;

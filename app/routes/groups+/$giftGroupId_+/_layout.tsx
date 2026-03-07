@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useLoaderData } from '@remix-run/react';
+import { Link, NavLink, Outlet, useLoaderData } from 'react-router';
 import { LuUsers } from 'react-icons/lu';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Button } from '#app/components/ui/button.tsx';

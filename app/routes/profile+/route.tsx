@@ -1,12 +1,10 @@
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
-import { Outlet } from '@remix-run/react';
+import { type LoaderFunctionArgs } from 'react-router';
+import { Outlet } from 'react-router';
 import { requireUserId } from '#app/utils/auth.server.ts';
-
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireUserId(request);
-  return json({});
+  return {};
 }
-
 const ProfileRoute = () => {
   return (
     <div>
@@ -14,5 +12,4 @@ const ProfileRoute = () => {
     </div>
   );
 };
-
 export default ProfileRoute;

@@ -1,4 +1,4 @@
-import { NavLink } from '@remix-run/react';
+import { NavLink } from 'react-router';
 import { type LucideIcon } from 'lucide-react';
 import { cn } from '#app/utils/misc.tsx';
 import { Text } from '../ui-kit/text.tsx';
@@ -51,7 +51,7 @@ export const TopNavItem = ({
           <span
             aria-hidden
             className={cn(
-              'pointer-events-none absolute inset-x-2 bottom-1 h-[3px] rounded-full bg-primary transition-transform transition-opacity duration-200 ease-out',
+              'pointer-events-none absolute inset-x-2 bottom-1 h-[3px] rounded-full bg-primary transition-opacity transition-transform duration-200 ease-out',
               isActive
                 ? 'translate-y-0 opacity-100'
                 : 'translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-60',

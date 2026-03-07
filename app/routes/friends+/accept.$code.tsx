@@ -1,10 +1,10 @@
 import {
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
-  json,
+  data,
   redirect,
-} from '@remix-run/node';
-import { Form, useLoaderData, useNavigate } from '@remix-run/react';
+} from 'react-router';
+import { Form, useLoaderData, useNavigate } from 'react-router';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import {
@@ -21,24 +21,33 @@ import {
   requireFriendInvitationNotExpired,
 } from '#app/utils/friend-invitations.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
-
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const code = params.code;
   if (!code) return redirect('/friends');
   const userId = await requireUserId(request);
   const invitation = await requireFriendInvitationNotExpired(code);
-  console.info({ invitation, userId });
+  console.info({
+    invitation,
+    userId,
+  });
   if (invitation.createdBy.id === userId) {
     return redirect('/friends');
   }
-  return json({
+  return {
     inviter: invitation.createdBy,
-  });
+  };
 }
-
 export async function action({ params, request }: ActionFunctionArgs) {
   const code = params.code;
-  if (!code) return json({ error: 'Invalid invite.' }, { status: 400 });
+  if (!code)
+    return data(
+      {
+        error: 'Invalid invite.',
+      },
+      {
+        status: 400,
+      },
+    );
   const userId = await requireUserId(request);
   await acceptFriendInvite(code, userId);
   return redirectWithToast('/friends', {
@@ -46,7 +55,6 @@ export async function action({ params, request }: ActionFunctionArgs) {
     description: 'Friend added.',
   });
 }
-
 const AcceptFriendInvitePage = () => {
   const { inviter } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
@@ -90,5 +98,4 @@ const AcceptFriendInvitePage = () => {
     </div>
   );
 };
-
 export default AcceptFriendInvitePage;

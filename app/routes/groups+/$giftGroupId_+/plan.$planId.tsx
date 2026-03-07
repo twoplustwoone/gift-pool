@@ -1,9 +1,5 @@
-import {
-  json,
-  type LoaderFunctionArgs,
-  type ActionFunctionArgs,
-} from '@remix-run/node';
-import { Form, Link, useLoaderData } from '@remix-run/react';
+import { type LoaderFunctionArgs, type ActionFunctionArgs } from 'react-router';
+import { Form, Link, useLoaderData } from 'react-router';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
@@ -14,38 +10,55 @@ import {
   requireUserIdInGroup,
   unlockGiftPlan,
 } from '#app/utils/groups.server.ts';
-
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
   const planId = params.planId!;
   await requireUserIdInGroup(request, groupId);
-
   const plan = await prisma.giftPlan.findUnique({
-    where: { id: planId },
+    where: {
+      id: planId,
+    },
     select: {
       id: true,
       status: true,
       birthdayDate: true,
       lockedAt: true,
-      lockedBy: { select: { username: true } },
+      lockedBy: {
+        select: {
+          username: true,
+        },
+      },
       budgetSnapshot: true,
       recipient: {
         select: {
           id: true,
           username: true,
           name: true,
-          image: { select: { id: true, altText: true } },
+          image: {
+            select: {
+              id: true,
+              altText: true,
+            },
+          },
         },
       },
       giftGroupId: true,
-      giftGroup: { select: { id: true, name: true } },
+      giftGroup: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
   if (!plan || plan.giftGroupId !== groupId)
-    throw new Response('Not found', { status: 404 });
-  return json({ plan });
+    throw new Response('Not found', {
+      status: 404,
+    });
+  return {
+    plan,
+  };
 }
-
 export async function action({ request, params }: ActionFunctionArgs) {
   const formData = await request.formData();
   const intent = formData.get('intent');
@@ -57,9 +70,10 @@ export async function action({ request, params }: ActionFunctionArgs) {
     const reason = String(formData.get('reason') || '');
     await unlockGiftPlan(request, groupId, planId, reason);
   }
-  return json({ ok: true });
+  return {
+    ok: true,
+  };
 }
-
 export default function GiftPlanRoute() {
   const { plan } = useLoaderData<typeof loader>();
   const locked = plan.status === 'LOCKED';

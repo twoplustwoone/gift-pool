@@ -1,24 +1,20 @@
-import { type LoaderFunctionArgs, json } from '@remix-run/node';
-import { Link } from '@remix-run/react';
+import { type LoaderFunctionArgs } from 'react-router';
+import { Link } from 'react-router';
 import { LuActivity, LuDatabase } from 'react-icons/lu';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { requireUserWithRole } from '#app/utils/permissions.server.ts';
-
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireUserWithRole(request, 'admin');
-  return json({});
+  return {};
 }
-
 const AdminIndexRoute = () => {
   return (
     <div className="container space-y-6 py-8">
       <div className="space-y-1">
         <h1 className="text-h1">Admin</h1>
-        <p className="text-muted-foreground">
-          Quick links to internal tools.
-        </p>
+        <p className="text-muted-foreground">Quick links to internal tools.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -58,9 +54,7 @@ const AdminIndexRoute = () => {
     </div>
   );
 };
-
 export default AdminIndexRoute;
-
 export const ErrorBoundary = () => {
   return <GeneralErrorBoundary />;
 };

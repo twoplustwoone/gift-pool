@@ -1,11 +1,6 @@
 import { parseWithZod } from '@conform-to/zod';
 import { createId as cuid } from '@paralleldrive/cuid2';
-import {
-  unstable_createMemoryUploadHandler as createMemoryUploadHandler,
-  json,
-  unstable_parseMultipartFormData as parseMultipartFormData,
-  type ActionFunctionArgs,
-} from '@remix-run/node';
+import { data as rrData, type ActionFunctionArgs } from 'react-router';
 import { z } from 'zod';
 import { logEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
@@ -21,7 +16,6 @@ import {
   type WishlistItemImageSource,
 } from '#app/utils/wishlist-images.server.ts';
 import { WishlistItemSchema } from './__wishlist-item-editor';
-
 const MAX_UPLOAD_SIZE = 1024 * 1024 * 10; // 10MB
 
 async function getNextSortOrderForCategory({
@@ -32,13 +26,16 @@ async function getNextSortOrderForCategory({
   categoryId: string | null;
 }) {
   const max = await prisma.wishlistItem.aggregate({
-    where: { ownerId, categoryId },
-    _max: { sortOrder: true },
+    where: {
+      ownerId,
+      categoryId,
+    },
+    _max: {
+      sortOrder: true,
+    },
   });
-
   return (max._max.sortOrder ?? -1) + 1;
 }
-
 async function redensifyCategory({
   tx,
   ownerId,
@@ -54,53 +51,70 @@ async function redensifyCategory({
     where: {
       ownerId,
       categoryId,
-      ...(excludeId ? { id: { not: excludeId } } : {}),
+      ...(excludeId
+        ? {
+            id: {
+              not: excludeId,
+            },
+          }
+        : {}),
     },
-    select: { id: true },
+    select: {
+      id: true,
+    },
     orderBy: [
-      { sortOrder: 'asc' },
-      { createdAt: 'asc' },
-      { id: 'asc' },
+      {
+        sortOrder: 'asc',
+      },
+      {
+        createdAt: 'asc',
+      },
+      {
+        id: 'asc',
+      },
     ],
   });
-
   if (items.length === 0) return;
-
   await Promise.all(
     items.map((item, index) =>
       tx.wishlistItem.update({
-        where: { id: item.id },
-        data: { sortOrder: index },
+        where: {
+          id: item.id,
+        },
+        data: {
+          sortOrder: index,
+        },
       }),
     ),
   );
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
-
-  const formData = await parseMultipartFormData(
-    request,
-    createMemoryUploadHandler({ maxPartSize: MAX_UPLOAD_SIZE }),
-  );
-
+  const formData = await request.formData();
   const intent = z
     .enum(['save', 'save-add-another'])
     .parse(formData.get('intent'));
   const clientMutationIdRaw = formData.get('clientMutationId');
   const clientMutationId =
-    typeof clientMutationIdRaw === 'string' && clientMutationIdRaw.trim().length > 0
+    typeof clientMutationIdRaw === 'string' &&
+    clientMutationIdRaw.trim().length > 0
       ? clientMutationIdRaw.trim()
       : null;
-
   const submission = await parseWithZod(formData, {
     schema: WishlistItemSchema.superRefine(async (data, ctx) => {
       if (!data.id) return;
-
       const wishlistItem = await prisma.wishlistItem.findUnique({
-        select: { id: true, url: true, image: true, imageSource: true },
-        where: { id: data.id, ownerId: userId },
+        select: {
+          id: true,
+          url: true,
+          image: true,
+          imageSource: true,
+        },
+        where: {
+          id: data.id,
+          ownerId: userId,
+        },
       });
       if (!wishlistItem) {
         ctx.addIssue({
@@ -108,11 +122,15 @@ export async function action({ request }: ActionFunctionArgs) {
           message: 'Wishlist item not found',
         });
       }
-
       if (data.categoryId) {
         const category = await prisma.wishlistCategory.findFirst({
-          select: { id: true },
-          where: { id: data.categoryId, ownerId: userId },
+          select: {
+            id: true,
+          },
+          where: {
+            id: data.categoryId,
+            ownerId: userId,
+          },
         });
         if (!category) {
           ctx.addIssue({
@@ -122,7 +140,6 @@ export async function action({ request }: ActionFunctionArgs) {
           });
         }
       }
-
       if (data.imageAction === 'url' && !data.imageUrl) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -130,7 +147,6 @@ export async function action({ request }: ActionFunctionArgs) {
           message: 'Add an image link to use this option',
         });
       }
-
       if (
         data.imageAction === 'upload' &&
         (!data.imageFile || data.imageFile.size === 0)
@@ -141,7 +157,6 @@ export async function action({ request }: ActionFunctionArgs) {
           message: 'Upload an image to continue',
         });
       }
-
       if (
         data.imageAction === 'upload' &&
         data.imageFile &&
@@ -156,9 +171,8 @@ export async function action({ request }: ActionFunctionArgs) {
     }),
     async: true,
   });
-
   if (submission.status !== 'success') {
-    return json(
+    return rrData(
       {
         ...submission.reply(),
         clientMutationId,
@@ -168,7 +182,6 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     );
   }
-
   const {
     id: wishlistItemId,
     categoryId,
@@ -177,11 +190,8 @@ export async function action({ request }: ActionFunctionArgs) {
     imageFile,
     ...data
   } = submission.value;
-
-  const normalizedNote =
-    data.note?.trim() === '' ? null : data.note ?? null;
-  const normalizedUrl = data.url?.trim() === '' ? null : data.url ?? null;
-
+  const normalizedNote = data.note?.trim() === '' ? null : (data.note ?? null);
+  const normalizedUrl = data.url?.trim() === '' ? null : (data.url ?? null);
   const existingItem = wishlistItemId
     ? await prisma.wishlistItem.findUnique({
         select: {
@@ -192,17 +202,16 @@ export async function action({ request }: ActionFunctionArgs) {
           image: true,
           imageSource: true,
         },
-        where: { id: wishlistItemId },
+        where: {
+          id: wishlistItemId,
+        },
       })
     : null;
-
   let nextImage: Buffer | null | undefined;
   let nextImageSource: WishlistItemImageSource | null | undefined;
   let imageError: string | null = null;
-
   const effectiveImageAction =
     imageAction === 'auto-detect' ? 'none' : imageAction;
-
   try {
     if (effectiveImageAction === 'upload') {
       if (imageFile && imageFile.size > 0) {
@@ -225,23 +234,23 @@ export async function action({ request }: ActionFunctionArgs) {
     nextImage = undefined;
     nextImageSource = undefined;
   }
-
   const dataWithImage = {
     ...data,
     note: normalizedNote,
     url: normalizedUrl,
     ...(typeof nextImage !== 'undefined'
-      ? { image: nextImage, imageSource: nextImageSource ?? null }
+      ? {
+          image: nextImage,
+          imageSource: nextImageSource ?? null,
+        }
       : {}),
   };
   const nextCategoryId = categoryId || null;
-
   const savedItem = wishlistItemId
     ? await (async () => {
         if (!existingItem) {
           throw new Error('Wishlist item not found');
         }
-
         const categoryChanged = existingItem.categoryId !== nextCategoryId;
         if (!categoryChanged) {
           return prisma.wishlistItem.update({
@@ -259,16 +268,19 @@ export async function action({ request }: ActionFunctionArgs) {
               image: true,
               imageSource: true,
             },
-            where: { id: wishlistItemId },
-            data: { ...dataWithImage, categoryId: nextCategoryId },
+            where: {
+              id: wishlistItemId,
+            },
+            data: {
+              ...dataWithImage,
+              categoryId: nextCategoryId,
+            },
           });
         }
-
         const nextSortOrder = await getNextSortOrderForCategory({
           ownerId: userId,
           categoryId: nextCategoryId,
         });
-
         const updatedItem = await prisma.$transaction(async (tx) => {
           const updated = await tx.wishlistItem.update({
             select: {
@@ -285,24 +297,23 @@ export async function action({ request }: ActionFunctionArgs) {
               image: true,
               imageSource: true,
             },
-            where: { id: wishlistItemId },
+            where: {
+              id: wishlistItemId,
+            },
             data: {
               ...dataWithImage,
               categoryId: nextCategoryId,
               sortOrder: nextSortOrder,
             },
           });
-
           await redensifyCategory({
             tx,
             ownerId: userId,
             categoryId: existingItem.categoryId,
             excludeId: wishlistItemId,
           });
-
           return updated;
         });
-
         return updatedItem;
       })()
     : await (async () => {
@@ -310,7 +321,6 @@ export async function action({ request }: ActionFunctionArgs) {
           ownerId: userId,
           categoryId: nextCategoryId,
         });
-
         return prisma.wishlistItem.create({
           select: {
             id: true,
@@ -334,7 +344,6 @@ export async function action({ request }: ActionFunctionArgs) {
           },
         });
       })();
-
   let analyticsEventId: string | null = null;
   if (!existingItem && !imageError) {
     const event = await logEvent({
@@ -352,7 +361,6 @@ export async function action({ request }: ActionFunctionArgs) {
     });
     analyticsEventId = event.eventId;
   }
-
   const toast =
     intent === 'save-add-another'
       ? {
@@ -362,8 +370,7 @@ export async function action({ request }: ActionFunctionArgs) {
           description: 'Wishlist item added.',
         }
       : null;
-
-  return json(
+  return rrData(
     {
       result: submission.reply(),
       intent,

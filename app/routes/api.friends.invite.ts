@@ -1,25 +1,24 @@
-import {
-  json,
-  type ActionFunctionArgs,
-  type LoaderFunctionArgs,
-} from '@remix-run/node';
+import { type ActionFunctionArgs, type LoaderFunctionArgs } from 'react-router';
 import {
   createFriendInvite,
   getActiveFriendInvite,
   getActiveFriendInviteUrl,
 } from '#app/utils/friend-invitations.server.ts';
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const [inviteUrl, invitation] = await Promise.all([
     getActiveFriendInviteUrl(request),
     getActiveFriendInvite(request),
   ]);
-  return json({ inviteUrl, invitation });
+  return {
+    inviteUrl,
+    invitation,
+  };
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
-    throw new Response('Method not allowed', { status: 405 });
+    throw new Response('Method not allowed', {
+      status: 405,
+    });
   }
   // optional: allow overriding days via body
   let days: number | undefined;
@@ -34,7 +33,8 @@ export async function action({ request }: ActionFunctionArgs) {
       if (typeof raw === 'string') days = parseInt(raw, 10);
     }
   } catch {}
-
   const inviteUrl = await createFriendInvite(request, days);
-  return json({ inviteUrl });
+  return {
+    inviteUrl,
+  };
 }

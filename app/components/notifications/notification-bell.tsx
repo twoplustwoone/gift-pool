@@ -1,4 +1,4 @@
-import { useNavigate } from '@remix-run/react';
+import { useNavigate } from 'react-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LuBell, LuCheckCheck, LuLoader, LuX } from 'react-icons/lu';
 import { toast } from 'sonner';

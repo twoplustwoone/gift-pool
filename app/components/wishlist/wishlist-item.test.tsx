@@ -8,8 +8,8 @@ import { WishlistItem } from './wishlist-item';
 
 const mockOpenView = vi.fn();
 
-vi.mock('@remix-run/react', async () => {
-  const actual = await vi.importActual('@remix-run/react');
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual('react-router');
   return {
     ...actual,
     useFetcher: () => ({
@@ -90,7 +90,11 @@ describe('WishlistItem', () => {
       throw new Error('Expected mobile wishlist row trigger');
     }
 
-    fireEvent.pointerDown(trigger, { pointerType: 'touch', clientX: 0, clientY: 0 });
+    fireEvent.pointerDown(trigger, {
+      pointerType: 'touch',
+      clientX: 0,
+      clientY: 0,
+    });
     fireEvent.pointerUp(trigger, { pointerType: 'touch' });
 
     expect(mockOpenView).toHaveBeenCalledWith({ fromTrigger: true });
@@ -155,7 +159,11 @@ describe('WishlistItem', () => {
       throw new Error('Expected mobile wishlist row trigger');
     }
 
-    fireEvent.pointerDown(trigger, { pointerType: 'touch', clientX: 0, clientY: 0 });
+    fireEvent.pointerDown(trigger, {
+      pointerType: 'touch',
+      clientX: 0,
+      clientY: 0,
+    });
     fireEvent.pointerUp(trigger, { pointerType: 'touch' });
 
     expect(mockOpenView).not.toHaveBeenCalled();

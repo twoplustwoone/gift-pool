@@ -1,7 +1,7 @@
 // Avoid strict coupling to a specific Conform Submission type instance.
 // We only depend on the minimal shape used by handlers.
 import { parseWithZod } from '@conform-to/zod';
-import { json } from '@remix-run/node';
+import { data } from 'react-router';
 import { z } from 'zod';
 import { handleVerification as handleChangeEmailVerification } from '#app/routes/settings+/profile.change-email.server.tsx';
 import { twoFAVerificationType } from '#app/routes/settings+/profile.two-factor.tsx';
@@ -25,13 +25,11 @@ import {
   typeQueryParam,
   type VerificationTypes,
 } from './verify.tsx';
-
 export type VerifyFunctionArgs = {
   request: Request;
   submission: any;
   body: FormData | URLSearchParams;
 };
-
 export function getRedirectToUrl({
   request,
   type,
@@ -51,7 +49,6 @@ export function getRedirectToUrl({
   }
   return redirectToUrl;
 }
-
 export async function requireRecentVerification(request: Request) {
   const userId = await requireUserId(request);
   const shouldReverify = await shouldRequestTwoFA(request);
@@ -69,7 +66,6 @@ export async function requireRecentVerification(request: Request) {
     });
   }
 }
-
 export async function prepareVerification({
   period,
   request,
@@ -81,9 +77,12 @@ export async function prepareVerification({
   type: VerificationTypes;
   target: string;
 }) {
-  const verifyUrl = getRedirectToUrl({ request, type, target });
+  const verifyUrl = getRedirectToUrl({
+    request,
+    type,
+    target,
+  });
   const redirectTo = new URL(verifyUrl.toString());
-
   const { otp, ...verificationConfig } = generateTOTP({
     algorithm: 'SHA256',
     charSet: '0123456789',
@@ -96,17 +95,24 @@ export async function prepareVerification({
     expiresAt: new Date(Date.now() + verificationConfig.period * 1000),
   };
   await prisma.verification.upsert({
-    where: { target_type: { target, type } },
+    where: {
+      target_type: {
+        target,
+        type,
+      },
+    },
     create: verificationData,
     update: verificationData,
   });
 
   // add the otp to the url we'll email the user.
   verifyUrl.searchParams.set(codeQueryParam, otp);
-
-  return { otp, redirectTo, verifyUrl };
+  return {
+    otp,
+    redirectTo,
+    verifyUrl,
+  };
 }
-
 export async function isCodeValid({
   code,
   type,
@@ -118,10 +124,27 @@ export async function isCodeValid({
 }) {
   const verification = await prisma.verification.findUnique({
     where: {
-      target_type: { target, type },
-      OR: [{ expiresAt: { gt: new Date() } }, { expiresAt: null }],
+      target_type: {
+        target,
+        type,
+      },
+      OR: [
+        {
+          expiresAt: {
+            gt: new Date(),
+          },
+        },
+        {
+          expiresAt: null,
+        },
+      ],
     },
-    select: { algorithm: true, secret: true, period: true, charSet: true },
+    select: {
+      algorithm: true,
+      secret: true,
+      period: true,
+      charSet: true,
+    },
   });
   if (!verification) return false;
   const result = verifyTOTP({
@@ -129,10 +152,8 @@ export async function isCodeValid({
     ...verification,
   });
   if (!result) return false;
-
   return true;
 }
-
 export async function validateRequest(
   request: Request,
   body: URLSearchParams | FormData,
@@ -155,16 +176,17 @@ export async function validateRequest(
     }),
     async: true,
   });
-
   if (submission.status !== 'success') {
-    return json(
-      { result: submission.reply() },
-      { status: submission.status === 'error' ? 400 : 200 },
+    return data(
+      {
+        result: submission.reply(),
+      },
+      {
+        status: submission.status === 'error' ? 400 : 200,
+      },
     );
   }
-
   const { value: submissionValue } = submission;
-
   async function deleteVerification() {
     await prisma.verification.delete({
       where: {
@@ -175,22 +197,37 @@ export async function validateRequest(
       },
     });
   }
-
   switch (submissionValue[typeQueryParam]) {
     case 'reset-password': {
       await deleteVerification();
-      return handleResetPasswordVerification({ request, body, submission });
+      return handleResetPasswordVerification({
+        request,
+        body,
+        submission,
+      });
     }
     case 'onboarding': {
       await deleteVerification();
-      return handleOnboardingVerification({ request, body, submission });
+      return handleOnboardingVerification({
+        request,
+        body,
+        submission,
+      });
     }
     case 'change-email': {
       await deleteVerification();
-      return handleChangeEmailVerification({ request, body, submission });
+      return handleChangeEmailVerification({
+        request,
+        body,
+        submission,
+      });
     }
     case '2fa': {
-      return handleLoginTwoFactorVerification({ request, body, submission });
+      return handleLoginTwoFactorVerification({
+        request,
+        body,
+        submission,
+      });
     }
   }
 }

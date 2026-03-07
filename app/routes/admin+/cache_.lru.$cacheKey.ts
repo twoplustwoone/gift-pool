@@ -1,5 +1,5 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
+import { type LoaderFunctionArgs } from 'react-router';
 import { lruCache } from '#app/utils/cache.server.ts';
 import {
   getAllInstances,
@@ -7,7 +7,6 @@ import {
   ensureInstance,
 } from '#app/utils/litefs.server.ts';
 import { requireUserWithRole } from '#app/utils/permissions.server.ts';
-
 export async function loader({ request, params }: LoaderFunctionArgs) {
   await requireUserWithRole(request, 'admin');
   const searchParams = new URL(request.url).searchParams;
@@ -16,10 +15,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   const instance =
     searchParams.get('instance') ?? currentInstanceInfo.currentInstance;
   await ensureInstance(instance);
-
   const { cacheKey } = params;
   invariantResponse(cacheKey, 'cacheKey is required');
-  return json({
+  return {
     instance: {
       hostname: instance,
       region: allInstances[instance],
@@ -27,5 +25,5 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     },
     cacheKey,
     value: lruCache.get(cacheKey),
-  });
+  };
 }

@@ -6,18 +6,18 @@ import {
 } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import {
-  json,
+  data,
   redirect,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
   type MetaFunction,
-} from '@remix-run/node';
+} from 'react-router';
 import {
   Form,
   useActionData,
   useLoaderData,
   useSearchParams,
-} from '@remix-run/react';
+} from 'react-router';
 import { HoneypotInputs } from 'remix-utils/honeypot/react';
 import { safeRedirect } from 'remix-utils/safe-redirect';
 import { z } from 'zod';
@@ -42,9 +42,7 @@ import {
   UsernameSchema,
 } from '#app/utils/user-validation.ts';
 import { verifySessionStorage } from '#app/utils/verification.server.ts';
-
 export const onboardingEmailSessionKey = 'onboardingEmail';
-
 const SignupFormSchema = z
   .object({
     username: UsernameSchema,
@@ -57,7 +55,6 @@ const SignupFormSchema = z
     redirectTo: z.string().optional(),
   })
   .and(PasswordAndConfirmPasswordSchema);
-
 async function requireOnboardingEmail(request: Request) {
   await requireAnonymous(request);
   const verifySession = await verifySessionStorage.getSession(
@@ -69,12 +66,12 @@ async function requireOnboardingEmail(request: Request) {
   }
   return email;
 }
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const email = await requireOnboardingEmail(request);
-  return json({ email });
+  return {
+    email,
+  };
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   const email = await requireOnboardingEmail(request);
   const { requestId } = await getRequestContext(request);
@@ -84,8 +81,12 @@ export async function action({ request }: ActionFunctionArgs) {
     schema: (intent) =>
       SignupFormSchema.superRefine(async (data, ctx) => {
         const existingUser = await prisma.user.findUnique({
-          where: { username: data.username },
-          select: { id: true },
+          where: {
+            username: data.username,
+          },
+          select: {
+            id: true,
+          },
         });
         if (existingUser) {
           ctx.addIssue({
@@ -96,23 +97,33 @@ export async function action({ request }: ActionFunctionArgs) {
           return;
         }
       }).transform(async (data) => {
-        if (intent !== null) return { ...data, session: null };
-
-        const session = await signup({ ...data, email });
-        return { ...data, session };
+        if (intent !== null)
+          return {
+            ...data,
+            session: null,
+          };
+        const session = await signup({
+          ...data,
+          email,
+        });
+        return {
+          ...data,
+          session,
+        };
       }),
     async: true,
   });
-
   if (submission.status !== 'success' || !submission.value.session) {
-    return json(
-      { result: submission.reply() },
-      { status: submission.status === 'error' ? 400 : 200 },
+    return data(
+      {
+        result: submission.reply(),
+      },
+      {
+        status: submission.status === 'error' ? 400 : 200,
+      },
     );
   }
-
   const { session, remember, redirectTo } = submission.value;
-
   const authSession = await authSessionStorage.getSession(
     request.headers.get('cookie'),
   );
@@ -129,45 +140,54 @@ export async function action({ request }: ActionFunctionArgs) {
     'set-cookie',
     await verifySessionStorage.destroySession(verifySession),
   );
-
   await logEvent({
     name: 'user_registered',
     userId: session.userId,
     source: 'server',
     requestId,
     sessionId: session.id,
-    properties: { remember: remember ?? false },
+    properties: {
+      remember: remember ?? false,
+    },
   });
-
   return redirectWithToast(
     safeRedirect(redirectTo),
-    { title: 'Welcome', description: 'Thanks for signing up!' },
-    { headers },
+    {
+      title: 'Welcome',
+      description: 'Thanks for signing up!',
+    },
+    {
+      headers,
+    },
   );
 }
-
 export const meta: MetaFunction = () => {
-  return [{ title: 'Setup GiftPool Account' }];
+  return [
+    {
+      title: 'Setup GiftPool Account',
+    },
+  ];
 };
-
 const OnboardingRoute = () => {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirectTo');
-
   const [form, fields] = useForm<z.input<typeof SignupFormSchema>>({
     id: 'onboarding-form',
     constraint: getZodConstraint(SignupFormSchema),
-    defaultValue: { redirectTo },
+    defaultValue: {
+      redirectTo,
+    },
     lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: SignupFormSchema }) as any;
+      return parseWithZod(formData, {
+        schema: SignupFormSchema,
+      }) as any;
     },
     shouldRevalidate: 'onBlur',
   });
-
   return (
     <div className="container flex min-h-full flex-col justify-center pb-32 pt-20">
       <div className="mx-auto w-full max-w-lg">
@@ -185,26 +205,41 @@ const OnboardingRoute = () => {
         >
           <HoneypotInputs />
           <Field
-            labelProps={{ htmlFor: fields.username.id, children: 'Username' }}
+            labelProps={{
+              htmlFor: fields.username.id,
+              children: 'Username',
+            }}
             inputProps={{
-              ...getInputProps(fields.username, { type: 'text' }),
+              ...getInputProps(fields.username, {
+                type: 'text',
+              }),
               autoComplete: 'username',
               className: 'lowercase',
             }}
             errors={fields.username.errors}
           />
           <Field
-            labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
+            labelProps={{
+              htmlFor: fields.name.id,
+              children: 'Name',
+            }}
             inputProps={{
-              ...getInputProps(fields.name, { type: 'text' }),
+              ...getInputProps(fields.name, {
+                type: 'text',
+              }),
               autoComplete: 'name',
             }}
             errors={fields.name.errors}
           />
           <Field
-            labelProps={{ htmlFor: fields.password.id, children: 'Password' }}
+            labelProps={{
+              htmlFor: fields.password.id,
+              children: 'Password',
+            }}
             inputProps={{
-              ...getInputProps(fields.password, { type: 'password' }),
+              ...getInputProps(fields.password, {
+                type: 'password',
+              }),
               autoComplete: 'new-password',
             }}
             errors={fields.password.errors}
@@ -216,7 +251,9 @@ const OnboardingRoute = () => {
               children: 'Confirm Password',
             }}
             inputProps={{
-              ...getInputProps(fields.confirmPassword, { type: 'password' }),
+              ...getInputProps(fields.confirmPassword, {
+                type: 'password',
+              }),
               autoComplete: 'new-password',
             }}
             errors={fields.confirmPassword.errors}
@@ -230,7 +267,9 @@ const OnboardingRoute = () => {
             }}
             buttonProps={getInputProps(
               fields.agreeToTermsOfServiceAndPrivacyPolicy,
-              { type: 'checkbox' },
+              {
+                type: 'checkbox',
+              },
             )}
             errors={fields.agreeToTermsOfServiceAndPrivacyPolicy.errors}
           />
@@ -239,11 +278,17 @@ const OnboardingRoute = () => {
               htmlFor: fields.remember.id,
               children: 'Remember me',
             }}
-            buttonProps={getInputProps(fields.remember, { type: 'checkbox' })}
+            buttonProps={getInputProps(fields.remember, {
+              type: 'checkbox',
+            })}
             errors={fields.remember.errors}
           />
 
-          <input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
+          <input
+            {...getInputProps(fields.redirectTo, {
+              type: 'hidden',
+            })}
+          />
           <ErrorList errors={form.errors} id={form.errorId} />
 
           <div className="flex items-center justify-between gap-6">
@@ -261,5 +306,4 @@ const OnboardingRoute = () => {
     </div>
   );
 };
-
 export default OnboardingRoute;

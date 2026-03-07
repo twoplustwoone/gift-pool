@@ -1,4 +1,4 @@
-import { Link, useFetcher } from '@remix-run/react';
+import { Link, useFetcher } from 'react-router';
 import React from 'react';
 import { LuLogOut, LuPencil, LuTrash } from 'react-icons/lu';
 import { Button } from '#app/components/ui/button.tsx';

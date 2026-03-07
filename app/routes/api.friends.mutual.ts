@@ -1,7 +1,6 @@
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
+import { type LoaderFunctionArgs } from 'react-router';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   const url = new URL(request.url);
@@ -14,30 +13,54 @@ export async function loader({ request }: LoaderFunctionArgs) {
         .filter(Boolean),
     ),
   );
-  if (ids.length === 0) return json({ mutuals: {} });
-
+  if (ids.length === 0)
+    return {
+      mutuals: {},
+    };
   const entries = await Promise.all(
     ids.map(async (friendId) => {
       const where = {
         AND: [
-          { groupMembers: { some: { userId } } },
-          { groupMembers: { some: { userId: friendId } } },
+          {
+            groupMembers: {
+              some: {
+                userId,
+              },
+            },
+          },
+          {
+            groupMembers: {
+              some: {
+                userId: friendId,
+              },
+            },
+          },
         ],
       };
       const [groups, total] = await Promise.all([
         prisma.giftGroup.findMany({
           where,
-          select: { id: true, name: true },
+          select: {
+            id: true,
+            name: true,
+          },
           take: 3,
         }),
-        prisma.giftGroup.count({ where }),
+        prisma.giftGroup.count({
+          where,
+        }),
       ]);
       return [
         friendId,
-        { groups: groups.slice(0, 2), more: Math.max(0, total - 2) },
+        {
+          groups: groups.slice(0, 2),
+          more: Math.max(0, total - 2),
+        },
       ] as const;
     }),
   );
   const mutuals = Object.fromEntries(entries);
-  return json({ mutuals });
+  return {
+    mutuals,
+  };
 }

@@ -24,8 +24,8 @@ vi.mock('#app/components/toaster.tsx', () => ({
   useToast: () => {},
 }));
 
-vi.mock('@remix-run/react', async () => {
-  const actual = await vi.importActual('@remix-run/react');
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual('react-router');
   return {
     ...actual,
     useActionData: () => undefined,

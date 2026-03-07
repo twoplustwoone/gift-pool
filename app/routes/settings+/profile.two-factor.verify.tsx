@@ -7,17 +7,17 @@ import {
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
-  json,
+  data,
   redirect,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
-} from '@remix-run/node';
+} from 'react-router';
 import {
   Form,
   useActionData,
   useLoaderData,
   useNavigation,
-} from '@remix-run/react';
+} from 'react-router';
 import * as QRCode from 'qrcode';
 import { z } from 'zod';
 import { ErrorList, OTPField } from '#app/components/forms.tsx';
@@ -31,30 +31,30 @@ import { redirectWithToast } from '#app/utils/toast.server.ts';
 import { getTOTPAuthUri } from '#app/utils/totp.server.ts';
 import { type BreadcrumbHandle } from './profile-breadcrumbs.tsx';
 import { twoFAVerificationType } from './profile.two-factor.tsx';
-
 export const handle: BreadcrumbHandle & SEOHandle = {
   breadcrumb: <Icon name="check">Verify</Icon>,
   getSitemapEntries: () => null,
 };
-
-const CancelSchema = z.object({ intent: z.literal('cancel') });
+const CancelSchema = z.object({
+  intent: z.literal('cancel'),
+});
 const VerifySchema = z.object({
   intent: z.literal('verify'),
   code: z.string().min(6).max(6),
 });
-
 const ActionSchema = z.discriminatedUnion('intent', [
   CancelSchema,
   VerifySchema,
 ]);
-
 export const twoFAVerifyVerificationType = '2fa-verify';
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   const verification = await prisma.verification.findUnique({
     where: {
-      target_type: { type: twoFAVerifyVerificationType, target: userId },
+      target_type: {
+        type: twoFAVerifyVerificationType,
+        target: userId,
+      },
     },
     select: {
       id: true,
@@ -68,8 +68,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return redirect('/settings/profile/two-factor');
   }
   const user = await prisma.user.findUniqueOrThrow({
-    where: { id: userId },
-    select: { email: true },
+    where: {
+      id: userId,
+    },
+    select: {
+      email: true,
+    },
   });
   const issuer = new URL(getDomainUrl(request)).host;
   const otpUri = getTOTPAuthUri({
@@ -78,13 +82,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
     issuer,
   });
   const qrCode = await QRCode.toDataURL(otpUri);
-  return json({ otpUri, qrCode });
+  return {
+    otpUri,
+    qrCode,
+  };
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   const userId = await requireUserId(request);
   const formData = await request.formData();
-
   const submission = await parseWithZod(formData, {
     schema: () =>
       ActionSchema.superRefine(async (data, ctx) => {
@@ -105,27 +110,37 @@ export async function action({ request }: ActionFunctionArgs) {
       }),
     async: true,
   });
-
   if (submission.status !== 'success') {
-    return json(
-      { result: submission.reply() },
-      { status: submission.status === 'error' ? 400 : 200 },
+    return data(
+      {
+        result: submission.reply(),
+      },
+      {
+        status: submission.status === 'error' ? 400 : 200,
+      },
     );
   }
-
   switch (submission.value.intent) {
     case 'cancel': {
       await prisma.verification.deleteMany({
-        where: { type: twoFAVerifyVerificationType, target: userId },
+        where: {
+          type: twoFAVerifyVerificationType,
+          target: userId,
+        },
       });
       return redirect('/settings/profile/two-factor');
     }
     case 'verify': {
       await prisma.verification.update({
         where: {
-          target_type: { type: twoFAVerifyVerificationType, target: userId },
+          target_type: {
+            type: twoFAVerifyVerificationType,
+            target: userId,
+          },
         },
-        data: { type: twoFAVerificationType },
+        data: {
+          type: twoFAVerificationType,
+        },
       });
       return redirectWithToast('/settings/profile/two-factor', {
         type: 'success',
@@ -135,25 +150,23 @@ export async function action({ request }: ActionFunctionArgs) {
     }
   }
 }
-
 const TwoFactorRoute = () => {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
-
   const isPending = useIsPending();
   const pendingIntent = isPending ? navigation.formData?.get('intent') : null;
-
   const [form, fields] = useForm<z.input<typeof ActionSchema>>({
     id: 'verify-form',
     constraint: getZodConstraint(ActionSchema),
     lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: ActionSchema }) as any;
+      return parseWithZod(formData, {
+        schema: ActionSchema,
+      }) as any;
     },
   });
   const lastSubmissionIntent = fields.intent.value;
-
   return (
     <div>
       <div className="flex flex-col items-center gap-4">
@@ -187,7 +200,9 @@ const TwoFactorRoute = () => {
                   children: 'Code',
                 }}
                 inputProps={{
-                  ...getInputProps(fields.code, { type: 'text' }),
+                  ...getInputProps(fields.code, {
+                    type: 'text',
+                  }),
                   autoFocus: true,
                   autoComplete: 'one-time-code',
                 }}
@@ -239,5 +254,4 @@ const TwoFactorRoute = () => {
     </div>
   );
 };
-
 export default TwoFactorRoute;

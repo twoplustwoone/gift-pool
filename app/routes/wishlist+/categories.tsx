@@ -1,9 +1,8 @@
 import { parseWithZod } from '@conform-to/zod';
-import { json, type ActionFunctionArgs } from '@remix-run/node';
+import { data, type ActionFunctionArgs } from 'react-router';
 import { z } from 'zod';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-
 const CategoryActionSchema = z.object({
   intent: z.enum(['create', 'rename', 'delete', 'move']),
   id: z.string().optional(),
@@ -11,38 +10,61 @@ const CategoryActionSchema = z.object({
   direction: z.enum(['up', 'down']).optional(),
   clientMutationId: z.string().optional(),
 });
-
 export async function action({ request }: ActionFunctionArgs) {
   const userId = await requireUserId(request);
   const formData = await request.formData();
-  const submission = parseWithZod(formData, { schema: CategoryActionSchema });
-
+  const submission = parseWithZod(formData, {
+    schema: CategoryActionSchema,
+  });
   if (submission.status !== 'success') {
-    return json(submission.reply(), { status: 400 });
+    return data(submission.reply(), {
+      status: 400,
+    });
   }
-
   const { intent, id, name, direction, clientMutationId } = submission.value;
-
   const normalizedClientMutationId = clientMutationId?.trim() || null;
-
-  let toast: { type: 'success'; title: string; description: string } | null =
-    null;
-  let category: { id: string; name: string; order: number } | null = null;
-  let deletedCategory: { id: string; name: string; order: number } | null =
-    null;
-
+  let toast: {
+    type: 'success';
+    title: string;
+    description: string;
+  } | null = null;
+  let category: {
+    id: string;
+    name: string;
+    order: number;
+  } | null = null;
+  let deletedCategory: {
+    id: string;
+    name: string;
+    order: number;
+  } | null = null;
   switch (intent) {
     case 'create': {
       if (!name)
-        return json({ ok: false, clientMutationId: normalizedClientMutationId });
+        return {
+          ok: false,
+          clientMutationId: normalizedClientMutationId,
+        };
       const max = await prisma.wishlistCategory.aggregate({
-        where: { ownerId: userId },
-        _max: { order: true },
+        where: {
+          ownerId: userId,
+        },
+        _max: {
+          order: true,
+        },
       });
       const order = (max._max.order ?? -1) + 1;
       category = await prisma.wishlistCategory.create({
-        select: { id: true, name: true, order: true },
-        data: { ownerId: userId, name, order },
+        select: {
+          id: true,
+          name: true,
+          order: true,
+        },
+        data: {
+          ownerId: userId,
+          name,
+          order,
+        },
       });
       toast = {
         type: 'success',
@@ -53,36 +75,70 @@ export async function action({ request }: ActionFunctionArgs) {
     }
     case 'rename': {
       if (!id || !name)
-        return json({ ok: false, clientMutationId: normalizedClientMutationId });
+        return {
+          ok: false,
+          clientMutationId: normalizedClientMutationId,
+        };
       category = await prisma.wishlistCategory.update({
-        select: { id: true, name: true, order: true },
-        where: { id, ownerId: userId },
-        data: { name },
+        select: {
+          id: true,
+          name: true,
+          order: true,
+        },
+        where: {
+          id,
+          ownerId: userId,
+        },
+        data: {
+          name,
+        },
       });
       break;
     }
     case 'delete': {
       if (!id)
-        return json({ ok: false, clientMutationId: normalizedClientMutationId });
-
+        return {
+          ok: false,
+          clientMutationId: normalizedClientMutationId,
+        };
       const existingCategory = await prisma.wishlistCategory.findFirst({
-        select: { id: true, name: true, order: true },
-        where: { id, ownerId: userId },
+        select: {
+          id: true,
+          name: true,
+          order: true,
+        },
+        where: {
+          id,
+          ownerId: userId,
+        },
       });
       if (!existingCategory) {
-        return json({ ok: false, clientMutationId: normalizedClientMutationId });
+        return {
+          ok: false,
+          clientMutationId: normalizedClientMutationId,
+        };
       }
-
-      await prisma.wishlistCategory.delete({ where: { id: existingCategory.id } });
+      await prisma.wishlistCategory.delete({
+        where: {
+          id: existingCategory.id,
+        },
+      });
       deletedCategory = existingCategory;
       break;
     }
     case 'move': {
       if (!id || !direction)
-        return json({ ok: false, clientMutationId: normalizedClientMutationId });
+        return {
+          ok: false,
+          clientMutationId: normalizedClientMutationId,
+        };
       const categories = await prisma.wishlistCategory.findMany({
-        where: { ownerId: userId },
-        orderBy: { order: 'asc' },
+        where: {
+          ownerId: userId,
+        },
+        orderBy: {
+          order: 'asc',
+        },
       });
       const index = categories.findIndex((c) => c.id === id);
       if (index === -1) break;
@@ -92,12 +148,20 @@ export async function action({ request }: ActionFunctionArgs) {
       const swap = categories[targetIndex]!;
       await prisma.$transaction([
         prisma.wishlistCategory.update({
-          where: { id: current.id },
-          data: { order: swap.order },
+          where: {
+            id: current.id,
+          },
+          data: {
+            order: swap.order,
+          },
         }),
         prisma.wishlistCategory.update({
-          where: { id: swap.id },
-          data: { order: current.order },
+          where: {
+            id: swap.id,
+          },
+          data: {
+            order: current.order,
+          },
         }),
       ]);
       category = {
@@ -108,8 +172,7 @@ export async function action({ request }: ActionFunctionArgs) {
       break;
     }
   }
-
-  return json({
+  return {
     ok: true,
     intent,
     toast,
@@ -117,5 +180,5 @@ export async function action({ request }: ActionFunctionArgs) {
     deletedCategoryId: deletedCategory?.id ?? null,
     deletedCategory,
     clientMutationId: normalizedClientMutationId,
-  });
+  };
 }

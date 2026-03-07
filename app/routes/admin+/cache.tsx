@@ -1,11 +1,10 @@
 import { invariantResponse } from '@epic-web/invariant';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
-  json,
   redirect,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
-} from '@remix-run/node';
+} from 'react-router';
 import {
   Form,
   Link,
@@ -13,7 +12,7 @@ import {
   useLoaderData,
   useSearchParams,
   useSubmit,
-} from '@remix-run/react';
+} from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary';
 import { Field } from '#app/components/forms.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
@@ -31,11 +30,9 @@ import {
 } from '#app/utils/litefs.server.ts';
 import { useDebounce, useDoubleCheck } from '#app/utils/misc.tsx';
 import { requireUserWithRole } from '#app/utils/permissions.server.ts';
-
 export const handle: SEOHandle = {
   getSitemapEntries: () => null,
 };
-
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireUserWithRole(request, 'admin');
   const searchParams = new URL(request.url).searchParams;
@@ -45,22 +42,27 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return redirect(`/admin/cache?${searchParams.toString()}`);
   }
   const limit = Number(searchParams.get('limit') ?? 100);
-
   const currentInstanceInfo = await getInstanceInfo();
   const instance =
     searchParams.get('instance') ?? currentInstanceInfo.currentInstance;
   const instances = await getAllInstances();
   await ensureInstance(instance);
-
-  let cacheKeys: { sqlite: Array<string>; lru: Array<string> };
+  let cacheKeys: {
+    sqlite: Array<string>;
+    lru: Array<string>;
+  };
   if (typeof query === 'string') {
     cacheKeys = await searchCacheKeys(query, limit);
   } else {
     cacheKeys = await getAllCacheKeys(limit);
   }
-  return json({ cacheKeys, instance, instances, currentInstanceInfo });
+  return {
+    cacheKeys,
+    instance,
+    instances,
+    currentInstanceInfo,
+  };
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   await requireUserWithRole(request, 'admin');
   const formData = await request.formData();
@@ -68,12 +70,10 @@ export async function action({ request }: ActionFunctionArgs) {
   const { currentInstance } = await getInstanceInfo();
   const instance = formData.get('instance') ?? currentInstance;
   const type = formData.get('type');
-
   invariantResponse(typeof key === 'string', 'cacheKey must be a string');
   invariantResponse(typeof type === 'string', 'type must be a string');
   invariantResponse(typeof instance === 'string', 'instance must be a string');
   await ensureInstance(instance);
-
   switch (type) {
     case 'sqlite': {
       await cache.delete(key);
@@ -87,9 +87,10 @@ export async function action({ request }: ActionFunctionArgs) {
       throw new Error(`Unknown cache type: ${type}`);
     }
   }
-  return json({ success: true });
+  return {
+    success: true,
+  };
 }
-
 const CacheAdminRoute = () => {
   const data = useLoaderData<typeof loader>();
   const [searchParams] = useSearchParams();
@@ -97,11 +98,9 @@ const CacheAdminRoute = () => {
   const query = searchParams.get('query') ?? '';
   const limit = searchParams.get('limit') ?? '100';
   const instance = searchParams.get('instance') ?? data.instance;
-
   const handleFormChange = useDebounce((form: HTMLFormElement) => {
     submit(form);
   }, 400);
-
   return (
     <div className="container">
       <h1 className="text-h1">Cache Admin</h1>
@@ -121,7 +120,9 @@ const CacheAdminRoute = () => {
             </button>
             <Field
               className="flex-1"
-              labelProps={{ children: 'Search' }}
+              labelProps={{
+                children: 'Search',
+              }}
               inputProps={{
                 type: 'search',
                 name: 'query',
@@ -197,9 +198,7 @@ const CacheAdminRoute = () => {
     </div>
   );
 };
-
 export default CacheAdminRoute;
-
 const CacheKeyRow = ({
   cacheKey,
   instance,
@@ -222,7 +221,9 @@ const CacheKeyRow = ({
         <Button
           size="sm"
           variant="secondary"
-          {...dc.getButtonProps({ type: 'submit' })}
+          {...dc.getButtonProps({
+            type: 'submit',
+          })}
         >
           {fetcher.state === 'idle'
             ? dc.doubleCheck
@@ -237,7 +238,6 @@ const CacheKeyRow = ({
     </div>
   );
 };
-
 export const ErrorBoundary = () => {
   return (
     <GeneralErrorBoundary

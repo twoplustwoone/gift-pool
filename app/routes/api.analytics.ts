@@ -1,14 +1,16 @@
 import { type Prisma } from '@prisma/client';
-import { json, type ActionFunctionArgs } from '@remix-run/node';
+import { data, type ActionFunctionArgs } from 'react-router';
 import { z } from 'zod';
 import { logEvent } from '#app/utils/analytics.server.ts';
-import { type AnalyticEventName, ANALYTIC_EVENT_NAMES } from '#app/utils/analytics.ts';
+import {
+  type AnalyticEventName,
+  ANALYTIC_EVENT_NAMES,
+} from '#app/utils/analytics.ts';
 import { getUserId } from '#app/utils/auth.server.ts';
 import {
   applyRequestIdHeader,
   getRequestContext,
 } from '#app/utils/request-context.server.ts';
-
 const AnalyticsEventSchema = z.object({
   name: z.enum(ANALYTIC_EVENT_NAMES),
   properties: z.unknown().optional(),
@@ -16,42 +18,67 @@ const AnalyticsEventSchema = z.object({
   sessionId: z.string().optional(),
   eventId: z.string().optional(),
 });
-
 export async function loader() {
-  return json({ error: 'Method not allowed' }, { status: 405 });
+  return data(
+    {
+      error: 'Method not allowed',
+    },
+    {
+      status: 405,
+    },
+  );
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, { status: 405 });
+    return data(
+      {
+        error: 'Method not allowed',
+      },
+      {
+        status: 405,
+      },
+    );
   }
-
   const userId = await getUserId(request);
   if (!userId) {
-    return json({ error: 'Unauthorized' }, { status: 401 });
+    return data(
+      {
+        error: 'Unauthorized',
+      },
+      {
+        status: 401,
+      },
+    );
   }
-
   const { requestId: contextRequestId, sessionId } =
     await getRequestContext(request);
-
   let payload: z.infer<typeof AnalyticsEventSchema>;
   try {
     const raw = await request.json();
     const result = AnalyticsEventSchema.safeParse(raw);
     if (!result.success) {
-      return json(
-        { error: 'Invalid payload', details: result.error.flatten() },
-        { status: 400 },
+      return data(
+        {
+          error: 'Invalid payload',
+          details: result.error.flatten(),
+        },
+        {
+          status: 400,
+        },
       );
     }
     payload = result.data;
   } catch (error) {
-    return json(
-      { error: 'Invalid payload', details: (error as Error).message },
-      { status: 400 },
+    return data(
+      {
+        error: 'Invalid payload',
+        details: (error as Error).message,
+      },
+      {
+        status: 400,
+      },
     );
   }
-
   const event = await logEvent({
     name: payload.name as AnalyticEventName,
     userId,
@@ -61,9 +88,13 @@ export async function action({ request }: ActionFunctionArgs) {
     properties: payload.properties as Prisma.InputJsonValue | undefined,
     eventId: payload.eventId,
   });
-
-  return json(
-    { ok: true, eventId: event.eventId },
-    { headers: applyRequestIdHeader(null, contextRequestId) },
+  return data(
+    {
+      ok: true,
+      eventId: event.eventId,
+    },
+    {
+      headers: applyRequestIdHeader(null, contextRequestId),
+    },
   );
 }

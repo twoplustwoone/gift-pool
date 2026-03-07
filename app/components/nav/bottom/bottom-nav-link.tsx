@@ -1,4 +1,4 @@
-import { NavLink } from '@remix-run/react';
+import { NavLink } from 'react-router';
 import { type LucideIcon } from 'lucide-react';
 import { cn } from '#app/utils/misc.tsx';
 
@@ -22,10 +22,7 @@ export const BottomNavLink = ({
       prefetch="intent"
       aria-label={label}
       className={({ isActive }) =>
-        cn(
-          baseClassName,
-          isActive ? activeClassName : inactiveClassName,
-        )
+        cn(baseClassName, isActive ? activeClassName : inactiveClassName)
       }
     >
       {({ isActive }) => {

@@ -1,12 +1,10 @@
-import { type LoaderFunctionArgs, json } from '@remix-run/node';
-import { Outlet } from '@remix-run/react';
+import { type LoaderFunctionArgs } from 'react-router';
+import { Outlet } from 'react-router';
 import { requireUserId } from '#app/utils/auth.server.ts';
-
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireUserId(request);
-  return json({});
+  return {};
 }
-
 const WishlistRoute = () => {
   return (
     <main className="h-full min-h-0 overflow-y-auto">
@@ -16,5 +14,4 @@ const WishlistRoute = () => {
     </main>
   );
 };
-
 export default WishlistRoute;

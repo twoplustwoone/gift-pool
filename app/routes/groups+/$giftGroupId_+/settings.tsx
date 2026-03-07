@@ -7,16 +7,16 @@ import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 // Using string literal types for roles/visibility to support SQLite
 import {
   type ActionFunctionArgs,
-  json,
+  data,
   type LoaderFunctionArgs,
-} from '@remix-run/node';
+} from 'react-router';
 import {
   Form,
   useActionData,
   useFetcher,
   useFetchers,
   useLoaderData,
-} from '@remix-run/react';
+} from 'react-router';
 import * as React from 'react';
 import { z } from 'zod';
 import { ErrorList } from '#app/components/forms.tsx';
@@ -64,13 +64,13 @@ import {
 } from '#app/utils/groups.server.ts';
 import { cn } from '#app/utils/misc.tsx';
 import { createToastHeaders } from '#app/utils/toast.server.ts';
-
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
   const userId = await requireUserIdInGroup(request, groupId);
-
   const giftGroupRaw = await prisma.giftGroup.findUnique({
-    where: { id: groupId },
+    where: {
+      id: groupId,
+    },
     select: {
       id: true,
       name: true,
@@ -90,14 +90,29 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
               id: true,
               username: true,
               name: true,
-              image: { select: { id: true, altText: true } },
+              image: {
+                select: {
+                  id: true,
+                  altText: true,
+                },
+              },
             },
           },
         },
       },
-      reminders: { select: { id: true, offsetDays: true } },
+      reminders: {
+        select: {
+          id: true,
+          offsetDays: true,
+        },
+      },
       groupInvitations: {
-        where: { revokedAt: null, expiresAt: { gt: new Date() } },
+        where: {
+          revokedAt: null,
+          expiresAt: {
+            gt: new Date(),
+          },
+        },
         select: {
           id: true,
           code: true,
@@ -116,13 +131,21 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
           birthdayDate: true,
           lockedAt: true,
           lockedById: true,
-          recipient: { select: { id: true, username: true, name: true } },
+          recipient: {
+            select: {
+              id: true,
+              username: true,
+              name: true,
+            },
+          },
         },
       },
     },
   });
-
-  if (!giftGroupRaw) throw new Response('Group not found', { status: 404 });
+  if (!giftGroupRaw)
+    throw new Response('Group not found', {
+      status: 404,
+    });
   const giftGroup = {
     ...giftGroupRaw,
     groupMembers: giftGroupRaw.groupMembers.map((m) => ({
@@ -137,7 +160,6 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       url: getInviteLink(inv.code, request),
     })),
   };
-
   const canManageInvites = await userHasGroupPermission(
     userId,
     groupId,
@@ -175,9 +197,11 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     groupId,
     'deleteGroup',
   );
-
   const joinRequests = await prisma.joinRequest.findMany({
-    where: { giftGroupId: groupId, status: 'PENDING' },
+    where: {
+      giftGroupId: groupId,
+      status: 'PENDING',
+    },
     select: {
       id: true,
       user: {
@@ -185,14 +209,23 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
           id: true,
           username: true,
           name: true,
-          image: { select: { id: true, altText: true } },
+          image: {
+            select: {
+              id: true,
+              altText: true,
+            },
+          },
         },
       },
     },
   });
-
   const viewerMemberRaw = await prisma.usersInGiftGroups.findUnique({
-    where: { userId_giftGroupId: { userId, giftGroupId: groupId } },
+    where: {
+      userId_giftGroupId: {
+        userId,
+        giftGroupId: groupId,
+      },
+    },
     select: {
       userId: true,
       role: true,
@@ -210,21 +243,27 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
         ) as GroupRole,
       } as const)
     : null;
-
   const activities = await prisma.groupActivity.findMany({
-    where: { giftGroupId: groupId },
-    orderBy: { createdAt: 'desc' },
+    where: {
+      giftGroupId: groupId,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
     take: 10,
     select: {
       id: true,
       type: true,
       payload: true,
       createdAt: true,
-      actor: { select: { username: true } },
+      actor: {
+        select: {
+          username: true,
+        },
+      },
     },
   });
-
-  return json({
+  return {
     giftGroup,
     canManageInvites,
     canManageSettings,
@@ -238,9 +277,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     joinRequests,
     viewerMember,
     activities,
-  });
+  };
 }
-
 export enum SettingsIntent {
   UpdateSettings = 'update-settings',
   InviteCreate = 'invite-create',
@@ -261,14 +299,12 @@ export enum SettingsIntent {
   MemberUpdateSelf = 'member-update-self',
   DeleteGroup = 'delete-group',
 }
-
 const SETTINGS_MEMBER_INTENTS = new Set<string>([
   SettingsIntent.MemberPromoteAdmin,
   SettingsIntent.MemberDemoteMember,
   SettingsIntent.MemberRemove,
   SettingsIntent.OwnershipTransfer,
 ]);
-
 const getPathname = (action: string | undefined) => {
   if (!action) return null;
   try {
@@ -277,7 +313,6 @@ const getPathname = (action: string | undefined) => {
     return action;
   }
 };
-
 const UpdateSettingsSchema = z.object({
   intent: z.literal(SettingsIntent.UpdateSettings),
   giftGroupId: z.string(),
@@ -285,7 +320,6 @@ const UpdateSettingsSchema = z.object({
   description: z.string().max(1000),
   budgetVisibility: z.enum(['EVERYONE', 'ADMINS', 'ONLY_SELF']),
 });
-
 const InviteCreateSchema = z.object({
   intent: z.literal(SettingsIntent.InviteCreate),
   giftGroupId: z.string(),
@@ -295,52 +329,44 @@ const InviteCreateSchema = z.object({
   maxUses: z.string().optional(),
   requireApproval: z.string().optional(),
 });
-
 const InviteRevokeSchema = z.object({
   intent: z.literal(SettingsIntent.InviteRevoke),
   giftGroupId: z.string(),
   groupInvitationId: z.string(),
 });
-
 const JoinApproveSchema = z.object({
   intent: z.literal(SettingsIntent.JoinApprove),
   giftGroupId: z.string(),
   joinRequestId: z.string(),
 });
-
 const JoinRejectSchema = z.object({
   intent: z.literal(SettingsIntent.JoinReject),
   giftGroupId: z.string(),
   joinRequestId: z.string(),
   reason: z.string().optional(),
 });
-
 const MemberRemoveSchema = z.object({
   intent: z.literal(SettingsIntent.MemberRemove),
   giftGroupId: z.string(),
   memberUserId: z.string(),
   reason: z.string().optional(),
 });
-
 const MemberBanSchema = z.object({
   intent: z.literal(SettingsIntent.MemberBan),
   giftGroupId: z.string(),
   memberUserId: z.string(),
   until: z.string().optional(), // ISO date or empty => unban
 });
-
 const MemberPromoteAdminSchema = z.object({
   intent: z.literal(SettingsIntent.MemberPromoteAdmin),
   giftGroupId: z.string(),
   memberUserId: z.string(),
 });
-
 const MemberDemoteMemberSchema = z.object({
   intent: z.literal(SettingsIntent.MemberDemoteMember),
   giftGroupId: z.string(),
   memberUserId: z.string(),
 });
-
 const MemberUpdateSelfSchema = z.object({
   intent: z.literal(SettingsIntent.MemberUpdateSelf),
   giftGroupId: z.string(),
@@ -352,19 +378,16 @@ const MemberUpdateSelfSchema = z.object({
   shareWishlist: z.string().optional(),
   shareBirthday: z.string().optional(),
 });
-
 const OwnershipTransferSchema = z.object({
   intent: z.literal(SettingsIntent.OwnershipTransfer),
   giftGroupId: z.string(),
   newOwnerUserId: z.string(),
 });
-
 const ReminderAddSchema = z.object({
   intent: z.literal(SettingsIntent.ReminderAdd),
   giftGroupId: z.string(),
   offsetDays: z.string(),
 });
-
 const ReminderRemoveSchema = z.object({
   intent: z.literal(SettingsIntent.ReminderRemove),
   giftGroupId: z.string(),
@@ -374,27 +397,23 @@ const DeleteGroupSchema = z.object({
   intent: z.literal(SettingsIntent.DeleteGroup),
   giftGroupId: z.string(),
 });
-
 const GiftPlanCreateSchema = z.object({
   intent: z.literal(SettingsIntent.GiftPlanCreate),
   giftGroupId: z.string(),
   recipientUsername: z.string().min(1),
   birthdayDate: z.string(),
 });
-
 const GiftPlanLockSchema = z.object({
   intent: z.literal(SettingsIntent.GiftPlanLock),
   giftGroupId: z.string(),
   planId: z.string(),
 });
-
 const GiftPlanUnlockSchema = z.object({
   intent: z.literal(SettingsIntent.GiftPlanUnlock),
   giftGroupId: z.string(),
   planId: z.string(),
   reason: z.string().optional(),
 });
-
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const submission = parseWithZod(formData, {
@@ -415,13 +434,11 @@ export async function action({ request }: ActionFunctionArgs) {
       .or(MemberUpdateSelfSchema)
       .or(DeleteGroupSchema),
   });
-
   if (submission.status !== 'success') {
-    return json(submission.reply(), {
+    return data(submission.reply(), {
       status: submission.status === 'error' ? 400 : 200,
     });
   }
-
   const v = submission.value;
   switch (v.intent) {
     case SettingsIntent.UpdateSettings: {
@@ -430,7 +447,7 @@ export async function action({ request }: ActionFunctionArgs) {
         description: v.description,
         budgetVisibility: v.budgetVisibility,
       });
-      return json(submission.reply(), {
+      return data(submission.reply(), {
         headers: await createToastHeaders({
           type: 'success',
           title: 'Saved',
@@ -440,17 +457,17 @@ export async function action({ request }: ActionFunctionArgs) {
     }
     case SettingsIntent.InviteCreate: {
       await createInviteLink(request, v);
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.InviteRevoke: {
       await destroyInviteLink(request, v.giftGroupId, {
         groupInvitationId: v.groupInvitationId,
       });
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.JoinApprove: {
       await approveJoinRequest(request, v.giftGroupId, v.joinRequestId);
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.JoinReject: {
       await rejectJoinRequest(
@@ -459,28 +476,28 @@ export async function action({ request }: ActionFunctionArgs) {
         v.joinRequestId,
         v.reason,
       );
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.MemberRemove: {
       await removeMember(request, v.giftGroupId, v.memberUserId, v.reason);
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.MemberBan: {
       const until = v.until ? new Date(v.until) : null;
       await banMember(request, v.giftGroupId, v.memberUserId, until);
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.OwnershipTransfer: {
       await transferOwnership(request, v.giftGroupId, v.newOwnerUserId);
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.MemberPromoteAdmin: {
       await promoteToAdmin(request, v.giftGroupId, v.memberUserId);
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.MemberDemoteMember: {
       await demoteAdminToMember(request, v.giftGroupId, v.memberUserId);
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.MemberUpdateSelf: {
       await updateOwnPreferences(request, v.giftGroupId, {
@@ -492,7 +509,7 @@ export async function action({ request }: ActionFunctionArgs) {
         shareWishlist: v.shareWishlist === 'on' ? true : undefined,
         shareBirthday: v.shareBirthday === 'on' ? true : undefined,
       });
-      return json(submission.reply(), {
+      return data(submission.reply(), {
         headers: await createToastHeaders({
           type: 'success',
           title: 'Saved',
@@ -501,48 +518,55 @@ export async function action({ request }: ActionFunctionArgs) {
       });
     }
     case SettingsIntent.DeleteGroup: {
-      await deleteGiftGroup(request, { giftGroupId: v.giftGroupId });
-      return json(submission.reply());
+      await deleteGiftGroup(request, {
+        giftGroupId: v.giftGroupId,
+      });
+      return submission.reply();
     }
     case SettingsIntent.ReminderAdd: {
       await addReminder(request, v.giftGroupId, parseInt(v.offsetDays, 10));
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.ReminderRemove: {
       await removeReminder(request, v.giftGroupId, v.reminderId);
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.GiftPlanCreate: {
       const user = await prisma.user.findUnique({
-        where: { username: v.recipientUsername },
+        where: {
+          username: v.recipientUsername,
+        },
       });
-      if (!user) return json({ message: 'User not found' }, { status: 400 });
+      if (!user)
+        return data(
+          {
+            message: 'User not found',
+          },
+          {
+            status: 400,
+          },
+        );
       await createGiftPlan(
         request,
         v.giftGroupId,
         user.id,
         new Date(v.birthdayDate),
       );
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.GiftPlanLock: {
       await lockGiftPlan(request, v.giftGroupId, v.planId);
-      return json(submission.reply());
+      return submission.reply();
     }
     case SettingsIntent.GiftPlanUnlock: {
       await unlockGiftPlan(request, v.giftGroupId, v.planId, v.reason);
-      return json(submission.reply());
+      return submission.reply();
     }
   }
 }
-
 const GroupSettingsRoute = () => {
-  const {
-    giftGroup,
-    canDelete,
-    canLeave,
-    viewerMember,
-  } = useLoaderData<typeof loader>();
+  const { giftGroup, canDelete, canLeave, viewerMember } =
+    useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const fetchers = useFetchers();
   const memberActionFetcher = useFetcher<typeof action>();
@@ -558,29 +582,32 @@ const GroupSettingsRoute = () => {
       if (typeof intent !== 'string' || !SETTINGS_MEMBER_INTENTS.has(intent)) {
         continue;
       }
-
       if (intent === SettingsIntent.MemberRemove) {
         const memberUserId = pending.formData.get('memberUserId');
         if (typeof memberUserId !== 'string') continue;
         nextMembers = nextMembers.filter((m) => m.userId !== memberUserId);
         continue;
       }
-
       if (intent === SettingsIntent.OwnershipTransfer) {
         const newOwnerUserId = pending.formData.get('newOwnerUserId');
         if (typeof newOwnerUserId !== 'string') continue;
         nextMembers = nextMembers.map((member) => {
           if (member.userId === newOwnerUserId) {
-            return { ...member, role: 'OWNER' };
+            return {
+              ...member,
+              role: 'OWNER',
+            };
           }
           if (member.role === 'OWNER') {
-            return { ...member, role: 'ADMIN' };
+            return {
+              ...member,
+              role: 'ADMIN',
+            };
           }
           return member;
         });
         continue;
       }
-
       const memberUserId = pending.formData.get('memberUserId');
       if (typeof memberUserId !== 'string') continue;
       nextMembers = nextMembers.map((member) => {
@@ -605,7 +632,6 @@ const GroupSettingsRoute = () => {
     optimisticViewerRole === 'OWNER' || optimisticViewerRole === 'ADMIN';
   const canBan =
     optimisticViewerRole === 'OWNER' || optimisticViewerRole === 'ADMIN';
-
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border bg-card p-4 sm:p-6">
@@ -678,7 +704,10 @@ const GroupSettingsRoute = () => {
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Promote / Demote (owner only) */}
                   {canPromote && m.role === 'MEMBER' && !isViewer ? (
-                    <memberActionFetcher.Form method="post" action={settingsAction}>
+                    <memberActionFetcher.Form
+                      method="post"
+                      action={settingsAction}
+                    >
                       <input
                         type="hidden"
                         name="giftGroupId"
@@ -700,7 +729,10 @@ const GroupSettingsRoute = () => {
                     </memberActionFetcher.Form>
                   ) : null}
                   {canDemote && m.role === 'ADMIN' && !isViewer ? (
-                    <memberActionFetcher.Form method="post" action={settingsAction}>
+                    <memberActionFetcher.Form
+                      method="post"
+                      action={settingsAction}
+                    >
                       <input
                         type="hidden"
                         name="giftGroupId"
@@ -807,9 +839,7 @@ const GroupSettingsRoute = () => {
     </div>
   );
 };
-
 export default GroupSettingsRoute;
-
 const SettingsForm = ({
   giftGroup,
   lastResult,
@@ -822,7 +852,9 @@ const SettingsForm = ({
     lastResult: lastResult as unknown as SubmissionResult<string[]>,
     constraint: getZodConstraint(UpdateSettingsSchema),
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: UpdateSettingsSchema }) as any;
+      return parseWithZod(formData, {
+        schema: UpdateSettingsSchema,
+      }) as any;
     },
     defaultValue: {
       name: giftGroup.name,
@@ -830,7 +862,6 @@ const SettingsForm = ({
       budgetVisibility: giftGroup.budgetVisibility,
     },
   });
-
   return (
     <Form method="post" {...getFormProps(form)} className="grid gap-3">
       <input type="hidden" name="giftGroupId" value={giftGroup.id} />
@@ -857,7 +888,6 @@ const SettingsForm = ({
     </Form>
   );
 };
-
 const MemberActions = ({
   giftGroupId,
   memberUserId,
@@ -923,11 +953,9 @@ const MemberActions = ({
     </div>
   );
 };
-
 const RemindersSection = ({ giftGroup }: { giftGroup: any }) => {
   const [emailOn, setEmailOn] = React.useState<boolean>(true);
   const [pushOn, setPushOn] = React.useState<boolean>(false);
-
   return (
     <div className="space-y-4">
       <div>
@@ -1064,7 +1092,6 @@ const MemberPreferencesForm = ({
       shareBirthday: prefs?.shareBirthday ? 'on' : '',
     },
   });
-
   return (
     <Form
       method="post"
@@ -1119,16 +1146,23 @@ const MemberPreferencesForm = ({
     </Form>
   );
 };
-
 const TransferOwnershipForm = ({
   giftGroupId,
   members,
 }: {
   giftGroupId: string;
-  members: Array<{ userId: string; role: string; user: { username: string } }>;
+  members: Array<{
+    userId: string;
+    role: string;
+    user: {
+      username: string;
+    };
+  }>;
 }) => {
   const fetcher = useFetcher<typeof action>();
-  const [form] = useForm({ id: 'transfer-owner' });
+  const [form] = useForm({
+    id: 'transfer-owner',
+  });
   const admins = members.filter((m) => m.role === 'ADMIN');
   return (
     <fetcher.Form
