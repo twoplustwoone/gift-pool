@@ -121,7 +121,7 @@ export async function singleFetchActionBody(data: unknown): Promise<{
     chunks.push(value);
   }
   return {
-    body: Buffer.concat(chunks),
+    body: Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))),
     contentType: 'text/x-turbo',
   };
 }

@@ -128,7 +128,7 @@ test('overview budget rolls back after forced settings failure', async ({
 
       await new Promise((resolve) => setTimeout(resolve, 600));
       const { body, contentType } = await singleFetchActionBody({
-        status: 'error',
+        ok: false,
         error: 'forced budget failure',
       });
       await route.fulfill({ status: 200, contentType, body });
