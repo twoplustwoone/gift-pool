@@ -1,5 +1,5 @@
 import { prisma } from '#app/utils/db.server.ts';
-import { createPassword, createUser, expect, test } from '#tests/playwright-utils.ts';
+import { createPassword, createUser, expect, singleFetchActionBody, test } from '#tests/playwright-utils.ts';
 
 async function createGroupWithOwnerAndMember({
   ownerContributionCents = 1000,
@@ -127,14 +127,11 @@ test('overview budget rolls back after forced settings failure', async ({
       }
 
       await new Promise((resolve) => setTimeout(resolve, 600));
-      await route.fulfill({
-        status: 200,
-        body: JSON.stringify({
-          status: 'error',
-          error: 'forced budget failure',
-        }),
-        contentType: 'application/json',
+      const { body, contentType } = await singleFetchActionBody({
+        status: 'error',
+        error: 'forced budget failure',
       });
+      await route.fulfill({ status: 200, contentType, body });
     });
 
     await page.goto(`/groups/${groupId}`);

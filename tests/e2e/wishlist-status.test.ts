@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, test } from '#tests/playwright-utils.ts';
+import { expect, singleFetchActionBody, test } from '#tests/playwright-utils.ts';
 
 const dismissInstallPrompt = async (page: Page) => {
   const notNow = page.getByRole('button', { name: /not now/i });
@@ -136,15 +136,12 @@ test('archive rollback restores item when status mutation fails', async ({
 
     const payload = new URLSearchParams(route.request().postData() ?? '');
     await new Promise((resolve) => setTimeout(resolve, 800));
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        ok: false,
-        error: 'Unable to update wishlist item status.',
-        clientMutationId: payload.get('clientMutationId'),
-      }),
+    const { body, contentType } = await singleFetchActionBody({
+      ok: false,
+      error: 'Unable to update wishlist item status.',
+      clientMutationId: payload.get('clientMutationId'),
     });
+    await route.fulfill({ status: 200, contentType, body });
   });
 
   try {

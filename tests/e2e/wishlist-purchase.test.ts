@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
-import { expect, test, waitFor } from '#tests/playwright-utils.ts';
+import { expect, singleFetchActionBody, test, waitFor } from '#tests/playwright-utils.ts';
 
 const connectUserRole = { connect: { name: 'user' } };
 
@@ -241,16 +241,13 @@ test('claim rolls back when purchase mutation fails', async ({ page, login }) =>
 
     const payload = new URLSearchParams(route.request().postData() ?? '');
     await new Promise((resolve) => setTimeout(resolve, 800));
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        ok: false,
-        wishlistItemId: payload.get('wishlistItemId') ?? wishlistItem.id,
-        purchase: null,
-        error: 'This item has already been marked as purchased.',
-      }),
+    const { body, contentType } = await singleFetchActionBody({
+      ok: false,
+      wishlistItemId: payload.get('wishlistItemId') ?? wishlistItem.id,
+      purchase: null,
+      error: 'This item has already been marked as purchased.',
     });
+    await route.fulfill({ status: 200, contentType, body });
   });
 
   try {
