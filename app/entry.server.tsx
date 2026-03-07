@@ -15,7 +15,8 @@ import { getInstanceInfo } from './utils/litefs.server.ts';
 import { NonceProvider } from './utils/nonce-provider.ts';
 import { makeTimings } from './utils/timing.server.ts';
 
-const ABORT_DELAY = 5000;
+export const streamTimeout = 5000;
+const ABORT_DELAY = streamTimeout + 1000;
 
 init();
 global.ENV = getEnv();
