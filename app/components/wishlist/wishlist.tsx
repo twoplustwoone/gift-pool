@@ -31,7 +31,7 @@ import {
   useFetchers,
   useNavigation,
   useSearchParams,
-} from '@remix-run/react';
+} from 'react-router';
 import {
   type FormEvent,
   Fragment,
@@ -102,6 +102,14 @@ import { Card } from '../ui/card.tsx';
 import { Heading } from '../ui/heading.tsx';
 import { Flex, Grid, Stack, Text } from '../ui-kit';
 import { CategoryManager } from './category-manager';
+import {
+  applyPendingCategoryMutations,
+  applySettledCategoryMutations,
+  pruneSatisfiedSettledCategoryMutations,
+  type CategoryMutationResult,
+  type PendingCategoryMutation,
+  type WishlistCategory,
+} from './wishlist-category-state';
 import { WishlistItem } from './wishlist-item';
 import {
   WishlistRowActionsItem,
@@ -129,14 +137,17 @@ export type WishlistUser = Pick<User, 'id' | 'username' | 'name'> & {
     hasImage?: boolean;
     imageSource?: WishlistItemImageSource | null;
   })[];
-  wishlistCategories: { id: string; name: string; order: number }[];
+  wishlistCategories: WishlistCategory[];
 };
 
 type WishlistPublicShare = { token: string; createdAt: Date };
 
 const useIsDesktop = () => {
   const getMatches = () => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function')
+    if (
+      typeof window === 'undefined' ||
+      typeof window.matchMedia !== 'function'
+    )
       return false;
     return window.matchMedia('(min-width: 640px)').matches;
   };
@@ -144,7 +155,10 @@ const useIsDesktop = () => {
   const [isDesktop, setIsDesktop] = useState(getMatches);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    if (
+      typeof window === 'undefined' ||
+      typeof window.matchMedia !== 'function'
+    ) {
       return;
     }
 
@@ -217,7 +231,7 @@ type PendingStatusMutation = {
 type PendingReorderMutation = {
   clientMutationId: string;
   previousItems: WishlistUser['wishlistItems'];
-  previousCategories: { id: string; name: string; order: number }[];
+  previousCategories: WishlistCategory[];
 };
 
 const categoryKeyFromId = (categoryId: string | null) =>
@@ -225,7 +239,8 @@ const categoryKeyFromId = (categoryId: string | null) =>
 const categoryIdFromKey = (key: string) =>
   key === DEFAULT_CATEGORY_KEY ? null : key;
 
-const toCategoryDragId = (categoryId: string) => `${CATEGORY_DRAG_PREFIX}${categoryId}`;
+const toCategoryDragId = (categoryId: string) =>
+  `${CATEGORY_DRAG_PREFIX}${categoryId}`;
 const toItemDragId = (itemId: string) => `${ITEM_DRAG_PREFIX}${itemId}`;
 const toCategoryDropId = (categoryKey: string) =>
   `${CATEGORY_DROP_PREFIX}${categoryKey}`;
@@ -235,7 +250,9 @@ const getCategoryIdFromDragId = (dragId: string) =>
     ? dragId.slice(CATEGORY_DRAG_PREFIX.length)
     : null;
 const getItemIdFromDragId = (dragId: string) =>
-  dragId.startsWith(ITEM_DRAG_PREFIX) ? dragId.slice(ITEM_DRAG_PREFIX.length) : null;
+  dragId.startsWith(ITEM_DRAG_PREFIX)
+    ? dragId.slice(ITEM_DRAG_PREFIX.length)
+    : null;
 const getCategoryKeyFromDropId = (dropId: string) =>
   dropId.startsWith(CATEGORY_DROP_PREFIX)
     ? dropId.slice(CATEGORY_DROP_PREFIX.length)
@@ -287,9 +304,8 @@ const moveItemIdBetweenLists = ({
 
 const cloneItemsSnapshot = (items: WishlistUser['wishlistItems']) =>
   items.map((item) => ({ ...item }));
-const cloneCategoriesSnapshot = (
-  categories: { id: string; name: string; order: number }[],
-) => categories.map((category) => ({ ...category }));
+const cloneCategoriesSnapshot = (categories: WishlistCategory[]) =>
+  categories.map((category) => ({ ...category }));
 
 const applyCategoryItemOrder = ({
   prevItems,
@@ -312,25 +328,6 @@ const applyCategoryItemOrder = ({
     };
   });
 };
-
-type PendingCategoryMutation =
-  | {
-      type: 'create';
-      clientMutationId: string;
-      name: string;
-      order: number;
-    }
-  | {
-      type: 'rename';
-      clientMutationId: string;
-      categoryId: string;
-      name: string;
-    }
-  | {
-      type: 'delete';
-      clientMutationId: string;
-      categoryId: string;
-    };
 
 type PendingItemMutation =
   | {
@@ -356,9 +353,12 @@ type PendingItemMutation =
 const normalizeFormActionPath = (action: string | null | undefined) => {
   if (!action) return null;
   try {
-    return new URL(action, 'https://gift-pool.local').pathname;
+    return new URL(action, 'https://gift-pool.local').pathname.replace(
+      /\.data$/,
+      '',
+    );
   } catch {
-    return action;
+    return action.replace(/\.data$/, '');
   }
 };
 
@@ -393,9 +393,7 @@ const redensifyCategorySortOrder = (
 
   if (ordered.length === 0) return items;
 
-  const nextSortOrder = new Map(
-    ordered.map((item, index) => [item.id, index]),
-  );
+  const nextSortOrder = new Map(ordered.map((item, index) => [item.id, index]));
   return items.map((item) => {
     if (item.categoryId !== categoryId) return item;
     return {
@@ -403,44 +401,6 @@ const redensifyCategorySortOrder = (
       sortOrder: nextSortOrder.get(item.id) ?? item.sortOrder,
     };
   });
-};
-
-const applyPendingCategoryMutations = ({
-  categories,
-  pendingMutations,
-}: {
-  categories: { id: string; name: string; order: number }[];
-  pendingMutations: PendingCategoryMutation[];
-}) => {
-  let next = [...categories];
-
-  for (const mutation of pendingMutations) {
-    if (mutation.type === 'create') {
-      const optimisticId = `optimistic-category:${mutation.clientMutationId}`;
-      if (next.some((category) => category.id === optimisticId)) continue;
-      next.push({
-        id: optimisticId,
-        name: mutation.name,
-        order: mutation.order,
-      });
-      continue;
-    }
-
-    if (mutation.type === 'rename') {
-      next = next.map((category) =>
-        category.id === mutation.categoryId
-          ? { ...category, name: mutation.name }
-          : category,
-      );
-      continue;
-    }
-
-    next = next.filter((category) => category.id !== mutation.categoryId);
-  }
-
-  return next
-    .sort((a, b) => a.order - b.order)
-    .map((category, index) => ({ ...category, order: index }));
 };
 
 const applyPendingItemMutations = ({
@@ -485,7 +445,9 @@ const applyPendingItemMutations = ({
     const existingItem = nextItems[existingIndex]!;
     let nextSortOrder = existingItem.sortOrder;
     if (existingItem.categoryId !== mutation.categoryId) {
-      const withoutCurrent = nextItems.filter((_, index) => index !== existingIndex);
+      const withoutCurrent = nextItems.filter(
+        (_, index) => index !== existingIndex,
+      );
       nextSortOrder = getNextSortOrder(withoutCurrent, mutation.categoryId);
     }
 
@@ -504,7 +466,10 @@ const applyPendingItemMutations = ({
     };
 
     if (existingItem.categoryId !== mutation.categoryId) {
-      nextItems = redensifyCategorySortOrder(nextItems, existingItem.categoryId);
+      nextItems = redensifyCategorySortOrder(
+        nextItems,
+        existingItem.categoryId,
+      );
       nextItems = redensifyCategorySortOrder(nextItems, mutation.categoryId);
     }
   }
@@ -651,7 +616,9 @@ export const Wishlist = ({
   const displayName = user.name ?? user.username;
   const [searchParams, setSearchParams] = useSearchParams();
   const initialView =
-    searchParams.get('view') === 'past' ? ('past' as const) : ('wishlist' as const);
+    searchParams.get('view') === 'past'
+      ? ('past' as const)
+      : ('wishlist' as const);
   const [view, setView] = useState<'wishlist' | 'past'>(initialView);
   const [items, setItems] = useState(() =>
     [...user.wishlistItems].sort(compareItemsBySortOrder),
@@ -673,6 +640,9 @@ export const Wishlist = ({
   const pendingFetchers = useFetchers();
   const navigation = useNavigation();
   const reorderFetcher = useFetcher<WishlistReorderMutationResponse>();
+  const [settledCategoryMutations, setSettledCategoryMutations] = useState<
+    Map<string, CategoryMutationResult>
+  >(new Map());
   const pendingStatusMutationRef = useRef<PendingStatusMutation | null>(null);
   const pendingReorderMutationRef = useRef<PendingReorderMutation | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -685,14 +655,18 @@ export const Wishlist = ({
   const [itemDropTargetCategoryKey, setItemDropTargetCategoryKey] = useState<
     string | null
   >(null);
-  const [quickAddCategoryId, setQuickAddCategoryId] = useState<string | null>(null);
+  const [quickAddCategoryId, setQuickAddCategoryId] = useState<string | null>(
+    null,
+  );
   const quickAddEditorRef = useRef<WishlistItemEditorHandle>(null);
 
   const pendingCategoryMutations = useMemo<PendingCategoryMutation[]>(() => {
     return pendingFetchers.reduce<PendingCategoryMutation[]>(
       (mutations, fetcher, index) => {
         if (!fetcher.formData) return mutations;
-        if (normalizeFormActionPath(fetcher.formAction) !== '/wishlist/categories') {
+        if (
+          normalizeFormActionPath(fetcher.formAction) !== '/wishlist/categories'
+        ) {
           return mutations;
         }
 
@@ -752,13 +726,25 @@ export const Wishlist = ({
     );
   }, [orderedCategories.length, pendingFetchers]);
 
+  const settledCategoryMutationList = useMemo(
+    () => [...settledCategoryMutations.values()],
+    [settledCategoryMutations],
+  );
+
   const optimisticCategories = useMemo(
     () =>
       applyPendingCategoryMutations({
-        categories: orderedCategories,
+        categories: applySettledCategoryMutations({
+          categories: orderedCategories,
+          settledMutations: settledCategoryMutationList,
+        }),
         pendingMutations: pendingCategoryMutations,
       }),
-    [orderedCategories, pendingCategoryMutations],
+    [
+      orderedCategories,
+      pendingCategoryMutations,
+      settledCategoryMutationList,
+    ],
   );
 
   const pendingItemMutations = useMemo(() => {
@@ -769,23 +755,31 @@ export const Wishlist = ({
     ): PendingItemMutation[] => {
       const actionPath = normalizeFormActionPath(formAction);
       const clientMutationId =
-        normalizeNullableFormValue(getFormString(formData, 'clientMutationId')) ??
-        fallbackMutationId;
+        normalizeNullableFormValue(
+          getFormString(formData, 'clientMutationId'),
+        ) ?? fallbackMutationId;
 
       if (actionPath === '/wishlist') {
         const intent = getFormString(formData, 'intent');
         if (intent !== 'save' && intent !== 'save-add-another') return [];
 
-        const title = normalizeNullableFormValue(getFormString(formData, 'title'));
+        const title = normalizeNullableFormValue(
+          getFormString(formData, 'title'),
+        );
         if (!title) return [];
 
-        const rawItemId = normalizeNullableFormValue(getFormString(formData, 'id'));
+        const rawItemId = normalizeNullableFormValue(
+          getFormString(formData, 'id'),
+        );
         const itemId = rawItemId ?? `optimistic-item:${clientMutationId}`;
-        const existingItem = items.find((entry) => entry.id === rawItemId) ?? null;
+        const existingItem =
+          items.find((entry) => entry.id === rawItemId) ?? null;
         const categoryId =
-          normalizeNullableFormValue(getFormString(formData, 'categoryId')) ?? null;
+          normalizeNullableFormValue(getFormString(formData, 'categoryId')) ??
+          null;
         const imageAction =
-          normalizeNullableFormValue(getFormString(formData, 'imageAction')) ?? 'none';
+          normalizeNullableFormValue(getFormString(formData, 'imageAction')) ??
+          'none';
         const hasImage =
           imageAction === 'remove'
             ? false
@@ -826,8 +820,9 @@ export const Wishlist = ({
         const intent = getFormString(formData, 'intent');
         if (intent !== 'delete-wishlist-item') return [];
         const itemId =
-          normalizeNullableFormValue(getFormString(formData, 'wishlistItemId')) ??
-          actionPath.replace('/wishlist/', '');
+          normalizeNullableFormValue(
+            getFormString(formData, 'wishlistItemId'),
+          ) ?? actionPath.replace('/wishlist/', '');
         if (!itemId) return [];
         return [
           {
@@ -860,7 +855,13 @@ export const Wishlist = ({
         : [];
 
     return [...fromFetchers, ...fromNavigation];
-  }, [items, navigation.formAction, navigation.formData, navigation.state, pendingFetchers]);
+  }, [
+    items,
+    navigation.formAction,
+    navigation.formData,
+    navigation.state,
+    pendingFetchers,
+  ]);
 
   const optimisticItems = useMemo(
     () =>
@@ -892,9 +893,17 @@ export const Wishlist = ({
   }, [statusUpdateFetcher.state, user.wishlistItems]);
 
   useEffect(() => {
-    setOrderedCategories(
-      [...user.wishlistCategories].sort((a, b) => a.order - b.order),
-    );
+    const nextServerCategories = [...user.wishlistCategories].sort((a, b) => a.order - b.order);
+    setOrderedCategories(nextServerCategories);
+    setSettledCategoryMutations((currentMutations) => {
+      const nextMutations = pruneSatisfiedSettledCategoryMutations({
+        serverCategories: nextServerCategories,
+        settledMutations: [...currentMutations.values()],
+      });
+      return new Map(
+        nextMutations.map((mutation) => [mutation.clientMutationId!, mutation]),
+      );
+    });
   }, [user.wishlistCategories]);
 
   useEffect(() => {
@@ -908,9 +917,7 @@ export const Wishlist = ({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const seen =
-      window.localStorage.getItem(
-        `past_items_edu_seen_${user.id}`,
-      ) === '1';
+      window.localStorage.getItem(`past_items_edu_seen_${user.id}`) === '1';
     setEducationSeen(seen);
   }, [user.id]);
 
@@ -984,8 +991,7 @@ export const Wishlist = ({
 
     if (!actionData?.ok) {
       toast.error('Unable to save reorder', {
-        description:
-          actionData?.error ?? 'The list changed. Please try again.',
+        description: actionData?.error ?? 'The list changed. Please try again.',
       });
       setItems(pendingMutation.previousItems);
       setOrderedCategories(pendingMutation.previousCategories);
@@ -999,6 +1005,34 @@ export const Wishlist = ({
     }));
   };
 
+  const handleCategoryMutationResult = useCallback(
+    (result: CategoryMutationResult) => {
+      if (!result.ok || !result.clientMutationId) return;
+
+      const affectedCategoryId = result.category?.id ?? result.deletedCategoryId;
+      setSettledCategoryMutations((previousMutations) => {
+        const nextMutations = new Map<string, CategoryMutationResult>();
+
+        for (const [clientMutationId, previousResult] of previousMutations) {
+          const previousAffectedCategoryId =
+            previousResult.category?.id ?? previousResult.deletedCategoryId;
+          if (
+            affectedCategoryId &&
+            previousAffectedCategoryId === affectedCategoryId
+          ) {
+            continue;
+          }
+
+          nextMutations.set(clientMutationId, previousResult);
+        }
+
+        nextMutations.set(result.clientMutationId, result);
+        return nextMutations;
+      });
+    },
+    [],
+  );
+
   const clearUndoTimer = useCallback(() => {
     if (undoTimerRef.current) {
       clearTimeout(undoTimerRef.current);
@@ -1006,14 +1040,17 @@ export const Wishlist = ({
     }
   }, []);
 
-  const clearRemovalState = useCallback((itemId: string) => {
-    if (lastRemovalRef.current?.itemId !== itemId) return;
-    if (lastRemovalRef.current?.toastId) {
-      toast.dismiss(lastRemovalRef.current.toastId);
-    }
-    lastRemovalRef.current = null;
-    clearUndoTimer();
-  }, [clearUndoTimer]);
+  const clearRemovalState = useCallback(
+    (itemId: string) => {
+      if (lastRemovalRef.current?.itemId !== itemId) return;
+      if (lastRemovalRef.current?.toastId) {
+        toast.dismiss(lastRemovalRef.current.toastId);
+      }
+      lastRemovalRef.current = null;
+      clearUndoTimer();
+    },
+    [clearUndoTimer],
+  );
 
   const attachClientMutationIdToForm = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -1119,7 +1156,11 @@ export const Wishlist = ({
     }
 
     rollbackStatusMutation(pendingMutation, actionData?.error);
-  }, [rollbackStatusMutation, statusUpdateFetcher.data, statusUpdateFetcher.state]);
+  }, [
+    rollbackStatusMutation,
+    statusUpdateFetcher.data,
+    statusUpdateFetcher.state,
+  ]);
 
   const handleUndo = () => {
     const removal = lastRemovalRef.current;
@@ -1184,10 +1225,7 @@ export const Wishlist = ({
           setShowEducation(true);
           setEducationSeen(true);
           if (typeof window !== 'undefined') {
-            window.localStorage.setItem(
-              `past_items_edu_seen_${user.id}`,
-              '1',
-            );
+            window.localStorage.setItem(`past_items_edu_seen_${user.id}`, '1');
           }
         }
         if (lastRemovalRef.current?.toastId) {
@@ -1291,7 +1329,8 @@ export const Wishlist = ({
     () => new Map(activeItems.map((item) => [item.id, item])),
     [activeItems],
   );
-  const activeItemId = dragging?.type === 'item' ? getItemIdFromDragId(dragging.dragId) : null;
+  const activeItemId =
+    dragging?.type === 'item' ? getItemIdFromDragId(dragging.dragId) : null;
   const activeItemCategoryKey = activeItemId
     ? categoryKeyFromId(itemById.get(activeItemId)?.categoryId ?? null)
     : null;
@@ -1359,7 +1398,10 @@ export const Wishlist = ({
     formData.set('sourceOrderedItemIds', JSON.stringify(sourceOrderedItemIds));
     formData.set('clientMutationId', clientMutationId);
     if (targetOrderedItemIds) {
-      formData.set('targetOrderedItemIds', JSON.stringify(targetOrderedItemIds));
+      formData.set(
+        'targetOrderedItemIds',
+        JSON.stringify(targetOrderedItemIds),
+      );
     }
     reorderFetcher.submit(formData, {
       method: 'post',
@@ -1406,7 +1448,9 @@ export const Wishlist = ({
     }
 
     const overItem = itemById.get(overItemId);
-    setItemDropTargetCategoryKey(categoryKeyFromId(overItem?.categoryId ?? null));
+    setItemDropTargetCategoryKey(
+      categoryKeyFromId(overItem?.categoryId ?? null),
+    );
   };
 
   const handleDragCancel = () => {
@@ -1425,7 +1469,11 @@ export const Wishlist = ({
     if (reorderMode === 'categories' && dragging?.type === 'category') {
       const activeCategoryId = getCategoryIdFromDragId(activeDragId);
       const overCategoryId = getCategoryIdFromDragId(overDragId);
-      if (!activeCategoryId || !overCategoryId || activeCategoryId === overCategoryId) {
+      if (
+        !activeCategoryId ||
+        !overCategoryId ||
+        activeCategoryId === overCategoryId
+      ) {
         handleDragCancel();
         return;
       }
@@ -1571,7 +1619,8 @@ export const Wishlist = ({
       : dragging?.type === 'item'
         ? 'dragging-item'
         : 'idle';
-  const defaultCategory = categories.find((category) => category.id === null) ?? null;
+  const defaultCategory =
+    categories.find((category) => category.id === null) ?? null;
   const customCategories = categories.filter(
     (category): category is { id: string; name: string; order: number } =>
       category.id !== null,
@@ -1594,7 +1643,9 @@ export const Wishlist = ({
     const itemsForCategory = itemIds
       .map((itemId) => itemById.get(itemId))
       .filter(Boolean) as WishlistUser['wishlistItems'];
-    const isCollapsed = isItemReorderMode ? false : Boolean(collapsed[categoryKey]);
+    const isCollapsed = isItemReorderMode
+      ? false
+      : Boolean(collapsed[categoryKey]);
     const isEditing =
       category.id !== null &&
       editingId === category.id &&
@@ -1620,7 +1671,12 @@ export const Wishlist = ({
                     id={toItemDragId(item.id)}
                     disabled={!canReorder}
                   >
-                    {({ attributes, listeners, setActivatorNodeRef, isDragging }) => (
+                    {({
+                      attributes,
+                      listeners,
+                      setActivatorNodeRef,
+                      isDragging,
+                    }) => (
                       <div
                         data-testid="wishlist-item-row"
                         data-drag-state={dragState}
@@ -1675,19 +1731,27 @@ export const Wishlist = ({
     const categoryActions =
       isOwner && !isItemReorderMode && !isCategoryReorderMode ? (
         <WishlistRowActionsMenu label={`Category actions for ${category.name}`}>
-          <WishlistRowActionsItem onSelect={() => openQuickAdd(category.id ?? null)}>
+          <WishlistRowActionsItem
+            onSelect={() => openQuickAdd(category.id ?? null)}
+          >
             <LuPlus className="h-4 w-4 text-muted-foreground" aria-hidden />
             Add item
           </WishlistRowActionsItem>
           {canReorder ? (
             <WishlistRowActionsItem onSelect={startItemReorderMode}>
-              <LuArrowUpDown className="h-4 w-4 text-muted-foreground" aria-hidden />
+              <LuArrowUpDown
+                className="h-4 w-4 text-muted-foreground"
+                aria-hidden
+              />
               Reorder items
             </WishlistRowActionsItem>
           ) : null}
           {canReorder ? (
             <WishlistRowActionsItem onSelect={startCategoryReorderMode}>
-              <LuArrowUpDown className="h-4 w-4 text-muted-foreground" aria-hidden />
+              <LuArrowUpDown
+                className="h-4 w-4 text-muted-foreground"
+                aria-hidden
+              />
               Reorder categories
             </WishlistRowActionsItem>
           ) : null}
@@ -1768,7 +1832,11 @@ export const Wishlist = ({
                   <input type="hidden" name="intent" value="rename" />
                   <input type="hidden" name="id" value={category.id ?? ''} />
                   <input type="hidden" name="clientMutationId" value="" />
-                  <Input name="name" defaultValue={category.name} className="h-8" />
+                  <Input
+                    name="name"
+                    defaultValue={category.name}
+                    className="h-8"
+                  />
                   <Button
                     type="submit"
                     size="icon"
@@ -1797,7 +1865,11 @@ export const Wishlist = ({
                     <Text weight="bold" className="truncate">
                       {category.name}
                     </Text>
-                    <Text className="text-muted-foreground" size="xs" weight="bold">
+                    <Text
+                      className="text-muted-foreground"
+                      size="xs"
+                      weight="bold"
+                    >
                       ({itemsForCategory.length})
                     </Text>
                   </Flex>
@@ -1805,7 +1877,10 @@ export const Wishlist = ({
               )}
             </div>
 
-            <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+            <div
+              className="flex items-center gap-2"
+              onClick={(event) => event.stopPropagation()}
+            >
               {categoryHandle ? (
                 <DragHandle
                   label={`Drag category ${category.name}`}
@@ -1837,17 +1912,18 @@ export const Wishlist = ({
           hideFloatingTrigger
         />
       ) : null}
-        <WishlistHeader
-          isOwner={isOwner}
-          user={{ ...user, wishlistCategories: optimisticCategories }}
-          displayName={displayName}
-          origin={origin}
-          publicShare={publicShare ?? null}
+      <WishlistHeader
+        isOwner={isOwner}
+        user={{ ...user, wishlistCategories: optimisticCategories }}
+        displayName={displayName}
+        origin={origin}
+        publicShare={publicShare ?? null}
         isPublicView={isPublicView}
         hideOwnerControls={isReorderMode}
         hideFloatingAddButton={isReorderMode}
         onStartItemReorder={startItemReorderMode}
         onStartCategoryReorder={startCategoryReorderMode}
+        onCategoryMutationResult={handleCategoryMutationResult}
       />
       <div className="mx-auto min-h-0 w-full max-w-6xl flex-1 px-3 py-8 sm:px-6">
         <Stack gap={4}>
@@ -1895,7 +1971,8 @@ export const Wishlist = ({
                     Reorder mode
                   </Text>
                   <Text size="xs" className="text-emerald-800">
-                    Drag handles to move {isCategoryReorderMode ? 'categories' : 'items'}.
+                    Drag handles to move{' '}
+                    {isCategoryReorderMode ? 'categories' : 'items'}.
                   </Text>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1969,18 +2046,31 @@ export const Wishlist = ({
                         <div className="flex min-h-10 items-center justify-between gap-3">
                           <Text weight="bold">{defaultCategory.name}</Text>
                           <Text size="xs" className="text-muted-foreground">
-                            ({itemIdsByCategoryKey[DEFAULT_CATEGORY_KEY]?.length ?? 0})
+                            (
+                            {itemIdsByCategoryKey[DEFAULT_CATEGORY_KEY]
+                              ?.length ?? 0}
+                            )
                           </Text>
                         </div>
                       </div>
                     ) : null}
                     <SortableContext
-                      items={customCategoryIds.map((categoryId) => toCategoryDragId(categoryId))}
+                      items={customCategoryIds.map((categoryId) =>
+                        toCategoryDragId(categoryId),
+                      )}
                       strategy={rectSortingStrategy}
                     >
                       {customCategories.map((category) => (
-                        <SortableShell key={category.id} id={toCategoryDragId(category.id)}>
-                          {({ attributes, listeners, setActivatorNodeRef, isDragging }) => (
+                        <SortableShell
+                          key={category.id}
+                          id={toCategoryDragId(category.id)}
+                        >
+                          {({
+                            attributes,
+                            listeners,
+                            setActivatorNodeRef,
+                            isDragging,
+                          }) => (
                             <div
                               className={`rounded-xl border border-border/80 bg-surface px-4 py-3 shadow-sm transition ${
                                 isDragging
@@ -2004,8 +2094,14 @@ export const Wishlist = ({
                                     <Text weight="bold" className="truncate">
                                       {category.name}
                                     </Text>
-                                    <Text size="xs" className="text-muted-foreground">
-                                      ({itemIdsByCategoryKey[category.id]?.length ?? 0})
+                                    <Text
+                                      size="xs"
+                                      className="text-muted-foreground"
+                                    >
+                                      (
+                                      {itemIdsByCategoryKey[category.id]
+                                        ?.length ?? 0}
+                                      )
                                     </Text>
                                   </Flex>
                                 </div>
@@ -2018,7 +2114,9 @@ export const Wishlist = ({
                   </div>
                 ) : (
                   <>
-                    {defaultCategory ? renderCategoryCard({ category: defaultCategory }) : null}
+                    {defaultCategory
+                      ? renderCategoryCard({ category: defaultCategory })
+                      : null}
                     <div className="space-y-4">
                       {customCategories.map((category) => (
                         <Fragment key={category.id}>
@@ -2035,14 +2133,16 @@ export const Wishlist = ({
                   <div className="flex w-full flex-col items-center justify-center">
                     {isOwner ? (
                       <p className="text-center text-base text-slate-500">
-                        Looks like you don't have any items in your wishlist yet!
+                        Looks like you don't have any items in your wishlist
+                        yet!
                         {archivedItems.length
                           ? ' Past items are available in the Past items tab.'
                           : ''}
                       </p>
                     ) : (
                       <p className="text-center text-base text-slate-500">
-                        {displayName} doesn't have any active items in their wishlist right now!
+                        {displayName} doesn't have any active items in their
+                        wishlist right now!
                         {archivedItems.length
                           ? ' Their past items are available in the Past items tab.'
                           : ''}
@@ -2083,6 +2183,7 @@ const WishlistHeader = ({
   hideFloatingAddButton,
   onStartItemReorder,
   onStartCategoryReorder,
+  onCategoryMutationResult,
 }: {
   isOwner: boolean;
   user: Pick<
@@ -2093,7 +2194,7 @@ const WishlistHeader = ({
     'name' | 'username'
   > & {
     image: Pick<UserImage, 'id'> | null;
-    wishlistCategories: { id: string; name: string; order: number }[];
+    wishlistCategories: WishlistCategory[];
   };
   displayName: string;
   origin?: string;
@@ -2103,6 +2204,7 @@ const WishlistHeader = ({
   hideFloatingAddButton: boolean;
   onStartItemReorder: () => void;
   onStartCategoryReorder: () => void;
+  onCategoryMutationResult: (result: CategoryMutationResult) => void;
 }) => (
   <div className="w-full border-b bg-surface">
     <div className="mx-auto flex min-h-11 w-full max-w-6xl items-center justify-between gap-3 px-3 py-3 sm:px-6">
@@ -2158,6 +2260,7 @@ const WishlistHeader = ({
             compact
             onStartItemReorder={onStartItemReorder}
             onStartCategoryReorder={onStartCategoryReorder}
+            onMutationResult={onCategoryMutationResult}
           />
         </div>
       ) : null}
@@ -2181,8 +2284,9 @@ const WishlistShareDialog = ({
   useToast((shareFetcher.data as any)?.toast);
 
   const [open, setOpen] = useState(false);
-  const [activeShare, setActiveShare] =
-    useState<WishlistPublicShare | null>(publicShare);
+  const [activeShare, setActiveShare] = useState<WishlistPublicShare | null>(
+    publicShare,
+  );
   const [copiedType, setCopiedType] = useState<'private' | 'public' | null>(
     null,
   );
@@ -2284,7 +2388,11 @@ const WishlistShareDialog = ({
       aria-label="Share wishlist"
       data-state={open ? 'open' : 'closed'}
     >
-      {open ? <LuCheck className="h-5 w-5" /> : <LuShare2 className="h-5 w-5" />}
+      {open ? (
+        <LuCheck className="h-5 w-5" />
+      ) : (
+        <LuShare2 className="h-5 w-5" />
+      )}
     </Button>
   );
 
@@ -2317,7 +2425,9 @@ const WishlistShareDialog = ({
               <p className="text-sm font-semibold">Public link (no login)</p>
               <Badge
                 variant={hasPublicLink ? 'pool' : 'default'}
-                className={hasPublicLink ? '' : 'bg-muted text-muted-foreground'}
+                className={
+                  hasPublicLink ? '' : 'bg-muted text-muted-foreground'
+                }
               >
                 {statusLabel}
               </Badge>
@@ -2567,7 +2677,10 @@ const PastWishlistItems = ({
   showEducation: boolean;
   onDismissEducation: () => void;
   onViewPast: () => void;
-  onStatusChange: (itemId: string, status: WishlistItemStatusValue) => boolean | void;
+  onStatusChange: (
+    itemId: string,
+    status: WishlistItemStatusValue,
+  ) => boolean | void;
 }) => {
   const sortedItems = [...items].sort(
     (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
@@ -2603,7 +2716,8 @@ const PastWishlistItems = ({
           <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center">
             <Text weight="bold">Your past wishlist items live here</Text>
             <Text className="text-muted-foreground">
-              Items you’ve received or removed stay here for reference and inspiration.
+              Items you’ve received or removed stay here for reference and
+              inspiration.
             </Text>
           </div>
         ) : (
@@ -2633,7 +2747,10 @@ const PastWishlistItemCard = ({
   item: WishlistUser['wishlistItems'][number];
   isOwner: boolean;
   categories: { id: string; name: string; order: number }[];
-  onStatusChange: (itemId: string, status: WishlistItemStatusValue) => boolean | void;
+  onStatusChange: (
+    itemId: string,
+    status: WishlistItemStatusValue,
+  ) => boolean | void;
 }) => {
   return (
     <WishlistItemEditor
