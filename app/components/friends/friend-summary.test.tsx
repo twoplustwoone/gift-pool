@@ -44,8 +44,8 @@ describe('<FriendSummary />', () => {
 
     render(<App />);
 
-    const button = screen.getByRole('button', { name: /taylor swift/i });
-    expect(button).toHaveAttribute('type', 'button');
+    const link = screen.getByRole('link', { name: /taylor swift/i });
+    expect(link).toHaveAttribute('href', '/users/taylor/wishlist');
     expect(screen.getByText('@taylor')).toBeInTheDocument();
     expect(screen.getByText('Swifties')).toBeInTheDocument();
     expect(screen.getByText('+2')).toBeInTheDocument();
