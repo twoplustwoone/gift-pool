@@ -1,7 +1,12 @@
 import { type Page } from '@playwright/test';
 import { prisma } from '#app/utils/db.server.ts';
 import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
-import { expect, singleFetchActionBody, test, waitFor } from '#tests/playwright-utils.ts';
+import {
+  expect,
+  singleFetchActionBody,
+  test,
+  waitFor,
+} from '#tests/playwright-utils.ts';
 
 const dismissInstallPrompt = async (page: Page) => {
   const notNow = page.getByRole('button', { name: /not now/i });

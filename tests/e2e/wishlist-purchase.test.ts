@@ -1,7 +1,12 @@
 import type { Page } from '@playwright/test';
 import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
-import { expect, singleFetchActionBody, test, waitFor } from '#tests/playwright-utils.ts';
+import {
+  expect,
+  singleFetchActionBody,
+  test,
+  waitFor,
+} from '#tests/playwright-utils.ts';
 
 const connectUserRole = { connect: { name: 'user' } };
 
@@ -195,7 +200,10 @@ test('claim updates optimistically while purchase request is delayed', async ({
   }
 });
 
-test('claim rolls back when purchase mutation fails', async ({ page, login }) => {
+test('claim rolls back when purchase mutation fails', async ({
+  page,
+  login,
+}) => {
   const createdUserIds: string[] = [];
 
   const ownerData = createUser();

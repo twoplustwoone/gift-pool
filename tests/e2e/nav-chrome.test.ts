@@ -52,14 +52,18 @@ test.describe('navigation chrome', () => {
 
       await expect(topBar).toHaveAttribute('data-hidden', 'false');
 
-      await scrollArea.evaluate((el) => el.scrollTo({ top: 900, behavior: 'auto' }));
+      await scrollArea.evaluate((el) =>
+        el.scrollTo({ top: 900, behavior: 'auto' }),
+      );
       await expect
         .poll(async () => topBar.getAttribute('data-hidden'), {
           message: 'top bar should hide after scrolling down',
         })
         .toBe('true');
 
-      await scrollArea.evaluate((el) => el.scrollTo({ top: 50, behavior: 'auto' }));
+      await scrollArea.evaluate((el) =>
+        el.scrollTo({ top: 50, behavior: 'auto' }),
+      );
       await expect
         .poll(async () => topBar.getAttribute('data-hidden'), {
           message: 'top bar should reappear after scrolling up',
@@ -86,7 +90,9 @@ test.describe('navigation chrome', () => {
       }
 
       // Scroll deep, navigate away, and confirm scroll resets to top
-      await scrollArea.evaluate((el) => el.scrollTo({ top: 1200, behavior: 'auto' }));
+      await scrollArea.evaluate((el) =>
+        el.scrollTo({ top: 1200, behavior: 'auto' }),
+      );
       const homeLink = page.getByRole('link', { name: /^home$/i });
       await homeLink.click();
       await expect(page).toHaveURL(/\/($|friends)/);
@@ -111,7 +117,9 @@ test.describe('navigation chrome', () => {
           ],
         },
       });
-      await prisma.user.deleteMany({ where: { id: { in: friends.map((f) => f.id) } } });
+      await prisma.user.deleteMany({
+        where: { id: { in: friends.map((f) => f.id) } },
+      });
       await prisma.user.delete({ where: { id: viewer.id } }).catch(() => {});
     }
   });

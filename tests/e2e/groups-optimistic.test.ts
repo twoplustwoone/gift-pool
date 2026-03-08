@@ -1,5 +1,11 @@
 import { prisma } from '#app/utils/db.server.ts';
-import { createPassword, createUser, expect, singleFetchActionBody, test } from '#tests/playwright-utils.ts';
+import {
+  createPassword,
+  createUser,
+  expect,
+  singleFetchActionBody,
+  test,
+} from '#tests/playwright-utils.ts';
 
 async function createGroupWithOwnerAndMember({
   ownerContributionCents = 1000,
@@ -58,7 +64,7 @@ test('members page shows optimistic role change before promote request resolves'
   login,
 }) => {
   const { groupId, owner, member } = await createGroupWithOwnerAndMember();
-  let resolvePromoteGate = () => { };
+  let resolvePromoteGate = () => {};
   const promoteGate = new Promise<void>((resolve) => {
     resolvePromoteGate = resolve;
   });
@@ -98,10 +104,10 @@ test('members page shows optimistic role change before promote request resolves'
     resolvePromoteGate();
     await expect(demoteButton).toBeVisible();
   } finally {
-    await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => { });
+    await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => {});
     await prisma.user
       .deleteMany({ where: { id: { in: [owner.id, member.id] } } })
-      .catch(() => { });
+      .catch(() => {});
   }
 });
 
@@ -153,9 +159,9 @@ test('overview budget rolls back after forced settings failure', async ({
     await budgetResponsePromise;
     await expect(budgetAmount).toHaveText('$10.00');
   } finally {
-    await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => { });
+    await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => {});
     await prisma.user
       .deleteMany({ where: { id: { in: [owner.id, member.id] } } })
-      .catch(() => { });
+      .catch(() => {});
   }
 });

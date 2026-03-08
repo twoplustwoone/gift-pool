@@ -2,7 +2,10 @@ import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
 import { expect, test } from '#tests/playwright-utils.ts';
 
-test('profile loader does not expose details to non-friends', async ({ page, login }) => {
+test('profile loader does not expose details to non-friends', async ({
+  page,
+  login,
+}) => {
   const createdUserIds: string[] = [];
   const viewerData = createUser();
   const targetData = createUser();
@@ -37,7 +40,13 @@ test('profile loader does not expose details to non-friends', async ({ page, log
         status: number;
         data: {
           canViewProfile: boolean;
-          user: { id: string; name: string | null; username: string; createdAt?: unknown; image?: unknown };
+          user: {
+            id: string;
+            name: string | null;
+            username: string;
+            createdAt?: unknown;
+            image?: unknown;
+          };
           relationship: { state: string };
         };
       },
@@ -52,7 +61,13 @@ test('profile loader does not expose details to non-friends', async ({ page, log
       });
       const data = (await response.json()) as {
         canViewProfile: boolean;
-        user: { id: string; name: string | null; username: string; createdAt?: unknown; image?: unknown };
+        user: {
+          id: string;
+          name: string | null;
+          username: string;
+          createdAt?: unknown;
+          image?: unknown;
+        };
         relationship: { state: string };
       };
       return { status: response.status, data };
@@ -76,7 +91,10 @@ test('profile loader does not expose details to non-friends', async ({ page, log
   }
 });
 
-test('non-friend profile prompts request and sends invite', async ({ page, login }) => {
+test('non-friend profile prompts request and sends invite', async ({
+  page,
+  login,
+}) => {
   const createdUserIds: string[] = [];
   const viewerData = createUser();
   const targetData = createUser();
@@ -135,7 +153,10 @@ test('non-friend profile prompts request and sends invite', async ({ page, login
   }
 });
 
-test('non-friend wishlist prompts request and sends invite', async ({ page, login }) => {
+test('non-friend wishlist prompts request and sends invite', async ({
+  page,
+  login,
+}) => {
   const createdUserIds: string[] = [];
   const viewerData = createUser();
   const targetData = createUser();
@@ -240,10 +261,14 @@ test('non-friend wishlist request is optimistic and rolls back on failure', asyn
     await expect(addButton).toBeVisible();
     await addButton.click();
 
-    await expect(page.getByRole('button', { name: /request sent/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /add friend/i })).toBeVisible({
-      timeout: 10000,
-    });
+    await expect(
+      page.getByRole('button', { name: /request sent/i }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /add friend/i })).toBeVisible(
+      {
+        timeout: 10000,
+      },
+    );
 
     const request = await prisma.friendRequest.findFirst({
       where: { fromUserId: viewer.id, toUserId: target.id },

@@ -1,5 +1,9 @@
 import type { Page } from '@playwright/test';
-import { expect, singleFetchActionBody, test } from '#tests/playwright-utils.ts';
+import {
+  expect,
+  singleFetchActionBody,
+  test,
+} from '#tests/playwright-utils.ts';
 
 const dismissInstallPrompt = async (page: Page) => {
   const notNow = page.getByRole('button', { name: /not now/i });
@@ -25,7 +29,10 @@ const createWishlistItem = async ({
   await expect(editor).not.toBeVisible();
 };
 
-test('owners can archive and unarchive wishlist items', async ({ page, login }) => {
+test('owners can archive and unarchive wishlist items', async ({
+  page,
+  login,
+}) => {
   await login();
   await page.goto('/wishlist');
   await dismissInstallPrompt(page);
@@ -50,7 +57,9 @@ test('owners can archive and unarchive wishlist items', async ({ page, login }) 
   }
 
   // Item moves to archived section
-  await page.getByRole('button', { name: /^Past items$/i, exact: true }).click();
+  await page
+    .getByRole('button', { name: /^Past items$/i, exact: true })
+    .click();
   await expect(
     page.getByRole('heading', { name: 'Past items', level: 1 }),
   ).toBeVisible();
@@ -110,7 +119,9 @@ test('archive status is optimistic before delayed server response', async ({
       await dialog.getByRole('button', { name: /^close$/i }).click();
     }
 
-    await page.getByRole('button', { name: /^Past items$/i, exact: true }).click();
+    await page
+      .getByRole('button', { name: /^Past items$/i, exact: true })
+      .click();
     await expect(page.getByText('Delayed status item')).toHaveCount(1);
 
     await statusResponsePromise;
