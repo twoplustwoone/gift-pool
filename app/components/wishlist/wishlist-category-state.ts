@@ -106,7 +106,9 @@ export const isSettledCategoryMutationSatisfiedByServer = ({
 
   if (mutation.intent === 'create') {
     return mutation.category
-      ? serverCategories.some((category) => category.id === mutation.category?.id)
+      ? serverCategories.some(
+          (category) => category.id === mutation.category?.id,
+        )
       : false;
   }
 

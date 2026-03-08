@@ -144,12 +144,7 @@ export const usePwaInstallPrompt = () => {
     if (!hasCheckedDismissal) return false;
     if (isInstalled || isDismissed || isPermanentlyDismissed) return false;
     return true;
-  }, [
-    hasCheckedDismissal,
-    isDismissed,
-    isInstalled,
-    isPermanentlyDismissed,
-  ]);
+  }, [hasCheckedDismissal, isDismissed, isInstalled, isPermanentlyDismissed]);
 
   const promptInstall = useCallback(async (): Promise<InstallOutcome> => {
     if (!installEvent) return 'unavailable';

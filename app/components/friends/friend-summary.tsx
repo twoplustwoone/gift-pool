@@ -26,8 +26,12 @@ export const FriendSummary = ({
     >
       <Avatar size="s" image={user.image} user={user} />
       <div className="min-w-0">
-        <div className="truncate font-medium text-foreground">{displayName}</div>
-        <div className="truncate text-sm text-muted-foreground">@{user.username}</div>
+        <div className="truncate font-medium text-foreground">
+          {displayName}
+        </div>
+        <div className="truncate text-sm text-muted-foreground">
+          @{user.username}
+        </div>
         {mutualGroups.length > 0 ? (
           <div className="mt-1 flex flex-wrap gap-1">
             {mutualGroups.map((g) => (

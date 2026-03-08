@@ -123,7 +123,9 @@ function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-export async function getAnalyticsCounts(now = new Date()): Promise<AnalyticsCounts> {
+export async function getAnalyticsCounts(
+  now = new Date(),
+): Promise<AnalyticsCounts> {
   const startOfToday = new Date(
     now.getFullYear(),
     now.getMonth(),
