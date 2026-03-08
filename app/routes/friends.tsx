@@ -1,4 +1,8 @@
-import { type LoaderFunctionArgs, type MetaFunction } from 'react-router';
+import {
+  type ClientLoaderFunctionArgs,
+  type LoaderFunctionArgs,
+  type MetaFunction,
+} from 'react-router';
 import { Link, Outlet, useLoaderData, useSearchParams } from 'react-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -15,6 +19,7 @@ import {
   type RelationshipSnapshot,
 } from '#app/components/friends/friend-action-button.tsx';
 import { FriendSummary } from '#app/components/friends/friend-summary.tsx';
+import { useFriendWishlistPrefetch } from '#app/hooks/use-background-route-prefetch.ts';
 import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -32,29 +37,30 @@ import { Skeleton } from '#app/components/ui/skeleton.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
 import { Text } from '#app/components/ui-kit/text.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
-import {
-  getIncomingFriendRequests,
-  getOutgoingFriendRequests,
-  listFriends,
-} from '#app/utils/friends.server.ts';
+import { loadFriendsPageData } from '#app/utils/friends-page.server.ts';
 import {
   FRIENDSHIP_UPDATED_EVENT,
   type FriendshipEventDetail,
 } from '#app/utils/friendship-events.ts';
 import { useTranslation } from '#app/utils/i18n.tsx';
 import { cn } from '#app/utils/misc.tsx';
+import { takePrefetchCache } from '#app/utils/prefetch-cache.client.ts';
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
-  const [friends, incoming, outgoing] = await Promise.all([
-    listFriends(userId),
-    getIncomingFriendRequests(userId),
-    getOutgoingFriendRequests(userId),
-  ]);
-  return {
-    friends,
-    incoming,
-    outgoing,
-  };
+  return loadFriendsPageData(userId);
+}
+
+export async function clientLoader({
+  request,
+  serverLoader,
+}: ClientLoaderFunctionArgs) {
+  const cached = takePrefetchCache<Awaited<ReturnType<typeof serverLoader>>>(
+    request.url,
+  );
+
+  if (cached) return cached;
+
+  return serverLoader();
 }
 export const meta: MetaFunction<typeof loader> = () => {
   return [
@@ -67,6 +73,7 @@ const FriendsRoute = () => {
   const data = useLoaderData<typeof loader>();
   const { t } = useTranslation();
   const { setUnreadCount } = useNotificationsStore();
+  useFriendWishlistPrefetch(data.friends.map((friend) => friend.user.username));
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTabParam = (searchParams.get('tab') ?? 'friends').toLowerCase();
   const activeTab: 'add' | 'requests' | 'friends' =

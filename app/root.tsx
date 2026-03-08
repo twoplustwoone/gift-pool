@@ -18,7 +18,13 @@ import {
   useFetchers,
   useLoaderData,
 } from 'react-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { HoneypotProvider } from 'remix-utils/honeypot/react';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -43,6 +49,7 @@ import { honeypot } from './utils/honeypot.server.ts';
 import { I18nProvider, getLocaleFromRequest } from './utils/i18n.tsx';
 import { combineHeaders, getDomainUrl } from './utils/misc.tsx';
 import { useNonce } from './utils/nonce-provider.ts';
+import { setPrefetchCacheScope } from './utils/prefetch-cache.client.ts';
 import {
   applyRequestIdHeader,
   getRequestContext,
@@ -263,10 +270,16 @@ const Footer = () => {
     </div>
   );
 };
+const useIsomorphicLayoutEffect =
+  typeof document === 'undefined' ? useEffect : useLayoutEffect;
+
 const App = () => {
   const data = useLoaderData<typeof loader>();
   const nonce = useNonce();
   const theme = useTheme();
+  useIsomorphicLayoutEffect(() => {
+    setPrefetchCacheScope(data.user?.id ?? null);
+  }, [data.user?.id]);
   useToast(data.toast);
   const {
     capability: installCapability,

@@ -1,27 +1,29 @@
-import { invariantResponse } from '@epic-web/invariant';
-import { data, type LoaderFunctionArgs } from 'react-router';
+import {
+  data,
+  type ClientLoaderFunctionArgs,
+  type LoaderFunctionArgs,
+} from 'react-router';
 import { useLoaderData } from 'react-router';
 import { useEffect, useRef } from 'react';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { track } from '#app/utils/analytics.client.ts';
-import { logEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
-import { prisma } from '#app/utils/db.server.ts';
 import { getDomainUrl } from '#app/utils/misc.tsx';
+import { takePrefetchCache } from '#app/utils/prefetch-cache.client.ts';
 import {
   applyRequestIdHeader,
   getRequestContext,
 } from '#app/utils/request-context.server.ts';
 import { useRequestInfo } from '#app/utils/request-info.ts';
-import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
+import { loadOwnWishlistPageData } from '#app/utils/wishlist-page.server.ts';
 // Re-export the server action without importing it in the client bundle
 export { action } from './__wishlist-item-editor.server';
 type LoaderData = {
   user: WishlistUser;
   analytics: {
-    requestId: string;
-    viewEventId: string;
+    requestId: string | null;
+    viewEventId: string | null;
   };
   publicShare: {
     token: string;
@@ -32,107 +34,32 @@ type LoaderData = {
 export async function loader({ request }: LoaderFunctionArgs) {
   const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
-  await cleanupWishlistPurchasesForOwner(userId);
-  const user = await prisma.user.findFirst({
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      wishlistItems: {
-        select: {
-          id: true,
-          title: true,
-          ownerId: true,
-          categoryId: true,
-          note: true,
-          url: true,
-          type: true,
-          updatedAt: true,
-          sortOrder: true,
-          image: true,
-          imageSource: true,
-          status: true,
-        },
-      },
-      wishlistCategories: {
-        select: {
-          id: true,
-          name: true,
-          order: true,
-        },
-        orderBy: {
-          order: 'asc',
-        },
-      },
-      image: {
-        select: {
-          id: true,
-        },
-      },
-    },
-    where: {
-      id: userId,
-    },
-  });
-  invariantResponse(user, 'User not found', {
-    status: 404,
-  });
-  const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
-    ({ image, imageSource, status, ...item }) => {
-      const normalizedStatus =
-        status === 'ACTIVE' ? 'ACTIVE' : ('ARCHIVED' as const);
-      return {
-        ...item,
-        status: normalizedStatus,
-        hasImage: Boolean(image),
-        imageSource:
-          imageSource as WishlistUser['wishlistItems'][number]['imageSource'],
-      };
-    },
-  );
-  const viewEvent = await logEvent({
-    name: 'wishlist_viewed',
-    userId,
-    source: 'server',
+  const loaderData = await loadOwnWishlistPageData({
+    origin: getDomainUrl(request),
     requestId,
     sessionId,
-    properties: {
-      wishlistOwnerId: userId,
-      itemCount: wishlistItems.length,
-    },
+    userId,
+    includeAnalytics: true,
   });
-  const publicShare = await prisma.wishlistPublicShare.findUnique({
-    select: {
-      token: true,
-      createdAt: true,
-    },
-    where: {
-      ownerId: userId,
-    },
+
+  return data<LoaderData>(loaderData, {
+    headers: applyRequestIdHeader(null, requestId),
   });
-  return data<LoaderData>(
-    {
-      user: {
-        ...user,
-        wishlistItems,
-      },
-      analytics: {
-        requestId,
-        viewEventId: viewEvent.eventId,
-      },
-      publicShare: publicShare
-        ? {
-            token: publicShare.token,
-            createdAt: publicShare.createdAt.toISOString(),
-          }
-        : null,
-      origin: getDomainUrl(request),
-    },
-    {
-      headers: applyRequestIdHeader(null, requestId),
-    },
-  );
 }
+
+export async function clientLoader({
+  request,
+  serverLoader,
+}: ClientLoaderFunctionArgs) {
+  const cached = takePrefetchCache<Awaited<ReturnType<typeof serverLoader>>>(
+    request.url,
+  );
+
+  if (cached) return cached;
+
+  return serverLoader();
+}
+
 const WishlistIndex = () => {
   const data = useLoaderData<typeof loader>();
   const requestInfo = useRequestInfo();
@@ -151,19 +78,26 @@ const WishlistIndex = () => {
       }
     : null;
   useEffect(() => {
-    if (!data.analytics?.viewEventId) return;
-    if (trackedViewIdRef.current === data.analytics.viewEventId) return;
-    trackedViewIdRef.current = data.analytics.viewEventId;
+    const trackingKey = data.analytics?.viewEventId ?? `client:${user.id}`;
+    if (trackedViewIdRef.current === trackingKey) return;
+    trackedViewIdRef.current = trackingKey;
+
+    const trackingOptions = data.analytics?.viewEventId
+      ? {
+          requestId: data.analytics.requestId ?? requestInfo.requestId,
+          eventId: data.analytics.viewEventId,
+        }
+      : {
+          requestId: requestInfo.requestId,
+        };
+
     track(
       'wishlist_viewed',
       {
         wishlistOwnerId: user.id,
         itemCount: user.wishlistItems.length,
       },
-      {
-        requestId: data.analytics.requestId ?? requestInfo.requestId,
-        eventId: data.analytics.viewEventId,
-      },
+      trackingOptions,
     );
   }, [
     data.analytics,

@@ -1,22 +1,28 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { data, redirect, type LoaderFunctionArgs } from 'react-router';
+import {
+  data,
+  redirect,
+  type ClientLoaderFunctionArgs,
+  type LoaderFunctionArgs,
+} from 'react-router';
 import { useLoaderData } from 'react-router';
 import { useEffect, useRef } from 'react';
 import { FriendGateCard } from '#app/components/friends/friend-gate-card.tsx';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { track } from '#app/utils/analytics.client.ts';
-import { logEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
-import { prisma } from '#app/utils/db.server.ts';
-import { getRelationshipDetails } from '#app/utils/friends.server.ts';
 import { type RelationshipState } from '#app/utils/friends.ts';
 import { useTranslation } from '#app/utils/i18n.tsx';
+import {
+  hasPrefetchCache,
+  takePrefetchCache,
+} from '#app/utils/prefetch-cache.client.ts';
 import {
   applyRequestIdHeader,
   getRequestContext,
 } from '#app/utils/request-context.server.ts';
 import { useRequestInfo } from '#app/utils/request-info.ts';
-import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
+import { loadFriendWishlistPageData } from '#app/utils/wishlist-page.server.ts';
 type Relationship = {
   state: RelationshipState;
   friendshipId: string | null;
@@ -25,7 +31,7 @@ type Relationship = {
 };
 type LoaderData = {
   analytics: {
-    requestId: string;
+    requestId: string | null;
     viewEventId: string | null;
   };
 } & (
@@ -48,156 +54,72 @@ type LoaderData = {
     }
 );
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
-  const { username } = params;
+  const username = params.username;
+
+  invariantResponse(username, 'Username is required', {
+    status: 400,
+  });
+
   const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
-  const wishlistOwner = await prisma.user.findFirst({
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      image: {
-        select: {
-          id: true,
-        },
-      },
-    },
-    where: {
-      username,
-    },
-  });
-  invariantResponse(wishlistOwner, 'User not found', {
-    status: 404,
-  });
-  if (wishlistOwner.id === userId) {
-    return redirect('/wishlist');
-  }
-  const relationshipDetails = await getRelationshipDetails(
-    userId,
-    wishlistOwner.id,
-  );
-  const relationship: Relationship = {
-    state: relationshipDetails.state,
-    friendshipId: relationshipDetails.friendship?.id ?? null,
-    incomingRequestId: relationshipDetails.incoming?.id ?? null,
-    outgoingRequestId: relationshipDetails.outgoing?.id ?? null,
-  };
-  const canViewWishlist = relationship.state === 'FRIENDS';
-  if (!canViewWishlist) {
-    return data<LoaderData>(
-      {
-        canViewWishlist,
-        user: {
-          id: wishlistOwner.id,
-          name: wishlistOwner.name,
-          username: wishlistOwner.username,
-          image: wishlistOwner.image,
-        },
-        relationship,
-        analytics: {
-          requestId,
-          viewEventId: null,
-        },
-      },
-      {
-        headers: applyRequestIdHeader(null, requestId),
-      },
-    );
-  }
-  await cleanupWishlistPurchasesForOwner(wishlistOwner.id);
-  const user = await prisma.user.findFirst({
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      wishlistItems: {
-        select: {
-          id: true,
-          title: true,
-          ownerId: true,
-          type: true,
-          url: true,
-          note: true,
-          categoryId: true,
-          updatedAt: true,
-          sortOrder: true,
-          purchase: {
-            select: {
-              purchasedById: true,
-            },
-          },
-          image: true,
-          imageSource: true,
-          status: true,
-        },
-      },
-      wishlistCategories: {
-        select: {
-          id: true,
-          name: true,
-          order: true,
-        },
-        orderBy: {
-          order: 'asc',
-        },
-      },
-      image: {
-        select: {
-          id: true,
-        },
-      },
-    },
-    where: {
-      id: wishlistOwner.id,
-    },
-  });
-  invariantResponse(user, 'User not found', {
-    status: 404,
-  });
-  const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
-    ({ image, imageSource, status, ...item }) => {
-      const normalizedStatus =
-        status === 'ACTIVE' ? 'ACTIVE' : ('ARCHIVED' as const);
-      return {
-        ...item,
-        status: normalizedStatus,
-        updatedAt: item.updatedAt,
-        hasImage: Boolean(image),
-        imageSource:
-          imageSource as WishlistUser['wishlistItems'][number]['imageSource'],
-      };
-    },
-  );
-  const viewEvent = await logEvent({
-    name: 'wishlist_viewed',
-    userId,
-    source: 'server',
+  const loaderData = await loadFriendWishlistPageData({
+    viewerId: userId,
+    username,
     requestId,
     sessionId,
-    properties: {
-      wishlistOwnerId: user.id,
-      viewerId: userId,
-      itemCount: wishlistItems.length,
-    },
+    includeAnalytics: true,
   });
-  return data<LoaderData>(
-    {
-      canViewWishlist,
-      user: {
-        ...user,
-        wishlistItems,
-      },
-      relationship,
-      analytics: {
-        requestId,
-        viewEventId: viewEvent.eventId,
-      },
-    },
-    {
-      headers: applyRequestIdHeader(null, requestId),
-    },
-  );
+
+  if ('redirectTo' in loaderData && loaderData.redirectTo) {
+    return redirect(loaderData.redirectTo);
+  }
+
+  return data<LoaderData>(loaderData as LoaderData, {
+    headers: applyRequestIdHeader(null, requestId),
+  });
 };
+
+export async function clientLoader({
+  params,
+  request,
+  serverLoader,
+}: ClientLoaderFunctionArgs) {
+  if (!hasPrefetchCache(request.url)) {
+    return serverLoader();
+  }
+
+  const username = params.username;
+  if (!username) {
+    return serverLoader();
+  }
+
+  try {
+    const validationResponse = await fetch(
+      `/resources/prefetch/users/${encodeURIComponent(username)}/wishlist-access`,
+      {
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json',
+        },
+      },
+    );
+
+    if (!validationResponse.ok) {
+      return serverLoader();
+    }
+  } catch {
+    return serverLoader();
+  }
+
+  const cached = takePrefetchCache<Awaited<ReturnType<typeof serverLoader>>>(
+    request.url,
+  );
+
+  if (cached) return cached;
+
+  return serverLoader();
+}
+
 const UserWishlist = () => {
   const data = useLoaderData<typeof loader>();
   const { t } = useTranslation();
@@ -205,20 +127,28 @@ const UserWishlist = () => {
   const trackedViewIdRef = useRef<string | null>(null);
   const viewableWishlist = data.canViewWishlist ? data.user : null;
   useEffect(() => {
-    if (!data.analytics?.viewEventId) return;
     if (!viewableWishlist) return;
-    if (trackedViewIdRef.current === data.analytics.viewEventId) return;
-    trackedViewIdRef.current = data.analytics.viewEventId;
+    const trackingKey =
+      data.analytics?.viewEventId ?? `client:${viewableWishlist.id}`;
+    if (trackedViewIdRef.current === trackingKey) return;
+    trackedViewIdRef.current = trackingKey;
+
+    const trackingOptions = data.analytics?.viewEventId
+      ? {
+          requestId: data.analytics.requestId ?? requestInfo.requestId,
+          eventId: data.analytics.viewEventId,
+        }
+      : {
+          requestId: requestInfo.requestId,
+        };
+
     track(
       'wishlist_viewed',
       {
         wishlistOwnerId: viewableWishlist.id,
         itemCount: viewableWishlist.wishlistItems.length,
       },
-      {
-        requestId: data.analytics.requestId ?? requestInfo.requestId,
-        eventId: data.analytics.viewEventId,
-      },
+      trackingOptions,
     );
   }, [
     data.analytics,
