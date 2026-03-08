@@ -3,7 +3,7 @@ import {
   useFetcher,
   useFetchers,
   useRouteLoaderData,
-} from '@remix-run/react';
+} from 'react-router';
 import { useMemo } from 'react';
 
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';

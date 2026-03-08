@@ -1,7 +1,12 @@
 import { type Page } from '@playwright/test';
 import { prisma } from '#app/utils/db.server.ts';
 import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
-import { expect, test, waitFor } from '#tests/playwright-utils.ts';
+import {
+  expect,
+  singleFetchActionBody,
+  test,
+  waitFor,
+} from '#tests/playwright-utils.ts';
 
 const dismissInstallPrompt = async (page: Page) => {
   const notNow = page.getByRole('button', { name: /not now/i });
@@ -104,14 +109,11 @@ test('failed toggle requests rollback optimistic notification channel updates', 
     }
 
     await wait(800);
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        ok: false,
-        requestId: params.get('requestId'),
-      }),
+    const { body, contentType } = await singleFetchActionBody({
+      ok: false,
+      requestId: params.get('requestId'),
     });
+    await route.fulfill({ status: 200, contentType, body });
   });
 
   const receivedRow = page.getByRole('row', {

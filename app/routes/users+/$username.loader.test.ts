@@ -1,16 +1,25 @@
 /**
  * @vitest-environment node
  */
-import { type AppLoadContext } from '@remix-run/node';
+import { type AppLoadContext } from 'react-router';
 import { expect, test } from 'vitest';
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
+import {
+  getRouteResultData,
+  getRouteResultStatus,
+  toLoaderArgs,
+} from '#tests/route-module-test-utils.ts';
 import { getSessionCookieHeader } from '#tests/utils.ts';
 import { loader } from './$username.tsx';
 
 const ensureUserRole = () =>
-  prisma.role.upsert({ where: { name: 'user' }, update: {}, create: { name: 'user' } });
+  prisma.role.upsert({
+    where: { name: 'user' },
+    update: {},
+    create: { name: 'user' },
+  });
 
 const buildAuthenticatedRequest = async (userId: string, username: string) => {
   const session = await prisma.session.create({
@@ -43,18 +52,25 @@ test('non-friends receive minimal profile data from the loader', async () => {
     },
   });
 
-  const request = await buildAuthenticatedRequest(viewer.id, targetUser.username);
-  const context = { cspNonce: undefined, serverBuild: undefined } as unknown as AppLoadContext;
+  const request = await buildAuthenticatedRequest(
+    viewer.id,
+    targetUser.username,
+  );
+  const context = {
+    cspNonce: undefined,
+    serverBuild: undefined,
+  } as unknown as AppLoadContext;
 
-  const response = await loader({
-    params: { username: targetUser.username },
-    request,
-    context,
-  });
+  const response = await loader(
+    toLoaderArgs({
+      params: { username: targetUser.username },
+      request,
+      context,
+    }),
+  );
 
-  expect(response.status).toBe(200);
-
-  const data = await response.json();
+  expect(getRouteResultStatus(response)).toBe(200);
+  const data = await getRouteResultData<any>(response);
 
   expect(data.canViewProfile).toBe(false);
   expect(data.user).toEqual({
@@ -90,18 +106,25 @@ test('friends can view the full profile details', async () => {
     data: { userAId: viewer.id, userBId: targetUser.id },
   });
 
-  const request = await buildAuthenticatedRequest(viewer.id, targetUser.username);
-  const context = { cspNonce: undefined, serverBuild: undefined } as unknown as AppLoadContext;
+  const request = await buildAuthenticatedRequest(
+    viewer.id,
+    targetUser.username,
+  );
+  const context = {
+    cspNonce: undefined,
+    serverBuild: undefined,
+  } as unknown as AppLoadContext;
 
-  const response = await loader({
-    params: { username: targetUser.username },
-    request,
-    context,
-  });
+  const response = await loader(
+    toLoaderArgs({
+      params: { username: targetUser.username },
+      request,
+      context,
+    }),
+  );
 
-  expect(response.status).toBe(200);
-
-  const data = await response.json();
+  expect(getRouteResultStatus(response)).toBe(200);
+  const data = await getRouteResultData<any>(response);
 
   expect(data.canViewProfile).toBe(true);
   expect(data.user.id).toBe(targetUser.id);

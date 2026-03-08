@@ -1,4 +1,4 @@
-import { Link } from '@remix-run/react';
+import { Link } from 'react-router';
 import * as React from 'react';
 import { LuHeart, LuUsers } from 'react-icons/lu';
 import { Button } from '#app/components/ui/button.tsx';

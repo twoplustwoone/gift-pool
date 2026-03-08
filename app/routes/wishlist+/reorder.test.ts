@@ -1,11 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { type AppLoadContext } from '@remix-run/node';
+import { type AppLoadContext } from 'react-router';
 import { expect, test } from 'vitest';
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
+import {
+  getRouteResultData,
+  getRouteResultStatus,
+  toActionArgs,
+} from '#tests/route-module-test-utils.ts';
 import { getSessionCookieHeader } from '#tests/utils.ts';
 import { action } from './reorder.ts';
 
@@ -70,19 +75,21 @@ test('reorders categories for the owner', async () => {
     }),
   ]);
 
-  const response = await action({
-    request: createReorderRequest({
-      cookie,
-      form: {
-        intent: 'reorder-categories',
-        orderedCategoryIds: JSON.stringify([catB.id, catA.id]),
-      },
+  const response = await action(
+    toActionArgs({
+      request: createReorderRequest({
+        cookie,
+        form: {
+          intent: 'reorder-categories',
+          orderedCategoryIds: JSON.stringify([catB.id, catA.id]),
+        },
+      }),
+      params: {},
+      context,
     }),
-    params: {},
-    context,
-  });
+  );
 
-  expect(response.status).toBe(200);
+  expect(getRouteResultStatus(response)).toBe(200);
 
   const ordered = await prisma.wishlistCategory.findMany({
     where: { ownerId: user.id },
@@ -100,20 +107,24 @@ test('rejects category reorder payloads that include unknown ids', async () => {
     data: { ownerId: user.id, name: 'Books', order: 0 },
   });
 
-  const response = await action({
-    request: createReorderRequest({
-      cookie,
-      form: {
-        intent: 'reorder-categories',
-        orderedCategoryIds: JSON.stringify(['default', category.id]),
-      },
+  const response = await action(
+    toActionArgs({
+      request: createReorderRequest({
+        cookie,
+        form: {
+          intent: 'reorder-categories',
+          orderedCategoryIds: JSON.stringify(['default', category.id]),
+        },
+      }),
+      params: {},
+      context,
     }),
-    params: {},
-    context,
-  });
+  );
 
-  expect(response.status).toBe(400);
-  await expect(response.json()).resolves.toMatchObject({ ok: false });
+  expect(getRouteResultStatus(response)).toBe(400);
+  await expect(getRouteResultData(response)).resolves.toMatchObject({
+    ok: false,
+  });
 });
 
 test('reorders items in the same category', async () => {
@@ -143,21 +154,23 @@ test('reorders items in the same category', async () => {
     }),
   ]);
 
-  const response = await action({
-    request: createReorderRequest({
-      cookie,
-      form: {
-        intent: 'reorder-items',
-        sourceCategoryId: category.id,
-        targetCategoryId: category.id,
-        sourceOrderedItemIds: JSON.stringify([itemB.id, itemA.id]),
-      },
+  const response = await action(
+    toActionArgs({
+      request: createReorderRequest({
+        cookie,
+        form: {
+          intent: 'reorder-items',
+          sourceCategoryId: category.id,
+          targetCategoryId: category.id,
+          sourceOrderedItemIds: JSON.stringify([itemB.id, itemA.id]),
+        },
+      }),
+      params: {},
+      context,
     }),
-    params: {},
-    context,
-  });
+  );
 
-  expect(response.status).toBe(200);
+  expect(getRouteResultStatus(response)).toBe(200);
 
   const reordered = await prisma.wishlistItem.findMany({
     where: { ownerId: user.id, categoryId: category.id },
@@ -209,22 +222,24 @@ test('moves an item to another category and appends at drop target', async () =>
     }),
   ]);
 
-  const response = await action({
-    request: createReorderRequest({
-      cookie,
-      form: {
-        intent: 'reorder-items',
-        sourceCategoryId: sourceCategory.id,
-        targetCategoryId: targetCategory.id,
-        sourceOrderedItemIds: JSON.stringify([sourceB.id]),
-        targetOrderedItemIds: JSON.stringify([targetA.id, sourceA.id]),
-      },
+  const response = await action(
+    toActionArgs({
+      request: createReorderRequest({
+        cookie,
+        form: {
+          intent: 'reorder-items',
+          sourceCategoryId: sourceCategory.id,
+          targetCategoryId: targetCategory.id,
+          sourceOrderedItemIds: JSON.stringify([sourceB.id]),
+          targetOrderedItemIds: JSON.stringify([targetA.id, sourceA.id]),
+        },
+      }),
+      params: {},
+      context,
     }),
-    params: {},
-    context,
-  });
+  );
 
-  expect(response.status).toBe(200);
+  expect(getRouteResultStatus(response)).toBe(200);
 
   const sourceItems = await prisma.wishlistItem.findMany({
     where: { ownerId: user.id, categoryId: sourceCategory.id },
@@ -269,22 +284,26 @@ test('rejects item reorder payloads containing items not owned by requester', as
     }),
   ]);
 
-  const response = await action({
-    request: createReorderRequest({
-      cookie,
-      form: {
-        intent: 'reorder-items',
-        sourceCategoryId: '',
-        targetCategoryId: '',
-        sourceOrderedItemIds: JSON.stringify([ownerItem.id, otherItem.id]),
-      },
+  const response = await action(
+    toActionArgs({
+      request: createReorderRequest({
+        cookie,
+        form: {
+          intent: 'reorder-items',
+          sourceCategoryId: '',
+          targetCategoryId: '',
+          sourceOrderedItemIds: JSON.stringify([ownerItem.id, otherItem.id]),
+        },
+      }),
+      params: {},
+      context,
     }),
-    params: {},
-    context,
-  });
+  );
 
-  expect(response.status).toBe(400);
-  await expect(response.json()).resolves.toMatchObject({ ok: false });
+  expect(getRouteResultStatus(response)).toBe(400);
+  await expect(getRouteResultData(response)).resolves.toMatchObject({
+    ok: false,
+  });
 });
 
 test('rejects cross-category reorder into a category not owned by requester', async () => {
@@ -312,23 +331,27 @@ test('rejects cross-category reorder into a category not owned by requester', as
     },
   });
 
-  const response = await action({
-    request: createReorderRequest({
-      cookie,
-      form: {
-        intent: 'reorder-items',
-        sourceCategoryId: sourceCategory.id,
-        targetCategoryId: otherUsersCategory.id,
-        sourceOrderedItemIds: JSON.stringify([]),
-        targetOrderedItemIds: JSON.stringify([item.id]),
-      },
+  const response = await action(
+    toActionArgs({
+      request: createReorderRequest({
+        cookie,
+        form: {
+          intent: 'reorder-items',
+          sourceCategoryId: sourceCategory.id,
+          targetCategoryId: otherUsersCategory.id,
+          sourceOrderedItemIds: JSON.stringify([]),
+          targetOrderedItemIds: JSON.stringify([item.id]),
+        },
+      }),
+      params: {},
+      context,
     }),
-    params: {},
-    context,
-  });
+  );
 
-  expect(response.status).toBe(400);
-  await expect(response.json()).resolves.toMatchObject({ ok: false });
+  expect(getRouteResultStatus(response)).toBe(400);
+  await expect(getRouteResultData(response)).resolves.toMatchObject({
+    ok: false,
+  });
 
   const unchangedItem = await prisma.wishlistItem.findUnique({
     where: { id: item.id },

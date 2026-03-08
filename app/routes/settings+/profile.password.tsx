@@ -7,12 +7,12 @@ import {
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
-  json,
+  data,
   redirect,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
-} from '@remix-run/node';
-import { Form, Link, useActionData } from '@remix-run/react';
+} from 'react-router';
+import { Form, Link, useActionData } from 'react-router';
 import { z } from 'zod';
 import { ErrorList, Field } from '#app/components/forms.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -28,12 +28,10 @@ import { useIsPending } from '#app/utils/misc.tsx';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import { PasswordSchema } from '#app/utils/user-validation.ts';
 import { type BreadcrumbHandle } from './profile-breadcrumbs.tsx';
-
 export const handle: BreadcrumbHandle & SEOHandle = {
   breadcrumb: <Icon name="dots-horizontal">Password</Icon>,
   getSitemapEntries: () => null,
 };
-
 const ChangePasswordForm = z
   .object({
     currentPassword: PasswordSchema,
@@ -49,23 +47,24 @@ const ChangePasswordForm = z
       });
     }
   });
-
 async function requirePassword(userId: string) {
   const password = await prisma.password.findUnique({
-    select: { userId: true },
-    where: { userId },
+    select: {
+      userId: true,
+    },
+    where: {
+      userId,
+    },
   });
   if (!password) {
     throw redirect('/settings/profile/password/create');
   }
 }
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   await requirePassword(userId);
-  return json({});
+  return {};
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   const userId = await requireUserId(request);
   await requirePassword(userId);
@@ -76,7 +75,9 @@ export async function action({ request }: ActionFunctionArgs) {
       async ({ currentPassword, newPassword }, ctx) => {
         if (currentPassword && newPassword) {
           const user = await verifyUserPassword(
-            { id: userId },
+            {
+              id: userId,
+            },
             currentPassword,
           );
           if (!user) {
@@ -91,21 +92,25 @@ export async function action({ request }: ActionFunctionArgs) {
     ),
   });
   if (submission.status !== 'success') {
-    return json(
+    return data(
       {
         result: submission.reply({
           hideFields: ['currentPassword', 'newPassword', 'confirmNewPassword'],
         }),
       },
-      { status: submission.status === 'error' ? 400 : 200 },
+      {
+        status: submission.status === 'error' ? 400 : 200,
+      },
     );
   }
-
   const { newPassword } = submission.value;
-
   await prisma.user.update({
-    select: { username: true },
-    where: { id: userId },
+    select: {
+      username: true,
+    },
+    where: {
+      id: userId,
+    },
     data: {
       password: {
         update: {
@@ -114,7 +119,6 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     },
   });
-
   return redirectWithToast(
     `/settings/profile`,
     {
@@ -122,44 +126,55 @@ export async function action({ request }: ActionFunctionArgs) {
       title: 'Password Changed',
       description: 'Your password has been changed.',
     },
-    { status: 302 },
+    {
+      status: 302,
+    },
   );
 }
-
 const ChangePasswordRoute = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
-
   const [form, fields] = useForm<z.input<typeof ChangePasswordForm>>({
     id: 'password-change-form',
     constraint: getZodConstraint(ChangePasswordForm),
     lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: ChangePasswordForm }) as any;
+      return parseWithZod(formData, {
+        schema: ChangePasswordForm,
+      }) as any;
     },
     shouldRevalidate: 'onBlur',
   });
-
   return (
     <Form method="POST" {...getFormProps(form)} className="mx-auto max-w-md">
       <Field
-        labelProps={{ children: 'Current Password' }}
+        labelProps={{
+          children: 'Current Password',
+        }}
         inputProps={{
-          ...getInputProps(fields.currentPassword, { type: 'password' }),
+          ...getInputProps(fields.currentPassword, {
+            type: 'password',
+          }),
           autoComplete: 'current-password',
         }}
         errors={fields.currentPassword.errors}
       />
       <Field
-        labelProps={{ children: 'New Password' }}
+        labelProps={{
+          children: 'New Password',
+        }}
         inputProps={{
-          ...getInputProps(fields.newPassword, { type: 'password' }),
+          ...getInputProps(fields.newPassword, {
+            type: 'password',
+          }),
           autoComplete: 'new-password',
         }}
         errors={fields.newPassword.errors}
       />
       <Field
-        labelProps={{ children: 'Confirm New Password' }}
+        labelProps={{
+          children: 'Confirm New Password',
+        }}
         inputProps={{
           ...getInputProps(fields.confirmNewPassword, {
             type: 'password',
@@ -183,5 +198,4 @@ const ChangePasswordRoute = () => {
     </Form>
   );
 };
-
 export default ChangePasswordRoute;

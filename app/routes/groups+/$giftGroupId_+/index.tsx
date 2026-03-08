@@ -1,4 +1,4 @@
-import { useFetcher, useRouteLoaderData } from '@remix-run/react';
+import { useFetcher, useRouteLoaderData } from 'react-router';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
@@ -293,7 +293,7 @@ const InlineBudgetEditor = ({
     fd.set('intent', 'member-update-self');
     fd.set('giftGroupId', giftGroupId);
     fd.set('contributionCents', String(cents));
-    fetcher.submit(fd, {
+    void fetcher.submit(fd, {
       method: 'post',
       action: `/groups/${giftGroupId}/settings`,
     });

@@ -1,11 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { type AppLoadContext } from '@remix-run/node';
+import { type AppLoadContext } from 'react-router';
 import { expect, test } from 'vitest';
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
+import {
+  getRouteResultData,
+  getRouteResultStatus,
+  toActionArgs,
+  toLoaderArgs,
+} from '#tests/route-module-test-utils.ts';
 import { getSessionCookieHeader } from '#tests/utils.ts';
 import { loader as publicLoader } from '../w.public.$token.tsx';
 import { action as shareAction } from './share.ts';
@@ -61,8 +67,10 @@ async function generateShareToken(cookie: string) {
     body: new URLSearchParams({ intent: 'generate-public-link' }),
   });
 
-  const response = await shareAction({ request, params: {}, context });
-  const data = await response.json();
+  const response = await shareAction(
+    toActionArgs({ request, params: {}, context }),
+  );
+  const data = await getRouteResultData<any>(response);
   if (!('publicShare' in data) || !data.publicShare) {
     throw new Error('Expected publicShare in response');
   }
@@ -79,22 +87,23 @@ async function revokeShare(cookie: string) {
     body: new URLSearchParams({ intent: 'revoke-public-link' }),
   });
 
-  return shareAction({ request, params: {}, context });
+  return shareAction(toActionArgs({ request, params: {}, context }));
 }
 
 test('generate public link makes wishlist available without login', async () => {
   const { cookie } = await createOwnerWithSession();
 
   const token = await generateShareToken(cookie);
-  const response = await publicLoader({
-    params: { token },
-    request: new Request(`https://www.giftpool.app/w/public/${token}`),
-    context,
-  });
+  const response = await publicLoader(
+    toLoaderArgs({
+      params: { token },
+      request: new Request(`https://www.giftpool.app/w/public/${token}`),
+      context,
+    }),
+  );
 
-  expect(response.status).toBe(200);
-
-  const data = await response.json();
+  expect(getRouteResultStatus(response)).toBe(200);
+  const data = await getRouteResultData<any>(response);
   expect(data.user.wishlistItems.length).toBeGreaterThan(0);
   expect(data.user.wishlistItems[0]?.title).toBe('Shared item');
 });
@@ -107,9 +116,11 @@ test('revoking disables the public link immediately', async () => {
 
   await expect(
     publicLoader({
-      params: { token },
-      request: new Request(`https://www.giftpool.app/w/public/${token}`),
-      context,
+      ...toLoaderArgs({
+        params: { token },
+        request: new Request(`https://www.giftpool.app/w/public/${token}`),
+        context,
+      }),
     }),
   ).rejects.toMatchObject({ status: 404 });
 });
@@ -123,11 +134,13 @@ test('regenerate after revoke issues a new token', async () => {
 
   expect(secondToken).not.toBe(firstToken);
 
-  const response = await publicLoader({
-    params: { token: secondToken },
-    request: new Request(`https://www.giftpool.app/w/public/${secondToken}`),
-    context,
-  });
+  const response = await publicLoader(
+    toLoaderArgs({
+      params: { token: secondToken },
+      request: new Request(`https://www.giftpool.app/w/public/${secondToken}`),
+      context,
+    }),
+  );
 
-  expect(response.status).toBe(200);
+  expect(getRouteResultStatus(response)).toBe(200);
 });

@@ -1,5 +1,4 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { json } from '@remix-run/node';
 // Using string literals for roles/status to support SQLite
 import { nanoid } from 'nanoid';
 import { prisma } from './db.server';
@@ -24,7 +23,6 @@ export const getInviteLink = (code: string, request?: Request) => {
     return `/groups/join/${code}`;
   }
 };
-
 export const createInviteLink = async (
   request: Request,
   {
@@ -45,13 +43,11 @@ export const createInviteLink = async (
 ) => {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + parseInt(expiresInDays, 10));
-
   const userId = await requireUserWithGroupPermission(
     request,
     giftGroupId,
     'manageInvites',
   );
-
   await prisma.groupInvitation.create({
     data: {
       giftGroupId,
@@ -73,40 +69,40 @@ export const createInviteLink = async (
     expiresInDays,
   });
 };
-
 export const requireInvitationNotExpired = async (code: string) => {
   let invitation = await prisma.groupInvitation.findFirst({
     where: {
       code,
-      expiresAt: { gte: new Date() },
+      expiresAt: {
+        gte: new Date(),
+      },
       revokedAt: null,
     },
-    include: { giftGroup: true },
+    include: {
+      giftGroup: true,
+    },
   });
-
   if (
     invitation?.maxUses != null &&
     invitation.usedCount >= invitation.maxUses
   ) {
     invitation = null as any;
   }
-
   invariantResponse(invitation, 'Invalid or expired invite link.', {
     status: 400,
   });
-
   return invitation;
 };
-
 export const addUserToGroup = async (
   userId: string,
   groupId: string,
   role: 'OWNER' | 'ADMIN' | 'MEMBER' = 'MEMBER',
 ) => {
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: {
+      id: userId,
+    },
   });
-
   invariantResponse(user, 'User not found.', {
     status: 400,
     headers: await createToastHeaders({
@@ -114,11 +110,11 @@ export const addUserToGroup = async (
       type: 'error',
     }),
   });
-
   const group = await prisma.giftGroup.findUnique({
-    where: { id: groupId },
+    where: {
+      id: groupId,
+    },
   });
-
   invariantResponse(group, 'Group not found.', {
     status: 400,
     headers: await createToastHeaders({
@@ -126,7 +122,6 @@ export const addUserToGroup = async (
       type: 'error',
     }),
   });
-
   const existingMember = await prisma.usersInGiftGroups.findUnique({
     where: {
       userId_giftGroupId: {
@@ -135,7 +130,6 @@ export const addUserToGroup = async (
       },
     },
   });
-
   invariantResponse(!existingMember, 'User is already in group.', {
     status: 400,
     headers: await createToastHeaders({
@@ -143,7 +137,6 @@ export const addUserToGroup = async (
       type: 'error',
     }),
   });
-
   const userInGiftGroup = await prisma.usersInGiftGroups.create({
     data: {
       userId,
@@ -151,21 +144,32 @@ export const addUserToGroup = async (
       role,
     },
   });
-  return json({ userInGiftGroup });
+  return {
+    userInGiftGroup,
+  };
 };
-
 export const destroyInviteLink = async (
   request: Request,
   giftGroupId: string,
-  { groupInvitationId }: { groupInvitationId: string },
+  {
+    groupInvitationId,
+  }: {
+    groupInvitationId: string;
+  },
 ) => {
   await requireUserWithGroupPermission(request, giftGroupId, 'manageInvites');
   await prisma.groupInvitation.update({
-    where: { id: groupInvitationId },
-    data: { revokedAt: new Date() },
+    where: {
+      id: groupInvitationId,
+    },
+    data: {
+      revokedAt: new Date(),
+    },
   });
   const inv = await prisma.groupInvitation.findUnique({
-    where: { id: groupInvitationId },
+    where: {
+      id: groupInvitationId,
+    },
   });
   if (inv)
     await logGroupActivity(
@@ -176,10 +180,11 @@ export const destroyInviteLink = async (
         'manageInvites',
       ),
       'invite.revoke',
-      { groupInvitationId },
+      {
+        groupInvitationId,
+      },
     );
 };
-
 export async function submitJoinRequest({
   invitationId,
   userId,

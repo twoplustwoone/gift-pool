@@ -1,53 +1,69 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
-import { useLoaderData } from '@remix-run/react';
+import { data, type LoaderFunctionArgs } from 'react-router';
+import { useLoaderData } from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Card } from '#app/components/ui/card.tsx';
-import { type AnalyticsCounts, getAnalyticsCounts } from '#app/utils/analytics.server.ts';
+import {
+  type AnalyticsCounts,
+  getAnalyticsCounts,
+} from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-
 type LoaderData = {
   analytics: AnalyticsCounts;
 };
-
 function parseAllowlist(value?: string | null) {
   return (value ?? '')
     .split(',')
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);
 }
-
 async function requireAnalyticsAdmin(request: Request) {
   const userId = await requireUserId(request);
   const allowlistedIds = parseAllowlist(process.env.ANALYTICS_ADMIN_USER_IDS);
   const allowlistedEmails = parseAllowlist(process.env.ANALYTICS_ADMIN_EMAILS);
-
   const user = await prisma.user.findUnique({
-    select: { id: true, email: true, roles: { select: { name: true } } },
-    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      roles: {
+        select: {
+          name: true,
+        },
+      },
+    },
+    where: {
+      id: userId,
+    },
   });
-
-  invariantResponse(user, 'User not found', { status: 404 });
-
+  invariantResponse(user, 'User not found', {
+    status: 404,
+  });
   const isAllowed =
     allowlistedIds.includes(user.id) ||
-    (user.email ? allowlistedEmails.includes(user.email.toLowerCase()) : false) ||
+    (user.email
+      ? allowlistedEmails.includes(user.email.toLowerCase())
+      : false) ||
     user.roles.some((role) => role.name === 'admin');
-
   if (!isAllowed) {
-    throw json({ error: 'Unauthorized' }, { status: 403 });
+    throw data(
+      {
+        error: 'Unauthorized',
+      },
+      {
+        status: 403,
+      },
+    );
   }
-
   return user.id;
 }
-
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireAnalyticsAdmin(request);
   const analytics = await getAnalyticsCounts();
-  return json<LoaderData>({ analytics });
+  return {
+    analytics,
+  };
 }
-
 const SummaryCard = ({
   label,
   value,
@@ -67,7 +83,6 @@ const SummaryCard = ({
     ) : null}
   </Card>
 );
-
 const LineChart = ({
   data,
   height = 200,
@@ -82,11 +97,12 @@ const LineChart = ({
     .map((entry, index) => {
       const x = (index / Math.max(data.length - 1, 1)) * (width - 24) + 12;
       const y =
-        height - (maxCount === 0 ? 0 : (entry.count / maxCount) * (height - 24)) + 12;
+        height -
+        (maxCount === 0 ? 0 : (entry.count / maxCount) * (height - 24)) +
+        12;
       return `${x},${y}`;
     })
     .join(' ');
-
   return (
     <div className="overflow-x-auto">
       <svg
@@ -98,8 +114,16 @@ const LineChart = ({
       >
         <defs>
           <linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+            <stop
+              offset="0%"
+              stopColor="hsl(var(--primary))"
+              stopOpacity="0.25"
+            />
+            <stop
+              offset="100%"
+              stopColor="hsl(var(--primary))"
+              stopOpacity="0"
+            />
           </linearGradient>
         </defs>
         <polyline
@@ -113,8 +137,10 @@ const LineChart = ({
           strokeWidth={3}
           points={points}
         />
-        <g className="text-[10px] fill-current">
-          <text x="12" y={height + 18}>{data[0]?.date}</text>
+        <g className="fill-current text-[10px]">
+          <text x="12" y={height + 18}>
+            {data[0]?.date}
+          </text>
           <text x={width - 60} y={height + 18} textAnchor="end">
             {data[data.length - 1]?.date}
           </text>
@@ -123,13 +149,15 @@ const LineChart = ({
     </div>
   );
 };
-
 const EventTable = ({
   title,
   rows,
 }: {
   title: string;
-  rows: Array<{ name: string; count: number }>;
+  rows: Array<{
+    name: string;
+    count: number;
+  }>;
 }) => (
   <Card className="border-border/70 bg-card p-4 shadow-sm">
     <div className="mb-3 flex items-center justify-between">
@@ -163,10 +191,8 @@ const EventTable = ({
     </div>
   </Card>
 );
-
 const AnalyticsRoute = () => {
   const { analytics } = useLoaderData<typeof loader>();
-
   return (
     <div className="container space-y-8 py-8">
       <div className="space-y-1">
@@ -177,7 +203,10 @@ const AnalyticsRoute = () => {
       </div>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Total users" value={analytics.totalUsers.toLocaleString()} />
+        <SummaryCard
+          label="Total users"
+          value={analytics.totalUsers.toLocaleString()}
+        />
         <SummaryCard label="DAU (24h)" value={analytics.dau.toLocaleString()} />
         <SummaryCard label="WAU (7d)" value={analytics.wau.toLocaleString()} />
         <SummaryCard label="MAU (30d)" value={analytics.mau.toLocaleString()} />
@@ -197,15 +226,19 @@ const AnalyticsRoute = () => {
       </Card>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <EventTable title="Events (last 7 days)" rows={analytics.eventsLast7Days} />
-        <EventTable title="Events (last 30 days)" rows={analytics.eventsLast30Days} />
+        <EventTable
+          title="Events (last 7 days)"
+          rows={analytics.eventsLast7Days}
+        />
+        <EventTable
+          title="Events (last 30 days)"
+          rows={analytics.eventsLast30Days}
+        />
       </section>
     </div>
   );
 };
-
 export default AnalyticsRoute;
-
 export const ErrorBoundary = () => {
   return <GeneralErrorBoundary />;
 };

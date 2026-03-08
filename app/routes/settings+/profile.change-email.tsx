@@ -7,12 +7,12 @@ import {
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
-  json,
+  data,
   redirect,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
-} from '@remix-run/node';
-import { Form, useActionData, useLoaderData } from '@remix-run/react';
+} from 'react-router';
+import { Form, useActionData, useLoaderData } from 'react-router';
 import { z } from 'zod';
 import { ErrorList, Field } from '#app/components/forms.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
@@ -29,39 +29,44 @@ import { EmailSchema } from '#app/utils/user-validation.ts';
 import { verifySessionStorage } from '#app/utils/verification.server.ts';
 import { type BreadcrumbHandle } from './profile-breadcrumbs.tsx';
 import { EmailChangeEmail } from './profile.change-email.server.tsx';
-
 export const handle: BreadcrumbHandle & SEOHandle = {
   breadcrumb: <Icon name="envelope-closed">Change Email</Icon>,
   getSitemapEntries: () => null,
 };
-
 export const newEmailAddressSessionKey = 'new-email-address';
-
 const ChangeEmailSchema = z.object({
   email: EmailSchema,
 });
-
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireRecentVerification(request);
   const userId = await requireUserId(request);
   const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { email: true },
+    where: {
+      id: userId,
+    },
+    select: {
+      email: true,
+    },
   });
   if (!user) {
-    const params = new URLSearchParams({ redirectTo: request.url });
+    const params = new URLSearchParams({
+      redirectTo: request.url,
+    });
     throw redirect(`/login?${params}`);
   }
-  return json({ user });
+  return {
+    user,
+  };
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   const userId = await requireUserId(request);
   const formData = await request.formData();
   const submission = await parseWithZod(formData, {
     schema: ChangeEmailSchema.superRefine(async (data, ctx) => {
       const existingUser = await prisma.user.findUnique({
-        where: { email: data.email },
+        where: {
+          email: data.email,
+        },
       });
       if (existingUser) {
         ctx.addIssue({
@@ -73,11 +78,14 @@ export async function action({ request }: ActionFunctionArgs) {
     }),
     async: true,
   });
-
   if (submission.status !== 'success') {
-    return json(
-      { result: submission.reply() },
-      { status: submission.status === 'error' ? 400 : 200 },
+    return data(
+      {
+        result: submission.reply(),
+      },
+      {
+        status: submission.status === 'error' ? 400 : 200,
+      },
     );
   }
   const { otp, redirectTo, verifyUrl } = await prepareVerification({
@@ -86,13 +94,11 @@ export async function action({ request }: ActionFunctionArgs) {
     target: userId,
     type: 'change-email',
   });
-
   const response = await sendEmail({
     to: submission.value.email,
     subject: `GiftPool Email Change Verification`,
     react: <EmailChangeEmail verifyUrl={verifyUrl.toString()} otp={otp} />,
   });
-
   if (response.status === 'success') {
     const verifySession = await verifySessionStorage.getSession();
     verifySession.set(newEmailAddressSessionKey, submission.value.email);
@@ -102,26 +108,31 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     });
   } else {
-    return json(
-      { result: submission.reply({ formErrors: [response.error.message] }) },
-      { status: 500 },
+    return data(
+      {
+        result: submission.reply({
+          formErrors: [response.error.message],
+        }),
+      },
+      {
+        status: 500,
+      },
     );
   }
 }
-
 const ChangeEmailIndex = () => {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-
   const [form, fields] = useForm<z.input<typeof ChangeEmailSchema>>({
     id: 'change-email-form',
     constraint: getZodConstraint(ChangeEmailSchema),
     lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: ChangeEmailSchema }) as any;
+      return parseWithZod(formData, {
+        schema: ChangeEmailSchema,
+      }) as any;
     },
   });
-
   const isPending = useIsPending();
   return (
     <div>
@@ -133,9 +144,13 @@ const ChangeEmailIndex = () => {
       <div className="mx-auto mt-5 max-w-sm">
         <Form method="POST" {...getFormProps(form)}>
           <Field
-            labelProps={{ children: 'New Email' }}
+            labelProps={{
+              children: 'New Email',
+            }}
             inputProps={{
-              ...getInputProps(fields.email, { type: 'email' }),
+              ...getInputProps(fields.email, {
+                type: 'email',
+              }),
               autoComplete: 'email',
             }}
             errors={fields.email.errors}
@@ -153,5 +168,4 @@ const ChangeEmailIndex = () => {
     </div>
   );
 };
-
 export default ChangeEmailIndex;

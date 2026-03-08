@@ -1,6 +1,6 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
-import { Form, Link, useLoaderData, type MetaFunction } from '@remix-run/react';
+import { type LoaderFunctionArgs } from 'react-router';
+import { Form, Link, useLoaderData, type MetaFunction } from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -9,7 +9,6 @@ import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useOptionalUser } from '#app/utils/user.ts';
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   const user = await prisma.user.findFirst({
@@ -18,25 +17,30 @@ export async function loader({ request }: LoaderFunctionArgs) {
       name: true,
       username: true,
       createdAt: true,
-      image: { select: { id: true } },
+      image: {
+        select: {
+          id: true,
+        },
+      },
     },
     where: {
       id: userId,
     },
   });
-
-  invariantResponse(user, 'User not found', { status: 404 });
-
-  return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString() });
+  invariantResponse(user, 'User not found', {
+    status: 404,
+  });
+  return {
+    user,
+    userJoinedDisplay: user.createdAt.toLocaleDateString(),
+  };
 }
-
 const ProfileIndex = () => {
   const data = useLoaderData<typeof loader>();
   const user = data.user;
   const userDisplayName = user.name ?? user.username;
   const loggedInUser = useOptionalUser();
   const isLoggedInUser = data.user.id === loggedInUser?.id;
-
   return (
     <div className="container mb-48 mt-36 flex flex-col items-center justify-center">
       <Spacer size="4xs" />
@@ -99,20 +103,19 @@ const ProfileIndex = () => {
     </div>
   );
 };
-
 export default ProfileIndex;
-
 export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
   const displayName = data?.user.name ?? params.username;
   return [
-    { title: `${displayName} | GiftPool` },
+    {
+      title: `${displayName} | GiftPool`,
+    },
     {
       name: 'description',
       content: `Profile of ${displayName} on GiftPool`,
     },
   ];
 };
-
 export const ErrorBoundary = () => {
   return (
     <GeneralErrorBoundary

@@ -28,7 +28,11 @@ const TestRow = ({ onClick }: { onClick?: React.MouseEventHandler }) => {
   const { pressed, rowProps } = usePressFeedback<HTMLDivElement>({ onClick });
 
   return (
-    <div data-testid="press-row" data-pressed={pressed ? 'true' : 'false'} {...rowProps}>
+    <div
+      data-testid="press-row"
+      data-pressed={pressed ? 'true' : 'false'}
+      {...rowProps}
+    >
       Row
     </div>
   );
@@ -60,11 +64,12 @@ describe('usePressFeedback', () => {
       clientY: 0,
     });
 
-    await waitFor(() =>
-      expect(row.getAttribute('data-pressed')).toBe('true'),
-    );
+    await waitFor(() => expect(row.getAttribute('data-pressed')).toBe('true'));
 
-    dispatchPointerEvent(row, 'pointerup', { pointerId: 1, pointerType: 'touch' });
+    dispatchPointerEvent(row, 'pointerup', {
+      pointerId: 1,
+      pointerType: 'touch',
+    });
 
     await waitFor(() => expect(handleClick).toHaveBeenCalledTimes(1));
     expect(row.getAttribute('data-pressed')).toBe('false');
@@ -88,11 +93,12 @@ describe('usePressFeedback', () => {
       clientY: 0,
     });
 
-    await waitFor(() =>
-      expect(row.getAttribute('data-pressed')).toBe('false'),
-    );
+    await waitFor(() => expect(row.getAttribute('data-pressed')).toBe('false'));
 
-    dispatchPointerEvent(row, 'pointerup', { pointerId: 2, pointerType: 'touch' });
+    dispatchPointerEvent(row, 'pointerup', {
+      pointerId: 2,
+      pointerType: 'touch',
+    });
     await waitFor(() => expect(handleClick).not.toHaveBeenCalled());
   });
 });

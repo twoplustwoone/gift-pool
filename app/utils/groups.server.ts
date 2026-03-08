@@ -1,4 +1,4 @@
-import { json, redirect } from '@remix-run/node';
+import { data, redirect } from 'react-router';
 import { requireUserId } from './auth.server';
 import { prisma } from './db.server';
 import { logGroupActivity } from './group-activity.server';
@@ -6,7 +6,6 @@ import {
   requireUserWithGroupPermission,
   requireUserWithGroupRole,
 } from './group-permissions.server';
-
 export const isUserInGroup = async (userId: string, groupId: string) => {
   const existingMember = await prisma.usersInGiftGroups.findUnique({
     where: {
@@ -18,44 +17,42 @@ export const isUserInGroup = async (userId: string, groupId: string) => {
   });
   return !!existingMember;
 };
-
 export async function requireUserIdInGroup(request: Request, groupId: string) {
   const userId = await requireUserId(request);
-
   const userInGroup = await isUserInGroup(userId, groupId);
-
   if (!userInGroup) {
     throw redirect('/groups');
   }
-
   return userId;
 }
-
 export async function requireUserIdNotInGroup(
   request: Request,
   groupId: string,
 ) {
   const userId = await requireUserId(request);
-
   const userInGroup = await isUserInGroup(userId, groupId);
-
   if (userInGroup) {
     throw redirect(`/groups/${groupId}`);
   }
-
   return userId;
 }
-
 export const deleteGiftGroup = async (
   request: Request,
-  { giftGroupId }: { giftGroupId: string },
+  {
+    giftGroupId,
+  }: {
+    giftGroupId: string;
+  },
 ) => {
   await requireUserWithGroupPermission(request, giftGroupId, 'deleteGroup');
   const userId = await requireUserId(request);
-  await prisma.giftGroup.delete({ where: { id: giftGroupId } });
+  await prisma.giftGroup.delete({
+    where: {
+      id: giftGroupId,
+    },
+  });
   await logGroupActivity(giftGroupId, userId, 'group.delete', {});
 };
-
 export async function leaveGroup(request: Request, giftGroupId: string) {
   const userId = await requireUserWithGroupPermission(
     request,
@@ -63,27 +60,41 @@ export async function leaveGroup(request: Request, giftGroupId: string) {
     'leaveGroup',
   );
   const me = await prisma.usersInGiftGroups.findUnique({
-    where: { userId_giftGroupId: { userId, giftGroupId } },
-    select: { role: true },
+    where: {
+      userId_giftGroupId: {
+        userId,
+        giftGroupId,
+      },
+    },
+    select: {
+      role: true,
+    },
   });
   if (me?.role === 'OWNER') {
     const others = await prisma.usersInGiftGroups.count({
       where: {
         giftGroupId,
-        userId: { not: userId },
-        role: { in: ['OWNER', 'ADMIN'] },
+        userId: {
+          not: userId,
+        },
+        role: {
+          in: ['OWNER', 'ADMIN'],
+        },
       },
     });
     if (others === 0) {
-      throw json(
-        { error: 'Cannot leave as sole owner/admin' },
-        { status: 400 },
+      throw data(
+        {
+          error: 'Cannot leave as sole owner/admin',
+        },
+        {
+          status: 400,
+        },
       );
     }
   }
   await removeUserFromGroup(userId, giftGroupId);
 }
-
 export async function removeUserFromGroup(userId: string, groupId: string) {
   await prisma.usersInGiftGroups.delete({
     where: {
@@ -94,7 +105,6 @@ export async function removeUserFromGroup(userId: string, groupId: string) {
     },
   });
 }
-
 export async function requireUsersShareAGroupOrAreFriends({
   userId,
   username,
@@ -104,21 +114,22 @@ export async function requireUsersShareAGroupOrAreFriends({
 }) {
   if (!username) return;
   const other = await prisma.user.findUnique({
-    where: { username },
-    select: { id: true },
+    where: {
+      username,
+    },
+    select: {
+      id: true,
+    },
   });
   if (!other) return;
-
   const canView = await usersShareAGroupOrAreFriendsByIds({
     userId,
     otherUserId: other.id,
   });
-
   if (!canView) {
     throw redirect('/groups');
   }
 }
-
 export async function usersShareAGroupOrAreFriendsByIds({
   userId,
   otherUserId,
@@ -127,26 +138,41 @@ export async function usersShareAGroupOrAreFriendsByIds({
   otherUserId: string;
 }) {
   if (userId === otherUserId) return true;
-
   const [a, b] =
     userId < otherUserId ? [userId, otherUserId] : [otherUserId, userId];
   const friendship = await prisma.friendship.findUnique({
-    where: { userAId_userBId: { userAId: a, userBId: b } },
-    select: { id: true },
+    where: {
+      userAId_userBId: {
+        userAId: a,
+        userBId: b,
+      },
+    },
+    select: {
+      id: true,
+    },
   });
   if (friendship) return true;
-
   const giftGroup = await prisma.giftGroup.findFirst({
     where: {
-      groupMembers: { some: { userId } },
-      AND: { groupMembers: { some: { userId: otherUserId } } },
+      groupMembers: {
+        some: {
+          userId,
+        },
+      },
+      AND: {
+        groupMembers: {
+          some: {
+            userId: otherUserId,
+          },
+        },
+      },
     },
-    select: { id: true },
+    select: {
+      id: true,
+    },
   });
-
   return !!giftGroup;
 }
-
 export async function removeMember(
   request: Request,
   giftGroupId: string,
@@ -160,23 +186,62 @@ export async function removeMember(
   );
   const [actor, target] = await Promise.all([
     prisma.usersInGiftGroups.findUnique({
-      where: { userId_giftGroupId: { userId: actorId, giftGroupId } },
-      select: { role: true },
+      where: {
+        userId_giftGroupId: {
+          userId: actorId,
+          giftGroupId,
+        },
+      },
+      select: {
+        role: true,
+      },
     }),
     prisma.usersInGiftGroups.findUnique({
-      where: { userId_giftGroupId: { userId: memberUserId, giftGroupId } },
-      select: { role: true },
+      where: {
+        userId_giftGroupId: {
+          userId: memberUserId,
+          giftGroupId,
+        },
+      },
+      select: {
+        role: true,
+      },
     }),
   ]);
-  if (!target) throw json({ error: 'Member not found' }, { status: 404 });
+  if (!target)
+    throw data(
+      {
+        error: 'Member not found',
+      },
+      {
+        status: 404,
+      },
+    );
   if (target.role === 'OWNER') {
-    throw json({ error: 'Cannot remove owner' }, { status: 400 });
+    throw data(
+      {
+        error: 'Cannot remove owner',
+      },
+      {
+        status: 400,
+      },
+    );
   }
   if (actor?.role === 'ADMIN' && target.role !== 'MEMBER') {
-    throw json({ error: 'Admins can only remove members' }, { status: 403 });
+    throw data(
+      {
+        error: 'Admins can only remove members',
+      },
+      {
+        status: 403,
+      },
+    );
   }
   await prisma.usersInGiftGroups.updateMany({
-    where: { userId: memberUserId, giftGroupId },
+    where: {
+      userId: memberUserId,
+      giftGroupId,
+    },
     data: {
       removedAt: new Date(),
       removedById: actorId,
@@ -184,14 +249,18 @@ export async function removeMember(
     },
   });
   await prisma.usersInGiftGroups.delete({
-    where: { userId_giftGroupId: { userId: memberUserId, giftGroupId } },
+    where: {
+      userId_giftGroupId: {
+        userId: memberUserId,
+        giftGroupId,
+      },
+    },
   });
   await logGroupActivity(giftGroupId, actorId, 'member.remove', {
     memberUserId,
     reason,
   });
 }
-
 export async function banMember(
   request: Request,
   giftGroupId: string,
@@ -204,15 +273,21 @@ export async function banMember(
     'banMember',
   );
   await prisma.usersInGiftGroups.update({
-    where: { userId_giftGroupId: { userId: memberUserId, giftGroupId } },
-    data: { bannedUntil: until },
+    where: {
+      userId_giftGroupId: {
+        userId: memberUserId,
+        giftGroupId,
+      },
+    },
+    data: {
+      bannedUntil: until,
+    },
   });
   await logGroupActivity(giftGroupId, actorId, 'member.ban', {
     memberUserId,
     until,
   });
 }
-
 export async function transferOwnership(
   request: Request,
   giftGroupId: string,
@@ -223,31 +298,63 @@ export async function transferOwnership(
   ]);
   // Ensure new owner is currently ADMIN or MEMBER elevated to ADMIN then OWNER
   const target = await prisma.usersInGiftGroups.findUnique({
-    where: { userId_giftGroupId: { userId: newOwnerUserId, giftGroupId } },
-    select: { role: true },
+    where: {
+      userId_giftGroupId: {
+        userId: newOwnerUserId,
+        giftGroupId,
+      },
+    },
+    select: {
+      role: true,
+    },
   });
-  if (!target) throw json({ error: 'User not in group' }, { status: 400 });
+  if (!target)
+    throw data(
+      {
+        error: 'User not in group',
+      },
+      {
+        status: 400,
+      },
+    );
 
   // Demote current owner to ADMIN and promote target to OWNER
   await prisma.$transaction([
     prisma.usersInGiftGroups.update({
-      where: { userId_giftGroupId: { userId: actorId, giftGroupId } },
-      data: { role: 'ADMIN' },
+      where: {
+        userId_giftGroupId: {
+          userId: actorId,
+          giftGroupId,
+        },
+      },
+      data: {
+        role: 'ADMIN',
+      },
     }),
     prisma.usersInGiftGroups.update({
-      where: { userId_giftGroupId: { userId: newOwnerUserId, giftGroupId } },
-      data: { role: 'OWNER' },
+      where: {
+        userId_giftGroupId: {
+          userId: newOwnerUserId,
+          giftGroupId,
+        },
+      },
+      data: {
+        role: 'OWNER',
+      },
     }),
   ]);
   await logGroupActivity(giftGroupId, actorId, 'ownership.transfer', {
     newOwnerUserId,
   });
 }
-
 export async function updateGroupSettings(
   request: Request,
   giftGroupId: string,
-  data: { name?: string; description?: string; budgetVisibility?: any },
+  data: {
+    name?: string;
+    description?: string;
+    budgetVisibility?: any;
+  },
 ) {
   const actorId = await requireUserWithGroupPermission(
     request,
@@ -255,12 +362,13 @@ export async function updateGroupSettings(
     'manageSettings',
   );
   await prisma.giftGroup.update({
-    where: { id: giftGroupId },
+    where: {
+      id: giftGroupId,
+    },
     data,
   });
   await logGroupActivity(giftGroupId, actorId, 'settings.update', data);
 }
-
 export async function addReminder(
   request: Request,
   giftGroupId: string,
@@ -272,11 +380,16 @@ export async function addReminder(
     'manageReminders',
   );
   await prisma.groupReminder.create({
-    data: { giftGroupId, offsetDays, createdById: actorId },
+    data: {
+      giftGroupId,
+      offsetDays,
+      createdById: actorId,
+    },
   });
-  await logGroupActivity(giftGroupId, actorId, 'reminder.add', { offsetDays });
+  await logGroupActivity(giftGroupId, actorId, 'reminder.add', {
+    offsetDays,
+  });
 }
-
 export async function removeReminder(
   request: Request,
   giftGroupId: string,
@@ -287,12 +400,15 @@ export async function removeReminder(
     giftGroupId,
     'manageReminders',
   );
-  await prisma.groupReminder.delete({ where: { id: reminderId } });
+  await prisma.groupReminder.delete({
+    where: {
+      id: reminderId,
+    },
+  });
   await logGroupActivity(giftGroupId, actorId, 'reminder.remove', {
     reminderId,
   });
 }
-
 export async function createGiftPlan(
   request: Request,
   giftGroupId: string,
@@ -305,14 +421,17 @@ export async function createGiftPlan(
     'manageSettings',
   );
   const plan = await prisma.giftPlan.create({
-    data: { giftGroupId, recipientUserId, birthdayDate },
+    data: {
+      giftGroupId,
+      recipientUserId,
+      birthdayDate,
+    },
   });
   await logGroupActivity(giftGroupId, actorId, 'giftplan.create', {
     planId: plan.id,
   });
   return plan;
 }
-
 export async function lockGiftPlan(
   request: Request,
   giftGroupId: string,
@@ -325,11 +444,18 @@ export async function lockGiftPlan(
   );
   // Snapshot budgets at lock time
   const members = await prisma.usersInGiftGroups.findMany({
-    where: { giftGroupId },
-    select: { userId: true, contributionCents: true },
+    where: {
+      giftGroupId,
+    },
+    select: {
+      userId: true,
+      contributionCents: true,
+    },
   });
   await prisma.giftPlan.update({
-    where: { id: planId },
+    where: {
+      id: planId,
+    },
     data: {
       status: 'LOCKED',
       lockedAt: new Date(),
@@ -337,9 +463,10 @@ export async function lockGiftPlan(
       budgetSnapshot: JSON.stringify(members),
     },
   });
-  await logGroupActivity(giftGroupId, actorId, 'giftplan.lock', { planId });
+  await logGroupActivity(giftGroupId, actorId, 'giftplan.lock', {
+    planId,
+  });
 }
-
 export async function unlockGiftPlan(
   request: Request,
   giftGroupId: string,
@@ -352,15 +479,20 @@ export async function unlockGiftPlan(
     'unlockGiftPlan',
   );
   await prisma.giftPlan.update({
-    where: { id: planId },
-    data: { status: 'PLANNING', lockedAt: null, lockedById: null },
+    where: {
+      id: planId,
+    },
+    data: {
+      status: 'PLANNING',
+      lockedAt: null,
+      lockedById: null,
+    },
   });
   await logGroupActivity(giftGroupId, actorId, 'giftplan.unlock', {
     planId,
     reason,
   });
 }
-
 export async function promoteToAdmin(
   request: Request,
   giftGroupId: string,
@@ -370,20 +502,41 @@ export async function promoteToAdmin(
     'OWNER',
   ]);
   const target = await prisma.usersInGiftGroups.findUnique({
-    where: { userId_giftGroupId: { userId: memberUserId, giftGroupId } },
-    select: { role: true },
+    where: {
+      userId_giftGroupId: {
+        userId: memberUserId,
+        giftGroupId,
+      },
+    },
+    select: {
+      role: true,
+    },
   });
-  if (!target) throw json({ error: 'Member not found' }, { status: 404 });
+  if (!target)
+    throw data(
+      {
+        error: 'Member not found',
+      },
+      {
+        status: 404,
+      },
+    );
   if (target.role === 'OWNER' || target.role === 'ADMIN') return;
   await prisma.usersInGiftGroups.update({
-    where: { userId_giftGroupId: { userId: memberUserId, giftGroupId } },
-    data: { role: 'ADMIN' },
+    where: {
+      userId_giftGroupId: {
+        userId: memberUserId,
+        giftGroupId,
+      },
+    },
+    data: {
+      role: 'ADMIN',
+    },
   });
   await logGroupActivity(giftGroupId, actorId, 'member.promote', {
     memberUserId,
   });
 }
-
 export async function demoteAdminToMember(
   request: Request,
   giftGroupId: string,
@@ -394,23 +547,51 @@ export async function demoteAdminToMember(
   ]);
   if (actorId === memberUserId) {
     // owner cannot demote self below admin
-    throw json({ error: 'Cannot demote yourself' }, { status: 400 });
+    throw data(
+      {
+        error: 'Cannot demote yourself',
+      },
+      {
+        status: 400,
+      },
+    );
   }
   const target = await prisma.usersInGiftGroups.findUnique({
-    where: { userId_giftGroupId: { userId: memberUserId, giftGroupId } },
-    select: { role: true },
+    where: {
+      userId_giftGroupId: {
+        userId: memberUserId,
+        giftGroupId,
+      },
+    },
+    select: {
+      role: true,
+    },
   });
-  if (!target) throw json({ error: 'Member not found' }, { status: 404 });
+  if (!target)
+    throw data(
+      {
+        error: 'Member not found',
+      },
+      {
+        status: 404,
+      },
+    );
   if (target.role !== 'ADMIN') return;
   await prisma.usersInGiftGroups.update({
-    where: { userId_giftGroupId: { userId: memberUserId, giftGroupId } },
-    data: { role: 'MEMBER' },
+    where: {
+      userId_giftGroupId: {
+        userId: memberUserId,
+        giftGroupId,
+      },
+    },
+    data: {
+      role: 'MEMBER',
+    },
   });
   await logGroupActivity(giftGroupId, actorId, 'member.demote', {
     memberUserId,
   });
 }
-
 export async function updateOwnPreferences(
   request: Request,
   giftGroupId: string,
@@ -433,7 +614,12 @@ export async function updateOwnPreferences(
     'editOwnBudget',
   );
   await prisma.usersInGiftGroups.update({
-    where: { userId_giftGroupId: { userId, giftGroupId } },
+    where: {
+      userId_giftGroupId: {
+        userId,
+        giftGroupId,
+      },
+    },
     data: {
       contributionCents: prefs.contributionCents ?? undefined,
       budgetVisibilityOverride:
@@ -447,7 +633,6 @@ export async function updateOwnPreferences(
   });
   await logGroupActivity(giftGroupId, userId, 'member.update-self', prefs);
 }
-
 export async function approveJoinRequest(
   request: Request,
   giftGroupId: string,
@@ -459,18 +644,31 @@ export async function approveJoinRequest(
     'manageInvites',
   );
   const jr = await prisma.joinRequest.findUnique({
-    where: { id: joinRequestId },
-    include: { invitation: true },
+    where: {
+      id: joinRequestId,
+    },
+    include: {
+      invitation: true,
+    },
   });
   if (!jr || jr.giftGroupId !== giftGroupId) {
-    throw json({ error: 'Join request not found' }, { status: 404 });
+    throw data(
+      {
+        error: 'Join request not found',
+      },
+      {
+        status: 404,
+      },
+    );
   }
   const role: 'OWNER' | 'ADMIN' | 'MEMBER' =
     (jr.invitation?.roleGranted as 'OWNER' | 'ADMIN' | 'MEMBER' | undefined) ??
     'MEMBER';
   await prisma.$transaction([
     prisma.joinRequest.update({
-      where: { id: joinRequestId },
+      where: {
+        id: joinRequestId,
+      },
       data: {
         status: 'APPROVED',
         reviewedById: actorId,
@@ -478,13 +676,23 @@ export async function approveJoinRequest(
       },
     }),
     prisma.usersInGiftGroups.create({
-      data: { userId: jr.userId, giftGroupId, role },
+      data: {
+        userId: jr.userId,
+        giftGroupId,
+        role,
+      },
     }),
     ...(jr.invitation
       ? [
           prisma.groupInvitation.update({
-            where: { id: jr.invitationId! },
-            data: { usedCount: { increment: 1 } },
+            where: {
+              id: jr.invitationId!,
+            },
+            data: {
+              usedCount: {
+                increment: 1,
+              },
+            },
           }),
         ]
       : []),
@@ -494,7 +702,6 @@ export async function approveJoinRequest(
     userId: jr.userId,
   });
 }
-
 export async function rejectJoinRequest(
   request: Request,
   giftGroupId: string,
@@ -507,13 +714,24 @@ export async function rejectJoinRequest(
     'manageInvites',
   );
   const jr = await prisma.joinRequest.findUnique({
-    where: { id: joinRequestId },
+    where: {
+      id: joinRequestId,
+    },
   });
   if (!jr || jr.giftGroupId !== giftGroupId) {
-    throw json({ error: 'Join request not found' }, { status: 404 });
+    throw data(
+      {
+        error: 'Join request not found',
+      },
+      {
+        status: 404,
+      },
+    );
   }
   await prisma.joinRequest.update({
-    where: { id: joinRequestId },
+    where: {
+      id: joinRequestId,
+    },
     data: {
       status: 'REJECTED',
       reason: reason ?? null,

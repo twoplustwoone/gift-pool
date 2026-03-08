@@ -2,7 +2,10 @@ import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
 import { expect, test } from '#tests/playwright-utils.ts';
 
-test('friend summary links navigate to the wishlist', async ({ page, login }) => {
+test('friend summary links navigate to the wishlist', async ({
+  page,
+  login,
+}) => {
   const createdUserIds: string[] = [];
   const viewerData = createUser();
   const friendData = createUser();
@@ -47,7 +50,9 @@ test('friend summary links navigate to the wishlist', async ({ page, login }) =>
 
     await expect(page).toHaveURL(`/users/${friend.username}/wishlist`);
   } finally {
-    await prisma.friendship.deleteMany({ where: { userAId: pair.userAId, userBId: pair.userBId } });
+    await prisma.friendship.deleteMany({
+      where: { userAId: pair.userAId, userBId: pair.userBId },
+    });
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   }
 });

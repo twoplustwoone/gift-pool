@@ -89,16 +89,18 @@ test('public link renders read-only wishlist with claimed state visible', async 
     await expect(
       page.getByText(`${owner.name ?? owner.username}'s Wishlist`),
     ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: /add item/i }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /add item/i })).toHaveCount(
+      0,
+    );
     await expect(
       page.getByRole('button', { name: /grab this gift/i }),
     ).toHaveCount(0);
 
     const claimedCard = page.getByRole('button', { name: claimedItem.title });
     await expect(claimedCard.getByText(/claimed/i).first()).toBeVisible();
-    await expect(claimedCard.getByText(/already claimed/i).first()).toBeVisible();
+    await expect(
+      claimedCard.getByText(/already claimed/i).first(),
+    ).toBeVisible();
 
     const openCard = page.getByRole('button', { name: openItem.title });
     await expect(openCard.getByText(/already claimed/i)).toHaveCount(0);

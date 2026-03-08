@@ -1,11 +1,11 @@
 import { invariantResponse } from '@epic-web/invariant';
 import {
-  json,
+  data,
   redirect,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
-} from '@remix-run/node';
-import { Link, useFetcher, useLoaderData } from '@remix-run/react';
+} from 'react-router';
+import { Link, useFetcher, useLoaderData } from 'react-router';
 import React from 'react';
 import { Button } from '#app/components/ui/button.tsx';
 import { Checkbox } from '#app/components/ui/checkbox.tsx';
@@ -25,7 +25,6 @@ import {
   type NotificationChannel,
   type NotificationType,
 } from '#app/utils/notification-registry.ts';
-
 const preferenceGroups: Array<{
   id: string;
   title: string;
@@ -71,37 +70,34 @@ const preferenceGroups: Array<{
     ],
   },
 ];
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await getUserId(request);
   const url = new URL(request.url);
   const tokenParam = url.searchParams.get('token');
   const tokenPayload = tokenParam ? verifyPreferenceToken(tokenParam) : null;
-
   const targetUserId = tokenPayload?.uid ?? userId ?? null;
   if (!targetUserId) {
     throw redirect('/login?redirectTo=/settings/notifications');
   }
-
   const canReadPreferences =
     (userId && userId === targetUserId) ||
     (tokenPayload && tokenPayload.uid === targetUserId);
-
   const preferencesMap = canReadPreferences
     ? await getNotificationPreferences(targetUserId)
     : null;
-
   const preferences = new Map<
     NotificationType,
-    { inAppEnabled: boolean; emailEnabled: boolean }
+    {
+      inAppEnabled: boolean;
+      emailEnabled: boolean;
+    }
   >();
   if (preferencesMap) {
     for (const [type, value] of preferencesMap.entries()) {
       preferences.set(type, value);
     }
   }
-
-  return json({
+  return {
     isAuthenticated: Boolean(userId),
     viewerUserId: userId,
     targetUserId,
@@ -111,9 +107,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       inAppEnabled: pref.inAppEnabled,
       emailEnabled: pref.emailEnabled,
     })),
-  });
+  };
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const intent = formData.get('intent');
@@ -121,9 +116,7 @@ export async function action({ request }: ActionFunctionArgs) {
     typeof formData.get('requestId') === 'string'
       ? String(formData.get('requestId'))
       : null;
-
   const userId = await requireUserId(request);
-
   if (intent === 'toggle') {
     const type = formData.get('type');
     const channel = formData.get('channel');
@@ -137,7 +130,6 @@ export async function action({ request }: ActionFunctionArgs) {
       'Invalid channel',
     );
     invariantResponse(typeof enabled === 'string', 'Invalid enabled value');
-
     const normalizedEnabled = enabled === 'true';
     await setNotificationPreference(
       userId,
@@ -146,29 +138,40 @@ export async function action({ request }: ActionFunctionArgs) {
       normalizedEnabled,
       'settings:notifications',
     );
-    return json({ ok: true, requestId });
+    return {
+      ok: true,
+      requestId,
+    };
   }
-
   if (intent === 'disable-email') {
     await disableEmailForAll(userId, 'settings:notifications');
-    return json({ ok: true, requestId });
+    return {
+      ok: true,
+      requestId,
+    };
   }
-
-  return json({ ok: false, requestId }, { status: 400 });
+  return data(
+    {
+      ok: false,
+      requestId,
+    },
+    {
+      status: 400,
+    },
+  );
 }
-
 type NotificationPreferenceState = Record<
   NotificationType,
-  { inAppEnabled: boolean; emailEnabled: boolean }
+  {
+    inAppEnabled: boolean;
+    emailEnabled: boolean;
+  }
 >;
-
 type PreferenceKey = `${NotificationType}:${NotificationChannel}`;
-
 type PreferencesActionResult = {
   ok: boolean;
   requestId?: string | null;
 };
-
 const NotificationsSettingsRoute = () => {
   const data = useLoaderData<typeof loader>();
   const toggleFetcher = useFetcher<PreferencesActionResult>();
@@ -195,16 +198,13 @@ const NotificationsSettingsRoute = () => {
     keys: PreferenceKey[];
   } | null>(null);
   const disableEmailFetcherWasPendingRef = React.useRef(false);
-
   React.useEffect(() => {
     setPreferences(buildPreferenceState(data.preferences));
   }, [data.preferences]);
-
   const createRequestId = React.useCallback(() => {
     requestCounterRef.current += 1;
     return `notifications-${Date.now()}-${requestCounterRef.current}`;
   }, []);
-
   const handleToggle = (
     type: NotificationType,
     channel: NotificationChannel,
@@ -216,7 +216,6 @@ const NotificationsSettingsRoute = () => {
     const nextEnabled = !enabled;
     const requestId = createRequestId();
     const channelField = getChannelField(channel);
-
     togglePendingRef.current = {
       requestId,
       key,
@@ -236,33 +235,39 @@ const NotificationsSettingsRoute = () => {
       next.add(key);
       return next;
     });
-
     const formData = new FormData();
     formData.set('intent', 'toggle');
     formData.set('type', type);
     formData.set('channel', channel);
     formData.set('enabled', String(nextEnabled));
     formData.set('requestId', requestId);
-    toggleFetcher.submit(formData, { method: 'POST' });
+    void toggleFetcher.submit(formData, {
+      method: 'POST',
+    });
   };
-
   const handleDisableAllEmail = React.useCallback(() => {
     if (disableEmailFetcher.state !== 'idle') return;
     const requestId = createRequestId();
     const previousValues = {} as Record<NotificationType, boolean>;
     const keys: PreferenceKey[] = [];
-
     for (const type of PREFERENCE_TYPES) {
       previousValues[type] = preferences[type].emailEnabled;
       keys.push(getPreferenceKey(type, NOTIFICATION_CHANNELS.EMAIL));
     }
-
-    disableEmailPendingRef.current = { requestId, previousValues, keys };
-
+    disableEmailPendingRef.current = {
+      requestId,
+      previousValues,
+      keys,
+    };
     setPreferences((previous) => {
-      const next = { ...previous };
+      const next = {
+        ...previous,
+      };
       for (const type of PREFERENCE_TYPES) {
-        next[type] = { ...next[type], emailEnabled: false };
+        next[type] = {
+          ...next[type],
+          emailEnabled: false,
+        };
       }
       return next;
     });
@@ -271,13 +276,13 @@ const NotificationsSettingsRoute = () => {
       for (const key of keys) next.add(key);
       return next;
     });
-
     const formData = new FormData();
     formData.set('intent', 'disable-email');
     formData.set('requestId', requestId);
-    disableEmailFetcher.submit(formData, { method: 'POST' });
+    void disableEmailFetcher.submit(formData, {
+      method: 'POST',
+    });
   }, [createRequestId, disableEmailFetcher, preferences]);
-
   React.useEffect(() => {
     if (toggleFetcher.state !== 'idle') {
       toggleFetcherWasPendingRef.current = true;
@@ -285,10 +290,8 @@ const NotificationsSettingsRoute = () => {
     }
     if (!toggleFetcherWasPendingRef.current) return;
     toggleFetcherWasPendingRef.current = false;
-
     const pending = togglePendingRef.current;
     if (!pending) return;
-
     const didSucceed =
       toggleFetcher.data?.ok === true &&
       toggleFetcher.data.requestId === pending.requestId;
@@ -302,7 +305,6 @@ const NotificationsSettingsRoute = () => {
         },
       }));
     }
-
     setPendingKeys((previous) => {
       const next = new Set(previous);
       next.delete(pending.key);
@@ -310,7 +312,6 @@ const NotificationsSettingsRoute = () => {
     });
     togglePendingRef.current = null;
   }, [toggleFetcher.data, toggleFetcher.state]);
-
   React.useEffect(() => {
     if (disableEmailFetcher.state !== 'idle') {
       disableEmailFetcherWasPendingRef.current = true;
@@ -318,16 +319,16 @@ const NotificationsSettingsRoute = () => {
     }
     if (!disableEmailFetcherWasPendingRef.current) return;
     disableEmailFetcherWasPendingRef.current = false;
-
     const pending = disableEmailPendingRef.current;
     if (!pending) return;
-
     const didSucceed =
       disableEmailFetcher.data?.ok === true &&
       disableEmailFetcher.data.requestId === pending.requestId;
     if (!didSucceed) {
       setPreferences((previous) => {
-        const next = { ...previous };
+        const next = {
+          ...previous,
+        };
         for (const type of PREFERENCE_TYPES) {
           next[type] = {
             ...next[type],
@@ -337,7 +338,6 @@ const NotificationsSettingsRoute = () => {
         return next;
       });
     }
-
     setPendingKeys((previous) => {
       const next = new Set(previous);
       for (const key of pending.keys) next.delete(key);
@@ -345,7 +345,6 @@ const NotificationsSettingsRoute = () => {
     });
     disableEmailPendingRef.current = null;
   }, [disableEmailFetcher.data, disableEmailFetcher.state]);
-
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -465,23 +464,28 @@ const NotificationsSettingsRoute = () => {
     </div>
   );
 };
-
 export default NotificationsSettingsRoute;
-
 const DEFAULT_CHANNEL_FALLBACK: Record<
   NotificationType,
-  { inAppEnabled: boolean; emailEnabled: boolean }
+  {
+    inAppEnabled: boolean;
+    emailEnabled: boolean;
+  }
 > = Object.fromEntries(
   Object.entries(DEFAULT_NOTIFICATION_PREFERENCES).map(([key, value]) => [
     key,
     value,
   ]),
-) as Record<NotificationType, { inAppEnabled: boolean; emailEnabled: boolean }>;
-
+) as Record<
+  NotificationType,
+  {
+    inAppEnabled: boolean;
+    emailEnabled: boolean;
+  }
+>;
 const PREFERENCE_TYPES = preferenceGroups.flatMap((group) =>
   group.items.map((item) => item.type),
 );
-
 function buildPreferenceState(
   preferences: Array<{
     type: NotificationType;
@@ -489,7 +493,9 @@ function buildPreferenceState(
     emailEnabled: boolean;
   }>,
 ): NotificationPreferenceState {
-  const next = { ...DEFAULT_CHANNEL_FALLBACK } as NotificationPreferenceState;
+  const next = {
+    ...DEFAULT_CHANNEL_FALLBACK,
+  } as NotificationPreferenceState;
   for (const pref of preferences) {
     next[pref.type] = {
       inAppEnabled: pref.inAppEnabled,
@@ -498,20 +504,17 @@ function buildPreferenceState(
   }
   return next;
 }
-
 function getChannelField(channel: NotificationChannel) {
   return channel === NOTIFICATION_CHANNELS.IN_APP
     ? 'inAppEnabled'
     : 'emailEnabled';
 }
-
 function getPreferenceKey(
   type: NotificationType,
   channel: NotificationChannel,
 ) {
   return `${type}:${channel}` as PreferenceKey;
 }
-
 function PreferenceCheckbox({
   checked,
   onChange,

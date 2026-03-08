@@ -1,17 +1,15 @@
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
-import { Link } from '@remix-run/react';
+import { type LoaderFunctionArgs } from 'react-router';
+import { Link } from 'react-router';
 import { LuUsers } from 'react-icons/lu';
 import { Button } from '#app/components/ui/button.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
 import { Flex, Text } from '#app/components/ui-kit';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { CreateGroupForm } from './__group-editor.tsx';
-
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireUserId(request);
-  return json({});
+  return {};
 }
-
 const NewGroupRoute = () => (
   <div className="container flex flex-col gap-6 py-8">
     <Heading>
@@ -34,7 +32,5 @@ const NewGroupRoute = () => (
     />
   </div>
 );
-
 export default NewGroupRoute;
-
 export { action } from './__group-editor.server';

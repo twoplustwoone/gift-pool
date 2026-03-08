@@ -1,4 +1,4 @@
-import { Link } from '@remix-run/react';
+import { Link } from 'react-router';
 import * as React from 'react';
 import { HOME_COPY } from './home-copy';
 

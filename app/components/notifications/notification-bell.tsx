@@ -1,4 +1,4 @@
-import { useNavigate } from '@remix-run/react';
+import { useNavigate } from 'react-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LuBell, LuCheckCheck, LuLoader, LuX } from 'react-icons/lu';
 import { toast } from 'sonner';
@@ -279,7 +279,7 @@ export const NotificationBell = () => {
       }
       setOpen(false);
       if (notification.targetUrl) {
-        navigate(notification.targetUrl);
+        void navigate(notification.targetUrl);
       }
     },
     [markNotificationRead, navigate],

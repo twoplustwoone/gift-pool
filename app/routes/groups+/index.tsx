@@ -1,5 +1,5 @@
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
-import { useLoaderData, useNavigate } from '@remix-run/react';
+import { type LoaderFunctionArgs } from 'react-router';
+import { useLoaderData, useNavigate } from 'react-router';
 import { LuPlus, LuUsers } from 'react-icons/lu';
 import { GroupCard } from '#app/components/groups/GroupCard.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -18,22 +18,39 @@ import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { GroupRoleSchema, type GroupRole } from '#app/utils/group-role.ts';
 import { CreateGroupCompactForm } from './__group-editor.tsx';
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   const groups = await prisma.giftGroup.findMany({
-    where: { groupMembers: { some: { userId } } },
+    where: {
+      groupMembers: {
+        some: {
+          userId,
+        },
+      },
+    },
     select: {
       id: true,
       name: true,
       description: true,
       createdAt: true,
-      _count: { select: { groupMembers: true } },
-      groupMembers: { where: { userId }, select: { role: true } },
+      _count: {
+        select: {
+          groupMembers: true,
+        },
+      },
+      groupMembers: {
+        where: {
+          userId,
+        },
+        select: {
+          role: true,
+        },
+      },
     },
-    orderBy: { name: 'asc' },
+    orderBy: {
+      name: 'asc',
+    },
   });
-
   const data = groups.map((g) => {
     const rawRole = g.groupMembers[0]?.role ?? 'MEMBER';
     const parsedRole = GroupRoleSchema.catch('MEMBER').parse(rawRole);
@@ -46,15 +63,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
       myRole: parsedRole as GroupRole,
     };
   });
-
-  return json({ groups: data });
+  return {
+    groups: data,
+  };
 }
-
 export { action } from './__group-editor.server';
-
 const GroupsIndex = () => {
   const { groups } = useLoaderData<typeof loader>();
-
   const EmptyState = (
     <Card padding="lg" className="rounded-2xl text-center">
       <div className="text-lg font-semibold">
@@ -75,9 +90,7 @@ const GroupsIndex = () => {
       </div>
     </Card>
   );
-
   const navigate = useNavigate();
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Header bar (mirrors Wishlist header style) */}
@@ -136,7 +149,6 @@ const GroupsIndex = () => {
     </div>
   );
 };
-
 const CreateGroupDialog = ({ children }: { children: React.ReactNode }) => {
   return (
     <Dialog>

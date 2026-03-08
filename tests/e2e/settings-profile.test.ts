@@ -73,7 +73,9 @@ test('Users can update their profile photo', async ({ page, login }) => {
   await page.goto('/settings/profile/photo');
   await dismissInstallPrompt(page);
 
-  await page.getByLabel(/change photo/i).setInputFiles('./tests/fixtures/images/user/wade.png');
+  await page
+    .getByLabel(/change photo/i)
+    .setInputFiles('./tests/fixtures/images/user/wade.png');
 
   await page.getByRole('button', { name: /save/i }).click();
 

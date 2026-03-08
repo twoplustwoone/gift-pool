@@ -1,4 +1,4 @@
-import { Link } from '@remix-run/react';
+import { Link } from 'react-router';
 import { LuSettings } from 'react-icons/lu';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Card } from '#app/components/ui/card.tsx';

@@ -111,7 +111,8 @@ async function fetchWithLimit(
           Accept:
             options.headers?.Accept ||
             'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': options.headers?.['Accept-Language'] || 'en-US,en;q=0.9',
+          'Accept-Language':
+            options.headers?.['Accept-Language'] || 'en-US,en;q=0.9',
           ...(options.headers ?? {}),
         },
       });

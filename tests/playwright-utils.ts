@@ -1,6 +1,7 @@
 import { test as base } from '@playwright/test';
 import { type User as UserModel } from '@prisma/client';
 import * as setCookieParser from 'set-cookie-parser';
+import { encode } from 'turbo-stream';
 import {
   getPasswordHash,
   getSessionExpirationDate,
@@ -102,6 +103,45 @@ export const test = base.extend<{
   },
 });
 export const { expect } = test;
+
+export async function loginWithPassword(
+  page: import('@playwright/test').Page,
+  {
+    username,
+    password,
+  }: {
+    username: string;
+    password: string;
+  },
+) {
+  await page.goto('/login');
+  await page.getByRole('textbox', { name: /username/i }).fill(username);
+  await page.getByRole('textbox', { name: /password/i }).fill(password);
+  await page.getByRole('button', { name: /log in/i }).click();
+  await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
+}
+
+/**
+ * Encodes a mock action response as turbo-stream for use with v3_singleFetch.
+ * Returns { body, contentType } suitable for Playwright's route.fulfill().
+ */
+export async function singleFetchActionBody(data: unknown): Promise<{
+  body: Buffer;
+  contentType: string;
+}> {
+  const stream = encode({ data });
+  const chunks: Uint8Array[] = [];
+  const reader = stream.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  return {
+    body: Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))),
+    contentType: 'text/x-turbo',
+  };
+}
 
 /**
  * This allows you to wait for something (like an email to be available).

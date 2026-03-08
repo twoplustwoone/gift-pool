@@ -1,6 +1,6 @@
 import { parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
-import { json, type ActionFunctionArgs } from '@remix-run/node';
+import { data, type ActionFunctionArgs } from 'react-router';
 import { z } from 'zod';
 import { logEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
@@ -12,27 +12,26 @@ import {
   getRequestContext,
 } from '#app/utils/request-context.server.ts';
 import { createToastHeaders } from '#app/utils/toast.server.ts';
-
 const DeleteFormSchema = z.object({
   intent: z.literal('delete-wishlist-item'),
   wishlistItemId: z.string(),
   clientMutationId: z.string().optional(),
 });
-
 export async function action({ request }: ActionFunctionArgs) {
   const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
   const formData = await request.formData();
   const clientMutationIdRaw = formData.get('clientMutationId');
   const clientMutationId =
-    typeof clientMutationIdRaw === 'string' && clientMutationIdRaw.trim().length > 0
+    typeof clientMutationIdRaw === 'string' &&
+    clientMutationIdRaw.trim().length > 0
       ? clientMutationIdRaw.trim()
       : null;
   const submission = parseWithZod(formData, {
     schema: DeleteFormSchema,
   });
   if (submission.status !== 'success') {
-    return json(
+    return data(
       {
         ...submission.reply(),
         clientMutationId,
@@ -42,23 +41,34 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     );
   }
-
   const { wishlistItemId } = submission.value;
-
   const wishlistItem = await prisma.wishlistItem.findFirst({
-    select: { id: true, ownerId: true, owner: { select: { username: true } } },
-    where: { id: wishlistItemId },
+    select: {
+      id: true,
+      ownerId: true,
+      owner: {
+        select: {
+          username: true,
+        },
+      },
+    },
+    where: {
+      id: wishlistItemId,
+    },
   });
-  invariantResponse(wishlistItem, 'Not found', { status: 404 });
-
+  invariantResponse(wishlistItem, 'Not found', {
+    status: 404,
+  });
   const isOwner = wishlistItem.ownerId === userId;
   await requireUserWithPermission(
     request,
     isOwner ? `delete:wishlistItem:own` : `delete:wishlistItem:any`,
   );
-
-  await prisma.wishlistItem.delete({ where: { id: wishlistItem.id } });
-
+  await prisma.wishlistItem.delete({
+    where: {
+      id: wishlistItem.id,
+    },
+  });
   const event = await logEvent({
     name: 'wishlist_item_archived',
     userId,
@@ -70,14 +80,12 @@ export async function action({ request }: ActionFunctionArgs) {
       ownerId: wishlistItem.ownerId,
     },
   });
-
   const toastHeaders = await createToastHeaders({
     type: 'success',
     title: 'Success',
     description: 'Your wishlist item has been deleted.',
   });
-
-  return json(
+  return data(
     {
       success: true,
       wishlistItemId,

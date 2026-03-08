@@ -1,9 +1,5 @@
-import {
-  json,
-  type LoaderFunctionArgs,
-  type MetaFunction,
-} from '@remix-run/node';
-import { Link, Outlet, useLoaderData, useSearchParams } from '@remix-run/react';
+import { type LoaderFunctionArgs, type MetaFunction } from 'react-router';
+import { Link, Outlet, useLoaderData, useSearchParams } from 'react-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   LuCopy,
@@ -47,7 +43,6 @@ import {
 } from '#app/utils/friendship-events.ts';
 import { useTranslation } from '#app/utils/i18n.tsx';
 import { cn } from '#app/utils/misc.tsx';
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   const [friends, incoming, outgoing] = await Promise.all([
@@ -55,14 +50,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
     getIncomingFriendRequests(userId),
     getOutgoingFriendRequests(userId),
   ]);
-
-  return json({ friends, incoming, outgoing });
+  return {
+    friends,
+    incoming,
+    outgoing,
+  };
 }
-
 export const meta: MetaFunction<typeof loader> = () => {
-  return [{ title: 'Friends | GiftPool' }];
+  return [
+    {
+      title: 'Friends | GiftPool',
+    },
+  ];
 };
-
 const FriendsRoute = () => {
   const data = useLoaderData<typeof loader>();
   const { t } = useTranslation();
@@ -85,15 +85,15 @@ const FriendsRoute = () => {
       if (q) next.set('q', q);
       else next.delete('q');
       next.set('tab', activeTab);
-      setSearchParams(next, { preventScrollReset: true });
+      setSearchParams(next, {
+        preventScrollReset: true,
+      });
     }, 300);
     return () => clearTimeout(tId);
   }, [q, activeTab, searchParams, setSearchParams]);
-
   type FriendEntry = (typeof data.friends)[number];
   type IncomingEntry = (typeof data.incoming)[number];
   type OutgoingEntry = (typeof data.outgoing)[number];
-
   const [friendsState, setFriendsState] = useState<FriendEntry[]>(data.friends);
   const [incomingState, setIncomingState] = useState<IncomingEntry[]>(
     data.incoming,
@@ -113,21 +113,24 @@ const FriendsRoute = () => {
   const [mutuals, setMutuals] = useState<
     Record<
       string,
-      { groups: Array<{ id: string; name: string }>; more: number }
+      {
+        groups: Array<{
+          id: string;
+          name: string;
+        }>;
+        more: number;
+      }
     >
   >({});
-
   const anySelected =
     (incomingSelectMode && selectedIncoming.size > 0) ||
     (outgoingSelectMode && selectedOutgoing.size > 0);
-
   const resetSelection = () => {
     setIncomingSelectMode(false);
     setOutgoingSelectMode(false);
     setSelectedIncoming(new Set());
     setSelectedOutgoing(new Set());
   };
-
   async function batchAccept(ids: string[]) {
     const snapshot = incomingState.filter((req) => ids.includes(req.id));
     setIncomingState((prev) => prev.filter((r) => !ids.includes(r.id)));
@@ -136,7 +139,9 @@ const FriendsRoute = () => {
         fetch(`/api/friends/requests/${id}/accept`, {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { Accept: 'application/json' },
+          headers: {
+            Accept: 'application/json',
+          },
         }).then(async (r) => ({
           ok: r.ok,
           json: r.ok ? await r.json() : null,
@@ -157,14 +162,17 @@ const FriendsRoute = () => {
     });
     if (unread != null) setUnreadCount(unread);
     if (failedIds.length > 0) {
-      const failed = snapshot.filter((request) => failedIds.includes(request.id));
+      const failed = snapshot.filter((request) =>
+        failedIds.includes(request.id),
+      );
       setIncomingState((prev) => [...failed, ...prev]);
       toast.error('Some requests could not be accepted.');
     } else {
-      toast.success(`Accepted ${ids.length} request${ids.length > 1 ? 's' : ''}.`);
+      toast.success(
+        `Accepted ${ids.length} request${ids.length > 1 ? 's' : ''}.`,
+      );
     }
   }
-
   async function batchDecline(ids: string[]) {
     const snapshot = incomingState.filter((req) => ids.includes(req.id));
     setIncomingState((prev) => prev.filter((r) => !ids.includes(r.id)));
@@ -173,7 +181,9 @@ const FriendsRoute = () => {
         fetch(`/api/friends/requests/${id}/reject`, {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { Accept: 'application/json' },
+          headers: {
+            Accept: 'application/json',
+          },
         }).then(async (r) => ({
           ok: r.ok,
           json: r.ok ? await r.json() : null,
@@ -194,14 +204,17 @@ const FriendsRoute = () => {
     });
     if (unread != null) setUnreadCount(unread);
     if (failedIds.length > 0) {
-      const failed = snapshot.filter((request) => failedIds.includes(request.id));
+      const failed = snapshot.filter((request) =>
+        failedIds.includes(request.id),
+      );
       setIncomingState((prev) => [...failed, ...prev]);
       toast.error('Some requests could not be declined.');
     } else {
-      toast.success(`Declined ${ids.length} request${ids.length > 1 ? 's' : ''}.`);
+      toast.success(
+        `Declined ${ids.length} request${ids.length > 1 ? 's' : ''}.`,
+      );
     }
   }
-
   async function batchCancel(ids: string[]) {
     const snapshot = outgoingState.filter((req) => ids.includes(req.id));
     setOutgoingState((prev) => prev.filter((r) => !ids.includes(r.id)));
@@ -222,11 +235,15 @@ const FriendsRoute = () => {
       }
     });
     if (failedIds.length > 0) {
-      const failed = snapshot.filter((request) => failedIds.includes(request.id));
+      const failed = snapshot.filter((request) =>
+        failedIds.includes(request.id),
+      );
       setOutgoingState((prev) => [...failed, ...prev]);
       toast.error('Some requests could not be cancelled.');
     } else {
-      toast.success(`Cancelled ${ids.length} request${ids.length > 1 ? 's' : ''}.`);
+      toast.success(
+        `Cancelled ${ids.length} request${ids.length > 1 ? 's' : ''}.`,
+      );
     }
   }
 
@@ -240,7 +257,6 @@ const FriendsRoute = () => {
   useEffect(() => {
     setOutgoingState(data.outgoing);
   }, [data.outgoing]);
-
   const addFriendEntry = useCallback((entry: FriendEntry) => {
     setFriendsState((prev) => {
       if (prev.some((item) => item.user.id === entry.user.id)) {
@@ -249,7 +265,6 @@ const FriendsRoute = () => {
       return [...prev, entry];
     });
   }, []);
-
   const handleIncomingTransition = useCallback(
     (requestId: string, user: IncomingEntry['fromUser']) =>
       (snapshot: RelationshipSnapshot) => {
@@ -259,7 +274,7 @@ const FriendsRoute = () => {
           );
           addFriendEntry({
             friendshipId: snapshot.friendshipId ?? requestId,
-            createdAt: new Date().toISOString(),
+            createdAt: new Date(),
             user,
           });
           return;
@@ -274,7 +289,6 @@ const FriendsRoute = () => {
       },
     [addFriendEntry],
   );
-
   const handleOutgoingTransition = useCallback(
     (requestId: string, user: OutgoingEntry['toUser']) =>
       (snapshot: RelationshipSnapshot) => {
@@ -284,7 +298,7 @@ const FriendsRoute = () => {
           );
           addFriendEntry({
             friendshipId: snapshot.friendshipId ?? requestId,
-            createdAt: new Date().toISOString(),
+            createdAt: new Date(),
             user,
           });
           return;
@@ -299,7 +313,6 @@ const FriendsRoute = () => {
       },
     [addFriendEntry],
   );
-
   const handleFriendTransition = useCallback(
     (friendshipId: string, userId: string) =>
       (snapshot: RelationshipSnapshot) => {
@@ -311,7 +324,6 @@ const FriendsRoute = () => {
       },
     [],
   );
-
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<FriendshipEventDetail>).detail;
@@ -321,7 +333,7 @@ const FriendsRoute = () => {
         if (detail.state === 'FRIENDS') {
           addFriendEntry({
             friendshipId: detail.friendshipId ?? match.id,
-            createdAt: new Date().toISOString(),
+            createdAt: new Date(),
             user: match.fromUser,
           });
         }
@@ -333,7 +345,7 @@ const FriendsRoute = () => {
         if (detail.state === 'FRIENDS') {
           addFriendEntry({
             friendshipId: detail.friendshipId ?? match.id,
-            createdAt: new Date().toISOString(),
+            createdAt: new Date(),
             user: match.toUser,
           });
           return prev.filter((req) => req.id !== match.id);
@@ -358,7 +370,7 @@ const FriendsRoute = () => {
           return [
             {
               friendshipId: detail.friendshipId ?? crypto.randomUUID(),
-              createdAt: new Date().toISOString(),
+              createdAt: new Date(),
               user,
             },
             ...prev,
@@ -388,7 +400,9 @@ const FriendsRoute = () => {
                 const next = new URLSearchParams(searchParams);
                 next.set('tab', v);
                 if (q) next.set('q', q);
-                setSearchParams(next, { preventScrollReset: true });
+                setSearchParams(next, {
+                  preventScrollReset: true,
+                });
               }}
             />
             {activeTab === 'friends' ? (
@@ -697,12 +711,12 @@ const FriendsRoute = () => {
                           onRemove={async () => {}}
                           rightActions={null}
                         >
-                      <FriendSummary
-                        user={user}
-                        displayName={displayName}
-                        mutualGroups={chips}
-                        extraGroupCount={mu?.more ?? 0}
-                      />
+                          <FriendSummary
+                            user={user}
+                            displayName={displayName}
+                            mutualGroups={chips}
+                            extraGroupCount={mu?.more ?? 0}
+                          />
                           <div className="flex items-center gap-2">
                             <Button
                               asChild
@@ -750,7 +764,9 @@ const FriendsRoute = () => {
                                       headers: {
                                         'Content-Type': 'application/json',
                                       },
-                                      body: JSON.stringify({ userId: user.id }),
+                                      body: JSON.stringify({
+                                        userId: user.id,
+                                      }),
                                     },
                                   );
                                   if (!res.ok) throw new Error('remove failed');
@@ -859,7 +875,9 @@ const FriendsRoute = () => {
                                   headers: {
                                     'Content-Type': 'application/json',
                                   },
-                                  body: JSON.stringify({ userId: user.id }),
+                                  body: JSON.stringify({
+                                    userId: user.id,
+                                  }),
                                 });
                                 if (!res.ok) throw new Error('remove failed');
                                 setFriendsState((prev) =>
@@ -914,9 +932,7 @@ const FriendsRoute = () => {
     </div>
   );
 };
-
 export default FriendsRoute;
-
 function SegmentedTabs({
   value,
   onChange,
@@ -924,10 +940,22 @@ function SegmentedTabs({
   value: 'add' | 'requests' | 'friends';
   onChange: (v: 'add' | 'requests' | 'friends') => void;
 }) {
-  const items: Array<{ key: 'add' | 'requests' | 'friends'; label: string }> = [
-    { key: 'add', label: 'Add' },
-    { key: 'requests', label: 'Requests' },
-    { key: 'friends', label: 'Friends' },
+  const items: Array<{
+    key: 'add' | 'requests' | 'friends';
+    label: string;
+  }> = [
+    {
+      key: 'add',
+      label: 'Add',
+    },
+    {
+      key: 'requests',
+      label: 'Requests',
+    },
+    {
+      key: 'friends',
+      label: 'Friends',
+    },
   ];
   return (
     <div className="grid grid-cols-3 rounded-full bg-muted p-1">
@@ -948,7 +976,6 @@ function SegmentedTabs({
     </div>
   );
 }
-
 function VirtualizedFriendsList({
   items,
   rowHeight = 72,
@@ -960,33 +987,48 @@ function VirtualizedFriendsList({
       id: string;
       username: string;
       name: string | null;
-      image: { id: string; altText: string | null } | null;
+      image: {
+        id: string;
+        altText: string | null;
+      } | null;
     };
   }>;
   rowHeight?: number;
   renderRow: (item: any) => React.ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [viewport, setViewport] = useState({ height: 480, scrollTop: 0 });
-
+  const [viewport, setViewport] = useState({
+    height: 480,
+    scrollTop: 0,
+  });
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
-      setViewport((v) => ({ ...v, height: el.clientHeight }));
+      setViewport((v) => ({
+        ...v,
+        height: el.clientHeight,
+      }));
     });
     ro.observe(el);
     const onScroll = () =>
-      setViewport((v) => ({ ...v, scrollTop: el.scrollTop }));
-    el.addEventListener('scroll', onScroll, { passive: true });
+      setViewport((v) => ({
+        ...v,
+        scrollTop: el.scrollTop,
+      }));
+    el.addEventListener('scroll', onScroll, {
+      passive: true,
+    });
     // initialize
-    setViewport({ height: el.clientHeight, scrollTop: el.scrollTop });
+    setViewport({
+      height: el.clientHeight,
+      scrollTop: el.scrollTop,
+    });
     return () => {
       ro.disconnect();
       el.removeEventListener('scroll', onScroll);
     };
   }, []);
-
   const total = items.length * rowHeight;
   const overscan = 8;
   const start = Math.max(
@@ -998,10 +1040,14 @@ function VirtualizedFriendsList({
     Math.ceil((viewport.scrollTop + viewport.height) / rowHeight) + overscan,
   );
   const slice = items.slice(start, end);
-
   return (
     <div ref={containerRef} className="mt-3 h-[60vh] overflow-auto sm:h-[70vh]">
-      <div style={{ height: total, position: 'relative' }}>
+      <div
+        style={{
+          height: total,
+          position: 'relative',
+        }}
+      >
         {slice.map((item, i) => {
           const index = start + i;
           const top = index * rowHeight;
@@ -1024,7 +1070,6 @@ function VirtualizedFriendsList({
     </div>
   );
 }
-
 function SwipeableFriendRow({
   children,
   rightActions,
@@ -1054,7 +1099,9 @@ function SwipeableFriendRow({
         className={cn(
           'relative rounded-xl border border-border bg-card p-4 shadow-sm transition-transform',
         )}
-        style={{ transform: `translateX(${open ? -140 : 0}px)` }}
+        style={{
+          transform: `translateX(${open ? -140 : 0}px)`,
+        }}
         onTouchStart={(e) => {
           const touch = e.touches?.[0];
           if (!touch) return;
@@ -1081,7 +1128,6 @@ function SwipeableFriendRow({
     </div>
   );
 }
-
 function AddFriendsPanel({
   onOutgoingCreated,
   query: controlledQuery,
@@ -1093,7 +1139,10 @@ function AddFriendsPanel({
       id: string;
       username: string;
       name: string | null;
-      image: { id: string; altText: string | null } | null;
+      image: {
+        id: string;
+        altText: string | null;
+      } | null;
     },
   ) => void;
   query?: string;
@@ -1114,7 +1163,10 @@ function AddFriendsPanel({
         id: string;
         username: string;
         name: string | null;
-        image: { id: string; altText: string | null } | null;
+        image: {
+          id: string;
+          altText: string | null;
+        } | null;
       };
       relationship: RelationshipSnapshot;
     }>
@@ -1162,9 +1214,15 @@ function AddFriendsPanel({
             user: any;
             relationship: {
               state: string;
-              friendship?: { id?: string | null } | null;
-              incoming?: { id?: string | null } | null;
-              outgoing?: { id?: string | null } | null;
+              friendship?: {
+                id?: string | null;
+              } | null;
+              incoming?: {
+                id?: string | null;
+              } | null;
+              outgoing?: {
+                id?: string | null;
+              } | null;
             };
           }>;
         };
@@ -1211,14 +1269,15 @@ function AddFriendsPanel({
       }
     };
   }, [query]);
-
   const createInvite = useCallback(async () => {
     const res = await fetch('/api/friends/invite', {
       method: 'POST',
       credentials: 'same-origin',
     });
     if (!res.ok) return;
-    const data = (await res.json()) as { inviteUrl: string };
+    const data = (await res.json()) as {
+      inviteUrl: string;
+    };
     setInviteUrl(data.inviteUrl);
     try {
       await navigator.clipboard.writeText(data.inviteUrl);
@@ -1235,7 +1294,9 @@ function AddFriendsPanel({
           credentials: 'same-origin',
         });
         if (!res.ok) return;
-        const data = (await res.json()) as { inviteUrl: string };
+        const data = (await res.json()) as {
+          inviteUrl: string;
+        };
         setInviteUrl(data.inviteUrl);
       } catch {}
     })();
@@ -1263,19 +1324,20 @@ function AddFriendsPanel({
       toast.error('Unable to copy link');
     }
   }, [inviteUrl]);
-
   const openQr = useCallback(async () => {
     if (!inviteUrl) return;
     try {
       const mod: any = await import('qrcode');
-      const url = await mod.toDataURL(inviteUrl, { margin: 1, scale: 6 });
+      const url = await mod.toDataURL(inviteUrl, {
+        margin: 1,
+        scale: 6,
+      });
       setQrDataUrl(url);
       setQrOpen(true);
     } catch {
       toast.error('Unable to generate QR code');
     }
   }, [inviteUrl]);
-
   const hasResults = useMemo(() => results.length > 0, [results.length]);
   const showEmpty = useMemo(
     () =>
@@ -1285,7 +1347,6 @@ function AddFriendsPanel({
       settledVersion === requestVersion.current,
     [isLoading, query, results.length, settledVersion],
   );
-
   return (
     <div className="mt-4 grid gap-4 md:grid-cols-2">
       <div>

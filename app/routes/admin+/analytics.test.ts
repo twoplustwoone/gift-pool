@@ -3,6 +3,11 @@ import { loader } from '#app/routes/admin+/analytics.tsx';
 import { logEvent } from '#app/utils/analytics.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { createUser } from '#tests/db-utils.ts';
+import {
+  getRouteResultData,
+  getRouteResultStatus,
+  toLoaderArgs,
+} from '#tests/route-module-test-utils.ts';
 import { getSessionCookieHeader } from '#tests/utils.ts';
 
 const DAY_MS = 1000 * 60 * 60 * 24;
@@ -32,12 +37,14 @@ describe('/admin/analytics loader', () => {
     const cookie = await getSessionCookieHeader(session);
 
     await expect(
-      loader({
-        request: buildRequest(cookie),
-        params: {},
-        context: {} as any,
-      }),
-    ).rejects.toMatchObject({ status: 403 });
+      loader(
+        toLoaderArgs({
+          request: buildRequest(cookie),
+          params: {},
+          context: {} as any,
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 403 } });
   });
 
   it('returns analytics metrics for allowlisted admins', async () => {
@@ -72,14 +79,16 @@ describe('/admin/analytics loader', () => {
       createdAt: new Date(now.getTime() - 2 * DAY_MS),
     });
 
-    const response = await loader({
-      request: buildRequest(cookie),
-      params: {},
-      context: {} as any,
-    });
+    const response = await loader(
+      toLoaderArgs({
+        request: buildRequest(cookie),
+        params: {},
+        context: {} as any,
+      }),
+    );
 
-    expect(response.status).toBe(200);
-    const data = (await response.json()) as { analytics: any };
+    expect(getRouteResultStatus(response)).toBe(200);
+    const data = await getRouteResultData<{ analytics: any }>(response);
     expect(data.analytics.totalUsers).toBe(2);
     expect(data.analytics.dau).toBe(1);
     expect(data.analytics.wau).toBe(2);

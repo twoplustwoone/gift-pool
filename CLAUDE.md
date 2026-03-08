@@ -9,6 +9,7 @@ Gift Pool is a full-stack web application for managing wishlists and coordinatin
 ## Commands
 
 ### Development
+
 ```bash
 npm run dev              # Start dev server (http://localhost:3000)
 npm run build            # Production build
@@ -17,6 +18,7 @@ npm start:mocks          # Production server with MSW mocks
 ```
 
 ### Code Quality
+
 ```bash
 npm run lint             # ESLint
 npm run lint:fix         # Auto-fix lint issues
@@ -26,6 +28,7 @@ npm run validate         # All checks (lint, typecheck, tests, e2e)
 ```
 
 ### Testing
+
 ```bash
 npm test                 # Unit tests (Vitest, watch mode)
 npm test -- --run        # Unit tests (single run)
@@ -40,6 +43,7 @@ npm run test:e2e:dev -- --headed        # With browser visible
 ```
 
 ### Database
+
 ```bash
 npm run prisma:studio    # Prisma GUI (http://localhost:5555)
 npx prisma migrate dev   # Create/apply migrations
@@ -49,6 +53,7 @@ npx prisma db seed       # Seed test data
 ## Architecture
 
 ### Directory Structure
+
 ```
 app/
 ├── components/          # React components
@@ -78,12 +83,14 @@ tests/
 ```
 
 ### Routing Conventions (remix-flat-routes)
+
 - `_prefix+/` = route group (e.g., `_auth+/login.tsx`)
 - `$param` = dynamic segment (e.g., `$giftGroupId_+/`)
 - `__route.server.ts` = colocated server utilities (ignored by router)
 - `api.*.ts` = API endpoints
 
 ### Key Utilities
+
 - `db.server.ts` - Prisma client singleton with query logging
 - `auth.server.ts` - Authentication & sessions (remix-auth)
 - `permissions.server.ts` - Authorization checks
@@ -91,6 +98,7 @@ tests/
 - `analytics.ts` - Event tracking (client & server)
 
 ### Path Aliases
+
 - `#app/*` - app directory
 - `#tests/*` - test utilities
 - `@/icon-name` - icons
@@ -98,22 +106,26 @@ tests/
 ## Conventions
 
 ### TypeScript
+
 - Strict mode enabled
 - Use `import type` for type-only imports
 - Server-only files: `.server.ts` suffix
 - Client-only files: `.client.ts` or `.client.tsx` suffix
 
 ### Components
+
 - Arrow function components
 - kebab-case filenames, PascalCase exports
 - Colocate tests: `ComponentName.test.tsx`
 
 ### Database
+
 - Always create migrations for schema changes
 - Cascade deletes for relational integrity
 - Seed file: `prisma/seed.ts`
 
 ### Styling
+
 - Tailwind CSS with prettier-plugin-tailwindcss (auto-sorts classes)
 - Dark mode: class-based strategy
 - Dynamic utilities safelisted in `tailwind.config.ts`
@@ -121,12 +133,15 @@ tests/
 ## Key Patterns
 
 ### Optimistic UI
+
 Uses client mutation IDs (`createClientMutationId()`) and event-based state updates for immediate feedback. See `friendship-events.ts` for the event dispatch pattern.
 
 ### Form Handling
+
 Uses Conform + Zod for validation with honeypot spam protection.
 
 ### Analytics
+
 - Client: `track(name, properties)` from `analytics.client.ts`
 - Server: `logEvent(name, requestId, sessionId)` from `analytics.server.ts`
 - Event names in `ANALYTIC_EVENT_NAMES` constant
@@ -135,11 +150,13 @@ Uses Conform + Zod for validation with honeypot spam protection.
 ## Environment Variables
 
 Required for development (set by setup.sh):
+
 - `DATABASE_URL` - SQLite path
 - `SESSION_SECRET` - Session encryption
 - `HONEYPOT_SECRET` - Spam protection
 
 Optional:
+
 - `RESEND_API_KEY` - Email service
 - `SENTRY_DSN` - Error tracking
 - `ANALYTICS_ADMIN_EMAILS` - Admin dashboard access

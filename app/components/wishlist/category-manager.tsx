@@ -1,4 +1,4 @@
-import { useFetcher } from '@remix-run/react';
+import { useFetcher } from 'react-router';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import {
   LuArrowUpDown,
@@ -19,25 +19,32 @@ import {
 } from '#app/components/ui/popover';
 import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
 import { Flex, Text } from '../ui-kit';
-
-export type WishlistCategory = { id: string; name: string; order: number };
+import type {
+  CategoryMutationResult,
+  WishlistCategory,
+} from './wishlist-category-state';
 
 export const CategoryManager = ({
   categories,
   compact = false,
   onStartItemReorder,
   onStartCategoryReorder,
+  onMutationResult,
 }: {
   categories: WishlistCategory[];
   compact?: boolean;
   onStartItemReorder?: () => void;
   onStartCategoryReorder?: () => void;
+  onMutationResult?: (result: CategoryMutationResult) => void;
 }) => {
   const [open, setOpen] = useState(false);
   const createFetcher = useFetcher();
   const actionFetcher = useFetcher();
+  const [createName, setCreateName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const formRef = useRef<HTMLFormElement>(null);
+  const pendingCreateMutationIdRef = useRef<string | null>(null);
+  const pendingCreateNameRef = useRef<string | null>(null);
+  const pendingActionMutationIdRef = useRef<string | null>(null);
   const attachClientMutationIdToForm = (event: FormEvent<HTMLFormElement>) => {
     const formElement = event.currentTarget;
     const mutationId = createClientMutationId();
@@ -46,7 +53,7 @@ export const CategoryManager = ({
     ) as HTMLInputElement | null;
     if (existingInput) {
       existingInput.value = mutationId;
-      return;
+      return mutationId;
     }
 
     const hiddenInput = document.createElement('input');
@@ -54,34 +61,67 @@ export const CategoryManager = ({
     hiddenInput.name = 'clientMutationId';
     hiddenInput.value = mutationId;
     formElement.append(hiddenInput);
+    return mutationId;
   };
 
   useToast(
     (createFetcher.data as any)?.toast ?? (actionFetcher.data as any)?.toast,
   );
 
-  const handledRef = useRef(false);
+  const handledCreateMutationIdRef = useRef<string | null>(null);
+  const handledActionMutationIdRef = useRef<string | null>(null);
   useEffect(() => {
-    const createdOk = (createFetcher.data as any)?.ok;
-    const actionOk = (actionFetcher.data as any)?.ok;
-    const anyIdleOk =
-      (createFetcher.state === 'idle' && createdOk) ||
-      (actionFetcher.state === 'idle' && actionOk);
+    const createResult = createFetcher.data as
+      | CategoryMutationResult
+      | undefined;
+    const actionResult = actionFetcher.data as
+      | CategoryMutationResult
+      | undefined;
+    const createdOk =
+      createResult?.ok &&
+      createResult.clientMutationId != null &&
+      createResult.clientMutationId === pendingCreateMutationIdRef.current;
+    const actionOk =
+      actionResult?.ok &&
+      actionResult.clientMutationId != null &&
+      actionResult.clientMutationId === pendingActionMutationIdRef.current;
 
-    if (anyIdleOk && !handledRef.current) {
-      handledRef.current = true;
-      setEditingId(null);
-      if (createdOk) formRef.current?.reset();
+    if (
+      createdOk &&
+      createResult &&
+      handledCreateMutationIdRef.current !== createResult.clientMutationId
+    ) {
+      handledCreateMutationIdRef.current =
+        createResult.clientMutationId ?? null;
+      onMutationResult?.(createResult);
+      pendingCreateMutationIdRef.current = null;
+      if (createName.trim() === pendingCreateNameRef.current) {
+        setCreateName('');
+      }
+      pendingCreateNameRef.current = null;
     }
 
-    if (createFetcher.state !== 'idle' || actionFetcher.state !== 'idle') {
-      handledRef.current = false;
+    if (
+      actionOk &&
+      actionResult &&
+      handledActionMutationIdRef.current !== actionResult.clientMutationId
+    ) {
+      handledActionMutationIdRef.current =
+        actionResult.clientMutationId ?? null;
+      onMutationResult?.(actionResult);
+      pendingActionMutationIdRef.current = null;
+      setEditingId(null);
+    }
+
+    if (createdOk || actionOk) {
+      setEditingId(null);
     }
   }, [
     createFetcher.state,
     createFetcher.data,
     actionFetcher.state,
     actionFetcher.data,
+    onMutationResult,
   ]);
 
   return (
@@ -141,11 +181,14 @@ export const CategoryManager = ({
           </div>
         ) : null}
         <createFetcher.Form
-          ref={formRef}
           method="post"
           action="/wishlist/categories"
           className="flex gap-2"
-          onSubmit={attachClientMutationIdToForm}
+          onSubmit={(event) => {
+            pendingCreateMutationIdRef.current =
+              attachClientMutationIdToForm(event);
+            pendingCreateNameRef.current = createName.trim();
+          }}
         >
           <input type="hidden" name="intent" value="create" />
           <input type="hidden" name="clientMutationId" value="" />
@@ -154,6 +197,8 @@ export const CategoryManager = ({
             placeholder="Category name"
             className="h-8 flex-1"
             autoComplete="off"
+            value={createName}
+            onChange={(event) => setCreateName(event.target.value)}
           />
           <Button type="submit" size="icon" aria-label="Create category">
             <LuPlus />
@@ -170,7 +215,10 @@ export const CategoryManager = ({
                   method="post"
                   action="/wishlist/categories"
                   className="flex flex-1 items-center gap-2"
-                  onSubmit={attachClientMutationIdToForm}
+                  onSubmit={(event) => {
+                    pendingActionMutationIdRef.current =
+                      attachClientMutationIdToForm(event);
+                  }}
                 >
                   <input type="hidden" name="intent" value="rename" />
                   <input type="hidden" name="id" value={cat.id} />
@@ -218,16 +266,18 @@ export const CategoryManager = ({
                       size="icon"
                       variant="ghost"
                       aria-label="Delete category"
-                      onClick={() =>
-                        actionFetcher.submit(
+                      onClick={() => {
+                        const clientMutationId = createClientMutationId();
+                        pendingActionMutationIdRef.current = clientMutationId;
+                        void actionFetcher.submit(
                           {
                             intent: 'delete',
                             id: cat.id,
-                            clientMutationId: createClientMutationId(),
+                            clientMutationId,
                           },
                           { method: 'post', action: '/wishlist/categories' },
-                        )
-                      }
+                        );
+                      }}
                     >
                       <LuTrash className="h-4 w-4" />
                     </Button>

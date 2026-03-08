@@ -35,6 +35,7 @@ export default defineConfig({
     stdout: 'pipe',
     stderr: 'pipe',
     env: {
+      ...process.env,
       PORT,
       NODE_ENV: 'test',
       // Ensure MSW mocks are enabled even when running locally (non-CI)

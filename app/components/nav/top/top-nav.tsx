@@ -1,4 +1,4 @@
-import { Link } from '@remix-run/react';
+import { Link } from 'react-router';
 import { type LucideIcon, Heart, Home, UserCheck, Users } from 'lucide-react';
 import { Logo } from '#app/components/logo';
 import { NotificationBell } from '#app/components/notifications/notification-bell.tsx';

@@ -1,4 +1,4 @@
-import { Link, useFetcher } from '@remix-run/react';
+import { Link, useFetcher } from 'react-router';
 import * as React from 'react';
 import { LuActivity, LuCalendar } from 'react-icons/lu';
 import { Button } from '#app/components/ui/button.tsx';
@@ -48,7 +48,7 @@ export const HomePanels: React.FC<HomePanelsProps> = ({
   React.useEffect(() => {
     if (!shouldLoadPanels || fetcher.state !== 'idle' || fetcher.data) return;
     const suffix = mock ? `?mock=${mock}` : '';
-    fetcher.load(`/resources/home/panels${suffix}`);
+    void fetcher.load(`/resources/home/panels${suffix}`);
   }, [shouldLoadPanels, fetcher, mock]);
 
   if (!isLoggedIn) return null;

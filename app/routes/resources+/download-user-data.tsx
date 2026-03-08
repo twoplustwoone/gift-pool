@@ -1,12 +1,13 @@
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
+import { type LoaderFunctionArgs } from 'react-router';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getDomainUrl } from '#app/utils/misc.tsx';
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   const user = await prisma.user.findUniqueOrThrow({
-    where: { id: userId },
+    where: {
+      id: userId,
+    },
     // this is one of the *few* instances where you can use "include" because
     // the goal is to literally get *everything*. Normally you should be
     // explicit with "select". We're using select for images because we don't
@@ -21,15 +22,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
           contentType: true,
         },
       },
-      password: false, // <-- intentionally omit password
+      password: false,
+      // <-- intentionally omit password
       sessions: true,
       roles: true,
     },
   });
-
   const domain = getDomainUrl(request);
-
-  return json({
+  return {
     user: {
       ...user,
       image: user.image
@@ -39,5 +39,5 @@ export async function loader({ request }: LoaderFunctionArgs) {
           }
         : null,
     },
-  });
+  };
 }

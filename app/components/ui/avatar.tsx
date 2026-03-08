@@ -1,5 +1,4 @@
 import { type User, type UserImage } from '@prisma/client';
-import { type SerializeFrom } from '@remix-run/node';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 
 type AvatarSize = 's' | 'm' | 'l' | number;
@@ -7,8 +6,8 @@ type AvatarShape = 'circle' | 'rounded' | 'square';
 type AvatarStatus = 'online' | 'offline' | 'away';
 
 interface AvatarProps {
-  image?: SerializeFrom<Pick<UserImage, 'id' | 'altText'>> | null;
-  user: SerializeFrom<Pick<User, 'name' | 'username'>>;
+  image?: Pick<UserImage, 'id' | 'altText'> | null;
+  user: Pick<User, 'name' | 'username'>;
   size?: AvatarSize;
   shape?: AvatarShape;
   altText?: string;

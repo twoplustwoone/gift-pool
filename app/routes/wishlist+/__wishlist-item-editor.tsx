@@ -7,11 +7,7 @@ import {
 } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type WishlistItem } from '@prisma/client';
-import {
-  Form,
-  useActionData,
-  useFetcher,
-} from '@remix-run/react';
+import { Form, useActionData, useFetcher } from 'react-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LuArchive,
@@ -237,8 +233,9 @@ export const WishlistItemEditor = React.forwardRef<
       [canEdit, hasId, itemIdLabel, mode, openCreate, openEdit, openView],
     );
 
-    const [currentStatus, setCurrentStatus] =
-      useState<WishlistItemStatusValue>(wishlistItem?.status ?? 'ACTIVE');
+    const [currentStatus, setCurrentStatus] = useState<WishlistItemStatusValue>(
+      wishlistItem?.status ?? 'ACTIVE',
+    );
     const statusFetcher = useFetcher<{
       ok?: boolean;
       status?: WishlistItemStatusValue;
@@ -248,7 +245,7 @@ export const WishlistItemEditor = React.forwardRef<
     const statusPending = statusFetcher.state !== 'idle';
     const statusError =
       statusFetcher.state === 'idle'
-        ? ((statusFetcher.data as any)?.error as string | undefined) ?? null
+        ? (((statusFetcher.data as any)?.error as string | undefined) ?? null)
         : null;
     const toggleStatus = currentStatus === 'ACTIVE' ? 'ARCHIVED' : 'ACTIVE';
     const toggleLabel =
@@ -317,20 +314,11 @@ export const WishlistItemEditor = React.forwardRef<
       if (actionStatus !== 'success') return;
       if (trackedAnalyticsEventIdRef.current === analyticsEventId) return;
       trackedAnalyticsEventIdRef.current = analyticsEventId;
-      track(
-        'wishlist_item_added',
-        undefined,
-        {
-          eventId: analyticsEventId,
-          requestId: analyticsRequestId ?? requestIdFallback,
-        },
-      );
-    }, [
-      analyticsEventId,
-      analyticsRequestId,
-      actionStatus,
-      requestIdFallback,
-    ]);
+      track('wishlist_item_added', undefined, {
+        eventId: analyticsEventId,
+        requestId: analyticsRequestId ?? requestIdFallback,
+      });
+    }, [analyticsEventId, analyticsRequestId, actionStatus, requestIdFallback]);
 
     useEffect(() => {
       setCurrentStatus(wishlistItem?.status ?? 'ACTIVE');
@@ -349,15 +337,14 @@ export const WishlistItemEditor = React.forwardRef<
     const handleStatusChange = (status: WishlistItemStatusValue) => {
       if (!wishlistItem?.id) return;
       setCurrentStatus(status);
-      const shouldSubmit =
-        onStatusChange?.(wishlistItem.id, status) !== false;
+      const shouldSubmit = onStatusChange?.(wishlistItem.id, status) !== false;
       const formData = new FormData();
       formData.set('intent', 'update-wishlist-item-status');
       formData.set('wishlistItemId', wishlistItem.id);
       formData.set('status', status);
       formData.set('clientMutationId', createClientMutationId());
       if (shouldSubmit) {
-        statusFetcher.submit(formData, {
+        void statusFetcher.submit(formData, {
           method: 'post',
           action: '/wishlist/status',
         });
@@ -419,11 +406,15 @@ export const WishlistItemEditor = React.forwardRef<
     const DialogFooterComponent = isDesktop
       ? DialogFooter
       : MobileBottomSheetFooter;
-    const DialogTitleComponent = isDesktop ? DialogTitle : MobileBottomSheetTitle;
+    const DialogTitleComponent = isDesktop
+      ? DialogTitle
+      : MobileBottomSheetTitle;
     const DialogDescriptionComponent = isDesktop
       ? DialogDescription
       : MobileBottomSheetDescription;
-    const DialogCloseComponent = isDesktop ? DialogClose : MobileBottomSheetClose;
+    const DialogCloseComponent = isDesktop
+      ? DialogClose
+      : MobileBottomSheetClose;
 
     const imageFileInputProps = getInputProps(fields.imageFile, {
       type: 'file',
@@ -696,9 +687,7 @@ export const WishlistItemEditor = React.forwardRef<
     return (
       <DialogRoot open={open} onOpenChange={handleOpenChange}>
         {trigger ? (
-          <DialogTriggerComponent asChild>
-            {trigger}
-          </DialogTriggerComponent>
+          <DialogTriggerComponent asChild>{trigger}</DialogTriggerComponent>
         ) : !wishlistItem && showDefaultTrigger ? (
           <>
             {/* Desktop add button */}
@@ -731,7 +720,6 @@ export const WishlistItemEditor = React.forwardRef<
             )}
           </>
         ) : null}
-
         {/* Optional: ensure dialog can fit our inner width comfortably */}
         <DialogContentComponent
           className="p-5 sm:max-w-[36rem] sm:p-6"
@@ -777,7 +765,9 @@ export const WishlistItemEditor = React.forwardRef<
                     <Button
                       type="button"
                       size={isDesktop ? 'sm' : 'default'}
-                      variant={currentStatus === 'ACTIVE' ? 'secondary' : 'default'}
+                      variant={
+                        currentStatus === 'ACTIVE' ? 'secondary' : 'default'
+                      }
                       className="w-full gap-2"
                       disabled={statusPending}
                       aria-label={toggleLabel}
@@ -898,7 +888,6 @@ export const WishlistItemEditor = React.forwardRef<
                     className="hidden"
                   />
                 ) : null}
-
                 {hasId ? (
                   <>
                     <input type="hidden" name="id" value={wishlistItem!.id} />
@@ -911,7 +900,6 @@ export const WishlistItemEditor = React.forwardRef<
                     ) : null}
                   </>
                 ) : null}
-
                 <Field
                   className="w-full"
                   labelProps={{ children: 'Title' }}
@@ -925,7 +913,6 @@ export const WishlistItemEditor = React.forwardRef<
                   }}
                   errors={fields.title.errors}
                 />
-
                 <Field
                   className="w-full"
                   labelProps={{ children: 'Link' }}
@@ -938,7 +925,6 @@ export const WishlistItemEditor = React.forwardRef<
                   }}
                   errors={fields.url.errors}
                 />
-
                 <TextareaField
                   className="w-full"
                   labelProps={{ children: 'Description' }}
@@ -952,7 +938,6 @@ export const WishlistItemEditor = React.forwardRef<
                   }}
                   errors={fields.note.errors}
                 />
-
                 <div className="flex flex-col gap-2">
                   <label htmlFor={fields.categoryId.id}>Category</label>
                   <select
@@ -970,7 +955,6 @@ export const WishlistItemEditor = React.forwardRef<
                     ))}
                   </select>
                 </div>
-
                 <input
                   type="hidden"
                   name="imageAction"
@@ -1155,7 +1139,6 @@ export const WishlistItemEditor = React.forwardRef<
                     </Button>
                   </div>
                 </div>
-
                 <DialogFooterComponent className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
                   <DialogCloseComponent asChild>
                     <Button

@@ -7,12 +7,12 @@ import {
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
-  json,
+  data,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
   type MetaFunction,
-} from '@remix-run/node';
-import { Form, Link, useActionData, useSearchParams } from '@remix-run/react';
+} from 'react-router';
+import { Form, Link, useActionData, useSearchParams } from 'react-router';
 import { HoneypotInputs } from 'remix-utils/honeypot/react';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
@@ -20,37 +20,35 @@ import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { login, requireAnonymous } from '#app/utils/auth.server.ts';
-
 import { checkHoneypot } from '#app/utils/honeypot.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { PasswordSchema, UsernameSchema } from '#app/utils/user-validation.ts';
 import { handleNewSession } from './login.server.ts';
-
 export const handle: SEOHandle = {
   getSitemapEntries: () => null,
 };
-
 const LoginFormSchema = z.object({
   username: UsernameSchema,
   password: PasswordSchema,
   redirectTo: z.string().optional(),
   remember: z.boolean().optional(),
 });
-
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireAnonymous(request);
-  return json({});
+  return {};
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   await requireAnonymous(request);
   const formData = await request.formData();
-  checkHoneypot(formData);
+  await checkHoneypot(formData);
   const submission = await parseWithZod(formData, {
     schema: (intent) =>
       LoginFormSchema.transform(async (data, ctx) => {
-        if (intent !== null) return { ...data, session: null };
-
+        if (intent !== null)
+          return {
+            ...data,
+            session: null,
+          };
         const session = await login(data);
         if (!session) {
           ctx.addIssue({
@@ -59,21 +57,26 @@ export async function action({ request }: ActionFunctionArgs) {
           });
           return z.NEVER;
         }
-
-        return { ...data, session };
+        return {
+          ...data,
+          session,
+        };
       }),
     async: true,
   });
-
   if (submission.status !== 'success' || !submission.value.session) {
-    return json(
-      { result: submission.reply({ hideFields: ['password'] }) },
-      { status: submission.status === 'error' ? 400 : 200 },
+    return data(
+      {
+        result: submission.reply({
+          hideFields: ['password'],
+        }),
+      },
+      {
+        status: submission.status === 'error' ? 400 : 200,
+      },
     );
   }
-
   const { session, remember, redirectTo } = submission.value;
-
   return handleNewSession({
     request,
     session,
@@ -81,24 +84,25 @@ export async function action({ request }: ActionFunctionArgs) {
     redirectTo,
   });
 }
-
 const LoginPage = () => {
   const actionData = useActionData<typeof action>();
   const isPending = useIsPending();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirectTo');
-
   const [form, fields] = useForm<z.input<typeof LoginFormSchema>>({
     id: 'login-form',
     constraint: getZodConstraint(LoginFormSchema),
-    defaultValue: { redirectTo },
+    defaultValue: {
+      redirectTo,
+    },
     lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: LoginFormSchema }) as any;
+      return parseWithZod(formData, {
+        schema: LoginFormSchema,
+      }) as any;
     },
     shouldRevalidate: 'onBlur',
   });
-
   return (
     <div className="flex min-h-full flex-col justify-center pb-32 pt-20">
       <div className="mx-auto w-full max-w-md">
@@ -115,9 +119,13 @@ const LoginPage = () => {
             <Form method="POST" {...getFormProps(form)}>
               <HoneypotInputs />
               <Field
-                labelProps={{ children: 'Username' }}
+                labelProps={{
+                  children: 'Username',
+                }}
                 inputProps={{
-                  ...getInputProps(fields.username, { type: 'text' }),
+                  ...getInputProps(fields.username, {
+                    type: 'text',
+                  }),
                   autoFocus: true,
                   className: 'lowercase',
                   autoComplete: 'username',
@@ -126,7 +134,9 @@ const LoginPage = () => {
               />
 
               <Field
-                labelProps={{ children: 'Password' }}
+                labelProps={{
+                  children: 'Password',
+                }}
                 inputProps={{
                   ...getInputProps(fields.password, {
                     type: 'password',
@@ -158,7 +168,9 @@ const LoginPage = () => {
               </div>
 
               <input
-                {...getInputProps(fields.redirectTo, { type: 'hidden' })}
+                {...getInputProps(fields.redirectTo, {
+                  type: 'hidden',
+                })}
               />
               <ErrorList errors={form.errors} id={form.errorId} />
 
@@ -192,13 +204,14 @@ const LoginPage = () => {
     </div>
   );
 };
-
 export default LoginPage;
-
 export const meta: MetaFunction = () => {
-  return [{ title: 'Login to GiftPool' }];
+  return [
+    {
+      title: 'Login to GiftPool',
+    },
+  ];
 };
-
 export const ErrorBoundary = () => {
   return <GeneralErrorBoundary />;
 };

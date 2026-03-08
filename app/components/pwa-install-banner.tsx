@@ -1,4 +1,4 @@
-import { Link } from '@remix-run/react';
+import { Link } from 'react-router';
 import { useMemo } from 'react';
 
 import { Button } from '#app/components/ui/button.tsx';

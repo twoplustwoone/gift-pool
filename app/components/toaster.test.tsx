@@ -5,7 +5,7 @@ import { render } from '@testing-library/react';
 import React from 'react';
 import { toast as sonnerToast } from 'sonner';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import  { type Toast } from '#app/utils/toast.server.ts';
+import { type Toast } from '#app/utils/toast.server.ts';
 import { resetToastHistory, useToast } from './toaster.tsx';
 
 vi.mock('sonner', () => {

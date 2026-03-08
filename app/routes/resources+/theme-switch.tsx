@@ -6,60 +6,69 @@ import {
 import { parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
 import {
-  json,
+  data,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
-} from '@remix-run/node';
-import { redirect, useFetcher, useFetchers } from '@remix-run/react';
+} from 'react-router';
+import { redirect, useFetcher, useFetchers } from 'react-router';
 import { ServerOnly } from 'remix-utils/server-only';
 import { z } from 'zod';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { useHints } from '#app/utils/client-hints.tsx';
 import { useRequestInfo } from '#app/utils/request-info.ts';
 import { type Theme, setTheme } from '#app/utils/theme.server.ts';
-
 const ThemeFormSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']),
   // this is useful for progressive enhancement
   redirectTo: z.string().optional(),
 });
-
 export async function action({ request }: ActionFunctionArgs) {
   invariantResponse(request.method === 'POST', 'Method not allowed', {
     status: 405,
-    headers: { Allow: 'POST' },
+    headers: {
+      Allow: 'POST',
+    },
   });
-
   const formData = await request.formData();
   const submission = parseWithZod(formData, {
     schema: ThemeFormSchema,
   });
-
   invariantResponse(submission.status === 'success', 'Invalid theme received');
-
   const { theme, redirectTo } = submission.value;
-
   const responseInit = {
-    headers: { 'set-cookie': setTheme(theme) },
+    headers: {
+      'set-cookie': setTheme(theme),
+    },
   };
   if (redirectTo) {
     return redirect(redirectTo, responseInit);
   } else {
-    return json({ result: submission.reply() }, responseInit);
-  }
-}
-
-export async function loader({ request }: LoaderFunctionArgs) {
-  if (request.method !== 'GET') {
-    return json(
-      { message: 'Method not allowed' },
-      { status: 405, headers: { Allow: 'POST' } },
+    return data(
+      {
+        result: submission.reply(),
+      },
+      responseInit,
     );
   }
-
-  return json({ message: 'Submit a POST request to switch themes.' });
 }
-
+export async function loader({ request }: LoaderFunctionArgs) {
+  if (request.method !== 'GET') {
+    return data(
+      {
+        message: 'Method not allowed',
+      },
+      {
+        status: 405,
+        headers: {
+          Allow: 'POST',
+        },
+      },
+    );
+  }
+  return {
+    message: 'Submit a POST request to switch themes.',
+  };
+}
 export const ThemeSwitch = ({
   userPreference,
 }: {
@@ -67,12 +76,10 @@ export const ThemeSwitch = ({
 }) => {
   const fetcher = useFetcher<typeof action>();
   const requestInfo = useRequestInfo();
-
   const [form] = useForm<z.input<typeof ThemeFormSchema>>({
     id: 'theme-switch',
     lastResult: fetcher.data?.result as unknown as SubmissionResult<string[]>,
   });
-
   const optimisticMode = useOptimisticThemeMode();
   const mode = optimisticMode ?? userPreference ?? 'system';
   const nextMode =
@@ -94,7 +101,6 @@ export const ThemeSwitch = ({
       </Icon>
     ),
   };
-
   return (
     <fetcher.Form
       method="POST"
@@ -128,12 +134,10 @@ export function useOptimisticThemeMode() {
   const themeFetcher = fetchers.find(
     (f) => f.formAction === '/resources/theme-switch',
   );
-
   if (themeFetcher && themeFetcher.formData) {
     const submission = parseWithZod(themeFetcher.formData, {
       schema: ThemeFormSchema,
     });
-
     if (submission.status === 'success') {
       return submission.value.theme;
     }

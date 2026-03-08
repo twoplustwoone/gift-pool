@@ -8,11 +8,11 @@ import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import {
-  json,
+  data as rrData,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
-} from '@remix-run/node';
-import { Link, useFetcher, useLoaderData } from '@remix-run/react';
+} from 'react-router';
+import { Link, useFetcher, useLoaderData } from 'react-router';
 import { z } from 'zod';
 import { ErrorList, Field } from '#app/components/forms.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -25,57 +25,67 @@ import { authSessionStorage } from '#app/utils/session.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import { NameSchema, UsernameSchema } from '#app/utils/user-validation.ts';
 import { twoFAVerificationType } from './profile.two-factor.tsx';
-
 export const handle: SEOHandle = {
   getSitemapEntries: () => null,
 };
-
 const ProfileFormSchema = z.object({
   name: NameSchema.optional(),
   username: UsernameSchema,
 });
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   const user = await prisma.user.findUniqueOrThrow({
-    where: { id: userId },
+    where: {
+      id: userId,
+    },
     select: {
       id: true,
       name: true,
       username: true,
       email: true,
       image: {
-        select: { id: true },
+        select: {
+          id: true,
+        },
       },
       _count: {
         select: {
           sessions: {
             where: {
-              expirationDate: { gt: new Date() },
+              expirationDate: {
+                gt: new Date(),
+              },
             },
           },
         },
       },
     },
   });
-
   const twoFactorVerification = await prisma.verification.findUnique({
-    select: { id: true },
-    where: { target_type: { type: twoFAVerificationType, target: userId } },
+    select: {
+      id: true,
+    },
+    where: {
+      target_type: {
+        type: twoFAVerificationType,
+        target: userId,
+      },
+    },
   });
-
   const password = await prisma.password.findUnique({
-    select: { userId: true },
-    where: { userId },
+    select: {
+      userId: true,
+    },
+    where: {
+      userId,
+    },
   });
-
-  return json({
+  return {
     user,
     hasPassword: Boolean(password),
     isTwoFactorEnabled: Boolean(twoFactorVerification),
-  });
+  };
 }
-
 type ProfileActionArgs = {
   request: Request;
   userId: string;
@@ -84,30 +94,41 @@ type ProfileActionArgs = {
 const profileUpdateActionIntent = 'update-profile';
 const signOutOfSessionsActionIntent = 'sign-out-of-sessions';
 const deleteDataActionIntent = 'delete-data';
-
 export async function action({ request }: ActionFunctionArgs) {
   const userId = await requireUserId(request);
   const formData = await request.formData();
   const intent = formData.get('intent');
   switch (intent) {
     case profileUpdateActionIntent: {
-      return profileUpdateAction({ request, userId, formData });
+      return profileUpdateAction({
+        request,
+        userId,
+        formData,
+      });
     }
     case signOutOfSessionsActionIntent: {
-      return signOutOfSessionsAction({ request, userId, formData });
+      return signOutOfSessionsAction({
+        request,
+        userId,
+        formData,
+      });
     }
     case deleteDataActionIntent: {
-      return deleteDataAction({ request, userId, formData });
+      return deleteDataAction({
+        request,
+        userId,
+        formData,
+      });
     }
     default: {
-      throw new Response(`Invalid intent "${intent}"`, { status: 400 });
+      throw new Response(`Invalid intent "${intent}"`, {
+        status: 400,
+      });
     }
   }
 }
-
 const EditUserProfile = () => {
   const data = useLoaderData<typeof loader>();
-
   return (
     <div className="flex flex-col gap-12">
       <div className="flex justify-center">
@@ -185,16 +206,18 @@ const EditUserProfile = () => {
     </div>
   );
 };
-
 export default EditUserProfile;
-
 async function profileUpdateAction({ userId, formData }: ProfileActionArgs) {
   const submission = await parseWithZod(formData, {
     async: true,
     schema: ProfileFormSchema.superRefine(async ({ username }, ctx) => {
       const existingUsername = await prisma.user.findUnique({
-        where: { username },
-        select: { id: true },
+        where: {
+          username,
+        },
+        select: {
+          id: true,
+        },
       });
       if (existingUsername && existingUsername.id !== userId) {
         ctx.addIssue({
@@ -206,46 +229,49 @@ async function profileUpdateAction({ userId, formData }: ProfileActionArgs) {
     }),
   });
   if (submission.status !== 'success') {
-    return json(
-      { result: submission.reply() },
-      { status: submission.status === 'error' ? 400 : 200 },
+    return rrData(
+      {
+        result: submission.reply(),
+      },
+      {
+        status: submission.status === 'error' ? 400 : 200,
+      },
     );
   }
-
   const data = submission.value;
-
   await prisma.user.update({
-    select: { username: true },
-    where: { id: userId },
+    select: {
+      username: true,
+    },
+    where: {
+      id: userId,
+    },
     data: {
       name: data.name,
       username: data.username,
     },
   });
-
-  return json({
+  return {
     result: submission.reply(),
-  });
+  };
 }
-
 const UpdateProfile = () => {
   const data = useLoaderData<typeof loader>();
-
   const fetcher = useFetcher<typeof profileUpdateAction>();
-
   const [form, fields] = useForm<z.input<typeof ProfileFormSchema>>({
     id: 'edit-profile',
     constraint: getZodConstraint(ProfileFormSchema),
     lastResult: fetcher.data?.result as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: ProfileFormSchema }) as any;
+      return parseWithZod(formData, {
+        schema: ProfileFormSchema,
+      }) as any;
     },
     defaultValue: {
       username: data.user.username,
       name: data.user.name,
     },
   });
-
   return (
     <fetcher.Form method="POST" {...getFormProps(form)}>
       <div className="grid grid-cols-6 gap-x-10">
@@ -255,13 +281,20 @@ const UpdateProfile = () => {
             htmlFor: fields.username.id,
             children: 'Username',
           }}
-          inputProps={getInputProps(fields.username, { type: 'text' })}
+          inputProps={getInputProps(fields.username, {
+            type: 'text',
+          })}
           errors={fields.username.errors}
         />
         <Field
           className="col-span-3"
-          labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
-          inputProps={getInputProps(fields.name, { type: 'text' })}
+          labelProps={{
+            htmlFor: fields.name.id,
+            children: 'Name',
+          }}
+          inputProps={getInputProps(fields.name, {
+            type: 'text',
+          })}
           errors={fields.name.errors}
         />
       </div>
@@ -284,7 +317,6 @@ const UpdateProfile = () => {
     </fetcher.Form>
   );
 };
-
 async function signOutOfSessionsAction({ request, userId }: ProfileActionArgs) {
   const authSession = await authSessionStorage.getSession(
     request.headers.get('cookie'),
@@ -297,16 +329,18 @@ async function signOutOfSessionsAction({ request, userId }: ProfileActionArgs) {
   await prisma.session.deleteMany({
     where: {
       userId,
-      id: { not: sessionId },
+      id: {
+        not: sessionId,
+      },
     },
   });
-  return json({ status: 'success' } as const);
+  return {
+    status: 'success',
+  } as const;
 }
-
 const SignOutOfSessions = () => {
   const data = useLoaderData<typeof loader>();
   const dc = useDoubleCheck();
-
   const fetcher = useFetcher<typeof signOutOfSessionsAction>();
   const otherSessionsCount = data.user._count.sessions - 1;
   return (
@@ -339,19 +373,20 @@ const SignOutOfSessions = () => {
     </div>
   );
 };
-
 async function deleteDataAction({ userId }: ProfileActionArgs) {
-  await prisma.user.delete({ where: { id: userId } });
+  await prisma.user.delete({
+    where: {
+      id: userId,
+    },
+  });
   return redirectWithToast('/', {
     type: 'success',
     title: 'Data Deleted',
     description: 'All of your data has been deleted',
   });
 }
-
 const DeleteData = () => {
   const dc = useDoubleCheck();
-
   const fetcher = useFetcher<typeof deleteDataAction>();
   return (
     <div>

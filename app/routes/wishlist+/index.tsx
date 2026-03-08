@@ -1,6 +1,6 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
-import { useLoaderData } from '@remix-run/react';
+import { data, type LoaderFunctionArgs } from 'react-router';
+import { useLoaderData } from 'react-router';
 import { useEffect, useRef } from 'react';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
@@ -17,14 +17,18 @@ import { useRequestInfo } from '#app/utils/request-info.ts';
 import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
 // Re-export the server action without importing it in the client bundle
 export { action } from './__wishlist-item-editor.server';
-
 type LoaderData = {
   user: WishlistUser;
-  analytics: { requestId: string; viewEventId: string };
-  publicShare: { token: string; createdAt: string } | null;
+  analytics: {
+    requestId: string;
+    viewEventId: string;
+  };
+  publicShare: {
+    token: string;
+    createdAt: string;
+  } | null;
   origin: string;
 };
-
 export async function loader({ request }: LoaderFunctionArgs) {
   const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
@@ -56,15 +60,23 @@ export async function loader({ request }: LoaderFunctionArgs) {
           name: true,
           order: true,
         },
-        orderBy: { order: 'asc' },
+        orderBy: {
+          order: 'asc',
+        },
       },
-      image: { select: { id: true } },
+      image: {
+        select: {
+          id: true,
+        },
+      },
     },
-    where: { id: userId },
+    where: {
+      id: userId,
+    },
   });
-
-  invariantResponse(user, 'User not found', { status: 404 });
-
+  invariantResponse(user, 'User not found', {
+    status: 404,
+  });
   const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
     ({ image, imageSource, status, ...item }) => {
       const normalizedStatus =
@@ -78,25 +90,36 @@ export async function loader({ request }: LoaderFunctionArgs) {
       };
     },
   );
-
   const viewEvent = await logEvent({
     name: 'wishlist_viewed',
     userId,
     source: 'server',
     requestId,
     sessionId,
-    properties: { wishlistOwnerId: userId, itemCount: wishlistItems.length },
+    properties: {
+      wishlistOwnerId: userId,
+      itemCount: wishlistItems.length,
+    },
   });
-
   const publicShare = await prisma.wishlistPublicShare.findUnique({
-    select: { token: true, createdAt: true },
-    where: { ownerId: userId },
+    select: {
+      token: true,
+      createdAt: true,
+    },
+    where: {
+      ownerId: userId,
+    },
   });
-
-  return json<LoaderData>(
+  return data<LoaderData>(
     {
-      user: { ...user, wishlistItems },
-      analytics: { requestId, viewEventId: viewEvent.eventId },
+      user: {
+        ...user,
+        wishlistItems,
+      },
+      analytics: {
+        requestId,
+        viewEventId: viewEvent.eventId,
+      },
       publicShare: publicShare
         ? {
             token: publicShare.token,
@@ -105,15 +128,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
         : null,
       origin: getDomainUrl(request),
     },
-    { headers: applyRequestIdHeader(null, requestId) },
+    {
+      headers: applyRequestIdHeader(null, requestId),
+    },
   );
 }
-
 const WishlistIndex = () => {
   const data = useLoaderData<typeof loader>();
   const requestInfo = useRequestInfo();
   const trackedViewIdRef = useRef<string | null>(null);
-
   const user: WishlistUser = {
     ...data.user,
     wishlistItems: data.user.wishlistItems.map((item) => ({
@@ -122,9 +145,11 @@ const WishlistIndex = () => {
     })),
   };
   const publicShare = data.publicShare
-    ? { ...data.publicShare, createdAt: new Date(data.publicShare.createdAt) }
+    ? {
+        ...data.publicShare,
+        createdAt: new Date(data.publicShare.createdAt),
+      }
     : null;
-
   useEffect(() => {
     if (!data.analytics?.viewEventId) return;
     if (trackedViewIdRef.current === data.analytics.viewEventId) return;
@@ -146,7 +171,6 @@ const WishlistIndex = () => {
     user.wishlistItems.length,
     requestInfo.requestId,
   ]);
-
   return (
     <Wishlist
       isOwner
@@ -156,9 +180,7 @@ const WishlistIndex = () => {
     />
   );
 };
-
 export default WishlistIndex;
-
 export const ErrorBoundary = () => {
   return (
     <GeneralErrorBoundary

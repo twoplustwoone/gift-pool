@@ -1,12 +1,12 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { json, type LoaderFunctionArgs } from '@remix-run/node';
+import { type LoaderFunctionArgs } from 'react-router';
 import {
   Form,
   Link,
   redirect,
   useLoaderData,
   type MetaFunction,
-} from '@remix-run/react';
+} from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { FriendGateCard } from '#app/components/friends/friend-gate-card.tsx';
@@ -20,14 +20,12 @@ import { type RelationshipState } from '#app/utils/friends.ts';
 import { useTranslation } from '#app/utils/i18n.tsx';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useOptionalUser } from '#app/utils/user.ts';
-
 type Relationship = {
   state: RelationshipState;
   friendshipId: string | null;
   incomingRequestId: string | null;
   outgoingRequestId: string | null;
 };
-
 type LoaderData =
   | {
       canViewProfile: false;
@@ -45,71 +43,76 @@ type LoaderData =
         name: string | null;
         username: string;
         createdAt: Date;
-        image: { id: string } | null;
+        image: {
+          id: string;
+        } | null;
       };
       relationship: Relationship;
       userJoinedDisplay: string;
     };
-
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { username } = params;
-
   const userId = await requireUserId(request);
-
   const targetUser = await prisma.user.findFirst({
     select: {
       id: true,
       name: true,
       username: true,
     },
-    where: { username },
+    where: {
+      username,
+    },
   });
-
-  invariantResponse(targetUser, 'User not found', { status: 404 });
-
+  invariantResponse(targetUser, 'User not found', {
+    status: 404,
+  });
   if (targetUser.id === userId) {
     return redirect('/me');
   }
-
-  const relationshipDetails = await getRelationshipDetails(userId, targetUser.id);
+  const relationshipDetails = await getRelationshipDetails(
+    userId,
+    targetUser.id,
+  );
   const relationship: Relationship = {
     state: relationshipDetails.state,
     friendshipId: relationshipDetails.friendship?.id ?? null,
     incomingRequestId: relationshipDetails.incoming?.id ?? null,
     outgoingRequestId: relationshipDetails.outgoing?.id ?? null,
   };
-
   const canViewProfile = relationship.state === 'FRIENDS';
-
   if (!canViewProfile) {
-    return json<LoaderData>({
+    return {
       canViewProfile,
       user: targetUser,
       relationship,
-    });
+    };
   }
-
   const user = await prisma.user.findFirst({
     select: {
       id: true,
       name: true,
       username: true,
       createdAt: true,
-      image: { select: { id: true } },
+      image: {
+        select: {
+          id: true,
+        },
+      },
     },
-    where: { id: targetUser.id },
+    where: {
+      id: targetUser.id,
+    },
   });
-
-  invariantResponse(user, 'User not found', { status: 404 });
-
-  return json<LoaderData>({
+  invariantResponse(user, 'User not found', {
+    status: 404,
+  });
+  return {
     user,
     canViewProfile,
     userJoinedDisplay: user.createdAt.toLocaleDateString(),
     relationship,
-  });
+  };
 }
-
 const ProfileRoute = () => {
   const data = useLoaderData<typeof loader>();
   const { t } = useTranslation();
@@ -118,12 +121,15 @@ const ProfileRoute = () => {
   const loggedInUser = useOptionalUser();
   const isLoggedInUser = data.user.id === loggedInUser?.id;
   const relationship = data.relationship;
-
   if (!data.canViewProfile) {
     return (
       <FriendGateCard
-        title={t('friends.accessRequiredTitle', { name: userDisplayName })}
-        description={t('friends.accessRequiredProfile', { name: userDisplayName })}
+        title={t('friends.accessRequiredTitle', {
+          name: userDisplayName,
+        })}
+        description={t('friends.accessRequiredProfile', {
+          name: userDisplayName,
+        })}
         relationship={relationship}
         targetUserId={data.user.id}
         targetUserName={userDisplayName}
@@ -132,7 +138,6 @@ const ProfileRoute = () => {
       />
     );
   }
-
   return (
     <div className="container mb-48 mt-36 flex flex-col items-center justify-center">
       <Spacer size="4xs" />
@@ -203,20 +208,19 @@ const ProfileRoute = () => {
     </div>
   );
 };
-
 export default ProfileRoute;
-
 export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
   const displayName = data?.user.name ?? params.username;
   return [
-    { title: `${displayName} | GiftPool` },
+    {
+      title: `${displayName} | GiftPool`,
+    },
     {
       name: 'description',
       content: `Profile of ${displayName} on GiftPool`,
     },
   ];
 };
-
 export const ErrorBoundary = () => {
   return (
     <GeneralErrorBoundary

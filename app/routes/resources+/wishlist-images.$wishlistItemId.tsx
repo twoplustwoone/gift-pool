@@ -1,5 +1,5 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { type LoaderFunctionArgs } from '@remix-run/node';
+import { type LoaderFunctionArgs } from 'react-router';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { WISHLIST_IMAGE_HEADERS } from '#app/utils/wishlist-images.server.ts';

@@ -1,5 +1,5 @@
-import { type MetaFunction } from '@remix-run/node';
-import { Link, useSearchParams } from '@remix-run/react';
+import { type MetaFunction } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';

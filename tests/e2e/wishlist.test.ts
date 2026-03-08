@@ -22,19 +22,15 @@ async function dragHandleToTarget(
   await page.mouse.up();
 }
 
-const openCategoryActions = async (
-  page: Page,
-  categoryName: string,
-) => {
+const openCategoryActions = async (page: Page, categoryName: string) => {
   await page
-    .getByRole('button', { name: new RegExp(`category actions for ${categoryName}`, 'i') })
+    .getByRole('button', {
+      name: new RegExp(`category actions for ${categoryName}`, 'i'),
+    })
     .click();
 };
 
-const startReorderMode = async (
-  page: Page,
-  mode: 'items' | 'categories',
-) => {
+const startReorderMode = async (page: Page, mode: 'items' | 'categories') => {
   await page.getByRole('button', { name: /categories/i }).click();
   await page
     .getByRole('button', {
@@ -43,10 +39,7 @@ const startReorderMode = async (
     .click();
 };
 
-const addItemToCategory = async (
-  page: Page,
-  categoryName: string,
-) => {
+const addItemToCategory = async (page: Page, categoryName: string) => {
   await openCategoryActions(page, categoryName);
   await page.getByRole('menuitem', { name: /add item/i }).click();
 };
@@ -224,7 +217,9 @@ test('users can create, edit, and delete categories; items follow correctly', as
 
   // Sanity: open item editor
   await page.locator('.rounded-xl.border.border-card-border').first();
-  await page.getByRole('button', { name: /item actions for book one/i }).click();
+  await page
+    .getByRole('button', { name: /item actions for book one/i })
+    .click();
   await page.getByRole('menuitem', { name: /edit item/i }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
 });
@@ -272,22 +267,25 @@ test('owners can drag reorder categories and items across categories', async ({
     page.getByRole('button', { name: 'Drag category Books' }),
   );
 
-  await waitFor(async () => {
-    const orderedCategories = await prisma.wishlistCategory.findMany({
-      where: { ownerId: user.id },
-      orderBy: { order: 'asc' },
-      select: { name: true },
-    });
+  await waitFor(
+    async () => {
+      const orderedCategories = await prisma.wishlistCategory.findMany({
+        where: { ownerId: user.id },
+        orderBy: { order: 'asc' },
+        select: { name: true },
+      });
 
-    if (
-      orderedCategories[0]?.name !== 'Games' ||
-      orderedCategories[1]?.name !== 'Books'
-    ) {
-      throw new Error('Categories have not been reordered yet');
-    }
+      if (
+        orderedCategories[0]?.name !== 'Games' ||
+        orderedCategories[1]?.name !== 'Books'
+      ) {
+        throw new Error('Categories have not been reordered yet');
+      }
 
-    return orderedCategories;
-  }, { timeout: 8000 });
+      return orderedCategories;
+    },
+    { timeout: 8000 },
+  );
 
   await page.getByRole('button', { name: /item reorder mode/i }).click();
   await expect(
@@ -337,38 +335,41 @@ test('owners can drag reorder categories and items across categories', async ({
   await page.reload();
   await page.waitForLoadState('networkidle');
   await expect(
-    page
-      .getByTestId("wishlist-category-row")
-      .filter({
-        has: page.getByRole('heading', { name: /games \(1\)/i }),
-      }),
+    page.getByTestId('wishlist-category-row').filter({
+      has: page.getByRole('heading', { name: /games \(1\)/i }),
+    }),
   ).toBeVisible();
 
-  await waitFor(async () => {
-    const movedItem = await prisma.wishlistItem.findFirst({
-      where: { ownerId: user.id, title: 'Book Alpha' },
-      select: { categoryId: true, sortOrder: true },
-    });
+  await waitFor(
+    async () => {
+      const movedItem = await prisma.wishlistItem.findFirst({
+        where: { ownerId: user.id, title: 'Book Alpha' },
+        select: { categoryId: true, sortOrder: true },
+      });
 
-    const gamesItems = await prisma.wishlistItem.findMany({
-      where: { ownerId: user.id, categoryId: gamesCategory.id },
-      select: { title: true, sortOrder: true },
-      orderBy: { sortOrder: 'asc' },
-    });
+      const gamesItems = await prisma.wishlistItem.findMany({
+        where: { ownerId: user.id, categoryId: gamesCategory.id },
+        select: { title: true, sortOrder: true },
+        orderBy: { sortOrder: 'asc' },
+      });
 
-    if (
-      movedItem?.categoryId !== gamesCategory.id ||
-      gamesItems[0]?.title !== 'Book Alpha'
-    ) {
-      throw new Error('Item has not moved to Games yet');
-    }
+      if (
+        movedItem?.categoryId !== gamesCategory.id ||
+        gamesItems[0]?.title !== 'Book Alpha'
+      ) {
+        throw new Error('Item has not moved to Games yet');
+      }
 
-    return gamesItems;
-  }, { timeout: 8000 });
-
+      return gamesItems;
+    },
+    { timeout: 8000 },
+  );
 });
 
-test('owners can clear a wishlist item description', async ({ page, login }) => {
+test('owners can clear a wishlist item description', async ({
+  page,
+  login,
+}) => {
   await login();
   await page.goto('/wishlist');
   await page.waitForLoadState('networkidle');
@@ -386,21 +387,26 @@ test('owners can clear a wishlist item description', async ({ page, login }) => 
   await page.getByRole('textbox', { name: /description/i }).fill('');
   await page.getByRole('button', { name: /^save$/i }).click();
 
-  await waitFor(async () => {
-    const saved = await prisma.wishlistItem.findFirst({
-      where: { title: 'Clearable Note Item' },
-      select: { note: true },
-    });
-    if (saved?.note !== null) {
-      throw new Error('Note not cleared yet');
-    }
-    return saved;
-  }, { timeout: 8000 });
+  await waitFor(
+    async () => {
+      const saved = await prisma.wishlistItem.findFirst({
+        where: { title: 'Clearable Note Item' },
+        select: { note: true },
+      });
+      if (saved?.note !== null) {
+        throw new Error('Note not cleared yet');
+      }
+      return saved;
+    },
+    { timeout: 8000 },
+  );
 
   await page.reload();
   await expect(page.getByText('Clearable Note Item').first()).toBeVisible();
   await expect(page.getByText('Remove me')).toHaveCount(0);
 
   await page.getByText('Clearable Note Item').first().click();
-  await expect(page.getByRole('textbox', { name: /description/i })).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: /description/i })).toHaveValue(
+    '',
+  );
 });

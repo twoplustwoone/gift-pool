@@ -1,6 +1,6 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { json, redirect, type LoaderFunctionArgs } from '@remix-run/node';
-import { useLoaderData } from '@remix-run/react';
+import { data, redirect, type LoaderFunctionArgs } from 'react-router';
+import { useLoaderData } from 'react-router';
 import { useEffect, useRef } from 'react';
 import { FriendGateCard } from '#app/components/friends/friend-gate-card.tsx';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
@@ -17,16 +17,17 @@ import {
 } from '#app/utils/request-context.server.ts';
 import { useRequestInfo } from '#app/utils/request-info.ts';
 import { cleanupWishlistPurchasesForOwner } from '#app/utils/wishlist.server.ts';
-
 type Relationship = {
   state: RelationshipState;
   friendshipId: string | null;
   incomingRequestId: string | null;
   outgoingRequestId: string | null;
 };
-
 type LoaderData = {
-  analytics: { requestId: string; viewEventId: string | null };
+  analytics: {
+    requestId: string;
+    viewEventId: string | null;
+  };
 } & (
   | {
       canViewWishlist: false;
@@ -34,7 +35,9 @@ type LoaderData = {
         id: string;
         name: string | null;
         username: string;
-        image: { id: string } | null;
+        image: {
+          id: string;
+        } | null;
       };
       relationship: Relationship;
     }
@@ -44,35 +47,44 @@ type LoaderData = {
       relationship: Relationship;
     }
 );
-
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const { username } = params;
-
   const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
   const wishlistOwner = await prisma.user.findFirst({
-    select: { id: true, name: true, username: true, image: { select: { id: true } } },
-    where: { username },
+    select: {
+      id: true,
+      name: true,
+      username: true,
+      image: {
+        select: {
+          id: true,
+        },
+      },
+    },
+    where: {
+      username,
+    },
   });
-
-  invariantResponse(wishlistOwner, 'User not found', { status: 404 });
-
+  invariantResponse(wishlistOwner, 'User not found', {
+    status: 404,
+  });
   if (wishlistOwner.id === userId) {
     return redirect('/wishlist');
   }
-
-  const relationshipDetails = await getRelationshipDetails(userId, wishlistOwner.id);
+  const relationshipDetails = await getRelationshipDetails(
+    userId,
+    wishlistOwner.id,
+  );
   const relationship: Relationship = {
     state: relationshipDetails.state,
     friendshipId: relationshipDetails.friendship?.id ?? null,
     incomingRequestId: relationshipDetails.incoming?.id ?? null,
     outgoingRequestId: relationshipDetails.outgoing?.id ?? null,
   };
-
   const canViewWishlist = relationship.state === 'FRIENDS';
-
   if (!canViewWishlist) {
-    return json<LoaderData>(
+    return data<LoaderData>(
       {
         canViewWishlist,
         user: {
@@ -82,14 +94,17 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
           image: wishlistOwner.image,
         },
         relationship,
-        analytics: { requestId, viewEventId: null },
+        analytics: {
+          requestId,
+          viewEventId: null,
+        },
       },
-      { headers: applyRequestIdHeader(null, requestId) },
+      {
+        headers: applyRequestIdHeader(null, requestId),
+      },
     );
   }
-
   await cleanupWishlistPurchasesForOwner(wishlistOwner.id);
-
   const user = await prisma.user.findFirst({
     select: {
       id: true,
@@ -106,23 +121,39 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
           categoryId: true,
           updatedAt: true,
           sortOrder: true,
-          purchase: { select: { purchasedById: true } },
+          purchase: {
+            select: {
+              purchasedById: true,
+            },
+          },
           image: true,
           imageSource: true,
           status: true,
         },
       },
       wishlistCategories: {
-        select: { id: true, name: true, order: true },
-        orderBy: { order: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          order: true,
+        },
+        orderBy: {
+          order: 'asc',
+        },
       },
-      image: { select: { id: true } },
+      image: {
+        select: {
+          id: true,
+        },
+      },
     },
-    where: { id: wishlistOwner.id },
+    where: {
+      id: wishlistOwner.id,
+    },
   });
-
-  invariantResponse(user, 'User not found', { status: 404 });
-
+  invariantResponse(user, 'User not found', {
+    status: 404,
+  });
   const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
     ({ image, imageSource, status, ...item }) => {
       const normalizedStatus =
@@ -137,7 +168,6 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
       };
     },
   );
-
   const viewEvent = await logEvent({
     name: 'wishlist_viewed',
     userId,
@@ -150,28 +180,30 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
       itemCount: wishlistItems.length,
     },
   });
-
-  return json<LoaderData>(
+  return data<LoaderData>(
     {
       canViewWishlist,
-      user: { ...user, wishlistItems },
+      user: {
+        ...user,
+        wishlistItems,
+      },
       relationship,
       analytics: {
         requestId,
         viewEventId: viewEvent.eventId,
       },
     },
-    { headers: applyRequestIdHeader(null, requestId) },
+    {
+      headers: applyRequestIdHeader(null, requestId),
+    },
   );
 };
-
 const UserWishlist = () => {
   const data = useLoaderData<typeof loader>();
   const { t } = useTranslation();
   const requestInfo = useRequestInfo();
   const trackedViewIdRef = useRef<string | null>(null);
   const viewableWishlist = data.canViewWishlist ? data.user : null;
-
   useEffect(() => {
     if (!data.analytics?.viewEventId) return;
     if (!viewableWishlist) return;
@@ -194,13 +226,16 @@ const UserWishlist = () => {
     viewableWishlist?.wishlistItems.length,
     requestInfo.requestId,
   ]);
-
   if (!data.canViewWishlist) {
     const userDisplayName = data.user.name ?? data.user.username;
     return (
       <FriendGateCard
-        title={t('friends.accessRequiredTitle', { name: userDisplayName })}
-        description={t('friends.accessRequiredWishlist', { name: userDisplayName })}
+        title={t('friends.accessRequiredTitle', {
+          name: userDisplayName,
+        })}
+        description={t('friends.accessRequiredWishlist', {
+          name: userDisplayName,
+        })}
         relationship={data.relationship}
         targetUserId={data.user.id}
         targetUserName={userDisplayName}
@@ -209,7 +244,6 @@ const UserWishlist = () => {
       />
     );
   }
-
   const user: WishlistUser = {
     ...viewableWishlist!,
     wishlistItems: viewableWishlist!.wishlistItems.map((item) => ({
@@ -217,8 +251,6 @@ const UserWishlist = () => {
       updatedAt: new Date(item.updatedAt),
     })),
   };
-
   return <Wishlist isOwner={false} user={user} />;
 };
-
 export default UserWishlist;

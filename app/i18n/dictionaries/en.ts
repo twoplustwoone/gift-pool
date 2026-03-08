@@ -64,7 +64,7 @@ export const en = {
     viewWishlist: 'View wishlist',
     accessRequiredTitle: 'Add {{name}} as a friend to continue',
     accessRequiredProfile:
-      'Send a friend request to view {{name}}\'s profile details.',
+      "Send a friend request to view {{name}}'s profile details.",
     accessRequiredWishlist:
       'You need to be friends with {{name}} to see their wishlist.',
     navigateAway: 'Go to friends',

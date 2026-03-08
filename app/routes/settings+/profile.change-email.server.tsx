@@ -1,6 +1,6 @@
 import { invariant } from '@epic-web/invariant';
 import * as E from '@react-email/components';
-import { json } from '@remix-run/node';
+import { data } from 'react-router';
 import {
   requireRecentVerification,
   type VerifyFunctionArgs,
@@ -10,7 +10,6 @@ import { sendEmail } from '#app/utils/email.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import { verifySessionStorage } from '#app/utils/verification.server.ts';
 import { newEmailAddressSessionKey } from './profile.change-email';
-
 export async function handleVerification({
   request,
   submission,
@@ -20,13 +19,12 @@ export async function handleVerification({
     submission.status === 'success',
     'Submission should be successful by now',
   );
-
   const verifySession = await verifySessionStorage.getSession(
     request.headers.get('cookie'),
   );
   const newEmail = verifySession.get(newEmailAddressSessionKey);
   if (!newEmail) {
-    return json(
+    return data(
       {
         result: submission.reply({
           formErrors: [
@@ -34,25 +32,37 @@ export async function handleVerification({
           ],
         }),
       },
-      { status: 400 },
+      {
+        status: 400,
+      },
     );
   }
   const preUpdateUser = await prisma.user.findFirstOrThrow({
-    select: { email: true },
-    where: { id: submission.value.target },
+    select: {
+      email: true,
+    },
+    where: {
+      id: submission.value.target,
+    },
   });
   const user = await prisma.user.update({
-    where: { id: submission.value.target },
-    select: { id: true, email: true, username: true },
-    data: { email: newEmail },
+    where: {
+      id: submission.value.target,
+    },
+    select: {
+      id: true,
+      email: true,
+      username: true,
+    },
+    data: {
+      email: newEmail,
+    },
   });
-
   void sendEmail({
     to: preUpdateUser.email,
     subject: 'GiftPool email changed',
     react: <EmailChangeNoticeEmail userId={user.id} />,
   });
-
   return redirectWithToast(
     '/settings/profile',
     {
@@ -67,7 +77,6 @@ export async function handleVerification({
     },
   );
 }
-
 export const EmailChangeEmail = ({
   verifyUrl,
   otp,
@@ -94,7 +103,6 @@ export const EmailChangeEmail = ({
     </E.Html>
   );
 };
-
 const EmailChangeNoticeEmail = ({ userId }: { userId: string }) => {
   return (
     <E.Html lang="en" dir="ltr">
