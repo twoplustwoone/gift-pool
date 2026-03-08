@@ -1,11 +1,8 @@
 import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
-import { expect, test } from '#tests/playwright-utils.ts';
+import { expect, loginWithPassword, test } from '#tests/playwright-utils.ts';
 
-test('profile loader does not expose details to non-friends', async ({
-  page,
-  login,
-}) => {
+test('profile page does not expose details to non-friends', async ({ page }) => {
   const createdUserIds: string[] = [];
   const viewerData = createUser();
   const targetData = createUser();
@@ -20,7 +17,7 @@ test('profile loader does not expose details to non-friends', async ({
       },
     }),
     prisma.user.create({
-      select: { id: true, username: true },
+      select: { id: true, username: true, name: true },
       data: {
         ...targetData,
         roles: { connect: { name: 'user' } },
@@ -32,52 +29,28 @@ test('profile loader does not expose details to non-friends', async ({
   createdUserIds.push(viewer.id, target.id);
 
   try {
-    await login({ id: viewer.id });
-    await page.goto('/');
+    await loginWithPassword(page, {
+      username: viewerData.username,
+      password: viewerData.username,
+    });
+    await page.goto(`/users/${target.username}`);
 
-    const payload = await page.evaluate<
-      {
-        status: number;
-        data: {
-          canViewProfile: boolean;
-          user: {
-            id: string;
-            name: string | null;
-            username: string;
-            createdAt?: unknown;
-            image?: unknown;
-          };
-          relationship: { state: string };
-        };
-      },
-      string
-    >(async (username) => {
-      const params = new URLSearchParams({ _data: 'routes/users+/$username' });
-      const response = await fetch(`/users/${username}?${params.toString()}`, {
-        headers: {
-          Accept: 'application/json',
-          'X-Remix-Data': 'yes',
-        },
-      });
-      const data = (await response.json()) as {
-        canViewProfile: boolean;
-        user: {
-          id: string;
-          name: string | null;
-          username: string;
-          createdAt?: unknown;
-          image?: unknown;
-        };
-        relationship: { state: string };
-      };
-      return { status: response.status, data };
-    }, target.username);
-
-    expect(payload.status).toBe(200);
-    expect(payload.data.canViewProfile).toBe(false);
-    expect(payload.data.user.createdAt).toBeUndefined();
-    expect(payload.data.user.image).toBeUndefined();
-    expect(payload.data.relationship.state).toBe('NONE');
+    const gateHeading = page.getByRole('heading', {
+      name: new RegExp(
+        `Add ${target.name ?? target.username} as a friend to continue`,
+        'i',
+      ),
+    });
+    await expect(gateHeading).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add Friend' })).toBeVisible();
+    await expect(
+      page.getByText(/^Joined\s+/i).or(page.getByText(/\bJoined\b/i)),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('link', {
+        name: new RegExp(`${target.name ?? target.username}.*wishlist`, 'i'),
+      }),
+    ).toHaveCount(0);
   } finally {
     await prisma.friendRequest.deleteMany({
       where: {
@@ -93,7 +66,6 @@ test('profile loader does not expose details to non-friends', async ({
 
 test('non-friend profile prompts request and sends invite', async ({
   page,
-  login,
 }) => {
   const createdUserIds: string[] = [];
   const viewerData = createUser();
@@ -121,7 +93,10 @@ test('non-friend profile prompts request and sends invite', async ({
   createdUserIds.push(viewer.id, target.id);
 
   try {
-    await login({ id: viewer.id });
+    await loginWithPassword(page, {
+      username: viewerData.username,
+      password: viewerData.username,
+    });
 
     await page.goto(`/users/${target.username}`);
 
@@ -155,7 +130,6 @@ test('non-friend profile prompts request and sends invite', async ({
 
 test('non-friend wishlist prompts request and sends invite', async ({
   page,
-  login,
 }) => {
   const createdUserIds: string[] = [];
   const viewerData = createUser();
@@ -183,7 +157,10 @@ test('non-friend wishlist prompts request and sends invite', async ({
   createdUserIds.push(viewer.id, target.id);
 
   try {
-    await login({ id: viewer.id });
+    await loginWithPassword(page, {
+      username: viewerData.username,
+      password: viewerData.username,
+    });
 
     await page.goto(`/users/${target.username}/wishlist`);
 
@@ -217,7 +194,6 @@ test('non-friend wishlist prompts request and sends invite', async ({
 
 test('non-friend wishlist request is optimistic and rolls back on failure', async ({
   page,
-  login,
 }) => {
   const createdUserIds: string[] = [];
   const viewerData = createUser();
@@ -245,7 +221,10 @@ test('non-friend wishlist request is optimistic and rolls back on failure', asyn
   createdUserIds.push(viewer.id, target.id);
 
   try {
-    await login({ id: viewer.id });
+    await loginWithPassword(page, {
+      username: viewerData.username,
+      password: viewerData.username,
+    });
     await page.goto(`/users/${target.username}/wishlist`);
 
     await page.route('**/api/friends/requests', async (route) => {

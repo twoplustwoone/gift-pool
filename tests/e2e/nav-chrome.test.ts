@@ -1,11 +1,10 @@
 import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
-import { expect, test } from '#tests/playwright-utils.ts';
+import { expect, loginWithPassword, test } from '#tests/playwright-utils.ts';
 
 test.describe('navigation chrome', () => {
   test('top bar hides on downward scroll, returns on upward scroll, and bottom nav stays above content', async ({
     page,
-    login,
   }) => {
     // Use a mobile-ish viewport so the bottom nav is visible
     await page.setViewportSize({ width: 430, height: 900 });
@@ -44,11 +43,15 @@ test.describe('navigation chrome', () => {
     });
 
     try {
-      await login({ id: viewer.id });
+      await loginWithPassword(page, {
+        username: viewerData.username,
+        password: viewerData.username,
+      });
       await page.goto('/friends');
 
       const scrollArea = page.getByTestId('app-scroll-area');
       const topBar = page.getByTestId('top-bar');
+      const friendRows = page.getByTestId('friend-row');
 
       await expect(topBar).toHaveAttribute('data-hidden', 'false');
 
@@ -70,7 +73,6 @@ test.describe('navigation chrome', () => {
         })
         .toBe('false');
 
-      const friendRows = page.getByTestId('friend-row');
       await expect(friendRows.first()).toBeVisible({ timeout: 10000 });
       await friendRows.last().scrollIntoViewIfNeeded();
 

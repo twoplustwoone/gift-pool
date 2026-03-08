@@ -104,6 +104,23 @@ export const test = base.extend<{
 });
 export const { expect } = test;
 
+export async function loginWithPassword(
+  page: import('@playwright/test').Page,
+  {
+    username,
+    password,
+  }: {
+    username: string;
+    password: string;
+  },
+) {
+  await page.goto('/login');
+  await page.getByRole('textbox', { name: /username/i }).fill(username);
+  await page.getByRole('textbox', { name: /password/i }).fill(password);
+  await page.getByRole('button', { name: /log in/i }).click();
+  await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
+}
+
 /**
  * Encodes a mock action response as turbo-stream for use with v3_singleFetch.
  * Returns { body, contentType } suitable for Playwright's route.fulfill().
