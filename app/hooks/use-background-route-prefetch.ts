@@ -8,12 +8,24 @@ import {
 
 const FRIEND_WISHLIST_PREFETCH_CONCURRENCY = 2;
 
-export function useHomeBackgroundPrefetch({ enabled }: { enabled: boolean }) {
-  const startedRef = React.useRef(false);
+export function useHomeBackgroundPrefetch({
+  enabled,
+  scopeKey,
+}: {
+  enabled: boolean;
+  scopeKey?: string | null;
+}) {
+  const lastStartedScopeRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    if (!enabled || startedRef.current) return;
-    startedRef.current = true;
+    if (!enabled) {
+      lastStartedScopeRef.current = null;
+      return;
+    }
+
+    const normalizedScopeKey = scopeKey ?? 'anonymous';
+    if (lastStartedScopeRef.current === normalizedScopeKey) return;
+    lastStartedScopeRef.current = normalizedScopeKey;
 
     const controller = new AbortController();
     const cancelIdleTask = scheduleIdleTask(() => {
@@ -35,7 +47,7 @@ export function useHomeBackgroundPrefetch({ enabled }: { enabled: boolean }) {
       controller.abort();
       cancelIdleTask();
     };
-  }, [enabled]);
+  }, [enabled, scopeKey]);
 }
 
 export function useFriendWishlistPrefetch(usernames: string[]) {

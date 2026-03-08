@@ -66,6 +66,7 @@ const Index = () => {
 
   useHomeBackgroundPrefetch({
     enabled: Boolean(user) && !mock,
+    scopeKey: user?.id ?? null,
   });
 
   return (

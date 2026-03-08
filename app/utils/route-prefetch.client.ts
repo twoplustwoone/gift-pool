@@ -1,4 +1,5 @@
 import {
+  getPrefetchCacheScope,
   hasPrefetchCache,
   normalizePrefetchCacheKey,
   primePrefetchCache,
@@ -71,10 +72,12 @@ export async function prefetchRouteData({
   signal?: AbortSignal;
 }) {
   const normalizedKey = normalizePrefetchCacheKey(cacheKey);
+  const scopeKey = getPrefetchCacheScope();
+  const inFlightKey = `${scopeKey}:${normalizedKey}`;
 
-  if (hasPrefetchCache(normalizedKey)) return;
+  if (hasPrefetchCache(normalizedKey, scopeKey)) return;
 
-  const existingRequest = inFlightPrefetches.get(normalizedKey);
+  const existingRequest = inFlightPrefetches.get(inFlightKey);
   if (existingRequest) return existingRequest;
 
   const nextRequest = (async () => {
@@ -89,16 +92,16 @@ export async function prefetchRouteData({
     if (!response.ok) return;
 
     const payload = await response.json();
-    primePrefetchCache(normalizedKey, payload);
+    primePrefetchCache(normalizedKey, payload, undefined, scopeKey);
   })()
     .catch((error) => {
       if ((error as Error).name === 'AbortError') return;
     })
     .finally(() => {
-      inFlightPrefetches.delete(normalizedKey);
+      inFlightPrefetches.delete(inFlightKey);
     });
 
-  inFlightPrefetches.set(normalizedKey, nextRequest);
+  inFlightPrefetches.set(inFlightKey, nextRequest);
 
   return nextRequest;
 }

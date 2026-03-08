@@ -237,3 +237,86 @@ test('cached friend wishlist navigation avoids a fresh loader request and logs o
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   }
 });
+
+test('cached friend wishlist navigation revalidates access before using prefetched data', async ({
+  page,
+  login,
+}) => {
+  const createdUserIds: string[] = [];
+  const viewerData = createUser();
+  const friendData = createUser();
+
+  const [viewer, friend] = await Promise.all([
+    createUserWithRole(viewerData),
+    createUserWithRole(friendData),
+  ]);
+
+  createdUserIds.push(viewer.id, friend.id);
+
+  const friendship = normalizeFriendship(viewer.id, friend.id);
+  await prisma.friendship.create({ data: friendship });
+  await prisma.wishlistItem.create({
+    data: {
+      ownerId: friend.id,
+      title: 'Should stay private',
+      type: 'text',
+      sortOrder: 0,
+      status: 'ACTIVE',
+    },
+  });
+
+  let accessValidationCount = 0;
+  await page.route(
+    `**/resources/prefetch/users/${friend.username}/wishlist-access`,
+    async (route) => {
+      accessValidationCount += 1;
+      await route.continue();
+    },
+  );
+
+  try {
+    await login({ id: viewer.id });
+
+    const prefetchResponsePromise = page.waitForResponse(
+      (response) =>
+        response
+          .url()
+          .includes(`/resources/prefetch/users/${friend.username}/wishlist`) &&
+        response.ok(),
+    );
+
+    await page.goto('/friends');
+    await prefetchResponsePromise;
+
+    await prisma.friendship.deleteMany({
+      where: {
+        userAId: friendship.userAId,
+        userBId: friendship.userBId,
+      },
+    });
+
+    await page
+      .getByRole('link', { name: new RegExp(friend.name!, 'i') })
+      .click();
+
+    await expect(page).toHaveURL(`/users/${friend.username}/wishlist`);
+    await expect(
+      page.getByRole('heading', {
+        name: `Add ${friend.name} as a friend to continue`,
+      }),
+    ).toBeVisible();
+    await expect(page.getByText('Should stay private')).toHaveCount(0);
+    expect(accessValidationCount).toBe(1);
+  } finally {
+    await page
+      .unroute(`**/resources/prefetch/users/${friend.username}/wishlist-access`)
+      .catch(() => {});
+    await prisma.friendship.deleteMany({
+      where: {
+        userAId: friendship.userAId,
+        userBId: friendship.userBId,
+      },
+    });
+    await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
+  }
+});

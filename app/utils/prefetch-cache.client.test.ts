@@ -4,11 +4,13 @@ import {
   normalizePrefetchCacheKey,
   PREFETCH_CACHE_TTL_MS,
   primePrefetchCache,
+  setPrefetchCacheScope,
   takePrefetchCache,
 } from './prefetch-cache.client.ts';
 
 afterEach(() => {
   clearPrefetchCache();
+  setPrefetchCacheScope(null);
   vi.useRealTimers();
 });
 
@@ -51,6 +53,15 @@ describe('prefetch cache', () => {
     primePrefetchCache('/wishlist', { ok: true }, PREFETCH_CACHE_TTL_MS);
 
     vi.advanceTimersByTime(PREFETCH_CACHE_TTL_MS + 1);
+
+    expect(takePrefetchCache('/wishlist')).toBeUndefined();
+  });
+
+  it('clears cached entries when the auth scope changes', () => {
+    setPrefetchCacheScope('user-a');
+    primePrefetchCache('/wishlist', { ownerId: 'user-a' });
+
+    setPrefetchCacheScope('user-b');
 
     expect(takePrefetchCache('/wishlist')).toBeUndefined();
   });

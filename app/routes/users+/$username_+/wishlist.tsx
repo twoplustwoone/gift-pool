@@ -13,7 +13,10 @@ import { track } from '#app/utils/analytics.client.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { type RelationshipState } from '#app/utils/friends.ts';
 import { useTranslation } from '#app/utils/i18n.tsx';
-import { takePrefetchCache } from '#app/utils/prefetch-cache.client.ts';
+import {
+  hasPrefetchCache,
+  takePrefetchCache,
+} from '#app/utils/prefetch-cache.client.ts';
 import {
   applyRequestIdHeader,
   getRequestContext,
@@ -71,15 +74,43 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     return redirect(loaderData.redirectTo);
   }
 
-  return data<LoaderData>(loaderData, {
+  return data<LoaderData>(loaderData as LoaderData, {
     headers: applyRequestIdHeader(null, requestId),
   });
 };
 
 export async function clientLoader({
+  params,
   request,
   serverLoader,
 }: ClientLoaderFunctionArgs) {
+  if (!hasPrefetchCache(request.url)) {
+    return serverLoader();
+  }
+
+  const username = params.username;
+  if (!username) {
+    return serverLoader();
+  }
+
+  try {
+    const validationResponse = await fetch(
+      `/resources/prefetch/users/${encodeURIComponent(username)}/wishlist-access`,
+      {
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json',
+        },
+      },
+    );
+
+    if (!validationResponse.ok) {
+      return serverLoader();
+    }
+  } catch {
+    return serverLoader();
+  }
+
   const cached = takePrefetchCache<Awaited<ReturnType<typeof serverLoader>>>(
     request.url,
   );

@@ -12,6 +12,30 @@ type Relationship = {
   outgoingRequestId: string | null;
 };
 
+type FriendWishlistOwnerSummary = {
+  id: string;
+  name: string | null;
+  username: string;
+  image: {
+    id: string;
+  } | null;
+};
+
+type FriendWishlistAccessResult =
+  | {
+      canViewWishlist: false;
+      relationship: Relationship;
+      user: FriendWishlistOwnerSummary;
+    }
+  | {
+      canViewWishlist: true;
+      relationship: Relationship;
+      user: FriendWishlistOwnerSummary;
+    }
+  | {
+      redirectTo: '/wishlist';
+    };
+
 function mapWishlistItems(
   items: Array<{
     id: string;
@@ -53,6 +77,58 @@ function buildRelationship(
     friendshipId: relationshipDetails.friendship?.id ?? null,
     incomingRequestId: relationshipDetails.incoming?.id ?? null,
     outgoingRequestId: relationshipDetails.outgoing?.id ?? null,
+  };
+}
+
+export async function loadFriendWishlistAccess({
+  viewerId,
+  username,
+}: {
+  viewerId: string;
+  username: string;
+}): Promise<FriendWishlistAccessResult> {
+  const wishlistOwner = await prisma.user.findFirst({
+    select: {
+      id: true,
+      name: true,
+      username: true,
+      image: {
+        select: {
+          id: true,
+        },
+      },
+    },
+    where: {
+      username,
+    },
+  });
+
+  invariantResponse(wishlistOwner, 'User not found', {
+    status: 404,
+  });
+
+  if (wishlistOwner.id === viewerId) {
+    return {
+      redirectTo: '/wishlist',
+    };
+  }
+
+  const relationshipDetails = await getRelationshipDetails(
+    viewerId,
+    wishlistOwner.id,
+  );
+  const relationship = buildRelationship(relationshipDetails);
+  const canViewWishlist = relationship.state === 'FRIENDS';
+
+  return {
+    canViewWishlist,
+    relationship,
+    user: {
+      id: wishlistOwner.id,
+      name: wishlistOwner.name,
+      username: wishlistOwner.username,
+      image: wishlistOwner.image,
+    },
   };
 }
 
@@ -174,49 +250,20 @@ export async function loadFriendWishlistPageData({
   sessionId?: string | null;
   includeAnalytics: boolean;
 }) {
-  const wishlistOwner = await prisma.user.findFirst({
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      image: {
-        select: {
-          id: true,
-        },
-      },
-    },
-    where: {
-      username,
-    },
+  const access = await loadFriendWishlistAccess({
+    viewerId,
+    username,
   });
 
-  invariantResponse(wishlistOwner, 'User not found', {
-    status: 404,
-  });
-
-  if (wishlistOwner.id === viewerId) {
-    return {
-      redirectTo: '/wishlist',
-    } as const;
+  if ('redirectTo' in access) {
+    return access;
   }
 
-  const relationshipDetails = await getRelationshipDetails(
-    viewerId,
-    wishlistOwner.id,
-  );
-  const relationship = buildRelationship(relationshipDetails);
-  const canViewWishlist = relationship.state === 'FRIENDS';
-
-  if (!canViewWishlist) {
+  if (!access.canViewWishlist) {
     return {
-      canViewWishlist,
-      user: {
-        id: wishlistOwner.id,
-        name: wishlistOwner.name,
-        username: wishlistOwner.username,
-        image: wishlistOwner.image,
-      },
-      relationship,
+      canViewWishlist: false,
+      user: access.user,
+      relationship: access.relationship,
       analytics: {
         requestId: null,
         viewEventId: null,
@@ -224,7 +271,7 @@ export async function loadFriendWishlistPageData({
     } as const;
   }
 
-  await cleanupWishlistPurchasesForOwner(wishlistOwner.id);
+  await cleanupWishlistPurchasesForOwner(access.user.id);
 
   const user = await prisma.user.findFirst({
     select: {
@@ -269,7 +316,7 @@ export async function loadFriendWishlistPageData({
       },
     },
     where: {
-      id: wishlistOwner.id,
+      id: access.user.id,
     },
   });
 
@@ -294,12 +341,12 @@ export async function loadFriendWishlistPageData({
     : null;
 
   return {
-    canViewWishlist,
+    canViewWishlist: true,
     user: {
       ...user,
       wishlistItems,
     },
-    relationship,
+    relationship: access.relationship,
     analytics: {
       requestId: includeAnalytics ? (requestId ?? null) : null,
       viewEventId: viewEvent?.eventId ?? null,
