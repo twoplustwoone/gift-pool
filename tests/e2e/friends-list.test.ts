@@ -42,11 +42,15 @@ test('friend summary links navigate to the wishlist', async ({
     await login({ id: viewer.id });
     await page.goto('/friends');
 
-    const friendSummaryButton = page.getByRole('button', {
+    const friendSummaryLink = page.getByRole('link', {
       name: new RegExp(friend.name!, 'i'),
     });
-    await expect(friendSummaryButton).toBeVisible();
-    await friendSummaryButton.click();
+    await expect(friendSummaryLink).toBeVisible();
+    await expect(friendSummaryLink).toHaveAttribute(
+      'href',
+      `/users/${friend.username}/wishlist`,
+    );
+    await friendSummaryLink.click();
 
     await expect(page).toHaveURL(`/users/${friend.username}/wishlist`);
   } finally {

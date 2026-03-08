@@ -157,14 +157,17 @@ test('cached friend wishlist navigation avoids a fresh loader request and logs o
     await page.goto('/friends');
     await prefetchResponsePromise;
 
-    expect(
-      await prisma.analyticsEvent.count({
-        where: {
-          userId: viewer.id,
-          name: 'wishlist_viewed',
-        },
-      }),
-    ).toBe(0);
+    const viewEventCount = await prisma.analyticsEvent.count({
+      where: {
+        userId: viewer.id,
+        name: 'wishlist_viewed',
+      },
+    });
+    if (viewEventCount !== 0) {
+      throw new Error(
+        `Expected no wishlist_viewed events before navigation, found ${viewEventCount}.`,
+      );
+    }
 
     let blockedWishlistLoaderRequests = 0;
     await page.route(`**/users/${friend.username}/wishlist*`, async (route) => {
