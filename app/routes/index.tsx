@@ -5,9 +5,11 @@ import { HomeFeatures } from '#app/components/home/HomeFeatures';
 import { HomeFooterLite } from '#app/components/home/HomeFooterLite';
 import { HomeHero } from '#app/components/home/HomeHero';
 import { HomePanels } from '#app/components/home/HomePanels';
+import { useHomeBackgroundPrefetch } from '#app/hooks/use-background-route-prefetch.ts';
 import { track } from '#app/utils/analytics.client.ts';
 import { getUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { useOptionalUser } from '#app/utils/user.ts';
 export const meta: MetaFunction = () => [
   {
     title: `GiftPool — ${HOME_COPY.hero.headline}`,
@@ -60,6 +62,12 @@ const Index = () => {
   const data = useLoaderData<typeof loader>();
   const [search] = useSearchParams();
   const mock = (search.get('mock') as 'empty' | 'data' | null) ?? undefined;
+  const user = useOptionalUser();
+
+  useHomeBackgroundPrefetch({
+    enabled: Boolean(user) && !mock,
+  });
+
   return (
     <main role="main">
       <HomeHero

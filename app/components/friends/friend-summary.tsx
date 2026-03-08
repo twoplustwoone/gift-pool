@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 
 export type FriendSummaryProps = {
@@ -19,9 +20,8 @@ export const FriendSummary = ({
   extraGroupCount = 0,
 }: FriendSummaryProps) => {
   return (
-    <button
-      type="button"
-      onClick={() => window.location.assign(`/users/${user.username}/wishlist`)}
+    <Link
+      to={`/users/${user.username}/wishlist`}
       className="flex flex-1 items-center gap-4 rounded-lg outline-none transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <Avatar size="s" image={user.image} user={user} />
@@ -50,6 +50,6 @@ export const FriendSummary = ({
           </div>
         ) : null}
       </div>
-    </button>
+    </Link>
   );
 };
