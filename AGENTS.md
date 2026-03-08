@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `app/` is the Remix app: routes in `app/routes`, shared UI in `app/components`, hooks in `app/hooks`, and app logic in `app/utils`.
+- `app/` is the React Router app: routes in `app/routes`, shared UI in `app/components`, hooks in `app/hooks`, and app logic in `app/utils`.
 - `server/` contains runtime entry points (`server/index.ts`, `server/dev-server.js`) and server-only helpers.
 - `prisma/` holds the SQLite schema, migrations, and seed script.
 - `tests/` contains Playwright e2e tests (`tests/e2e`), Vitest setup (`tests/setup`), mocks/fixtures, and test databases (`tests/prisma`).
@@ -9,7 +9,7 @@
 
 ## Build, Test, and Development Commands
 - `npm run dev` - start local development server.
-- `npm run build` - build icons, Remix app, and server output.
+- `npm run build` - build icons, the React Router app, and server output.
 - `npm run start` - run the production build locally.
 - `npm run lint` / `npm run typecheck` - run ESLint and TypeScript checks.
 - `npm run test` - run Vitest unit/component tests.
@@ -20,7 +20,7 @@
 - Use Node `20` (see `package.json` engines).
 - Formatting is enforced by Prettier: 2 spaces, single quotes, semicolons, trailing commas (`npm run format`).
 - Prefer `kebab-case` filenames for utilities in `app/utils` and `app/lib` (ESLint-enforced).
-- Follow Remix flat-route naming in `app/routes` (example: `api.friends.requests.$id.accept.ts`).
+- Follow the flat-route naming already used in `app/routes` (example: `api.friends.requests.$id.accept.ts`).
 - Co-locate tests with source when practical using `*.test.ts` / `*.test.tsx`.
 
 ## Testing Guidelines
