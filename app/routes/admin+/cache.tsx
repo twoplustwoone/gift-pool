@@ -99,7 +99,7 @@ const CacheAdminRoute = () => {
   const limit = searchParams.get('limit') ?? '100';
   const instance = searchParams.get('instance') ?? data.instance;
   const handleFormChange = useDebounce((form: HTMLFormElement) => {
-    submit(form);
+    void submit(form);
   }, 400);
   return (
     <div className="container">

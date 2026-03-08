@@ -48,7 +48,7 @@ export const HomePanels: React.FC<HomePanelsProps> = ({
   React.useEffect(() => {
     if (!shouldLoadPanels || fetcher.state !== 'idle' || fetcher.data) return;
     const suffix = mock ? `?mock=${mock}` : '';
-    fetcher.load(`/resources/home/panels${suffix}`);
+    void fetcher.load(`/resources/home/panels${suffix}`);
   }, [shouldLoadPanels, fetcher, mock]);
 
   if (!isLoggedIn) return null;

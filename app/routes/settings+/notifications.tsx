@@ -241,7 +241,7 @@ const NotificationsSettingsRoute = () => {
     formData.set('channel', channel);
     formData.set('enabled', String(nextEnabled));
     formData.set('requestId', requestId);
-    toggleFetcher.submit(formData, {
+    void toggleFetcher.submit(formData, {
       method: 'POST',
     });
   };
@@ -279,7 +279,7 @@ const NotificationsSettingsRoute = () => {
     const formData = new FormData();
     formData.set('intent', 'disable-email');
     formData.set('requestId', requestId);
-    disableEmailFetcher.submit(formData, {
+    void disableEmailFetcher.submit(formData, {
       method: 'POST',
     });
   }, [createRequestId, disableEmailFetcher, preferences]);

@@ -279,7 +279,7 @@ export const NotificationBell = () => {
       }
       setOpen(false);
       if (notification.targetUrl) {
-        navigate(notification.targetUrl);
+        void navigate(notification.targetUrl);
       }
     },
     [markNotificationRead, navigate],

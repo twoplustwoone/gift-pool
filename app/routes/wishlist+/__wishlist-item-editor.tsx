@@ -344,7 +344,7 @@ export const WishlistItemEditor = React.forwardRef<
       formData.set('status', status);
       formData.set('clientMutationId', createClientMutationId());
       if (shouldSubmit) {
-        statusFetcher.submit(formData, {
+        void statusFetcher.submit(formData, {
           method: 'post',
           action: '/wishlist/status',
         });

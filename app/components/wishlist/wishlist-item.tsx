@@ -207,7 +207,7 @@ export const WishlistItem = ({
     if (wishlistItem.categoryId)
       formData.set('categoryId', wishlistItem.categoryId);
     formData.set('imageAction', 'remove');
-    imageFetcher.submit(formData, {
+    void imageFetcher.submit(formData, {
       method: 'post',
       encType: 'multipart/form-data',
       action: '/wishlist',
@@ -324,7 +324,7 @@ export const WishlistItem = ({
     hasPendingPurchaseMutationRef.current = true;
     setPurchaseBy(nextPurchaseBy);
 
-    purchaseFetcher.submit(
+    void purchaseFetcher.submit(
       {
         intent: isPurchasedByMe ? 'unpurchase' : 'purchase',
         wishlistItemId: wishlistItem.id,

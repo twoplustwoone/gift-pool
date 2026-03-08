@@ -71,8 +71,12 @@ export const CategoryManager = ({
   const handledCreateMutationIdRef = useRef<string | null>(null);
   const handledActionMutationIdRef = useRef<string | null>(null);
   useEffect(() => {
-    const createResult = createFetcher.data as CategoryMutationResult | undefined;
-    const actionResult = actionFetcher.data as CategoryMutationResult | undefined;
+    const createResult = createFetcher.data as
+      | CategoryMutationResult
+      | undefined;
+    const actionResult = actionFetcher.data as
+      | CategoryMutationResult
+      | undefined;
     const createdOk =
       createResult?.ok &&
       createResult.clientMutationId != null &&
@@ -87,7 +91,8 @@ export const CategoryManager = ({
       createResult &&
       handledCreateMutationIdRef.current !== createResult.clientMutationId
     ) {
-      handledCreateMutationIdRef.current = createResult.clientMutationId;
+      handledCreateMutationIdRef.current =
+        createResult.clientMutationId ?? null;
       onMutationResult?.(createResult);
       pendingCreateMutationIdRef.current = null;
       if (createName.trim() === pendingCreateNameRef.current) {
@@ -101,7 +106,8 @@ export const CategoryManager = ({
       actionResult &&
       handledActionMutationIdRef.current !== actionResult.clientMutationId
     ) {
-      handledActionMutationIdRef.current = actionResult.clientMutationId;
+      handledActionMutationIdRef.current =
+        actionResult.clientMutationId ?? null;
       onMutationResult?.(actionResult);
       pendingActionMutationIdRef.current = null;
       setEditingId(null);
@@ -263,7 +269,7 @@ export const CategoryManager = ({
                       onClick={() => {
                         const clientMutationId = createClientMutationId();
                         pendingActionMutationIdRef.current = clientMutationId;
-                        actionFetcher.submit(
+                        void actionFetcher.submit(
                           {
                             intent: 'delete',
                             id: cat.id,

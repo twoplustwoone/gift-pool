@@ -740,11 +740,7 @@ export const Wishlist = ({
         }),
         pendingMutations: pendingCategoryMutations,
       }),
-    [
-      orderedCategories,
-      pendingCategoryMutations,
-      settledCategoryMutationList,
-    ],
+    [orderedCategories, pendingCategoryMutations, settledCategoryMutationList],
   );
 
   const pendingItemMutations = useMemo(() => {
@@ -893,7 +889,9 @@ export const Wishlist = ({
   }, [statusUpdateFetcher.state, user.wishlistItems]);
 
   useEffect(() => {
-    const nextServerCategories = [...user.wishlistCategories].sort((a, b) => a.order - b.order);
+    const nextServerCategories = [...user.wishlistCategories].sort(
+      (a, b) => a.order - b.order,
+    );
     setOrderedCategories(nextServerCategories);
     setSettledCategoryMutations((currentMutations) => {
       const nextMutations = pruneSatisfiedSettledCategoryMutations({
@@ -1008,8 +1006,10 @@ export const Wishlist = ({
   const handleCategoryMutationResult = useCallback(
     (result: CategoryMutationResult) => {
       if (!result.ok || !result.clientMutationId) return;
+      const mutationId = result.clientMutationId;
 
-      const affectedCategoryId = result.category?.id ?? result.deletedCategoryId;
+      const affectedCategoryId =
+        result.category?.id ?? result.deletedCategoryId;
       setSettledCategoryMutations((previousMutations) => {
         const nextMutations = new Map<string, CategoryMutationResult>();
 
@@ -1026,7 +1026,7 @@ export const Wishlist = ({
           nextMutations.set(clientMutationId, previousResult);
         }
 
-        nextMutations.set(result.clientMutationId, result);
+        nextMutations.set(mutationId, result);
         return nextMutations;
       });
     },
@@ -1121,7 +1121,7 @@ export const Wishlist = ({
     formData.set('wishlistItemId', itemId);
     formData.set('status', status);
     formData.set('clientMutationId', clientMutationId);
-    statusUpdateFetcher.submit(formData, {
+    void statusUpdateFetcher.submit(formData, {
       method: 'post',
       action: '/wishlist/status',
     });
@@ -1364,7 +1364,7 @@ export const Wishlist = ({
     formData.set('intent', 'reorder-categories');
     formData.set('orderedCategoryIds', JSON.stringify(ids));
     formData.set('clientMutationId', clientMutationId);
-    reorderFetcher.submit(formData, {
+    void reorderFetcher.submit(formData, {
       method: 'post',
       action: '/wishlist/reorder',
     });
@@ -1403,7 +1403,7 @@ export const Wishlist = ({
         JSON.stringify(targetOrderedItemIds),
       );
     }
-    reorderFetcher.submit(formData, {
+    void reorderFetcher.submit(formData, {
       method: 'post',
       action: '/wishlist/reorder',
     });
@@ -2319,7 +2319,7 @@ const WishlistShareDialog = ({
       return;
     }
     hasLoadedShare.current = true;
-    shareFetcher.load('/wishlist/share');
+    void shareFetcher.load('/wishlist/share');
   }, [open, publicShare, shareFetcher, shareFetcher.data]);
 
   useEffect(() => {
@@ -2365,13 +2365,13 @@ const WishlistShareDialog = ({
   };
 
   const generatePublicLink = () =>
-    shareFetcher.submit(
+    void shareFetcher.submit(
       { intent: 'generate-public-link' },
       { method: 'post', action: '/wishlist/share' },
     );
 
   const revokePublicLink = () =>
-    shareFetcher.submit(
+    void shareFetcher.submit(
       { intent: 'revoke-public-link' },
       { method: 'post', action: '/wishlist/share' },
     );
