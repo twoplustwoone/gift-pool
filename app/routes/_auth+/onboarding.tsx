@@ -76,7 +76,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const email = await requireOnboardingEmail(request);
   const { requestId } = await getRequestContext(request);
   const formData = await request.formData();
-  checkHoneypot(formData);
+  await checkHoneypot(formData);
   const submission = await parseWithZod(formData, {
     schema: (intent) =>
       SignupFormSchema.superRefine(async (data, ctx) => {
