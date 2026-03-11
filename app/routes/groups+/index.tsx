@@ -1,6 +1,5 @@
-import { type LoaderFunctionArgs } from 'react-router';
-import { useLoaderData, useNavigate } from 'react-router';
 import { LuPlus, LuUsers } from 'react-icons/lu';
+import { type LoaderFunctionArgs, useLoaderData, useNavigate  } from 'react-router';
 import { GroupCard } from '#app/components/groups/GroupCard.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';

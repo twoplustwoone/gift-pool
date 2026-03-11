@@ -1,13 +1,12 @@
 import { invariantResponse } from '@epic-web/invariant';
 import { remember } from '@epic-web/remember';
+import { LRUCache } from 'lru-cache';
 import {
   type HeadersFunction,
   type LoaderFunctionArgs,
   type MetaFunction,
-  data,
+  data, useLoaderData 
 } from 'react-router';
-import { useLoaderData } from 'react-router';
-import { LRUCache } from 'lru-cache';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { prisma } from '#app/utils/db.server.ts';

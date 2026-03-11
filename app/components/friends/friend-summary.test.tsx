@@ -2,9 +2,9 @@
  * @vitest-environment jsdom
  */
 
-import { createRoutesStub } from 'react-router';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
+import { createRoutesStub } from 'react-router';
 import { describe, expect, test, vi } from 'vitest';
 import { FriendSummary } from './friend-summary.tsx';
 

@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import { createRequestHandler } from '@react-router/express';
-import { type ServerBuild } from 'react-router';
 import { ip as ipAddress } from 'address';
 import chalk from 'chalk';
 import closeWithGrace from 'close-with-grace';
@@ -10,6 +9,7 @@ import rateLimit from 'express-rate-limit';
 import getPort, { portNumbers } from 'get-port';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { type ServerBuild } from 'react-router';
 
 const MODE = process.env.NODE_ENV ?? 'development';
 const IS_PROD = MODE === 'production';

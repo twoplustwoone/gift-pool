@@ -1,10 +1,10 @@
+import { useMemo } from 'react';
 import {
   Link,
   useFetcher,
   useFetchers,
   useRouteLoaderData,
 } from 'react-router';
-import { useMemo } from 'react';
 
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';

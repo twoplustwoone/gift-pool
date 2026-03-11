@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WishlistItem } from './wishlist-item';
@@ -129,6 +130,47 @@ describe('WishlistItem', () => {
     }
     fireEvent.click(actionsButton);
     expect(mockOpenView).not.toHaveBeenCalled();
+  });
+
+  it('keeps the delete dialog open after selecting delete from the actions menu', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <WishlistItem
+        isOwner
+        categories={[]}
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Item one',
+          note: 'A note',
+          url: null,
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    const actionsButton = screen.getAllByRole('button', {
+      name: /item actions for item one/i,
+    })[0];
+    if (!actionsButton) {
+      throw new Error('Expected item actions button');
+    }
+
+    await user.click(actionsButton);
+    await user.click(
+      await screen.findByRole('menuitem', { name: /delete item/i }),
+    );
+
+    expect(
+      await screen.findByRole('dialog', { name: /delete wishlist item/i }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('menuitem', { name: /delete item/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('disables owner row open behavior and hides actions in reorder mode', () => {

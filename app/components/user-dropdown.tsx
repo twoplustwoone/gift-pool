@@ -1,4 +1,3 @@
-import { Form, Link } from 'react-router';
 import { useRef } from 'react';
 import {
   LuLogOut,
@@ -7,6 +6,7 @@ import {
   LuUser,
   LuUsers,
 } from 'react-icons/lu';
+import { Form, Link } from 'react-router';
 import { useTranslation } from '#app/utils/i18n.tsx';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useUser, userHasRole } from '#app/utils/user.ts';

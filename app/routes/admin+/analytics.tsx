@@ -1,6 +1,5 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { data, type LoaderFunctionArgs } from 'react-router';
-import { useLoaderData } from 'react-router';
+import { data, type LoaderFunctionArgs, useLoaderData  } from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import {
@@ -9,9 +8,6 @@ import {
 } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-type LoaderData = {
-  analytics: AnalyticsCounts;
-};
 function parseAllowlist(value?: string | null) {
   return (value ?? '')
     .split(',')

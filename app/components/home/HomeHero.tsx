@@ -1,6 +1,6 @@
-import { Link } from 'react-router';
 import * as React from 'react';
 import { LuHeart, LuUsers } from 'react-icons/lu';
+import { Link } from 'react-router';
 import { Button } from '#app/components/ui/button.tsx';
 import { Flex, Text } from '../ui-kit';
 import { HOME_COPY } from './home-copy';

@@ -1,4 +1,4 @@
-import { test as base } from '@playwright/test';
+import { test as base, type Page } from '@playwright/test';
 import { type User as UserModel } from '@prisma/client';
 import * as setCookieParser from 'set-cookie-parser';
 import { encode } from 'turbo-stream';
@@ -105,7 +105,7 @@ export const test = base.extend<{
 export const { expect } = test;
 
 export async function loginWithPassword(
-  page: import('@playwright/test').Page,
+  page: Page,
   {
     username,
     password,

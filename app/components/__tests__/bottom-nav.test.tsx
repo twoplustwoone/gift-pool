@@ -2,9 +2,9 @@
  * @vitest-environment jsdom
  */
 
-import { createRoutesStub } from 'react-router';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
+import { createRoutesStub } from 'react-router';
 import { afterEach, vi, describe, test, expect } from 'vitest';
 
 // Mock UI primitives so tests are resilient and focused on semantics

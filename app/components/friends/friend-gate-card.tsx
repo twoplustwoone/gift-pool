@@ -1,5 +1,5 @@
-import { Link } from 'react-router';
 import { type ComponentProps } from 'react';
+import { Link } from 'react-router';
 import { Spacer } from '#app/components/spacer.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { FriendActionButton } from './friend-action-button.tsx';

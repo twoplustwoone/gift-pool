@@ -1,8 +1,7 @@
 import { invariantResponse } from '@epic-web/invariant';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
-import { type LoaderFunctionArgs } from 'react-router';
-import { Link, Outlet } from 'react-router';
 import { Fragment } from 'react';
+import { type LoaderFunctionArgs, Link, Outlet  } from 'react-router';
 import { Spacer } from '#app/components/spacer.tsx';
 import {
   Breadcrumb,

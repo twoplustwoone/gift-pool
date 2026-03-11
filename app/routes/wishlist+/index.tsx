@@ -1,10 +1,9 @@
+import { useEffect, useRef } from 'react';
 import {
   data,
   type ClientLoaderFunctionArgs,
-  type LoaderFunctionArgs,
+  type LoaderFunctionArgs, useLoaderData 
 } from 'react-router';
-import { useLoaderData } from 'react-router';
-import { useEffect, useRef } from 'react';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { track } from '#app/utils/analytics.client.ts';

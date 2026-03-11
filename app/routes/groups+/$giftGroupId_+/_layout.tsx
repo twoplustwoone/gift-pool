@@ -1,5 +1,5 @@
-import { Link, NavLink, Outlet, useLoaderData } from 'react-router';
 import { LuUsers } from 'react-icons/lu';
+import { Link, NavLink, Outlet, useLoaderData } from 'react-router';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';

@@ -1,12 +1,11 @@
 import { invariantResponse } from '@epic-web/invariant';
+import { useEffect, useRef } from 'react';
 import {
   data,
   redirect,
   type ClientLoaderFunctionArgs,
-  type LoaderFunctionArgs,
+  type LoaderFunctionArgs, useLoaderData 
 } from 'react-router';
-import { useLoaderData } from 'react-router';
-import { useEffect, useRef } from 'react';
 import { FriendGateCard } from '#app/components/friends/friend-gate-card.tsx';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { track } from '#app/utils/analytics.client.ts';
@@ -152,6 +151,7 @@ const UserWishlist = () => {
     );
   }, [
     data.analytics,
+    viewableWishlist,
     viewableWishlist?.id,
     viewableWishlist?.wishlistItems.length,
     requestInfo.requestId,

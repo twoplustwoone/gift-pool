@@ -1,6 +1,5 @@
-import { type LoaderFunctionArgs } from 'react-router';
-import { Link } from 'react-router';
 import { LuActivity, LuDatabase } from 'react-icons/lu';
+import { type LoaderFunctionArgs, Link  } from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
 import { Card } from '#app/components/ui/card.tsx';

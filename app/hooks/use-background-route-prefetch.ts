@@ -68,9 +68,12 @@ export function useFriendWishlistPrefetch(usernames: string[]) {
     }
 
     scheduleDrainRef.current();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- usernamesKey proxies usernames content
   }, [usernamesKey]);
 
   React.useEffect(() => {
+    const controllers = activeControllersRef.current;
+
     const scheduleDrain = () => {
       if (cancelIdleTaskRef.current) return;
 
@@ -92,14 +95,14 @@ export function useFriendWishlistPrefetch(usernames: string[]) {
 
         activeCountRef.current += 1;
         const controller = new AbortController();
-        activeControllersRef.current.add(controller);
+        controllers.add(controller);
 
         void prefetchRouteData({
           cacheKey: `/users/${username}/wishlist`,
           resourcePath: `/resources/prefetch/users/${encodeURIComponent(username)}/wishlist`,
           signal: controller.signal,
         }).finally(() => {
-          activeControllersRef.current.delete(controller);
+          controllers.delete(controller);
           activeCountRef.current = Math.max(0, activeCountRef.current - 1);
           scheduleDrain();
         });
@@ -124,10 +127,10 @@ export function useFriendWishlistPrefetch(usernames: string[]) {
       cancelIdleTaskRef.current?.();
       cancelIdleTaskRef.current = null;
 
-      for (const controller of activeControllersRef.current) {
+      for (const controller of controllers) {
         controller.abort();
       }
-      activeControllersRef.current.clear();
+      controllers.clear();
 
       window.removeEventListener('online', resumePrefetch);
       document.removeEventListener('visibilitychange', resumePrefetch);

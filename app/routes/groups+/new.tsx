@@ -1,6 +1,5 @@
-import { type LoaderFunctionArgs } from 'react-router';
-import { Link } from 'react-router';
 import { LuUsers } from 'react-icons/lu';
+import { type LoaderFunctionArgs, Link  } from 'react-router';
 import { Button } from '#app/components/ui/button.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
 import { Flex, Text } from '#app/components/ui-kit';

@@ -1,5 +1,4 @@
-import { type LoaderFunctionArgs, type MetaFunction } from 'react-router';
-import { useLoaderData, useSearchParams } from 'react-router';
+import { type LoaderFunctionArgs, type MetaFunction, useLoaderData, useSearchParams  } from 'react-router';
 import { HOME_COPY } from '#app/components/home/home-copy';
 import { HomeFeatures } from '#app/components/home/HomeFeatures';
 import { HomeFooterLite } from '#app/components/home/HomeFooterLite';

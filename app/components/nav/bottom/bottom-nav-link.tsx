@@ -1,5 +1,5 @@
-import { NavLink } from 'react-router';
 import { type LucideIcon } from 'lucide-react';
+import { NavLink } from 'react-router';
 import { cn } from '#app/utils/misc.tsx';
 
 const activeClassName = 'text-primary';

@@ -1,8 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
-import { createRoutesStub } from 'react-router';
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { createRoutesStub } from 'react-router';
 import { vi, describe, it, expect } from 'vitest';
 import { Wishlist } from './index';
 
@@ -555,6 +556,46 @@ describe('Wishlist components', () => {
     expect(categoryRows[0]).toHaveAttribute('data-drag-state', 'idle');
     const itemRows = await screen.findAllByTestId('wishlist-item-row');
     expect(itemRows[0]).toHaveAttribute('data-drag-state', 'idle');
+  });
+
+  it('keeps the category delete dialog open after selecting delete from row actions', async () => {
+    const user = userEvent.setup();
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={true}
+            user={{
+              id: 'user1',
+              username: 'jane',
+              name: 'Jane',
+              image: { id: 'img1' },
+              wishlistItems: [],
+              wishlistCategories: [{ id: 'cat-1', name: 'Books', order: 0 }],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: /category actions for books/i,
+      }),
+    );
+    await user.click(
+      await screen.findByRole('menuitem', { name: /delete category/i }),
+    );
+
+    expect(
+      await screen.findByRole('dialog', { name: /delete category/i }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('menuitem', { name: /delete category/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('does not show drag handles for viewers', async () => {

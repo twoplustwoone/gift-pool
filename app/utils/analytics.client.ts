@@ -41,7 +41,7 @@ async function postAnalytics(
       signal: controller.signal,
     });
     clearTimeout(timeout);
-  } catch (error) {
+  } catch {
     if (attempt >= 1) return;
     await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
     await postAnalytics(payload, attempt + 1);
