@@ -59,11 +59,11 @@ import { toast } from 'sonner';
 import { useToast } from '#app/components/toaster.tsx';
 import { Badge } from '#app/components/ui/badge';
 import { Button } from '#app/components/ui/button';
-import { ConfirmDialog } from '#app/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -647,6 +647,10 @@ export const Wishlist = ({
   const pendingReorderMutationRef = useRef<PendingReorderMutation | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [pendingDeleteCategory, setPendingDeleteCategory] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [reorderMode, setReorderMode] = useState<ReorderMode>('off');
   const [dragging, setDragging] = useState<{
     type: 'category' | 'item';
@@ -1762,28 +1766,18 @@ export const Wishlist = ({
             </WishlistRowActionsItem>
           ) : null}
           {category.id ? (
-            <ConfirmDialog
-              title="Delete category"
-              confirmText="Delete"
-              onConfirm={() =>
-                actionFetcher.submit(
-                  {
-                    intent: 'delete',
-                    id: category.id!,
-                    clientMutationId: createClientMutationId(),
-                  },
-                  {
-                    method: 'post',
-                    action: '/wishlist/categories',
-                  },
-                )
+            <WishlistRowActionsItem
+              className="text-red-600 focus:text-red-700"
+              onSelect={() =>
+                setPendingDeleteCategory({
+                  id: category.id!,
+                  name: category.name,
+                })
               }
             >
-              <WishlistRowActionsItem className="text-red-600 focus:text-red-700">
-                <LuTrash className="h-4 w-4" aria-hidden />
-                Delete category
-              </WishlistRowActionsItem>
-            </ConfirmDialog>
+              <LuTrash className="h-4 w-4" aria-hidden />
+              Delete category
+            </WishlistRowActionsItem>
           ) : null}
         </WishlistRowActionsMenu>
       ) : null;
@@ -2168,6 +2162,58 @@ export const Wishlist = ({
           )}
         </Stack>
       </div>
+      <Dialog
+        open={pendingDeleteCategory !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteCategory(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete category</DialogTitle>
+            <DialogDescription>
+              {pendingDeleteCategory
+                ? `Delete ${pendingDeleteCategory.name}? Items in this category will move to Default (Uncategorized).`
+                : 'Delete this category? Items in this category will move to Default (Uncategorized).'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPendingDeleteCategory(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                !pendingDeleteCategory || actionFetcher.state !== 'idle'
+              }
+              onClick={() => {
+                if (!pendingDeleteCategory) return;
+                actionFetcher.submit(
+                  {
+                    intent: 'delete',
+                    id: pendingDeleteCategory.id,
+                    clientMutationId: createClientMutationId(),
+                  },
+                  {
+                    method: 'post',
+                    action: '/wishlist/categories',
+                  },
+                );
+                setPendingDeleteCategory(null);
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

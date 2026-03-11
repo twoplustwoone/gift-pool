@@ -21,7 +21,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '#app/components/ui/dialog.tsx';
 import { DropdownMenuItem } from '#app/components/ui/dropdown-menu.tsx';
 import {
@@ -142,6 +141,7 @@ export const WishlistItem = ({
   const displayImageSrc = imageSrc
     ? `${imageSrc}${imageSrc.includes('?') ? '&' : '?'}v=${(wishlistItem.updatedAt ? new Date(wishlistItem.updatedAt).getTime() : 0) + imageVersion}`
     : null;
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
 
   React.useEffect(() => {
     setImageErrored(false);
@@ -675,15 +675,13 @@ export const WishlistItem = ({
         </WishlistRowActionsItem>
       ) : null}
       {canDelete ? (
-        <DeleteWishlistItem
-          id={wishlistItem.id}
-          trigger={
-            <DropdownMenuItem className="gap-2 rounded-md px-2 py-2 text-sm text-red-600 focus:text-red-700">
-              <LuTrash className="h-4 w-4" aria-hidden />
-              Delete item
-            </DropdownMenuItem>
-          }
-        />
+        <DropdownMenuItem
+          className="gap-2 rounded-md px-2 py-2 text-sm text-red-600 focus:text-red-700"
+          onSelect={() => setDeleteOpen(true)}
+        >
+          <LuTrash className="h-4 w-4" aria-hidden />
+          Delete item
+        </DropdownMenuItem>
       ) : null}
     </WishlistRowActionsMenu>
   ) : null;
@@ -811,37 +809,46 @@ export const WishlistItem = ({
 
   // ---------------- Owner: mobile row (explicit actions + chevron); row tap → read-only view
   return (
-    <WishlistItemEditor
-      key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
-      ref={editorRef}
-      wishlistItem={{
-        id: wishlistItem.id,
-        title: wishlistItem.title,
-        url: wishlistItem.url ?? null,
-        note: wishlistItem.note ?? null,
-        type: wishlistItem.type,
-        categoryId: wishlistItem.categoryId ?? null,
-        hasImage: wishlistItem.hasImage ?? false,
-        imageSource: wishlistItem.imageSource ?? null,
-        updatedAt: wishlistItem.updatedAt,
-        status: normalizedStatus,
-      }}
-      trigger={Trigger} // desktop: row-as-trigger (edit/create); mobile: tap-to-view
-      canEdit={true}
-      categories={categories}
-      onStatusChange={onStatusChange}
-    />
+    <>
+      <WishlistItemEditor
+        key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
+        ref={editorRef}
+        wishlistItem={{
+          id: wishlistItem.id,
+          title: wishlistItem.title,
+          url: wishlistItem.url ?? null,
+          note: wishlistItem.note ?? null,
+          type: wishlistItem.type,
+          categoryId: wishlistItem.categoryId ?? null,
+          hasImage: wishlistItem.hasImage ?? false,
+          imageSource: wishlistItem.imageSource ?? null,
+          updatedAt: wishlistItem.updatedAt,
+          status: normalizedStatus,
+        }}
+        trigger={Trigger} // desktop: row-as-trigger (edit/create); mobile: tap-to-view
+        canEdit={true}
+        categories={categories}
+        onStatusChange={onStatusChange}
+      />
+      {canDelete ? (
+        <DeleteWishlistItem
+          id={wishlistItem.id}
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+        />
+      ) : null}
+    </>
   );
 };
 
 export const DeleteWishlistItem = ({
   id,
-  className,
-  trigger,
+  open,
+  onOpenChange,
 }: {
   id: string;
-  className?: string;
-  trigger?: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) => {
   const isPending = useIsPending();
   const fetcher = useFetcher<{
@@ -883,27 +890,7 @@ export const DeleteWishlistItem = ({
   }, [fallbackRequestId, fetcher.data]);
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        {trigger ?? (
-          <Button
-            variant="ghost"
-            className={className}
-            size="icon"
-            type="button"
-            aria-label="Delete item"
-            title="Delete"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerUp={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-            onKeyUp={(e) => e.stopPropagation()}
-          >
-            <LuTrash className="h-4 w-4" />
-          </Button>
-        )}
-      </DialogTrigger>
-
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Delete wishlist item</DialogTitle>
