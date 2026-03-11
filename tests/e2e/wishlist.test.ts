@@ -3,6 +3,13 @@ import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
 import { expect, test, waitFor } from '#tests/playwright-utils.ts';
 
+const dismissInstallPrompt = async (page: Page) => {
+  const notNow = page.getByRole('button', { name: /not now/i });
+  if ((await notNow.count()) > 0) {
+    await notNow.click();
+  }
+};
+
 async function dragHandleToTarget(
   page: Page,
   handle: Locator,
@@ -44,10 +51,61 @@ const addItemToCategory = async (page: Page, categoryName: string) => {
   await page.getByRole('menuitem', { name: /add item/i }).click();
 };
 
+const createWishlistItem = async ({
+  page,
+  title,
+}: {
+  page: Page;
+  title: string;
+}) => {
+  await page.getByRole('button', { name: /^Add Item$/ }).click();
+  const editor = page.getByRole('dialog');
+  await expect(editor).toBeVisible();
+  await editor.getByLabel('Title').fill(title);
+  await page.getByRole('button', { name: /^save$/i }).click();
+  await expect(editor).not.toBeVisible();
+};
+
+const openItemActions = async (page: Page, itemTitle: string) => {
+  await page
+    .getByRole('button', {
+      name: new RegExp(`item actions for ${itemTitle}`, 'i'),
+    })
+    .first()
+    .click();
+};
+
 const createFriendship = async (userOneId: string, userTwoId: string) => {
   const [userAId, userBId] =
     userOneId < userTwoId ? [userOneId, userTwoId] : [userTwoId, userOneId];
   await prisma.friendship.create({ data: { userAId, userBId } });
+};
+
+const ensureUserRoleCanDeleteWishlistItems = async () => {
+  const deletePermission = await prisma.permission.upsert({
+    where: {
+      action_entity_access: {
+        action: 'delete',
+        entity: 'wishlistItem',
+        access: 'own',
+      },
+    },
+    update: {},
+    create: {
+      action: 'delete',
+      entity: 'wishlistItem',
+      access: 'own',
+    },
+  });
+
+  await prisma.role.update({
+    where: { name: 'user' },
+    data: {
+      permissions: {
+        connect: { id: deletePermission.id },
+      },
+    },
+  });
 };
 
 const assertNoHorizontalOverflow = async (page: Page) => {
@@ -222,6 +280,63 @@ test('users can create, edit, and delete categories; items follow correctly', as
     .click();
   await page.getByRole('menuitem', { name: /edit item/i }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
+});
+
+test('owners can delete wishlist items from row actions', async ({
+  page,
+  login,
+}) => {
+  await ensureUserRoleCanDeleteWishlistItems();
+  const user = await login();
+  await page.goto('/wishlist');
+  await dismissInstallPrompt(page);
+
+  const itemTitle = `Deleteable Item ${Date.now()}`;
+
+  await createWishlistItem({ page, title: itemTitle });
+  await expect(page.getByText(itemTitle)).toHaveCount(2);
+
+  const createdItem = await waitFor(
+    async () => {
+      const item = await prisma.wishlistItem.findFirst({
+        where: { ownerId: user.id, title: itemTitle },
+        select: { id: true },
+      });
+      if (!item) {
+        throw new Error('Wishlist item not created yet');
+      }
+      return item;
+    },
+    { timeout: 8000 },
+  );
+
+  await openItemActions(page, itemTitle);
+  await page.getByRole('menuitem', { name: /^delete item$/i }).click();
+
+  const deleteDialog = page.getByRole('dialog', {
+    name: /delete wishlist item/i,
+  });
+  await expect(deleteDialog).toBeVisible();
+  await deleteDialog.getByRole('button', { name: /^delete$/i }).click();
+
+  await expect(page.getByText(itemTitle)).toHaveCount(0);
+
+  await waitFor(
+    async () => {
+      const deleted = await prisma.wishlistItem.findUnique({
+        where: { id: createdItem.id },
+        select: { id: true },
+      });
+      if (deleted) {
+        throw new Error('Wishlist item still exists');
+      }
+      return createdItem.id;
+    },
+    { timeout: 8000 },
+  );
+
+  await page.reload();
+  await expect(page.getByText(itemTitle)).toHaveCount(0);
 });
 
 test('owners can drag reorder categories and items across categories', async ({
