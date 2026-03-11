@@ -75,7 +75,7 @@ export function verifyPreferenceToken(token: string) {
   let payload: PreferenceTokenPayload;
   try {
     payload = decodePayload(encoded);
-  } catch (error) {
+  } catch {
     return null;
   }
   if (payload.exp < Date.now()) return null;

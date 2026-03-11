@@ -251,6 +251,7 @@ test('users can create, edit, and delete categories; items follow correctly', as
   // Rename Books -> Novels (inline header editor)
   await openCategoryActions(page, 'Books');
   await page.getByRole('menuitem', { name: /rename category/i }).click();
+  // eslint-disable-next-line playwright/no-raw-locators
   await page.locator('input[value="Books"]').fill('Novels');
   await page.getByRole('button', { name: /save category/i }).click();
   await expect(page.getByText('Novels')).toBeVisible();
@@ -259,11 +260,13 @@ test('users can create, edit, and delete categories; items follow correctly', as
   await page.getByRole('button', { name: /categories/i }).click();
   await page
     .getByRole('dialog')
-    .locator('li', { hasText: 'Novels' })
+    .getByRole('listitem')
+    .filter({ hasText: 'Novels' })
     .getByRole('button', { name: /delete category/i })
     .click();
   await expect(page.getByText('Novels')).toHaveCount(0);
   // Verify the default category section now contains the item
+  // eslint-disable-next-line playwright/no-raw-locators
   const bookOne = page
     .locator('div') // or a more specific container selector
     .filter({
@@ -274,7 +277,6 @@ test('users can create, edit, and delete categories; items follow correctly', as
   await expect(bookOne).toBeVisible();
 
   // Sanity: open item editor
-  await page.locator('.rounded-xl.border.border-card-border').first();
   await page
     .getByRole('button', { name: /item actions for book one/i })
     .click();

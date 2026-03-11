@@ -88,7 +88,7 @@ test('members page shows optimistic role change before promote request resolves'
 
     await page.goto(`/groups/${groupId}/members`);
 
-    const memberRow = page.locator('li', { hasText: member.username }).first();
+    const memberRow = page.getByRole('listitem').filter({ hasText: member.username }).first();
     const promoteButton = memberRow.getByRole('button', {
       name: /promote to admin/i,
     });

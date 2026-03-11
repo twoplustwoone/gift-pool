@@ -7,8 +7,7 @@ import {
 } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type WishlistItem } from '@prisma/client';
-import { Form, useActionData, useFetcher } from 'react-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   LuArchive,
   LuExternalLink,
@@ -19,6 +18,7 @@ import {
   LuUpload,
   LuX,
 } from 'react-icons/lu';
+import { Form, useActionData, useFetcher } from 'react-router';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Field, TextareaField } from '#app/components/forms.tsx';
@@ -193,26 +193,26 @@ export const WishlistItemEditor = React.forwardRef<
 
     const itemIdLabel = wishlistItem?.id ?? 'new-item';
 
-    const openView: WishlistItemEditorHandle['openView'] = ({
+    const openView: WishlistItemEditorHandle['openView'] = useCallback(({
       fromTrigger = false,
     } = {}) => {
       setMode('view');
       if (!fromTrigger) setOpen(true);
-    };
+    }, []);
 
-    const openEdit = () => {
+    const openEdit = useCallback(() => {
       if (!canEdit) {
         openView();
         return;
       }
       setMode(hasId ? 'edit' : 'create');
       setOpen(true);
-    };
+    }, [canEdit, hasId, openView]);
 
-    const openCreate = () => {
+    const openCreate = useCallback(() => {
       setMode('create');
       setOpen(true);
-    };
+    }, []);
 
     React.useImperativeHandle(
       ref,
@@ -230,7 +230,7 @@ export const WishlistItemEditor = React.forwardRef<
         openEdit,
         openCreate,
       }),
-      [canEdit, hasId, itemIdLabel, mode, openCreate, openEdit, openView],
+      [openCreate, openEdit, openView],
     );
 
     const [currentStatus, setCurrentStatus] = useState<WishlistItemStatusValue>(

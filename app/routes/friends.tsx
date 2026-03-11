@@ -1,9 +1,3 @@
-import {
-  type ClientLoaderFunctionArgs,
-  type LoaderFunctionArgs,
-  type MetaFunction,
-} from 'react-router';
-import { Link, Outlet, useLoaderData, useSearchParams } from 'react-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   LuCopy,
@@ -13,13 +7,16 @@ import {
   LuTrash,
   LuUser,
 } from 'react-icons/lu';
+import { Link, Outlet, useLoaderData, useSearchParams,
+  type ClientLoaderFunctionArgs,
+  type LoaderFunctionArgs,
+  type MetaFunction } from 'react-router';
 import { toast } from 'sonner';
 import {
   FriendActionButton,
   type RelationshipSnapshot,
 } from '#app/components/friends/friend-action-button.tsx';
 import { FriendSummary } from '#app/components/friends/friend-summary.tsx';
-import { useFriendWishlistPrefetch } from '#app/hooks/use-background-route-prefetch.ts';
 import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -36,6 +33,7 @@ import { Input } from '#app/components/ui/input.tsx';
 import { Skeleton } from '#app/components/ui/skeleton.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
 import { Text } from '#app/components/ui-kit/text.tsx';
+import { useFriendWishlistPrefetch } from '#app/hooks/use-background-route-prefetch.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { loadFriendsPageData } from '#app/utils/friends-page.server.ts';
 import {
@@ -117,7 +115,7 @@ const FriendsRoute = () => {
     new Set(),
   );
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
-  const [mutuals, setMutuals] = useState<
+  const [mutuals] = useState<
     Record<
       string,
       {
@@ -319,17 +317,6 @@ const FriendsRoute = () => {
         // For PENDING_OUTGOING, do not mutate the list
       },
     [addFriendEntry],
-  );
-  const handleFriendTransition = useCallback(
-    (friendshipId: string, userId: string) =>
-      (snapshot: RelationshipSnapshot) => {
-        if (snapshot.state === 'NONE') {
-          setFriendsState((prev) =>
-            prev.filter((friend) => friend.user.id !== userId),
-          );
-        }
-      },
-    [],
   );
   useEffect(() => {
     const handler = (event: Event) => {
@@ -715,7 +702,6 @@ const FriendsRoute = () => {
                               id === friend.friendshipId ? null : id,
                             )
                           }
-                          onRemove={async () => {}}
                           rightActions={null}
                         >
                           <FriendSummary
@@ -828,7 +814,6 @@ const FriendsRoute = () => {
                             id === friend.friendshipId ? null : id,
                           )
                         }
-                        onRemove={async () => {}}
                         rightActions={null}
                       >
                         <FriendSummary
@@ -1083,14 +1068,12 @@ function SwipeableFriendRow({
   open,
   onOpen,
   onClose,
-  onRemove,
 }: {
   children: React.ReactNode;
   rightActions: React.ReactNode;
   open: boolean;
   onOpen: () => void;
   onClose: () => void;
-  onRemove: () => void;
 }) {
   const startX = useRef<number | null>(null);
   const deltaX = useRef(0);
@@ -1311,26 +1294,6 @@ function AddFriendsPanel({
 
   // Rotate/disable removed in Add tab to simplify UX
 
-  const shareInvite = useCallback(async () => {
-    if (!inviteUrl) return;
-    const shareData = {
-      title: 'Add me on GiftPool',
-      text: 'Let’s connect on GiftPool!',
-      url: inviteUrl,
-    };
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-        return;
-      } catch {}
-    }
-    try {
-      await navigator.clipboard.writeText(inviteUrl);
-      toast.success('Friend invite link copied');
-    } catch {
-      toast.error('Unable to copy link');
-    }
-  }, [inviteUrl]);
   const openQr = useCallback(async () => {
     if (!inviteUrl) return;
     try {

@@ -1,12 +1,10 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { type LoaderFunctionArgs } from 'react-router';
-import {
+import { type LoaderFunctionArgs,
   Form,
   Link,
   redirect,
   useLoaderData,
-  type MetaFunction,
-} from 'react-router';
+  type MetaFunction } from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { FriendGateCard } from '#app/components/friends/friend-gate-card.tsx';
@@ -26,30 +24,6 @@ type Relationship = {
   incomingRequestId: string | null;
   outgoingRequestId: string | null;
 };
-type LoaderData =
-  | {
-      canViewProfile: false;
-      user: {
-        id: string;
-        name: string | null;
-        username: string;
-      };
-      relationship: Relationship;
-    }
-  | {
-      canViewProfile: true;
-      user: {
-        id: string;
-        name: string | null;
-        username: string;
-        createdAt: Date;
-        image: {
-          id: string;
-        } | null;
-      };
-      relationship: Relationship;
-      userJoinedDisplay: string;
-    };
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { username } = params;
   const userId = await requireUserId(request);

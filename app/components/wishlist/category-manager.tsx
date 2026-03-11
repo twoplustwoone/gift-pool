@@ -1,4 +1,3 @@
-import { useFetcher } from 'react-router';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import {
   LuArrowUpDown,
@@ -9,6 +8,7 @@ import {
   LuTrash,
   LuX,
 } from 'react-icons/lu';
+import { useFetcher } from 'react-router';
 import { useToast } from '#app/components/toaster.tsx';
 import { Button } from '#app/components/ui/button';
 import { Input } from '#app/components/ui/input';
@@ -19,9 +19,9 @@ import {
 } from '#app/components/ui/popover';
 import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
 import { Flex, Text } from '../ui-kit';
-import type {
-  CategoryMutationResult,
-  WishlistCategory,
+import  {
+  type CategoryMutationResult,
+  type WishlistCategory,
 } from './wishlist-category-state';
 
 export const CategoryManager = ({
@@ -122,6 +122,7 @@ export const CategoryManager = ({
     actionFetcher.state,
     actionFetcher.data,
     onMutationResult,
+    createName,
   ]);
 
   return (

@@ -26,13 +26,6 @@ import {
   type WishlistItem as WishlistItemType,
 } from '@prisma/client';
 import {
-  Link,
-  useFetcher,
-  useFetchers,
-  useNavigation,
-  useSearchParams,
-} from 'react-router';
-import {
   type FormEvent,
   Fragment,
   type ReactNode,
@@ -54,6 +47,13 @@ import {
   LuTrash,
   LuX,
 } from 'react-icons/lu';
+import {
+  Link,
+  useFetcher,
+  useFetchers,
+  useNavigation,
+  useSearchParams,
+} from 'react-router';
 import { toast } from 'sonner';
 
 import { useToast } from '#app/components/toaster.tsx';
@@ -331,24 +331,24 @@ const applyCategoryItemOrder = ({
 
 type PendingItemMutation =
   | {
-      type: 'upsert';
-      clientMutationId: string;
-      itemId: string;
-      title: string;
-      note: string | null;
-      url: string | null;
-      itemType: string;
-      categoryId: string | null;
-      hasImage: boolean;
-      imageSource: WishlistItemImageSource | null;
-      status: WishlistItemStatusValue;
-      updatedAt: Date;
-    }
+    type: 'upsert';
+    clientMutationId: string;
+    itemId: string;
+    title: string;
+    note: string | null;
+    url: string | null;
+    itemType: string;
+    categoryId: string | null;
+    hasImage: boolean;
+    imageSource: WishlistItemImageSource | null;
+    status: WishlistItemStatusValue;
+    updatedAt: Date;
+  }
   | {
-      type: 'delete';
-      clientMutationId: string;
-      itemId: string;
-    };
+    type: 'delete';
+    clientMutationId: string;
+    itemId: string;
+  };
 
 const normalizeFormActionPath = (action: string | null | undefined) => {
   if (!action) return null;
@@ -497,9 +497,8 @@ const DragHandle = ({
     ref={setActivatorNodeRef}
     aria-label={label}
     disabled={disabled}
-    className={`inline-flex h-10 w-10 touch-none items-center justify-center rounded-lg border border-transparent text-muted-foreground transition hover:bg-muted/70 hover:text-foreground active:scale-[0.98] ${
-      active ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : ''
-    } disabled:cursor-not-allowed disabled:opacity-40`}
+    className={`inline-flex h-10 w-10 touch-none items-center justify-center rounded-lg border border-transparent text-muted-foreground transition hover:bg-muted/70 hover:text-foreground active:scale-[0.98] ${active ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : ''
+      } disabled:cursor-not-allowed disabled:opacity-40`}
     onClick={(event) => event.stopPropagation()}
     onPointerDown={(event) => event.stopPropagation()}
     {...attributes}
@@ -531,13 +530,12 @@ const HeaderDropTarget = ({
     <div
       ref={setNodeRef}
       data-drop-target={isActiveTarget ? 'true' : 'false'}
-      className={`relative rounded-xl transition ${
-        isActiveTarget
+      className={`relative rounded-xl transition ${isActiveTarget
           ? 'bg-emerald-50/90 ring-2 ring-emerald-300'
           : dragState === 'dragging-item'
             ? 'bg-background/70'
             : ''
-      }`}
+        }`}
     >
       {children}
       {isActiveTarget && dragState === 'dragging-item' ? (
@@ -848,10 +846,10 @@ export const Wishlist = ({
     const fromNavigation =
       navigation.state !== 'idle' && navigation.formData
         ? collectPending(
-            navigation.formData,
-            navigation.formAction,
-            'navigation-item',
-          )
+          navigation.formData,
+          navigation.formAction,
+          'navigation-item',
+        )
         : [];
 
     return [...fromFetchers, ...fromNavigation];
@@ -1549,10 +1547,10 @@ export const Wishlist = ({
     if (sourceCategoryId === targetCategoryId) {
       const nextSourceIds = overItemId
         ? reorderItemIdsInList({
-            orderedIds: sourceIds,
-            activeId: movedItemId,
-            overId: overItemId,
-          })
+          orderedIds: sourceIds,
+          activeId: movedItemId,
+          overId: overItemId,
+        })
         : sourceIds;
 
       if (nextSourceIds.join('|') !== sourceIds.join('|')) {
@@ -1685,11 +1683,10 @@ export const Wishlist = ({
                         data-testid="wishlist-item-row"
                         data-drag-state={dragState}
                         data-drop-target="false"
-                        className={`flex items-center gap-3 rounded-xl border border-border/80 bg-card px-3 py-2 shadow-sm transition ${
-                          isDragging
+                        className={`flex items-center gap-3 rounded-xl border border-border/80 bg-card px-3 py-2 shadow-sm transition ${isDragging
                             ? 'border-emerald-300 bg-emerald-50/80 ring-2 ring-emerald-300'
                             : ''
-                        }`}
+                          }`}
                       >
                         <DragHandle
                           label={`Drag item ${item.title}`}
@@ -1784,11 +1781,10 @@ export const Wishlist = ({
 
     return (
       <div
-        className={`group overflow-hidden rounded-xl border border-border/90 bg-surface shadow-sm transition ${
-          dragState === 'dragging-item' && !isCategoryDropHighlighted
+        className={`group overflow-hidden rounded-xl border border-border/90 bg-surface shadow-sm transition ${dragState === 'dragging-item' && !isCategoryDropHighlighted
             ? 'opacity-85'
             : ''
-        }`}
+          }`}
         data-testid="wishlist-category-row"
         data-drag-state={dragState}
         data-drop-target={isCategoryDropHighlighted ? 'true' : 'false'}
@@ -1800,9 +1796,8 @@ export const Wishlist = ({
           categoryName={category.name}
         >
           <div
-            className={`flex min-h-14 items-center justify-between gap-2 rounded-t-xl bg-surface px-3 py-2 sm:px-4 ${
-              isItemReorderMode ? '' : 'cursor-pointer hover:bg-muted'
-            }`}
+            className={`flex min-h-14 items-center justify-between gap-2 rounded-t-xl bg-surface px-3 py-2 sm:px-4 ${isItemReorderMode ? '' : 'cursor-pointer hover:bg-muted'
+              }`}
             onClick={() => {
               if (isItemReorderMode || isCategoryReorderMode) return;
               toggle(category.id);
@@ -1924,11 +1919,10 @@ export const Wishlist = ({
           <div className="inline-flex w-full max-w-md rounded-full bg-muted p-1 text-sm">
             <button
               type="button"
-              className={`flex-1 rounded-full px-4 py-2 font-semibold transition ${
-                view === 'wishlist'
+              className={`flex-1 rounded-full px-4 py-2 font-semibold transition ${view === 'wishlist'
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground'
-              }`}
+                }`}
               aria-pressed={view === 'wishlist'}
               onClick={() => handleViewChange('wishlist')}
             >
@@ -1936,11 +1930,10 @@ export const Wishlist = ({
             </button>
             <button
               type="button"
-              className={`flex-1 rounded-full px-4 py-2 font-semibold transition ${
-                view === 'past'
+              className={`flex-1 rounded-full px-4 py-2 font-semibold transition ${view === 'past'
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground'
-              }`}
+                }`}
               aria-pressed={view === 'past'}
               onClick={() => handleViewChange('past')}
             >
@@ -1974,11 +1967,10 @@ export const Wishlist = ({
                     <button
                       type="button"
                       aria-label="Item reorder mode"
-                      className={`rounded-full px-3 py-1.5 font-semibold transition ${
-                        isItemReorderMode
+                      className={`rounded-full px-3 py-1.5 font-semibold transition ${isItemReorderMode
                           ? 'bg-emerald-600 text-white shadow-sm'
                           : 'text-emerald-900 hover:bg-emerald-100'
-                      }`}
+                        }`}
                       onClick={startItemReorderMode}
                     >
                       Items
@@ -1986,11 +1978,10 @@ export const Wishlist = ({
                     <button
                       type="button"
                       aria-label="Category reorder mode"
-                      className={`rounded-full px-3 py-1.5 font-semibold transition ${
-                        isCategoryReorderMode
+                      className={`rounded-full px-3 py-1.5 font-semibold transition ${isCategoryReorderMode
                           ? 'bg-emerald-600 text-white shadow-sm'
                           : 'text-emerald-900 hover:bg-emerald-100'
-                      }`}
+                        }`}
                       onClick={startCategoryReorderMode}
                     >
                       Categories
@@ -2022,11 +2013,10 @@ export const Wishlist = ({
               onDragCancel={isReorderMode ? handleDragCancel : undefined}
             >
               <div
-                className={`space-y-4 ${
-                  isOwner && !isReorderMode
+                className={`space-y-4 ${isOwner && !isReorderMode
                     ? 'pb-[calc(theme(spacing.24)+env(safe-area-inset-bottom))] sm:pb-0'
                     : 'pb-2'
-                }`}
+                  }`}
               >
                 {isCategoryReorderMode ? (
                   <div className="space-y-3">
@@ -2066,11 +2056,10 @@ export const Wishlist = ({
                             isDragging,
                           }) => (
                             <div
-                              className={`rounded-xl border border-border/80 bg-surface px-4 py-3 shadow-sm transition ${
-                                isDragging
+                              className={`rounded-xl border border-border/80 bg-surface px-4 py-3 shadow-sm transition ${isDragging
                                   ? 'border-emerald-300 bg-emerald-50/80 ring-2 ring-emerald-300'
                                   : ''
-                              }`}
+                                }`}
                               data-testid="wishlist-category-row"
                               data-drag-state={dragState}
                               data-drop-target="false"
@@ -2195,7 +2184,7 @@ export const Wishlist = ({
               }
               onClick={() => {
                 if (!pendingDeleteCategory) return;
-                actionFetcher.submit(
+                void actionFetcher.submit(
                   {
                     intent: 'delete',
                     id: pendingDeleteCategory.id,
@@ -2348,9 +2337,9 @@ const WishlistShareDialog = ({
       setActiveShare(
         incomingShare
           ? {
-              ...incomingShare,
-              createdAt: new Date(incomingShare.createdAt),
-            }
+            ...incomingShare,
+            createdAt: new Date(incomingShare.createdAt),
+          }
           : null,
       );
     }

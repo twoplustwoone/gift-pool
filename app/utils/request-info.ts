@@ -16,7 +16,7 @@ export function useOptionalRequestInfo() {
   try {
     const data = useRouteLoaderData<typeof rootLoader>('root');
     return data?.requestInfo ?? null;
-  } catch (_error) {
+  } catch {
     return null;
   }
 }
