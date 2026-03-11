@@ -1,6 +1,6 @@
 import { invariant } from '@epic-web/invariant';
 import { faker } from '@faker-js/faker';
-import type { Page } from '@playwright/test';
+import  { type Page } from '@playwright/test';
 import { verifyUserPassword } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { readEmail } from '#tests/mocks/utils.ts';

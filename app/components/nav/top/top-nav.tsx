@@ -1,5 +1,5 @@
-import { Link } from 'react-router';
 import { type LucideIcon, Heart, Home, UserCheck, Users } from 'lucide-react';
+import { Link } from 'react-router';
 import { Logo } from '#app/components/logo';
 import { NotificationBell } from '#app/components/notifications/notification-bell.tsx';
 import { Button } from '#app/components/ui/button';

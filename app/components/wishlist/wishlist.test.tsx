@@ -1,9 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
-import { createRoutesStub } from 'react-router';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createRoutesStub } from 'react-router';
 import { vi, describe, it, expect } from 'vitest';
 import { Wishlist } from './index';
 

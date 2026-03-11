@@ -11,12 +11,10 @@ import {
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
   type MetaFunction,
-} from 'react-router';
-import {
   Form,
   useActionData,
   useLoaderData,
-  useSearchParams,
+  useSearchParams
 } from 'react-router';
 import { HoneypotInputs } from 'remix-utils/honeypot/react';
 import { safeRedirect } from 'remix-utils/safe-redirect';

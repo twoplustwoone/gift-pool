@@ -1,5 +1,4 @@
 import { type WishlistItem as WishlistItemType } from '@prisma/client';
-import { useFetcher } from 'react-router';
 import * as React from 'react';
 import {
   LuArchive,
@@ -10,6 +9,7 @@ import {
   LuPencil,
   LuTrash,
 } from 'react-icons/lu';
+import { useFetcher } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Button } from '#app/components/ui/button.tsx';

@@ -1,6 +1,6 @@
 import { type Password, type User } from '@prisma/client';
-import { redirect } from 'react-router';
 import bcrypt from 'bcryptjs';
+import { redirect } from 'react-router';
 import { safeRedirect } from 'remix-utils/safe-redirect';
 import { prisma } from './db.server.ts';
 import { combineHeaders } from './misc.tsx';

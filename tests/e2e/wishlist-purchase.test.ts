@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import  { type Page } from '@playwright/test';
 import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
 import {
