@@ -364,13 +364,20 @@ const App = () => {
       });
     });
   }, [location, navigation.state]);
+  const targetLocation = navigation.location;
+  const isRouteChangeNavigation =
+    targetLocation != null &&
+    (targetLocation.pathname !== location.pathname ||
+      targetLocation.search !== location.search ||
+      targetLocation.hash !== location.hash);
+  const isWishlistNavigationTarget =
+    targetLocation != null &&
+    (targetLocation.pathname === '/wishlist' ||
+      /^\/users\/[^/]+\/wishlist$/.test(targetLocation.pathname));
   const isWishlistNavigationPending =
     navigation.state === 'loading' &&
-    Boolean(
-      navigation.location &&
-      (navigation.location.pathname === '/wishlist' ||
-        /^\/users\/[^/]+\/wishlist$/.test(navigation.location.pathname)),
-    );
+    isRouteChangeNavigation &&
+    isWishlistNavigationTarget;
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
       <I18nProvider locale={data.requestInfo.locale}>
