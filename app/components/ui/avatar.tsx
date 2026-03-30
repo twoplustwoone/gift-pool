@@ -61,7 +61,16 @@ export const Avatar = ({
     }
   })();
 
-  const src = getUserImgSrc(image?.id);
+  const requestedImageSize =
+    typeof size === 'number'
+      ? Math.min(512, Math.max(32, size * 8))
+      : size === 's'
+        ? 64
+        : size === 'l'
+          ? 256
+          : 128;
+
+  const src = getUserImgSrc(image?.id, { size: requestedImageSize });
 
   const imageAlt = altText ?? image?.altText ?? user.name ?? user.username;
 

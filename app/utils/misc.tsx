@@ -5,8 +5,19 @@ import { useSpinDelay } from 'spin-delay';
 import { extendTailwindMerge } from 'tailwind-merge';
 import { extendedTheme } from './extended-theme.ts';
 
-export function getUserImgSrc(imageId?: string | null) {
-  return imageId ? `/resources/user-images/${imageId}` : '/img/user.png';
+export function getUserImgSrc(
+  imageId?: string | null,
+  options?: { size?: number },
+) {
+  if (!imageId) return '/img/user.png';
+
+  const params = new URLSearchParams();
+  if (options?.size) {
+    params.set('size', String(options.size));
+  }
+
+  const query = params.toString();
+  return `/resources/user-images/${imageId}${query ? `?${query}` : ''}`;
 }
 
 export function getWishlistItemImgSrc(itemId?: string | null) {

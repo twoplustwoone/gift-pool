@@ -18,7 +18,7 @@ export const WishlistAvatar = ({
   const displayName = user.name ?? user.username;
   const image = (
     <img
-      src={getUserImgSrc(user.image?.id)}
+      src={getUserImgSrc(user.image?.id, { size: 64 })}
       alt={displayName}
       className="h-10 w-10 rounded-full object-cover"
     />

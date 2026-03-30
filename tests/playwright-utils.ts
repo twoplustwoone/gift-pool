@@ -71,7 +71,7 @@ export const test = base.extend<{
     });
     await prisma.user.delete({ where: { id: userId } }).catch(() => {});
   },
-  login: async ({ page }, use) => {
+  login: async ({ page, baseURL }, use) => {
     let userId: string | undefined = undefined;
     // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(async (options) => {
@@ -91,9 +91,15 @@ export const test = base.extend<{
         await authSessionStorage.commitSession(authSession),
       );
       const newConfig = {
-        ...cookieConfig,
-        domain: 'localhost',
-        expires: cookieConfig.expires?.getTime(),
+        name: cookieConfig.name,
+        value: cookieConfig.value,
+        domain: new URL(baseURL ?? 'http://localhost').hostname,
+        path: cookieConfig.path ?? '/',
+        httpOnly: cookieConfig.httpOnly,
+        secure: cookieConfig.secure,
+        expires: cookieConfig.expires
+          ? Math.floor(cookieConfig.expires.getTime() / 1000)
+          : undefined,
         sameSite: cookieConfig.sameSite as 'Strict' | 'Lax' | 'None',
       };
       await page.context().addCookies([newConfig]);
