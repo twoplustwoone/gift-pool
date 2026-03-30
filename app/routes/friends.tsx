@@ -81,6 +81,7 @@ type RequestMutationResponse = {
   ok: boolean;
   unreadCount: number | null;
 };
+type RequestListEntryUser = IncomingEntry['fromUser'] | OutgoingEntry['toUser'];
 
 function addFriendIfMissing(
   friends: FriendEntry[],
@@ -158,6 +159,33 @@ async function runBatchRequestMutation(
   });
 
   return { failedIds, unreadCount };
+}
+
+async function runOptimisticRequestBatch<TRequest extends { id: string }>(
+  ids: string[],
+  action: RequestMutationAction,
+  requests: TRequest[],
+  setRequests: React.Dispatch<React.SetStateAction<TRequest[]>>,
+  setUnreadCount?: (count: number) => void,
+) {
+  const snapshot = requests.filter((request) => ids.includes(request.id));
+  setRequests((prev) => prev.filter((request) => !ids.includes(request.id)));
+
+  const { failedIds, unreadCount } = await runBatchRequestMutation(ids, action);
+  const messages = getRequestMutationMessages(action, ids.length);
+
+  if (unreadCount != null) {
+    setUnreadCount?.(unreadCount);
+  }
+
+  if (failedIds.length > 0) {
+    const failed = snapshot.filter((request) => failedIds.includes(request.id));
+    setRequests((prev) => [...failed, ...prev]);
+    toast.error(messages.error);
+    return;
+  }
+
+  toast.success(messages.success);
 }
 
 function getRequestMutationMessages(
@@ -269,6 +297,55 @@ function getMutualGroupChips(
 
 type TranslateFn = ReturnType<typeof useTranslation>['t'];
 
+function FriendRequestRow({
+  onStateChange,
+  onToggleSelected,
+  relationship,
+  requestId,
+  selected,
+  selectMode,
+  user,
+}: {
+  onStateChange: (snapshot: RelationshipSnapshot) => void;
+  onToggleSelected: (requestId: string, selected: boolean) => void;
+  relationship: RelationshipSnapshot;
+  requestId: string;
+  selected: boolean;
+  selectMode: boolean;
+  user: RequestListEntryUser;
+}) {
+  const username = user.username;
+
+  return (
+    <li
+      className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
+    >
+      {selectMode ? (
+        <input
+          type="checkbox"
+          aria-label={`Select @${username}`}
+          checked={selected}
+          onChange={(event) =>
+            onToggleSelected(requestId, event.currentTarget.checked)
+          }
+          className="h-4 w-4"
+        />
+      ) : null}
+      <Avatar size="s" image={user.image} user={user} />
+      <div className="flex-1 text-foreground">@{username}</div>
+      {selectMode ? null : (
+        <FriendActionButton
+          targetUserId={user.id}
+          targetUserName={`@${username}`}
+          relationship={relationship}
+          variant="compact"
+          onStateChange={onStateChange}
+        />
+      )}
+    </li>
+  );
+}
+
 function IncomingRequestSection({
   incoming,
   isSelectMode,
@@ -307,41 +384,23 @@ function IncomingRequestSection({
       <ul className="mt-3 space-y-3">
         {incoming.map((request) => {
           const user = request.fromUser;
-          const username = user.username;
           const selected = selectedIncoming.has(request.id);
           return (
-            <li
+            <FriendRequestRow
               key={request.id}
-              className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
-            >
-              {isSelectMode ? (
-                <input
-                  type="checkbox"
-                  aria-label={`Select @${username}`}
-                  checked={selected}
-                  onChange={(event) =>
-                    onToggleSelected(request.id, event.currentTarget.checked)
-                  }
-                  className="h-4 w-4"
-                />
-              ) : null}
-              <Avatar size="s" image={user.image} user={user} />
-              <div className="flex-1 text-foreground">@{username}</div>
-              {isSelectMode ? null : (
-                <FriendActionButton
-                  targetUserId={user.id}
-                  targetUserName={`@${username}`}
-                  relationship={{
-                    state: 'PENDING_INCOMING',
-                    friendshipId: null,
-                    incomingRequestId: request.id,
-                    outgoingRequestId: null,
-                  }}
-                  variant="compact"
-                  onStateChange={onStateChange(request.id, user)}
-                />
-              )}
-            </li>
+              user={user}
+              requestId={request.id}
+              selected={selected}
+              selectMode={isSelectMode}
+              onToggleSelected={onToggleSelected}
+              relationship={{
+                state: 'PENDING_INCOMING',
+                friendshipId: null,
+                incomingRequestId: request.id,
+                outgoingRequestId: null,
+              }}
+              onStateChange={onStateChange(request.id, user)}
+            />
           );
         })}
       </ul>
@@ -387,41 +446,23 @@ function OutgoingRequestSection({
       <ul className="mt-3 space-y-3">
         {outgoing.map((request) => {
           const user = request.toUser;
-          const username = user.username;
           const selected = selectedOutgoing.has(request.id);
           return (
-            <li
+            <FriendRequestRow
               key={request.id}
-              className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
-            >
-              {isSelectMode ? (
-                <input
-                  type="checkbox"
-                  aria-label={`Select @${username}`}
-                  checked={selected}
-                  onChange={(event) =>
-                    onToggleSelected(request.id, event.currentTarget.checked)
-                  }
-                  className="h-4 w-4"
-                />
-              ) : null}
-              <Avatar size="s" image={user.image} user={user} />
-              <div className="flex-1 text-foreground">@{username}</div>
-              {isSelectMode ? null : (
-                <FriendActionButton
-                  targetUserId={user.id}
-                  targetUserName={`@${username}`}
-                  relationship={{
-                    state: 'PENDING_OUTGOING',
-                    friendshipId: null,
-                    incomingRequestId: null,
-                    outgoingRequestId: request.id,
-                  }}
-                  variant="compact"
-                  onStateChange={onStateChange(request.id, user)}
-                />
-              )}
-            </li>
+              user={user}
+              requestId={request.id}
+              selected={selected}
+              selectMode={isSelectMode}
+              onToggleSelected={onToggleSelected}
+              relationship={{
+                state: 'PENDING_OUTGOING',
+                friendshipId: null,
+                incomingRequestId: null,
+                outgoingRequestId: request.id,
+              }}
+              onStateChange={onStateChange(request.id, user)}
+            />
           );
         })}
       </ul>
@@ -1030,63 +1071,36 @@ const FriendsRoute = () => {
   };
   const batchAccept = useCallback(
     async (ids: string[]) => {
-      const snapshot = incomingState.filter((request) => ids.includes(request.id));
-      setIncomingState((prev) =>
-        prev.filter((request) => !ids.includes(request.id)),
-      );
-      const { failedIds, unreadCount } = await runBatchRequestMutation(
+      await runOptimisticRequestBatch(
         ids,
         'accept',
+        incomingState,
+        setIncomingState,
+        setUnreadCount,
       );
-      const messages = getRequestMutationMessages('accept', ids.length);
-      if (unreadCount != null) setUnreadCount(unreadCount);
-      if (failedIds.length > 0) {
-        const failed = snapshot.filter((request) => failedIds.includes(request.id));
-        setIncomingState((prev) => [...failed, ...prev]);
-        toast.error(messages.error);
-        return;
-      }
-      toast.success(messages.success);
     },
     [incomingState, setUnreadCount],
   );
   const batchDecline = useCallback(
     async (ids: string[]) => {
-      const snapshot = incomingState.filter((request) => ids.includes(request.id));
-      setIncomingState((prev) =>
-        prev.filter((request) => !ids.includes(request.id)),
-      );
-      const { failedIds, unreadCount } = await runBatchRequestMutation(
+      await runOptimisticRequestBatch(
         ids,
         'reject',
+        incomingState,
+        setIncomingState,
+        setUnreadCount,
       );
-      const messages = getRequestMutationMessages('reject', ids.length);
-      if (unreadCount != null) setUnreadCount(unreadCount);
-      if (failedIds.length > 0) {
-        const failed = snapshot.filter((request) => failedIds.includes(request.id));
-        setIncomingState((prev) => [...failed, ...prev]);
-        toast.error(messages.error);
-        return;
-      }
-      toast.success(messages.success);
     },
     [incomingState, setUnreadCount],
   );
   const batchCancel = useCallback(
     async (ids: string[]) => {
-      const snapshot = outgoingState.filter((request) => ids.includes(request.id));
-      setOutgoingState((prev) =>
-        prev.filter((request) => !ids.includes(request.id)),
+      await runOptimisticRequestBatch(
+        ids,
+        'cancel',
+        outgoingState,
+        setOutgoingState,
       );
-      const { failedIds } = await runBatchRequestMutation(ids, 'cancel');
-      const messages = getRequestMutationMessages('cancel', ids.length);
-      if (failedIds.length > 0) {
-        const failed = snapshot.filter((request) => failedIds.includes(request.id));
-        setOutgoingState((prev) => [...failed, ...prev]);
-        toast.error(messages.error);
-        return;
-      }
-      toast.success(messages.success);
     },
     [outgoingState],
   );
