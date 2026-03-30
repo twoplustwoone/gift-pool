@@ -1277,7 +1277,7 @@ function AddFriendsPanel({
 
   // Fetch current invite on mount
   useEffect(() => {
-    void (async () => {
+    const loadInvite = async () => {
       try {
         const res = await fetch('/api/friends/invite', {
           method: 'POST',
@@ -1289,7 +1289,9 @@ function AddFriendsPanel({
         };
         setInviteUrl(data.inviteUrl);
       } catch {}
-    })();
+    };
+
+    loadInvite().catch(() => {});
   }, []);
 
   // Rotate/disable removed in Add tab to simplify UX
@@ -1308,6 +1310,21 @@ function AddFriendsPanel({
       toast.error('Unable to generate QR code');
     }
   }, [inviteUrl]);
+  const handleCopyInviteLink = useCallback(async () => {
+    if (!inviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      toast.success('Friend invite link copied');
+    } catch {
+      toast.error('Unable to copy link');
+    }
+  }, [inviteUrl]);
+  const handleOpenQr = useCallback(() => {
+    openQr().catch(() => {});
+  }, [openQr]);
+  const handleCreateInvite = useCallback(() => {
+    createInvite().catch(() => {});
+  }, [createInvite]);
   const hasResults = useMemo(() => results.length > 0, [results.length]);
   const showEmpty = useMemo(
     () =>
@@ -1401,14 +1418,7 @@ function AddFriendsPanel({
                 size="sm"
                 variant="ghost"
                 aria-label="Copy invite link"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(inviteUrl);
-                    toast.success('Friend invite link copied');
-                  } catch {
-                    toast.error('Unable to copy link');
-                  }
-                }}
+                onClick={handleCopyInviteLink}
                 className="min-w-[120px] flex-1 sm:flex-none"
               >
                 <LuCopy />
@@ -1416,7 +1426,7 @@ function AddFriendsPanel({
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => void openQr()}
+                onClick={handleOpenQr}
                 className="min-w-[120px] flex-1 sm:flex-none"
               >
                 <LuQrCode className="md:mr-2" />
@@ -1427,7 +1437,7 @@ function AddFriendsPanel({
             </div>
           </div>
         ) : (
-          <Button onClick={() => void createInvite()} className="w-full">
+          <Button onClick={handleCreateInvite} className="w-full">
             <LuLink className="mr-2" /> Create Friend Link
           </Button>
         )}

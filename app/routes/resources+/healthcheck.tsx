@@ -15,7 +15,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         method: 'HEAD',
         headers: { 'X-Healthcheck': 'true' },
       }).then((r) => {
-        if (!r.ok) return Promise.reject(r);
+        if (!r.ok) throw r;
       }),
     ]);
     return new Response('OK');

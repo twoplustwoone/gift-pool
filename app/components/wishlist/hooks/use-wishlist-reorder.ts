@@ -9,13 +9,19 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from 'react';
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useFetcher } from 'react-router';
 import { toast } from 'sonner';
 
 import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
 
-import  { type WishlistCategory } from '../wishlist-category-state';
+import { type WishlistCategory } from '../wishlist-category-state';
 import {
   applyCategoryItemOrder,
   CATEGORY_DRAG_PREFIX,
@@ -43,6 +49,19 @@ type WishlistReorderMutationResponse = {
   error?: string;
   clientMutationId?: string | null;
 };
+
+function buildNextCategories(
+  orderedCategories: WishlistCategory[],
+  nextCategoryIds: string[],
+) {
+  return nextCategoryIds
+    .map((id, order) => {
+      const category = orderedCategories.find((entry) => entry.id === id);
+      if (!category) return null;
+      return { ...category, order };
+    })
+    .filter(Boolean) as WishlistCategory[];
+}
 
 export const useWishlistReorder = ({
   items,
@@ -168,10 +187,12 @@ export const useWishlistReorder = ({
     formData.set('intent', 'reorder-categories');
     formData.set('orderedCategoryIds', JSON.stringify(ids));
     formData.set('clientMutationId', clientMutationId);
-    void reorderFetcher.submit(formData, {
-      method: 'post',
-      action: '/wishlist/reorder',
-    });
+    Promise.resolve(
+      reorderFetcher.submit(formData, {
+        method: 'post',
+        action: '/wishlist/reorder',
+      }),
+    ).catch(() => {});
   };
 
   const submitItemReorder = ({
@@ -207,10 +228,12 @@ export const useWishlistReorder = ({
         JSON.stringify(targetOrderedItemIds),
       );
     }
-    void reorderFetcher.submit(formData, {
-      method: 'post',
-      action: '/wishlist/reorder',
-    });
+    Promise.resolve(
+      reorderFetcher.submit(formData, {
+        method: 'post',
+        action: '/wishlist/reorder',
+      }),
+    ).catch(() => {});
   };
 
   const handleDragStart = ({ active }: DragStartEvent) => {
@@ -262,72 +285,41 @@ export const useWishlistReorder = ({
   };
 
   const customCategoryIds = orderedCategories.map((category) => category.id);
-
-  const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    const activeDragId = String(active.id);
-    const overDragId = over ? String(over.id) : null;
-
-    if (!overDragId) {
-      handleDragCancel();
-      return;
+  const finishCategoryDrag = (activeDragId: string, overDragId: string) => {
+    const activeCategoryId = getCategoryIdFromDragId(activeDragId);
+    const overCategoryId = getCategoryIdFromDragId(overDragId);
+    if (
+      !activeCategoryId ||
+      !overCategoryId ||
+      activeCategoryId === overCategoryId
+    ) {
+      return false;
     }
 
-    if (reorderMode === 'categories' && dragging?.type === 'category') {
-      const activeCategoryId = getCategoryIdFromDragId(activeDragId);
-      const overCategoryId = getCategoryIdFromDragId(overDragId);
-      if (
-        !activeCategoryId ||
-        !overCategoryId ||
-        activeCategoryId === overCategoryId
-      ) {
-        handleDragCancel();
-        return;
-      }
-
-      const oldIndex = customCategoryIds.indexOf(activeCategoryId);
-      const newIndex = customCategoryIds.indexOf(overCategoryId);
-      if (oldIndex === -1 || newIndex === -1) {
-        handleDragCancel();
-        return;
-      }
-
-      const nextCategoryIds = arrayMove(customCategoryIds, oldIndex, newIndex);
-      const previousItems = items;
-      const previousCategories = orderedCategories;
-      const nextCategories = nextCategoryIds
-        .map((id, order) => {
-          const category = orderedCategories.find((entry) => entry.id === id);
-          if (!category) return null;
-          return { ...category, order };
-        })
-        .filter(Boolean) as typeof orderedCategories;
-
-      setOrderedCategories(nextCategories);
-      submitCategoryReorder({
-        ids: nextCategoryIds,
-        previousItems,
-        previousCategories,
-      });
-      handleDragCancel();
-      return;
+    const oldIndex = customCategoryIds.indexOf(activeCategoryId);
+    const newIndex = customCategoryIds.indexOf(overCategoryId);
+    if (oldIndex === -1 || newIndex === -1) {
+      return false;
     }
 
-    if (reorderMode !== 'items' || dragging?.type !== 'item') {
-      handleDragCancel();
-      return;
-    }
+    const nextCategoryIds = arrayMove(customCategoryIds, oldIndex, newIndex);
+    const previousItems = items;
+    const previousCategories = orderedCategories;
 
+    setOrderedCategories(buildNextCategories(orderedCategories, nextCategoryIds));
+    submitCategoryReorder({
+      ids: nextCategoryIds,
+      previousItems,
+      previousCategories,
+    });
+    return true;
+  };
+  const finishItemDrag = (activeDragId: string, overDragId: string) => {
     const movedItemId = getItemIdFromDragId(activeDragId);
-    if (!movedItemId) {
-      handleDragCancel();
-      return;
-    }
+    if (!movedItemId) return false;
 
     const movedItem = itemById.get(movedItemId);
-    if (!movedItem) {
-      handleDragCancel();
-      return;
-    }
+    if (!movedItem) return false;
 
     const sourceCategoryId = movedItem.categoryId ?? null;
     const sourceCategoryKey = categoryKeyFromId(sourceCategoryId);
@@ -340,14 +332,9 @@ export const useWishlistReorder = ({
       ? categoryIdFromKey(overCategoryKeyFromDrop)
       : (overItem?.categoryId ?? null);
     const targetCategoryKey = categoryKeyFromId(targetCategoryId);
-
-    if (!targetCategoryKey) {
-      handleDragCancel();
-      return;
-    }
+    if (!targetCategoryKey) return false;
 
     const targetIds = itemIdsByCategoryKey[targetCategoryKey] ?? [];
-
     if (sourceCategoryId === targetCategoryId) {
       const nextSourceIds = overItemId
         ? reorderItemIdsInList({
@@ -376,14 +363,12 @@ export const useWishlistReorder = ({
         });
       }
 
-      handleDragCancel();
-      return;
+      return true;
     }
 
     const targetIndex = overItemId
       ? Math.max(0, targetIds.indexOf(overItemId))
       : targetIds.length;
-
     const { sourceIds: nextSourceIds, targetIds: nextTargetIds } =
       moveItemIdBetweenLists({
         sourceIds,
@@ -415,7 +400,30 @@ export const useWishlistReorder = ({
       previousItems,
       previousCategories,
     });
+    return true;
+  };
 
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    const activeDragId = String(active.id);
+    const overDragId = over ? String(over.id) : null;
+
+    if (!overDragId) {
+      handleDragCancel();
+      return;
+    }
+
+    if (reorderMode === 'categories' && dragging?.type === 'category') {
+      finishCategoryDrag(activeDragId, overDragId);
+      handleDragCancel();
+      return;
+    }
+
+    if (reorderMode !== 'items' || dragging?.type !== 'item') {
+      handleDragCancel();
+      return;
+    }
+
+    finishItemDrag(activeDragId, overDragId);
     handleDragCancel();
   };
 

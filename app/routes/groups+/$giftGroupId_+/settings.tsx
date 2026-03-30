@@ -62,6 +62,7 @@ import {
 } from '#app/utils/groups.server.ts';
 import { cn } from '#app/utils/misc.tsx';
 import { createToastHeaders } from '#app/utils/toast.server.ts';
+import { applyPendingSettingsMemberMutations } from './__route.shared';
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
   const userId = await requireUserIdInGroup(request, groupId);
@@ -297,20 +298,6 @@ export enum SettingsIntent {
   MemberUpdateSelf = 'member-update-self',
   DeleteGroup = 'delete-group',
 }
-const SETTINGS_MEMBER_INTENTS = new Set<string>([
-  SettingsIntent.MemberPromoteAdmin,
-  SettingsIntent.MemberDemoteMember,
-  SettingsIntent.MemberRemove,
-  SettingsIntent.OwnershipTransfer,
-]);
-const getPathname = (action: string | undefined) => {
-  if (!action) return null;
-  try {
-    return new URL(action, 'http://localhost').pathname;
-  } catch {
-    return action;
-  }
-};
 const UpdateSettingsSchema = z.object({
   intent: z.literal(SettingsIntent.UpdateSettings),
   giftGroupId: z.string(),
@@ -569,56 +556,18 @@ const GroupSettingsRoute = () => {
   const fetchers = useFetchers();
   const memberActionFetcher = useFetcher<typeof action>();
   const settingsAction = `/groups/${giftGroup.id}/settings`;
-  const optimisticMembers = React.useMemo(() => {
-    let nextMembers = [...giftGroup.groupMembers];
-    for (const pending of fetchers) {
-      if (!pending.formData || pending.formMethod?.toLowerCase() !== 'post') {
-        continue;
-      }
-      if (getPathname(pending.formAction) !== settingsAction) continue;
-      const intent = pending.formData.get('intent');
-      if (typeof intent !== 'string' || !SETTINGS_MEMBER_INTENTS.has(intent)) {
-        continue;
-      }
-      if (intent === SettingsIntent.MemberRemove) {
-        const memberUserId = pending.formData.get('memberUserId');
-        if (typeof memberUserId !== 'string') continue;
-        nextMembers = nextMembers.filter((m) => m.userId !== memberUserId);
-        continue;
-      }
-      if (intent === SettingsIntent.OwnershipTransfer) {
-        const newOwnerUserId = pending.formData.get('newOwnerUserId');
-        if (typeof newOwnerUserId !== 'string') continue;
-        nextMembers = nextMembers.map((member) => {
-          if (member.userId === newOwnerUserId) {
-            return {
-              ...member,
-              role: 'OWNER',
-            };
-          }
-          if (member.role === 'OWNER') {
-            return {
-              ...member,
-              role: 'ADMIN',
-            };
-          }
-          return member;
-        });
-        continue;
-      }
-      const memberUserId = pending.formData.get('memberUserId');
-      if (typeof memberUserId !== 'string') continue;
-      nextMembers = nextMembers.map((member) => {
-        if (member.userId !== memberUserId) return member;
-        return {
-          ...member,
-          role:
-            intent === SettingsIntent.MemberPromoteAdmin ? 'ADMIN' : 'MEMBER',
-        };
-      });
-    }
-    return nextMembers;
-  }, [fetchers, giftGroup.groupMembers, settingsAction]);
+  const optimisticMembers = React.useMemo(
+    () =>
+      applyPendingSettingsMemberMutations({
+        fetchers,
+        members: giftGroup.groupMembers,
+        settingsAction,
+        getUserId: (member) => member.userId,
+        getRole: (member) => member.role,
+        setRole: (member, role) => ({ ...member, role }),
+      }),
+    [fetchers, giftGroup.groupMembers, settingsAction],
+  );
   const optimisticViewerRole =
     optimisticMembers.find((m) => m.userId === viewerMember?.userId)?.role ??
     viewerMember?.role ??

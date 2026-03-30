@@ -58,11 +58,11 @@ export async function handleVerification({
       email: newEmail,
     },
   });
-  void sendEmail({
+  sendEmail({
     to: preUpdateUser.email,
     subject: 'GiftPool email changed',
     react: <EmailChangeNoticeEmail userId={user.id} />,
-  });
+  }).catch(() => {});
   return redirectWithToast(
     '/settings/profile',
     {

@@ -135,10 +135,12 @@ export const useWishlistStatusUpdate = ({
     formData.set('wishlistItemId', itemId);
     formData.set('status', status);
     formData.set('clientMutationId', clientMutationId);
-    void statusUpdateFetcher.submit(formData, {
-      method: 'post',
-      action: '/wishlist/status',
-    });
+    Promise.resolve(
+      statusUpdateFetcher.submit(formData, {
+        method: 'post',
+        action: '/wishlist/status',
+      }),
+    ).catch(() => {});
   };
 
   // Handle status update response

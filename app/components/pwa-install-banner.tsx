@@ -27,6 +27,9 @@ export const PwaInstallBanner = ({
   onPromptInstall,
   isPrompting = false,
 }: PwaInstallBannerProps) => {
+  const handlePromptInstall = () => {
+    Promise.resolve(onPromptInstall?.()).catch(() => {});
+  };
   const message = useMemo(() => {
     if (capability === 'manual') {
       if (manualPlatform === 'ios-chrome') {
@@ -70,9 +73,7 @@ export const PwaInstallBanner = ({
           ) : null}
           {capability === 'prompt' ? (
             <Button
-              onClick={() => {
-                void onPromptInstall?.();
-              }}
+              onClick={handlePromptInstall}
               disabled={isPrompting}
               className="whitespace-nowrap"
             >

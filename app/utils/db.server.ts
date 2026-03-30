@@ -31,6 +31,8 @@ export const prisma = remember('prisma', () => {
     const dur = chalk[color](`${e.duration}ms`);
     console.info(`prisma:query - ${dur} - ${e.query}`);
   });
-  void client.$connect();
+  client.$connect().catch((error) => {
+    console.error('Failed to connect Prisma client', error);
+  });
   return client;
 });

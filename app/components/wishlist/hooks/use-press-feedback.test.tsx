@@ -64,7 +64,7 @@ describe('usePressFeedback', () => {
       clientY: 0,
     });
 
-    await waitFor(() => expect(row.getAttribute('data-pressed')).toBe('true'));
+    await waitFor(() => expect(row.dataset.pressed).toBe('true'));
 
     dispatchPointerEvent(row, 'pointerup', {
       pointerId: 1,
@@ -72,7 +72,7 @@ describe('usePressFeedback', () => {
     });
 
     await waitFor(() => expect(handleClick).toHaveBeenCalledTimes(1));
-    expect(row.getAttribute('data-pressed')).toBe('false');
+    expect(row.dataset.pressed).toBe('false');
   });
 
   it('cancels the press when movement exceeds tolerance', async () => {
@@ -93,7 +93,7 @@ describe('usePressFeedback', () => {
       clientY: 0,
     });
 
-    await waitFor(() => expect(row.getAttribute('data-pressed')).toBe('false'));
+    await waitFor(() => expect(row.dataset.pressed).toBe('false'));
 
     dispatchPointerEvent(row, 'pointerup', {
       pointerId: 2,

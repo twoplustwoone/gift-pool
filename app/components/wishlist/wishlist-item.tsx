@@ -207,11 +207,13 @@ export const WishlistItem = ({
     if (wishlistItem.categoryId)
       formData.set('categoryId', wishlistItem.categoryId);
     formData.set('imageAction', 'remove');
-    void imageFetcher.submit(formData, {
-      method: 'post',
-      encType: 'multipart/form-data',
-      action: '/wishlist',
-    });
+    Promise.resolve(
+      imageFetcher.submit(formData, {
+        method: 'post',
+        encType: 'multipart/form-data',
+        action: '/wishlist',
+      }),
+    ).catch(() => {});
   };
 
   const renderImageBlock = () => {
@@ -324,13 +326,15 @@ export const WishlistItem = ({
     hasPendingPurchaseMutationRef.current = true;
     setPurchaseBy(nextPurchaseBy);
 
-    void purchaseFetcher.submit(
-      {
-        intent: isPurchasedByMe ? 'unpurchase' : 'purchase',
-        wishlistItemId: wishlistItem.id,
-      },
-      { method: 'post', action: '/wishlist/purchase' },
-    );
+    Promise.resolve(
+      purchaseFetcher.submit(
+        {
+          intent: isPurchasedByMe ? 'unpurchase' : 'purchase',
+          wishlistItemId: wishlistItem.id,
+        },
+        { method: 'post', action: '/wishlist/purchase' },
+      ),
+    ).catch(() => {});
   };
 
   const press = usePressFeedback<HTMLDivElement>(

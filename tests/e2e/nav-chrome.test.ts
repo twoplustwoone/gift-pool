@@ -59,7 +59,7 @@ test.describe('navigation chrome', () => {
         el.scrollTo({ top: 900, behavior: 'auto' }),
       );
       await expect
-        .poll(async () => topBar.getAttribute('data-hidden'), {
+        .poll(async () => topBar.evaluate((node) => node.dataset.hidden), {
           message: 'top bar should hide after scrolling down',
         })
         .toBe('true');
@@ -68,7 +68,7 @@ test.describe('navigation chrome', () => {
         el.scrollTo({ top: 50, behavior: 'auto' }),
       );
       await expect
-        .poll(async () => topBar.getAttribute('data-hidden'), {
+        .poll(async () => topBar.evaluate((node) => node.dataset.hidden), {
           message: 'top bar should reappear after scrolling up',
         })
         .toBe('false');

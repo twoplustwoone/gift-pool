@@ -13,22 +13,9 @@ import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { type loader as routeLoader } from './__route.server';
+import { applyPendingSettingsMemberMutations } from './__route.shared';
 
-const SETTINGS_MEMBER_INTENTS = new Set([
-  'member-promote-admin',
-  'member-demote-member',
-  'member-remove',
-  'ownership-transfer',
-]);
-
-const getPathname = (action: string | undefined) => {
-  if (!action) return null;
-  try {
-    return new URL(action, 'http://localhost').pathname;
-  } catch {
-    return action;
-  }
-};
+type GroupMemberRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 
 const GroupMembersRoute = () => {
   const { giftGroup, viewer } = useRouteLoaderData<typeof routeLoader>(
@@ -37,52 +24,18 @@ const GroupMembersRoute = () => {
   const fetcher = useFetcher();
   const fetchers = useFetchers();
   const settingsAction = `/groups/${giftGroup.id}/settings`;
-  const optimisticMembers = useMemo(() => {
-    let nextMembers = [...giftGroup.groupMembers];
-    for (const pending of fetchers) {
-      if (!pending.formData || pending.formMethod?.toLowerCase() !== 'post') {
-        continue;
-      }
-      if (getPathname(pending.formAction) !== settingsAction) continue;
-      const intent = pending.formData.get('intent');
-      if (typeof intent !== 'string' || !SETTINGS_MEMBER_INTENTS.has(intent)) {
-        continue;
-      }
-
-      if (intent === 'member-remove') {
-        const memberUserId = pending.formData.get('memberUserId');
-        if (typeof memberUserId !== 'string') continue;
-        nextMembers = nextMembers.filter((m) => m.user.id !== memberUserId);
-        continue;
-      }
-
-      if (intent === 'ownership-transfer') {
-        const newOwnerUserId = pending.formData.get('newOwnerUserId');
-        if (typeof newOwnerUserId !== 'string') continue;
-        nextMembers = nextMembers.map((member) => {
-          if (member.user.id === newOwnerUserId) {
-            return { ...member, role: 'OWNER' };
-          }
-          if (member.role === 'OWNER') {
-            return { ...member, role: 'ADMIN' };
-          }
-          return member;
-        });
-        continue;
-      }
-
-      const memberUserId = pending.formData.get('memberUserId');
-      if (typeof memberUserId !== 'string') continue;
-      nextMembers = nextMembers.map((member) => {
-        if (member.user.id !== memberUserId) return member;
-        return {
-          ...member,
-          role: intent === 'member-promote-admin' ? 'ADMIN' : 'MEMBER',
-        };
-      });
-    }
-    return nextMembers;
-  }, [fetchers, giftGroup.groupMembers, settingsAction]);
+  const optimisticMembers = useMemo(
+    () =>
+      applyPendingSettingsMemberMutations({
+        fetchers,
+        members: giftGroup.groupMembers,
+        settingsAction,
+        getUserId: (member) => member.user.id,
+        getRole: (member) => member.role as GroupMemberRole,
+        setRole: (member, role) => ({ ...member, role }),
+      }),
+    [fetchers, giftGroup.groupMembers, settingsAction],
+  );
   const optimisticViewerRole =
     optimisticMembers.find((member) => member.user.id === viewer.userId)
       ?.role ?? viewer.role;

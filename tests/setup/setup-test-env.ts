@@ -19,15 +19,21 @@ await import('./custom-matchers.ts');
 const { afterEach, beforeEach, vi } = vitest;
 type ConsoleError = ReturnType<typeof vi.spyOn>;
 
-export let consoleError: ConsoleError;
+let consoleErrorSpy: ConsoleError;
+
+export const testConsole = {
+  get error() {
+    return consoleErrorSpy;
+  },
+};
 
 afterEach(() => server.resetHandlers());
 afterEach(() => cleanup());
 
 beforeEach(() => {
   const originalConsoleError = console.error;
-  consoleError = vi.spyOn(console, 'error');
-  consoleError.mockImplementation(
+  consoleErrorSpy = vi.spyOn(console, 'error');
+  consoleErrorSpy.mockImplementation(
     (...args: Parameters<typeof console.error>) => {
       originalConsoleError(...args);
       throw new Error(

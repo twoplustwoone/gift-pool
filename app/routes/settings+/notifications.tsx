@@ -204,6 +204,20 @@ const NotificationsSettingsRoute = () => {
     requestCounterRef.current += 1;
     return `notifications-${Date.now()}-${requestCounterRef.current}`;
   }, []);
+  const submitTogglePreference = (formData: FormData) => {
+    Promise.resolve(
+      toggleFetcher.submit(formData, {
+        method: 'POST',
+      }),
+    ).catch(() => {});
+  };
+  const submitDisableAllEmail = (formData: FormData) => {
+    Promise.resolve(
+      disableEmailFetcher.submit(formData, {
+        method: 'POST',
+      }),
+    ).catch(() => {});
+  };
   const handleToggle = (
     type: NotificationType,
     channel: NotificationChannel,
@@ -240,9 +254,7 @@ const NotificationsSettingsRoute = () => {
     formData.set('channel', channel);
     formData.set('enabled', String(nextEnabled));
     formData.set('requestId', requestId);
-    void toggleFetcher.submit(formData, {
-      method: 'POST',
-    });
+    submitTogglePreference(formData);
   };
   const handleDisableAllEmail = React.useCallback(() => {
     if (disableEmailFetcher.state !== 'idle') return;
@@ -278,9 +290,7 @@ const NotificationsSettingsRoute = () => {
     const formData = new FormData();
     formData.set('intent', 'disable-email');
     formData.set('requestId', requestId);
-    void disableEmailFetcher.submit(formData, {
-      method: 'POST',
-    });
+    submitDisableAllEmail(formData);
   }, [createRequestId, disableEmailFetcher, preferences]);
   React.useEffect(() => {
     if (toggleFetcher.state !== 'idle') {
