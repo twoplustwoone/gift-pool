@@ -85,6 +85,104 @@ function ensureImageContentType(contentType: string | null) {
   }
 }
 
+function buildRequestHeaders(options: FetchWithLimitOptions) {
+  return {
+    'User-Agent':
+      options.headers?.['User-Agent'] ||
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+    Accept:
+      options.headers?.Accept ||
+      'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language':
+      options.headers?.['Accept-Language'] || 'en-US,en;q=0.9',
+    ...(options.headers ?? {}),
+  };
+}
+
+function resolveRedirectTarget(response: Response, currentUrl: URL) {
+  if (response.status < 300 || response.status >= 400) return null;
+
+  const location = response.headers.get('location');
+  if (!location) {
+    throw new Error('Redirect missing location header');
+  }
+
+  return new URL(location, currentUrl);
+}
+
+function assertAllowedContentType(
+  contentType: string | null,
+  allowedContentTypes: string[] | undefined,
+) {
+  if (!allowedContentTypes?.length) return;
+
+  const isAllowed = allowedContentTypes.some((allowed) =>
+    contentType?.toLowerCase().startsWith(allowed.toLowerCase()),
+  );
+  if (!isAllowed) {
+    throw new Error('Unsupported content type');
+  }
+}
+
+function assertResponseSize(
+  contentLength: string | null,
+  maxBytes: number,
+) {
+  if (contentLength && Number(contentLength) > maxBytes) {
+    throw new Error('Response too large');
+  }
+}
+
+async function readResponseBuffer(response: Response, maxBytes: number) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Unable to read response');
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      throw new Error('Response too large');
+    }
+    chunks.push(value);
+  }
+
+  return Buffer.concat(chunks);
+}
+
+async function fetchValidatedResponse(
+  currentUrl: URL,
+  controller: AbortController,
+  options: FetchWithLimitOptions,
+) {
+  await assertSafeUrl(currentUrl);
+
+  const response = await fetch(currentUrl, {
+    signal: controller.signal,
+    redirect: 'manual',
+    headers: buildRequestHeaders(options),
+  });
+
+  const redirectTarget = resolveRedirectTarget(response, currentUrl);
+  if (redirectTarget) {
+    return { redirectTarget, response: null };
+  }
+
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+
+  const contentType = response.headers.get('content-type');
+  assertAllowedContentType(contentType, options.allowedContentTypes);
+  assertResponseSize(response.headers.get('content-length'), options.maxBytes);
+
+  return { redirectTarget: null, response, contentType };
+}
+
 async function fetchWithLimit(
   url: URL,
   options: FetchWithLimitOptions,
@@ -97,75 +195,22 @@ async function fetchWithLimit(
   try {
     let currentUrl = url;
     let redirectCount = 0;
-    // Follow redirects manually so we can re-validate each hop.
-    while (true) {
-      await assertSafeUrl(currentUrl);
-      const response = await fetch(currentUrl, {
-        signal: controller.signal,
-        redirect: 'manual',
-        headers: {
-          // Some hosts (e.g., Amazon) block requests without a browsery UA.
-          'User-Agent':
-            options.headers?.['User-Agent'] ||
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
-          Accept:
-            options.headers?.Accept ||
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language':
-            options.headers?.['Accept-Language'] || 'en-US,en;q=0.9',
-          ...(options.headers ?? {}),
-        },
-      });
-
-      if (response.status >= 300 && response.status < 400) {
-        const location = response.headers.get('location');
-        if (!location) {
-          throw new Error('Redirect missing location header');
-        }
-        if (redirectCount >= MAX_REDIRECTS) {
+    while (redirectCount <= MAX_REDIRECTS) {
+      const result = await fetchValidatedResponse(currentUrl, controller, options);
+      if (result.redirectTarget) {
+        redirectCount += 1;
+        if (redirectCount > MAX_REDIRECTS) {
           throw new Error('Too many redirects');
         }
-        redirectCount += 1;
-        currentUrl = new URL(location, currentUrl);
+        currentUrl = result.redirectTarget;
         continue;
       }
 
-      if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
-      }
-
-      const contentType = response.headers.get('content-type');
-      if (options.allowedContentTypes?.length) {
-        const isAllowed = options.allowedContentTypes.some((allowed) =>
-          contentType?.toLowerCase().startsWith(allowed.toLowerCase()),
-        );
-        if (!isAllowed) {
-          throw new Error('Unsupported content type');
-        }
-      }
-
-      const contentLength = response.headers.get('content-length');
-      if (contentLength && Number(contentLength) > options.maxBytes) {
-        throw new Error('Response too large');
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('Unable to read response');
-      const chunks: Uint8Array[] = [];
-      let total = 0;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (!value) continue;
-        total += value.byteLength;
-        if (total > options.maxBytes) {
-          throw new Error('Response too large');
-        }
-        chunks.push(value);
-      }
-
-      return { buffer: Buffer.concat(chunks), contentType };
+      const buffer = await readResponseBuffer(result.response, options.maxBytes);
+      return { buffer, contentType: result.contentType ?? null };
     }
+
+    throw new Error('Too many redirects');
   } finally {
     clearTimeout(timeout);
   }

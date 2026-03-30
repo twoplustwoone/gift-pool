@@ -54,6 +54,7 @@ export const SETTINGS_MEMBER_INTENTS = new Set([
 type SettingsMemberIntent = (typeof SETTINGS_MEMBER_INTENTS extends Set<infer T>
   ? T
   : never) & string;
+type GroupMemberRole = 'ADMIN' | 'MEMBER' | 'OWNER';
 
 type PendingFetcher = {
   formAction?: string;
@@ -74,6 +75,65 @@ function isSettingsMemberIntent(value: FormDataEntryValue | null): value is Sett
   return typeof value === 'string' && SETTINGS_MEMBER_INTENTS.has(value);
 }
 
+function isPendingSettingsMemberMutation(
+  pending: PendingFetcher,
+  settingsAction: string,
+): SettingsMemberIntent | null {
+  if (!pending.formData || pending.formMethod?.toLowerCase() !== 'post') {
+    return null;
+  }
+  if (getPathname(pending.formAction) !== settingsAction) return null;
+  const intent = pending.formData.get('intent');
+  return isSettingsMemberIntent(intent) ? intent : null;
+}
+
+function getPendingMemberUserId(formData: FormData) {
+  const memberUserId = formData.get('memberUserId');
+  return typeof memberUserId === 'string' ? memberUserId : null;
+}
+
+function applyMemberRemoval<TMember>(
+  members: TMember[],
+  memberUserId: string,
+  getUserId: (member: TMember) => string,
+) {
+  return members.filter((member) => getUserId(member) !== memberUserId);
+}
+
+function applyOwnershipTransfer<TMember>(
+  members: TMember[],
+  newOwnerUserId: string,
+  getUserId: (member: TMember) => string,
+  getRole: (member: TMember) => GroupMemberRole,
+  setRole: (member: TMember, role: GroupMemberRole) => TMember,
+) {
+  return members.map((member) => {
+    const memberUserId = getUserId(member);
+    if (memberUserId === newOwnerUserId) {
+      return setRole(member, 'OWNER');
+    }
+    if (getRole(member) === 'OWNER') {
+      return setRole(member, 'ADMIN');
+    }
+    return member;
+  });
+}
+
+function applyMemberRoleUpdate<TMember>(
+  members: TMember[],
+  memberUserId: string,
+  intent: Exclude<SettingsMemberIntent, 'member-remove' | 'ownership-transfer'>,
+  getUserId: (member: TMember) => string,
+  setRole: (member: TMember, role: GroupMemberRole) => TMember,
+) {
+  const nextRole = intent === 'member-promote-admin' ? 'ADMIN' : 'MEMBER';
+
+  return members.map((member) => {
+    if (getUserId(member) !== memberUserId) return member;
+    return setRole(member, nextRole);
+  });
+}
+
 export function applyPendingSettingsMemberMutations<TMember>({
   fetchers,
   members,
@@ -86,55 +146,45 @@ export function applyPendingSettingsMemberMutations<TMember>({
   members: TMember[];
   settingsAction: string;
   getUserId: (member: TMember) => string;
-  getRole: (member: TMember) => 'ADMIN' | 'MEMBER' | 'OWNER';
-  setRole: (member: TMember, role: 'ADMIN' | 'MEMBER' | 'OWNER') => TMember;
+  getRole: (member: TMember) => GroupMemberRole;
+  setRole: (member: TMember, role: GroupMemberRole) => TMember;
 }) {
   let nextMembers = [...members];
 
   for (const pending of fetchers) {
-    if (!pending.formData || pending.formMethod?.toLowerCase() !== 'post') {
-      continue;
-    }
-    if (getPathname(pending.formAction) !== settingsAction) continue;
-
-    const intent = pending.formData.get('intent');
-    if (!isSettingsMemberIntent(intent)) continue;
+    const intent = isPendingSettingsMemberMutation(pending, settingsAction);
+    if (!intent || !pending.formData) continue;
 
     if (intent === 'member-remove') {
-      const memberUserId = pending.formData.get('memberUserId');
-      if (typeof memberUserId !== 'string') continue;
-      nextMembers = nextMembers.filter(
-        (member) => getUserId(member) !== memberUserId,
-      );
+      const memberUserId = getPendingMemberUserId(pending.formData);
+      if (!memberUserId) continue;
+      nextMembers = applyMemberRemoval(nextMembers, memberUserId, getUserId);
       continue;
     }
 
     if (intent === 'ownership-transfer') {
       const newOwnerUserId = pending.formData.get('newOwnerUserId');
       if (typeof newOwnerUserId !== 'string') continue;
-      nextMembers = nextMembers.map((member) => {
-        const memberUserId = getUserId(member);
-        if (memberUserId === newOwnerUserId) {
-          return setRole(member, 'OWNER');
-        }
-        if (getRole(member) === 'OWNER') {
-          return setRole(member, 'ADMIN');
-        }
-        return member;
-      });
+      nextMembers = applyOwnershipTransfer(
+        nextMembers,
+        newOwnerUserId,
+        getUserId,
+        getRole,
+        setRole,
+      );
       continue;
     }
 
-    const memberUserId = pending.formData.get('memberUserId');
-    if (typeof memberUserId !== 'string') continue;
+    const memberUserId = getPendingMemberUserId(pending.formData);
+    if (!memberUserId) continue;
 
-    nextMembers = nextMembers.map((member) => {
-      if (getUserId(member) !== memberUserId) return member;
-      return setRole(
-        member,
-        intent === 'member-promote-admin' ? 'ADMIN' : 'MEMBER',
-      );
-    });
+    nextMembers = applyMemberRoleUpdate(
+      nextMembers,
+      memberUserId,
+      intent,
+      getUserId,
+      setRole,
+    );
   }
 
   return nextMembers;

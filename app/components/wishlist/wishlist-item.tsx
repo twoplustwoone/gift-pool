@@ -68,6 +68,275 @@ type WishlistPurchaseActionResponse = {
   error?: string;
 };
 
+type WishlistItemRecord = (Pick<
+  WishlistItemType,
+  | 'id'
+  | 'title'
+  | 'ownerId'
+  | 'note'
+  | 'url'
+  | 'type'
+  | 'categoryId'
+  | 'updatedAt'
+  | 'status'
+> & {
+  status: WishlistItemStatusValue;
+}) &
+  Partial<{
+    hasImage: boolean;
+    imageSource: WishlistItemImageSource | null;
+  }> &
+  Partial<{ purchase: { purchasedById: string } | null }>;
+type WishlistItemImageBlockProps = Readonly<{
+  displayImageSrc: string | null;
+  imageErrored: boolean;
+  imageFetcherState: string;
+  isOwner: boolean;
+  onImageError: (event?: React.SyntheticEvent) => void;
+  onRemoveImage: (event?: React.SyntheticEvent) => void;
+  onRetryImage: (event?: React.SyntheticEvent) => void;
+  title: string;
+}>;
+
+function toEditorWishlistItem(
+  wishlistItem: WishlistItemRecord,
+  normalizedStatus: WishlistItemStatusValue,
+) {
+  return {
+    id: wishlistItem.id,
+    title: wishlistItem.title,
+    url: wishlistItem.url ?? null,
+    note: wishlistItem.note ?? null,
+    type: wishlistItem.type,
+    categoryId: wishlistItem.categoryId ?? null,
+    hasImage: wishlistItem.hasImage ?? false,
+    imageSource: wishlistItem.imageSource ?? null,
+    updatedAt: wishlistItem.updatedAt,
+    status: normalizedStatus,
+  };
+}
+
+function useWishlistPurchaseController({
+  userId,
+  wishlistItem,
+}: {
+  userId: string | undefined;
+  wishlistItem: WishlistItemRecord;
+}) {
+  const purchaseFetcher = useFetcher<WishlistPurchaseActionResponse>();
+  const isPurchasePending = purchaseFetcher.state !== 'idle';
+  const serverPurchaseBy = wishlistItem.purchase?.purchasedById ?? null;
+  const [purchaseBy, setPurchaseBy] = React.useState<string | null>(
+    serverPurchaseBy,
+  );
+  const purchaseRollbackRef = React.useRef<string | null>(serverPurchaseBy);
+  const hasPendingPurchaseMutationRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (purchaseFetcher.state !== 'idle') return;
+    setPurchaseBy(serverPurchaseBy);
+    purchaseRollbackRef.current = serverPurchaseBy;
+  }, [serverPurchaseBy, purchaseFetcher.state, wishlistItem.id]);
+
+  React.useEffect(() => {
+    if (purchaseFetcher.state !== 'idle') return;
+    if (!hasPendingPurchaseMutationRef.current) return;
+    hasPendingPurchaseMutationRef.current = false;
+
+    const actionData = purchaseFetcher.data;
+    const isFailedMutation =
+      actionData?.wishlistItemId === wishlistItem.id && actionData.ok === false;
+
+    if (actionData?.wishlistItemId === wishlistItem.id) {
+      const reconciledPurchaseBy = actionData.purchase?.purchasedById ?? null;
+      if (actionData.ok) {
+        setPurchaseBy(reconciledPurchaseBy);
+        purchaseRollbackRef.current = reconciledPurchaseBy;
+        return;
+      }
+      if (reconciledPurchaseBy !== purchaseRollbackRef.current) {
+        setPurchaseBy(reconciledPurchaseBy);
+        purchaseRollbackRef.current = reconciledPurchaseBy;
+        return;
+      }
+    }
+
+    setPurchaseBy(purchaseRollbackRef.current);
+    if (isFailedMutation) {
+      toast.error(actionData.error ?? 'Unable to update gift claim.');
+    }
+  }, [purchaseFetcher.data, purchaseFetcher.state, wishlistItem.id]);
+
+  const isClaimed = Boolean(purchaseBy);
+  const isPurchasedByMe = isClaimed && purchaseBy === userId;
+  const isPurchasedBySomeoneElse = isClaimed && purchaseBy !== userId;
+
+  const handlePurchaseToggle = React.useCallback(
+    (event: React.SyntheticEvent) => {
+      event.stopPropagation();
+      if (!userId || isPurchasePending || isPurchasedBySomeoneElse) return;
+
+      const nextPurchaseBy = isPurchasedByMe ? null : userId;
+      purchaseRollbackRef.current = purchaseBy;
+      hasPendingPurchaseMutationRef.current = true;
+      setPurchaseBy(nextPurchaseBy);
+
+      Promise.resolve(
+        purchaseFetcher.submit(
+          {
+            intent: isPurchasedByMe ? 'unpurchase' : 'purchase',
+            wishlistItemId: wishlistItem.id,
+          },
+          { method: 'post', action: '/wishlist/purchase' },
+        ),
+      ).catch(() => {});
+    },
+    [
+      isPurchasePending,
+      isPurchasedByMe,
+      isPurchasedBySomeoneElse,
+      purchaseBy,
+      purchaseFetcher,
+      userId,
+      wishlistItem.id,
+    ],
+  );
+
+  return {
+    handlePurchaseToggle,
+    isClaimed,
+    isPurchasePending,
+    isPurchasedByMe,
+    isPurchasedBySomeoneElse,
+    purchaseBy,
+  };
+}
+
+function useWishlistImageController({
+  isOwner,
+  wishlistItem,
+}: {
+  isOwner: boolean;
+  wishlistItem: WishlistItemRecord;
+}) {
+  const imageFetcher = useFetcher();
+  const [imageErrored, setImageErrored] = React.useState(false);
+  const [imageVersion, setImageVersion] = React.useState(0);
+  const imageSrc = wishlistItem.hasImage
+    ? getWishlistItemImgSrc(wishlistItem.id)
+    : null;
+  const imageVersionBase = wishlistItem.updatedAt
+    ? new Date(wishlistItem.updatedAt).getTime()
+    : 0;
+  const imageVersionValue = imageVersionBase + imageVersion;
+  const imageSrcSeparator = imageSrc?.includes('?') ? '&' : '?';
+  const displayImageSrc = imageSrc
+    ? `${imageSrc}${imageSrcSeparator}v=${imageVersionValue}`
+    : null;
+
+  React.useEffect(() => {
+    setImageErrored(false);
+  }, [displayImageSrc]);
+
+  const handleImageError = React.useCallback((event?: React.SyntheticEvent) => {
+    event?.stopPropagation();
+    setImageErrored(true);
+  }, []);
+
+  const handleRetryImage = React.useCallback((event?: React.SyntheticEvent) => {
+    event?.stopPropagation();
+    setImageErrored(false);
+    setImageVersion((value) => value + 1);
+  }, []);
+
+  const handleRemoveImage = React.useCallback(
+    (event?: React.SyntheticEvent) => {
+      event?.stopPropagation();
+      if (!isOwner) return;
+
+      const formData = new FormData();
+      formData.set('intent', 'save');
+      formData.set('id', wishlistItem.id);
+      formData.set('title', wishlistItem.title);
+      formData.set('type', wishlistItem.type);
+      if (wishlistItem.url) formData.set('url', wishlistItem.url);
+      if (wishlistItem.note) formData.set('note', wishlistItem.note);
+      if (wishlistItem.categoryId) {
+        formData.set('categoryId', wishlistItem.categoryId);
+      }
+      formData.set('imageAction', 'remove');
+
+      Promise.resolve(
+        imageFetcher.submit(formData, {
+          method: 'post',
+          encType: 'multipart/form-data',
+          action: '/wishlist',
+        }),
+      ).catch(() => {});
+    },
+    [imageFetcher, isOwner, wishlistItem],
+  );
+
+  return {
+    displayImageSrc,
+    handleImageError,
+    handleRemoveImage,
+    handleRetryImage,
+    imageErrored,
+    imageFetcher,
+  };
+}
+
+function WishlistItemImageBlock({
+  displayImageSrc,
+  imageErrored,
+  imageFetcherState,
+  isOwner,
+  onImageError,
+  onRemoveImage,
+  onRetryImage,
+  title,
+}: WishlistItemImageBlockProps) {
+  if (!(displayImageSrc || imageErrored)) return null;
+
+  return (
+    <div className="overflow-hidden rounded-lg bg-muted/30 sm:w-40">
+      {displayImageSrc && !imageErrored ? (
+        <img
+          src={displayImageSrc}
+          alt={title}
+          className="h-40 w-full object-cover sm:h-full"
+          onError={onImageError}
+          loading="lazy"
+        />
+      ) : (
+        <div className="flex h-40 flex-col items-center justify-center gap-2 p-3 text-xs text-muted-foreground sm:h-full sm:min-h-[9rem]">
+          <LuImage className="h-5 w-5" aria-hidden />
+          <span>{imageErrored ? 'Image failed to load' : 'Image unavailable'}</span>
+          {imageErrored ? (
+            <div className="flex gap-2">
+              <Button type="button" size="xs" variant="secondary" onClick={onRetryImage}>
+                Retry
+              </Button>
+              {isOwner ? (
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  onClick={onRemoveImage}
+                  disabled={imageFetcherState !== 'idle'}
+                >
+                  Remove
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export const WishlistItem = ({
   wishlistItem,
   isOwner = false,
@@ -78,25 +347,7 @@ export const WishlistItem = ({
   dragState = 'idle',
   onStatusChange,
 }: {
-  wishlistItem: (Pick<
-    WishlistItemType,
-    | 'id'
-    | 'title'
-    | 'ownerId'
-    | 'note'
-    | 'url'
-    | 'type'
-    | 'categoryId'
-    | 'updatedAt'
-    | 'status'
-  > & {
-    status: WishlistItemStatusValue;
-  }) &
-    Partial<{
-      hasImage: boolean;
-      imageSource: WishlistItemImageSource | null;
-    }> &
-    Partial<{ purchase: { purchasedById: string } | null }>;
+  wishlistItem: WishlistItemRecord;
   isOwner?: boolean;
   categories?: { id: string; name: string; order: number }[];
   disableClaims?: boolean;
@@ -119,149 +370,40 @@ export const WishlistItem = ({
   const isActiveStatus = isWishlistItemActive(normalizedStatus);
   const statusMeta = getWishlistStatusMeta(normalizedStatus);
   const editorRef = React.useRef<WishlistItemEditorHandle>(null);
-
-  const purchaseFetcher = useFetcher<WishlistPurchaseActionResponse>();
-  const isPurchasePending = purchaseFetcher.state !== 'idle';
-  const serverPurchaseBy = wishlistItem.purchase?.purchasedById ?? null;
-  const [purchaseBy, setPurchaseBy] = React.useState<string | null>(
-    serverPurchaseBy,
-  );
-  const purchaseRollbackRef = React.useRef<string | null>(serverPurchaseBy);
-  const hasPendingPurchaseMutationRef = React.useRef(false);
-  const isClaimed = Boolean(purchaseBy);
-  const isPurchasedByMe = isClaimed && purchaseBy === user?.id;
-  const isPurchasedBySomeoneElse = isClaimed && purchaseBy !== user?.id;
-  const imageFetcher = useFetcher();
-  const [imageErrored, setImageErrored] = React.useState(false);
-  const [imageVersion, setImageVersion] = React.useState(0);
+  const {
+    handlePurchaseToggle,
+    isPurchasePending,
+    isPurchasedByMe,
+    isPurchasedBySomeoneElse,
+  } = useWishlistPurchaseController({
+    userId: user?.id,
+    wishlistItem,
+  });
+  const {
+    displayImageSrc,
+    handleImageError,
+    handleRemoveImage,
+    handleRetryImage,
+    imageErrored,
+    imageFetcher,
+  } = useWishlistImageController({
+    isOwner,
+    wishlistItem,
+  });
   const [isClaimInfoOpen, setIsClaimInfoOpen] = React.useState(false);
-  const imageSrc = wishlistItem.hasImage
-    ? getWishlistItemImgSrc(wishlistItem.id)
-    : null;
-  const displayImageSrc = imageSrc
-    ? `${imageSrc}${imageSrc.includes('?') ? '&' : '?'}v=${(wishlistItem.updatedAt ? new Date(wishlistItem.updatedAt).getTime() : 0) + imageVersion}`
-    : null;
   const [deleteOpen, setDeleteOpen] = React.useState(false);
-
-  React.useEffect(() => {
-    setImageErrored(false);
-  }, [displayImageSrc]);
-
-  React.useEffect(() => {
-    if (purchaseFetcher.state !== 'idle') return;
-    setPurchaseBy(serverPurchaseBy);
-    purchaseRollbackRef.current = serverPurchaseBy;
-  }, [serverPurchaseBy, purchaseFetcher.state, wishlistItem.id]);
-
-  React.useEffect(() => {
-    if (purchaseFetcher.state !== 'idle') return;
-    if (!hasPendingPurchaseMutationRef.current) return;
-    hasPendingPurchaseMutationRef.current = false;
-
-    const actionData = purchaseFetcher.data;
-    const isFailedMutation =
-      actionData?.wishlistItemId === wishlistItem.id && actionData.ok === false;
-    if (actionData?.wishlistItemId === wishlistItem.id) {
-      const reconciledPurchaseBy = actionData.purchase?.purchasedById ?? null;
-      if (actionData.ok) {
-        setPurchaseBy(reconciledPurchaseBy);
-        purchaseRollbackRef.current = reconciledPurchaseBy;
-        return;
-      }
-
-      // Prefer server truth when present, even for rejected mutations.
-      if (reconciledPurchaseBy !== purchaseRollbackRef.current) {
-        setPurchaseBy(reconciledPurchaseBy);
-        purchaseRollbackRef.current = reconciledPurchaseBy;
-        return;
-      }
-    }
-
-    setPurchaseBy(purchaseRollbackRef.current);
-    if (isFailedMutation) {
-      toast.error(actionData.error ?? 'Unable to update gift claim.');
-    }
-  }, [purchaseFetcher.data, purchaseFetcher.state, wishlistItem.id]);
-
-  const handleImageError = (event?: React.SyntheticEvent) => {
-    event?.stopPropagation();
-    setImageErrored(true);
-  };
-
-  const handleRetryImage = (event?: React.SyntheticEvent) => {
-    event?.stopPropagation();
-    setImageErrored(false);
-    setImageVersion((v) => v + 1);
-  };
-
-  const handleRemoveImage = (event?: React.SyntheticEvent) => {
-    event?.stopPropagation();
-    if (!isOwner) return;
-    const formData = new FormData();
-    formData.set('intent', 'save');
-    formData.set('id', wishlistItem.id);
-    formData.set('title', wishlistItem.title);
-    formData.set('type', wishlistItem.type);
-    if (wishlistItem.url) formData.set('url', wishlistItem.url);
-    if (wishlistItem.note) formData.set('note', wishlistItem.note);
-    if (wishlistItem.categoryId)
-      formData.set('categoryId', wishlistItem.categoryId);
-    formData.set('imageAction', 'remove');
-    Promise.resolve(
-      imageFetcher.submit(formData, {
-        method: 'post',
-        encType: 'multipart/form-data',
-        action: '/wishlist',
-      }),
-    ).catch(() => {});
-  };
-
-  const renderImageBlock = () => {
-    if (!(wishlistItem.hasImage || imageErrored)) return null;
-    return (
-      <div className="overflow-hidden rounded-lg bg-muted/30 sm:w-40">
-        {displayImageSrc && !imageErrored ? (
-          <img
-            src={displayImageSrc}
-            alt={wishlistItem.title}
-            className="h-40 w-full object-cover sm:h-full"
-            onError={handleImageError}
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-40 flex-col items-center justify-center gap-2 p-3 text-xs text-muted-foreground sm:h-full sm:min-h-[9rem]">
-            <LuImage className="h-5 w-5" aria-hidden />
-            <span>
-              {imageErrored ? 'Image failed to load' : 'Image unavailable'}
-            </span>
-            {imageErrored ? (
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="secondary"
-                  onClick={handleRetryImage}
-                >
-                  Retry
-                </Button>
-                {isOwner ? (
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant="ghost"
-                    onClick={handleRemoveImage}
-                    disabled={imageFetcher.state !== 'idle'}
-                  >
-                    Remove
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        )}
-      </div>
-    );
-  };
+  const imageBlock = (
+    <WishlistItemImageBlock
+      displayImageSrc={displayImageSrc}
+      imageErrored={imageErrored}
+      imageFetcherState={imageFetcher.state}
+      isOwner={isOwner}
+      onImageError={handleImageError}
+      onRemoveImage={handleRemoveImage}
+      onRetryImage={handleRetryImage}
+      title={wishlistItem.title}
+    />
+  );
 
   const purchaseStatusText = isPurchasedBySomeoneElse
     ? 'Someone already grabbed this'
@@ -317,26 +459,6 @@ export const WishlistItem = ({
     </>
   );
 
-  const handlePurchaseToggle = (event: React.SyntheticEvent) => {
-    event.stopPropagation();
-    if (!user?.id || isPurchasePending || isPurchasedBySomeoneElse) return;
-
-    const nextPurchaseBy = isPurchasedByMe ? null : user.id;
-    purchaseRollbackRef.current = purchaseBy;
-    hasPendingPurchaseMutationRef.current = true;
-    setPurchaseBy(nextPurchaseBy);
-
-    Promise.resolve(
-      purchaseFetcher.submit(
-        {
-          intent: isPurchasedByMe ? 'unpurchase' : 'purchase',
-          wishlistItemId: wishlistItem.id,
-        },
-        { method: 'post', action: '/wishlist/purchase' },
-      ),
-    ).catch(() => {});
-  };
-
   const press = usePressFeedback<HTMLDivElement>(
     isOwner && !isReorderMode
       ? {
@@ -352,18 +474,7 @@ export const WishlistItem = ({
       <WishlistItemEditor
         key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
         ref={editorRef}
-        wishlistItem={{
-          id: wishlistItem.id,
-          title: wishlistItem.title,
-          url: wishlistItem.url ?? null,
-          note: wishlistItem.note ?? null,
-          type: wishlistItem.type,
-          categoryId: wishlistItem.categoryId ?? null,
-          hasImage: wishlistItem.hasImage ?? false,
-          imageSource: wishlistItem.imageSource ?? null,
-          updatedAt: wishlistItem.updatedAt,
-          status: normalizedStatus,
-        }}
+        wishlistItem={toEditorWishlistItem(wishlistItem, normalizedStatus)}
         canEdit={isOwner}
         categories={categories}
         initialMode="view"
@@ -413,7 +524,6 @@ export const WishlistItem = ({
   // ---------------- Non-owner: simple, tappable row → read-only view
   if (!isOwner) {
     const allowClaims = !disableClaims;
-    const imageBlock = renderImageBlock();
     const isClaimed = isPurchasedByMe || isPurchasedBySomeoneElse;
     const viewPurchaseExtras = allowClaims ? (
       isPurchasedBySomeoneElse ? (
@@ -633,18 +743,7 @@ export const WishlistItem = ({
       <WishlistItemEditor
         key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
         ref={editorRef}
-        wishlistItem={{
-          id: wishlistItem.id,
-          title: wishlistItem.title,
-          url: wishlistItem.url ?? null,
-          note: wishlistItem.note ?? null,
-          type: wishlistItem.type,
-          categoryId: wishlistItem.categoryId ?? null,
-          hasImage: wishlistItem.hasImage ?? false,
-          imageSource: wishlistItem.imageSource ?? null,
-          updatedAt: wishlistItem.updatedAt,
-          status: normalizedStatus,
-        }}
+        wishlistItem={toEditorWishlistItem(wishlistItem, normalizedStatus)}
         canEdit={false}
         initialMode="view"
         categories={categories}
@@ -655,7 +754,6 @@ export const WishlistItem = ({
     );
   }
 
-  const imageBlock = renderImageBlock();
   const isCompactLayout = layout === 'reorder';
 
   const actionMenu = !isReorderMode ? (
@@ -817,18 +915,7 @@ export const WishlistItem = ({
       <WishlistItemEditor
         key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
         ref={editorRef}
-        wishlistItem={{
-          id: wishlistItem.id,
-          title: wishlistItem.title,
-          url: wishlistItem.url ?? null,
-          note: wishlistItem.note ?? null,
-          type: wishlistItem.type,
-          categoryId: wishlistItem.categoryId ?? null,
-          hasImage: wishlistItem.hasImage ?? false,
-          imageSource: wishlistItem.imageSource ?? null,
-          updatedAt: wishlistItem.updatedAt,
-          status: normalizedStatus,
-        }}
+        wishlistItem={toEditorWishlistItem(wishlistItem, normalizedStatus)}
         trigger={Trigger} // desktop: row-as-trigger (edit/create); mobile: tap-to-view
         canEdit={true}
         categories={categories}
