@@ -229,8 +229,9 @@ function useWishlistImageController({
     ? new Date(wishlistItem.updatedAt).getTime()
     : 0;
   const imageVersionValue = imageVersionBase + imageVersion;
+  const imageSrcSeparator = imageSrc?.includes('?') ? '&' : '?';
   const displayImageSrc = imageSrc
-    ? `${imageSrc}${imageSrc.includes('?') ? '&' : '?'}v=${imageVersionValue}`
+    ? `${imageSrc}${imageSrcSeparator}v=${imageVersionValue}`
     : null;
 
   React.useEffect(() => {
