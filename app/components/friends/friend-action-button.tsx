@@ -336,6 +336,11 @@ export const FriendActionButton = ({
   );
 
   const canCancelOutgoing = Boolean(current.outgoingRequestId);
+  const handleSendRequestClick = () => sendRequest();
+  const handleCancelRequestClick = () => cancelRequest();
+  const handleAcceptRequestClick = () => acceptRequest();
+  const handleRejectRequestClick = () => rejectRequest();
+  const handleRemoveFriendClick = () => removeFriend();
 
   const renderActions = useMemo(() => {
     switch (current.state) {
@@ -345,7 +350,7 @@ export const FriendActionButton = ({
             type="button"
             size={buttonSize}
             className={cn('gap-2', className)}
-            onClick={() => void sendRequest()}
+            onClick={handleSendRequestClick}
             disabled={isPending('send')}
           >
             {isPending('send') ? (
@@ -365,7 +370,7 @@ export const FriendActionButton = ({
             <Button
               size={buttonSize}
               variant="ghost"
-              onClick={() => void cancelRequest()}
+              onClick={handleCancelRequestClick}
               disabled={isPending('cancel') || !canCancelOutgoing}
             >
               {isPending('cancel') ? (
@@ -380,7 +385,7 @@ export const FriendActionButton = ({
           <div className={cn('flex items-center gap-2', className)}>
             <Button
               size={buttonSize}
-              onClick={() => void acceptRequest()}
+              onClick={handleAcceptRequestClick}
               disabled={isPending(FRIEND_ACCEPT_EVENT)}
               aria-label={t('notifications.friendRequest.acceptAria', {
                 name: targetUserName,
@@ -394,7 +399,7 @@ export const FriendActionButton = ({
             <Button
               size={buttonSize}
               variant="secondary"
-              onClick={() => void rejectRequest()}
+              onClick={handleRejectRequestClick}
               disabled={isPending(FRIEND_REJECT_EVENT)}
               aria-label={t('notifications.friendRequest.rejectAria', {
                 name: targetUserName,
@@ -448,7 +453,7 @@ export const FriendActionButton = ({
                   </Button>
                   <Button
                     variant="destructive"
-                    onClick={() => void removeFriend()}
+                    onClick={handleRemoveFriendClick}
                     disabled={isPending('remove')}
                   >
                     {isPending('remove') ? (
@@ -470,15 +475,15 @@ export const FriendActionButton = ({
   }, [
     buttonSize,
     canCancelOutgoing,
-    cancelRequest,
     className,
     confirmOpen,
     current.state,
+    handleAcceptRequestClick,
+    handleCancelRequestClick,
+    handleRejectRequestClick,
+    handleRemoveFriendClick,
+    handleSendRequestClick,
     isPending,
-    removeFriend,
-    acceptRequest,
-    rejectRequest,
-    sendRequest,
     t,
     targetUserName,
   ]);
