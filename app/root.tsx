@@ -21,7 +21,7 @@ import {
   useLocation,
   useNavigation,
   useFetchers,
-  useLoaderData
+  useLoaderData,
 } from 'react-router';
 import { HoneypotProvider } from 'remix-utils/honeypot/react';
 import { toast } from 'sonner';
@@ -37,6 +37,7 @@ import { PwaInstallBanner } from './components/pwa-install-banner.tsx';
 import { useToast } from './components/toaster.tsx';
 import { href as iconsHref } from './components/ui/icon.tsx';
 import { EpicToaster } from './components/ui/sonner.tsx';
+import { WishlistRouteSkeleton } from './components/wishlist/wishlist-route-skeleton.tsx';
 import { usePwaInstallPrompt } from './hooks/use-pwa-install-prompt.ts';
 import nunitoStyleSheet from './styles/nunito-font.css?url';
 import tailwindStyleSheetUrl from './styles/tailwind.css?url';
@@ -363,6 +364,20 @@ const App = () => {
       });
     });
   }, [location, navigation.state]);
+  const targetLocation = navigation.location;
+  const isRouteChangeNavigation =
+    targetLocation != null &&
+    (targetLocation.pathname !== location.pathname ||
+      targetLocation.search !== location.search ||
+      targetLocation.hash !== location.hash);
+  const isWishlistNavigationTarget =
+    targetLocation != null &&
+    (targetLocation.pathname === '/wishlist' ||
+      /^\/users\/[^/]+\/wishlist$/.test(targetLocation.pathname));
+  const isWishlistNavigationPending =
+    navigation.state === 'loading' &&
+    isRouteChangeNavigation &&
+    isWishlistNavigationTarget;
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
       <I18nProvider locale={data.requestInfo.locale}>
@@ -396,7 +411,11 @@ const App = () => {
               className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-background to-background-muted pb-bottom-nav sm:pb-0"
               data-testid="app-scroll-area"
             >
-              <Outlet />
+              {isWishlistNavigationPending ? (
+                <WishlistRouteSkeleton />
+              ) : (
+                <Outlet />
+              )}
             </div>
 
             <Footer />
