@@ -224,6 +224,7 @@ type EditorImageController = {
   previewSrc: string | null;
   prepareImageActionForSave: () => void;
   previewVersion: number;
+  resetImageChanges: () => void;
   setHasPendingImageChange: React.Dispatch<React.SetStateAction<boolean>>;
   setImageActionState: React.Dispatch<
     React.SetStateAction<z.infer<typeof ImageActionSchema>>
@@ -687,6 +688,21 @@ function useWishlistItemEditorImageState({
     }
   }, []);
 
+  const resetImageChanges = useCallback(() => {
+    resetEditorImageState({
+      currentImageSrc,
+      setHasPendingImageChange,
+      setImageActionState,
+      setImageError,
+      setImagePreview,
+      setImageUrlValue,
+      setImageWarning,
+    });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [currentImageSrc]);
+
   const prepareImageActionForSave = useCallback(() => {
     const nextImageUrlValue = imageUrlValue.trim();
     setImageActionState((current) => {
@@ -714,6 +730,7 @@ function useWishlistItemEditorImageState({
     previewSrc,
     prepareImageActionForSave,
     previewVersion,
+    resetImageChanges,
     setHasPendingImageChange,
     setImageActionState,
     setImageError,
@@ -975,6 +992,7 @@ function EditorFormSection({
   prepareImageActionForSave,
   previewSrc,
   previewVersion,
+  resetImageChanges,
   saveDisabled,
   setHasPendingImageChange,
   setImageActionState,
@@ -986,7 +1004,6 @@ function EditorFormSection({
   showImageError,
   imageError,
   imageWarning,
-  shouldResetForm,
   wishlistItem,
   attachClientMutationId,
   applyUrlPreview,
@@ -1016,6 +1033,7 @@ function EditorFormSection({
   prepareImageActionForSave: () => void;
   previewSrc: string | null;
   previewVersion: number;
+  resetImageChanges: () => void;
   saveDisabled: boolean;
   setHasPendingImageChange: React.Dispatch<React.SetStateAction<boolean>>;
   setImageActionState: React.Dispatch<
@@ -1026,7 +1044,6 @@ function EditorFormSection({
   setImageUrlValue: React.Dispatch<React.SetStateAction<string>>;
   setImageWarning: React.Dispatch<React.SetStateAction<string | null>>;
   setIsImageLoading: React.Dispatch<React.SetStateAction<boolean>>;
-  shouldResetForm: boolean;
   showImageError: boolean;
   wishlistItem?: EditorProps['wishlistItem'];
 }>) {
@@ -1264,15 +1281,7 @@ function EditorFormSection({
           <Button
             type="button"
             variant="outline"
-            onClick={() => {
-              setImageActionState('none');
-              setImagePreview(shouldResetForm ? null : previewSrc);
-              setHasPendingImageChange(false);
-              setImageError(null);
-              setImageWarning(null);
-              setImageUrlValue('');
-              if (fileInputRef.current) fileInputRef.current.value = '';
-            }}
+            onClick={resetImageChanges}
           >
             Reset image changes
           </Button>
@@ -1707,6 +1716,7 @@ export const WishlistItemEditor = React.forwardRef<
                 prepareImageActionForSave={imageController.prepareImageActionForSave}
                 previewSrc={imageController.previewSrc}
                 previewVersion={imageController.previewVersion}
+                resetImageChanges={imageController.resetImageChanges}
                 saveDisabled={saveDisabled}
                 setHasPendingImageChange={imageController.setHasPendingImageChange}
                 setImageActionState={imageController.setImageActionState}
@@ -1715,7 +1725,6 @@ export const WishlistItemEditor = React.forwardRef<
                 setImageUrlValue={imageController.setImageUrlValue}
                 setImageWarning={imageController.setImageWarning}
                 setIsImageLoading={imageController.setIsImageLoading}
-                shouldResetForm={imageController.shouldResetForm}
                 showImageError={imageController.showImageError}
                 wishlistItem={wishlistItem}
               />
