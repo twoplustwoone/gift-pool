@@ -88,6 +88,286 @@ async function redensifyCategory({
     ),
   );
 }
+
+function getClientMutationId(formData: FormData) {
+  const clientMutationIdRaw = formData.get('clientMutationId');
+  return typeof clientMutationIdRaw === 'string' &&
+    clientMutationIdRaw.trim().length > 0
+    ? clientMutationIdRaw.trim()
+    : null;
+}
+
+function createWishlistItemValidationSchema(userId: string) {
+  return WishlistItemSchema.superRefine(async (data, ctx) => {
+    if (!data.id) return;
+
+    const wishlistItem = await prisma.wishlistItem.findUnique({
+      select: {
+        id: true,
+      },
+      where: {
+        id: data.id,
+        ownerId: userId,
+      },
+    });
+    if (!wishlistItem) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Wishlist item not found',
+      });
+    }
+
+    if (data.categoryId) {
+      const category = await prisma.wishlistCategory.findFirst({
+        select: {
+          id: true,
+        },
+        where: {
+          id: data.categoryId,
+          ownerId: userId,
+        },
+      });
+      if (!category) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['categoryId'],
+          message: 'Category not found',
+        });
+      }
+    }
+
+    if (data.imageAction === 'url' && !data.imageUrl) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['imageUrl'],
+        message: 'Add an image link to use this option',
+      });
+    }
+
+    if (data.imageAction === 'upload' && (!data.imageFile || data.imageFile.size === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['imageFile'],
+        message: 'Upload an image to continue',
+      });
+    }
+
+    if (
+      data.imageAction === 'upload' &&
+      data.imageFile &&
+      data.imageFile.size > MAX_UPLOAD_SIZE
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['imageFile'],
+        message: 'Image must be 10MB or smaller',
+      });
+    }
+  });
+}
+
+async function parseWishlistItemSubmission(formData: FormData, userId: string) {
+  return parseWithZod(formData, {
+    schema: createWishlistItemValidationSchema(userId),
+    async: true,
+  });
+}
+
+function normalizeWishlistItemData(
+  data: Pick<z.infer<typeof WishlistItemSchema>, 'note' | 'url'>,
+) {
+  return {
+    note: data.note?.trim() === '' ? null : (data.note ?? null),
+    url: data.url?.trim() === '' ? null : (data.url ?? null),
+  };
+}
+
+async function findExistingWishlistItem(wishlistItemId: string | undefined) {
+  if (!wishlistItemId) return null;
+
+  return prisma.wishlistItem.findUnique({
+    select: {
+      id: true,
+      ownerId: true,
+      categoryId: true,
+      url: true,
+      image: true,
+      imageSource: true,
+    },
+    where: {
+      id: wishlistItemId,
+    },
+  });
+}
+
+async function resolveImageUpdate({
+  imageAction,
+  imageFile,
+  imageUrl,
+}: {
+  imageAction: z.infer<typeof WishlistItemSchema>['imageAction'];
+  imageFile?: File;
+  imageUrl?: string;
+}) {
+  let nextImage: Buffer | null | undefined;
+  let nextImageSource: WishlistItemImageSource | null | undefined;
+  let imageError: string | null = null;
+  const effectiveImageAction = imageAction === 'auto-detect' ? 'none' : imageAction;
+
+  try {
+    if (effectiveImageAction === 'upload' && imageFile && imageFile.size > 0) {
+      const processed = await processImageFromFile(imageFile);
+      nextImage = processed.data;
+      nextImageSource = 'MANUAL_UPLOAD';
+    } else if (effectiveImageAction === 'url' && imageUrl) {
+      const processed = await processImageFromUrl(imageUrl);
+      nextImage = processed.data;
+      nextImageSource = 'MANUAL_URL';
+    } else if (effectiveImageAction === 'remove') {
+      nextImage = null;
+      nextImageSource = null;
+    }
+  } catch (error) {
+    imageError = getErrorMessage(error);
+    nextImage = undefined;
+    nextImageSource = undefined;
+  }
+
+  return { effectiveImageAction, imageError, nextImage, nextImageSource };
+}
+
+function buildWishlistItemDataWithImage({
+  data,
+  nextImage,
+  nextImageSource,
+  normalizedNote,
+  normalizedUrl,
+}: {
+  data: Omit<z.infer<typeof WishlistItemSchema>, 'id' | 'categoryId' | 'imageAction' | 'imageUrl' | 'imageFile'>;
+  normalizedNote: string | null;
+  normalizedUrl: string | null;
+  nextImage: Buffer | null | undefined;
+  nextImageSource: WishlistItemImageSource | null | undefined;
+}) {
+  return {
+    ...data,
+    note: normalizedNote,
+    url: normalizedUrl,
+    ...(typeof nextImage !== 'undefined'
+      ? {
+          image: nextImage,
+          imageSource: nextImageSource ?? null,
+        }
+      : {}),
+  };
+}
+
+async function saveUpdatedWishlistItem({
+  dataWithImage,
+  existingItem,
+  nextCategoryId,
+  userId,
+  wishlistItemId,
+}: {
+  dataWithImage: ReturnType<typeof buildWishlistItemDataWithImage>;
+  existingItem: NonNullable<Awaited<ReturnType<typeof findExistingWishlistItem>>>;
+  nextCategoryId: string | null;
+  userId: string;
+  wishlistItemId: string;
+}) {
+  const select = {
+    id: true,
+    title: true,
+    ownerId: true,
+    note: true,
+    url: true,
+    type: true,
+    categoryId: true,
+    sortOrder: true,
+    updatedAt: true,
+    status: true,
+    image: true,
+    imageSource: true,
+  } as const;
+
+  const categoryChanged = existingItem.categoryId !== nextCategoryId;
+  if (!categoryChanged) {
+    return prisma.wishlistItem.update({
+      select,
+      where: {
+        id: wishlistItemId,
+      },
+      data: {
+        ...dataWithImage,
+        categoryId: nextCategoryId,
+      },
+    });
+  }
+
+  const nextSortOrder = await getNextSortOrderForCategory({
+    ownerId: userId,
+    categoryId: nextCategoryId,
+  });
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.wishlistItem.update({
+      select,
+      where: {
+        id: wishlistItemId,
+      },
+      data: {
+        ...dataWithImage,
+        categoryId: nextCategoryId,
+        sortOrder: nextSortOrder,
+      },
+    });
+    await redensifyCategory({
+      tx,
+      ownerId: userId,
+      categoryId: existingItem.categoryId,
+      excludeId: wishlistItemId,
+    });
+    return updated;
+  });
+}
+
+async function createWishlistItem({
+  dataWithImage,
+  nextCategoryId,
+  userId,
+}: {
+  dataWithImage: ReturnType<typeof buildWishlistItemDataWithImage>;
+  nextCategoryId: string | null;
+  userId: string;
+}) {
+  const nextSortOrder = await getNextSortOrderForCategory({
+    ownerId: userId,
+    categoryId: nextCategoryId,
+  });
+
+  return prisma.wishlistItem.create({
+    select: {
+      id: true,
+      title: true,
+      ownerId: true,
+      note: true,
+      url: true,
+      type: true,
+      categoryId: true,
+      sortOrder: true,
+      updatedAt: true,
+      status: true,
+      image: true,
+      imageSource: true,
+    },
+    data: {
+      ownerId: userId,
+      categoryId: nextCategoryId,
+      sortOrder: nextSortOrder,
+      ...dataWithImage,
+    },
+  });
+}
 export async function action({ request }: ActionFunctionArgs) {
   const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
@@ -95,82 +375,8 @@ export async function action({ request }: ActionFunctionArgs) {
   const intent = z
     .enum(['save', 'save-add-another'])
     .parse(formData.get('intent'));
-  const clientMutationIdRaw = formData.get('clientMutationId');
-  const clientMutationId =
-    typeof clientMutationIdRaw === 'string' &&
-    clientMutationIdRaw.trim().length > 0
-      ? clientMutationIdRaw.trim()
-      : null;
-  const submission = await parseWithZod(formData, {
-    schema: WishlistItemSchema.superRefine(async (data, ctx) => {
-      if (!data.id) return;
-      const wishlistItem = await prisma.wishlistItem.findUnique({
-        select: {
-          id: true,
-          url: true,
-          image: true,
-          imageSource: true,
-        },
-        where: {
-          id: data.id,
-          ownerId: userId,
-        },
-      });
-      if (!wishlistItem) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Wishlist item not found',
-        });
-      }
-      if (data.categoryId) {
-        const category = await prisma.wishlistCategory.findFirst({
-          select: {
-            id: true,
-          },
-          where: {
-            id: data.categoryId,
-            ownerId: userId,
-          },
-        });
-        if (!category) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['categoryId'],
-            message: 'Category not found',
-          });
-        }
-      }
-      if (data.imageAction === 'url' && !data.imageUrl) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['imageUrl'],
-          message: 'Add an image link to use this option',
-        });
-      }
-      if (
-        data.imageAction === 'upload' &&
-        (!data.imageFile || data.imageFile.size === 0)
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['imageFile'],
-          message: 'Upload an image to continue',
-        });
-      }
-      if (
-        data.imageAction === 'upload' &&
-        data.imageFile &&
-        data.imageFile.size > MAX_UPLOAD_SIZE
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['imageFile'],
-          message: 'Image must be 10MB or smaller',
-        });
-      }
-    }),
-    async: true,
-  });
+  const clientMutationId = getClientMutationId(formData);
+  const submission = await parseWishlistItemSubmission(formData, userId);
   if (submission.status !== 'success') {
     return rrData(
       {
@@ -190,160 +396,40 @@ export async function action({ request }: ActionFunctionArgs) {
     imageFile,
     ...data
   } = submission.value;
-  const normalizedNote = data.note?.trim() === '' ? null : (data.note ?? null);
-  const normalizedUrl = data.url?.trim() === '' ? null : (data.url ?? null);
-  const existingItem = wishlistItemId
-    ? await prisma.wishlistItem.findUnique({
-        select: {
-          id: true,
-          ownerId: true,
-          categoryId: true,
-          url: true,
-          image: true,
-          imageSource: true,
-        },
-        where: {
-          id: wishlistItemId,
-        },
-      })
-    : null;
-  let nextImage: Buffer | null | undefined;
-  let nextImageSource: WishlistItemImageSource | null | undefined;
-  let imageError: string | null = null;
-  const effectiveImageAction =
-    imageAction === 'auto-detect' ? 'none' : imageAction;
-  try {
-    if (effectiveImageAction === 'upload') {
-      if (imageFile && imageFile.size > 0) {
-        const processed = await processImageFromFile(imageFile);
-        nextImage = processed.data;
-        nextImageSource = 'MANUAL_UPLOAD';
-      }
-    } else if (effectiveImageAction === 'url') {
-      if (imageUrl) {
-        const processed = await processImageFromUrl(imageUrl);
-        nextImage = processed.data;
-        nextImageSource = 'MANUAL_URL';
-      }
-    } else if (effectiveImageAction === 'remove') {
-      nextImage = null;
-      nextImageSource = null;
-    }
-  } catch (error) {
-    imageError = getErrorMessage(error);
-    nextImage = undefined;
-    nextImageSource = undefined;
-  }
-  const dataWithImage = {
-    ...data,
-    note: normalizedNote,
-    url: normalizedUrl,
-    ...(typeof nextImage !== 'undefined'
-      ? {
-          image: nextImage,
-          imageSource: nextImageSource ?? null,
-        }
-      : {}),
-  };
+  const { note: normalizedNote, url: normalizedUrl } =
+    normalizeWishlistItemData(data);
+  const existingItem = await findExistingWishlistItem(wishlistItemId);
+  const { imageError, nextImage, nextImageSource } = await resolveImageUpdate({
+    imageAction,
+    imageFile,
+    imageUrl,
+  });
+  const dataWithImage = buildWishlistItemDataWithImage({
+    data,
+    normalizedNote,
+    normalizedUrl,
+    nextImage,
+    nextImageSource,
+  });
   const nextCategoryId = categoryId || null;
   const savedItem = wishlistItemId
-    ? await (async () => {
+    ? await (() => {
         if (!existingItem) {
           throw new Error('Wishlist item not found');
         }
-        const categoryChanged = existingItem.categoryId !== nextCategoryId;
-        if (!categoryChanged) {
-          return prisma.wishlistItem.update({
-            select: {
-              id: true,
-              title: true,
-              ownerId: true,
-              note: true,
-              url: true,
-              type: true,
-              categoryId: true,
-              sortOrder: true,
-              updatedAt: true,
-              status: true,
-              image: true,
-              imageSource: true,
-            },
-            where: {
-              id: wishlistItemId,
-            },
-            data: {
-              ...dataWithImage,
-              categoryId: nextCategoryId,
-            },
-          });
-        }
-        const nextSortOrder = await getNextSortOrderForCategory({
-          ownerId: userId,
-          categoryId: nextCategoryId,
+        return saveUpdatedWishlistItem({
+          dataWithImage,
+          existingItem,
+          nextCategoryId,
+          userId,
+          wishlistItemId,
         });
-        const updatedItem = await prisma.$transaction(async (tx) => {
-          const updated = await tx.wishlistItem.update({
-            select: {
-              id: true,
-              title: true,
-              ownerId: true,
-              note: true,
-              url: true,
-              type: true,
-              categoryId: true,
-              sortOrder: true,
-              updatedAt: true,
-              status: true,
-              image: true,
-              imageSource: true,
-            },
-            where: {
-              id: wishlistItemId,
-            },
-            data: {
-              ...dataWithImage,
-              categoryId: nextCategoryId,
-              sortOrder: nextSortOrder,
-            },
-          });
-          await redensifyCategory({
-            tx,
-            ownerId: userId,
-            categoryId: existingItem.categoryId,
-            excludeId: wishlistItemId,
-          });
-          return updated;
-        });
-        return updatedItem;
       })()
-    : await (async () => {
-        const nextSortOrder = await getNextSortOrderForCategory({
-          ownerId: userId,
-          categoryId: nextCategoryId,
-        });
-        return prisma.wishlistItem.create({
-          select: {
-            id: true,
-            title: true,
-            ownerId: true,
-            note: true,
-            url: true,
-            type: true,
-            categoryId: true,
-            sortOrder: true,
-            updatedAt: true,
-            status: true,
-            image: true,
-            imageSource: true,
-          },
-          data: {
-            ownerId: userId,
-            categoryId: nextCategoryId,
-            sortOrder: nextSortOrder,
-            ...dataWithImage,
-          },
-        });
-      })();
+    : await createWishlistItem({
+        dataWithImage,
+        nextCategoryId,
+        userId,
+      });
   let analyticsEventId: string | null = null;
   if (!existingItem && !imageError) {
     const event = await logEvent({
