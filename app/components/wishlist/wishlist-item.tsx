@@ -97,6 +97,69 @@ type WishlistItemImageBlockProps = Readonly<{
   onRetryImage: (event?: React.SyntheticEvent) => void;
   title: string;
 }>;
+type WishlistItemProps = Readonly<{
+  wishlistItem: WishlistItemRecord;
+  isOwner?: boolean;
+  categories?: { id: string; name: string; order: number }[];
+  disableClaims?: boolean;
+  layout?: WishlistItemOwnerLayout;
+  isReorderMode?: boolean;
+  dragState?: WishlistItemDragState;
+  onStatusChange?: (
+    itemId: string,
+    status: WishlistItemStatusValue,
+  ) => boolean | void;
+}>;
+type WishlistArchivedTriggerProps = Readonly<{
+  normalizedStatus: WishlistItemStatusValue;
+  statusMeta: ReturnType<typeof getWishlistStatusMeta>;
+  wishlistItem: WishlistItemRecord;
+}>;
+type WishlistNonOwnerExtrasProps = Readonly<{
+  allowClaims: boolean;
+  handlePurchaseToggle: (event: React.SyntheticEvent) => void;
+  isClaimed: boolean;
+  isPurchasePending: boolean;
+  isPurchasedByMe: boolean;
+  isPurchasedBySomeoneElse: boolean;
+  purchaseButtonAriaLabel: string;
+  purchaseButtonClassName: string;
+  purchaseButtonContent: React.ReactNode;
+  purchaseStatusText: string | null;
+}>;
+type WishlistNonOwnerTriggerProps = Readonly<{
+  allowClaims: boolean;
+  dragState: WishlistItemDragState;
+  handlePurchaseToggle: (event: React.SyntheticEvent) => void;
+  imageBlock: React.ReactNode;
+  isClaimInfoOpen: boolean;
+  isClaimed: boolean;
+  isPurchasePending: boolean;
+  isPurchasedByMe: boolean;
+  isPurchasedBySomeoneElse: boolean;
+  onClaimInfoOpenChange: (open: boolean) => void;
+  press: ReturnType<typeof usePressFeedback<HTMLDivElement>>;
+  purchaseButtonAriaLabel: string;
+  purchaseButtonClassName: string;
+  purchaseButtonIconOnly: React.ReactNode;
+  purchaseStatusText: string | null;
+  wishlistItem: WishlistItemRecord;
+}>;
+type WishlistOwnerTriggerProps = Readonly<{
+  actionMenu: React.ReactNode;
+  displayImageSrc: string | null;
+  dragState: WishlistItemDragState;
+  imageBlock: React.ReactNode;
+  imageErrored: boolean;
+  isCompactLayout: boolean;
+  onImageError: (event?: React.SyntheticEvent) => void;
+  press: ReturnType<typeof usePressFeedback<HTMLDivElement>>;
+  wishlistItem: WishlistItemRecord;
+}>;
+
+function getClaimedLabel(isPurchasedBySomeoneElse: boolean) {
+  return isPurchasedBySomeoneElse ? 'Locked by a friend' : 'You claimed this';
+}
 
 function toEditorWishlistItem(
   wishlistItem: WishlistItemRecord,
@@ -337,6 +400,454 @@ function WishlistItemImageBlock({
   );
 }
 
+function WishlistArchivedTrigger({
+  normalizedStatus,
+  statusMeta,
+  wishlistItem,
+}: WishlistArchivedTriggerProps) {
+  return (
+    <Card
+      variant="interactive"
+      padding="md"
+      className="group h-full cursor-pointer"
+    >
+      <div className="flex h-full flex-col gap-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <Text
+              size="base"
+              weight="medium"
+              className="block truncate"
+              aria-label={wishlistItem.title}
+            >
+              {wishlistItem.title}
+            </Text>
+            <Text
+              size="xs"
+              className="line-clamp-2 text-muted-foreground"
+              aria-label={wishlistItem.note ?? 'No description'}
+            >
+              {wishlistItem.note ?? 'No description'}
+            </Text>
+          </div>
+          <WishlistStatusBadge status={normalizedStatus} />
+        </div>
+        <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground">
+          <span className="truncate">{statusMeta.description}</span>
+          <div className="flex items-center gap-1 text-primary">
+            <LuArchive className="h-3.5 w-3.5" aria-hidden />
+            <span>View</span>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function WishlistNonOwnerExtras({
+  allowClaims,
+  handlePurchaseToggle,
+  isClaimed,
+  isPurchasePending,
+  isPurchasedByMe,
+  isPurchasedBySomeoneElse,
+  purchaseButtonAriaLabel,
+  purchaseButtonClassName,
+  purchaseButtonContent,
+  purchaseStatusText,
+}: WishlistNonOwnerExtrasProps) {
+  if (allowClaims) {
+    if (isPurchasedBySomeoneElse) {
+      return (
+        <Flex align="center" gap={2}>
+          <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
+          <Text size="sm" className="text-amber-800">
+            Someone already grabbed this one.
+          </Text>
+        </Flex>
+      );
+    }
+
+    return (
+      <div className="flex flex-col gap-3">
+        <Text size="sm" className="text-muted-foreground">
+          Claim this gift so everyone else knows it’s handled.
+        </Text>
+        <Button
+          type="button"
+          variant={isPurchasedByMe ? 'secondary' : 'outline'}
+          disabled={isPurchasePending}
+          onClick={handlePurchaseToggle}
+          aria-pressed={isPurchasedByMe}
+          aria-label={purchaseButtonAriaLabel}
+          className={cn('justify-center sm:w-auto', purchaseButtonClassName)}
+        >
+          {purchaseButtonContent}
+        </Button>
+        {purchaseStatusText ? (
+          <Text size="sm" className="text-pool">
+            {purchaseStatusText}
+          </Text>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (isClaimed) {
+    return (
+      <Flex align="center" gap={2}>
+        <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
+        <Text size="sm" className="text-amber-800">
+          Someone already grabbed this one.
+        </Text>
+      </Flex>
+    );
+  }
+
+  return (
+    <Text size="sm" className="text-muted-foreground">
+      View-only link. Sign in to claim gifts.
+    </Text>
+  );
+}
+
+function WishlistNonOwnerFooter({
+  allowClaims,
+  isClaimInfoOpen,
+  isClaimed,
+  isPurchasedBySomeoneElse,
+  onClaimInfoOpenChange,
+  purchaseStatusText,
+}: Pick<
+  WishlistNonOwnerTriggerProps,
+  | 'allowClaims'
+  | 'isClaimInfoOpen'
+  | 'isClaimed'
+  | 'isPurchasedBySomeoneElse'
+  | 'onClaimInfoOpenChange'
+  | 'purchaseStatusText'
+>) {
+  if (allowClaims && isPurchasedBySomeoneElse) {
+    return (
+      <MobileBottomSheet
+        open={isClaimInfoOpen}
+        onOpenChange={onClaimInfoOpenChange}
+      >
+        <MobileBottomSheetTrigger asChild>
+          <button
+            type="button"
+            onClick={(event) => event.stopPropagation()}
+            className="flex h-10 items-center justify-between gap-2 bg-amber-100 px-4 text-left text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-200"
+          >
+            <div className="flex items-center gap-2">
+              <LuGift className="h-4 w-4" aria-hidden />
+              <span>Someone already grabbed this</span>
+            </div>
+            <LuChevronRight className="h-4 w-4" aria-hidden />
+          </button>
+        </MobileBottomSheetTrigger>
+        <MobileBottomSheetContent className="gap-3 sm:gap-4">
+          <MobileBottomSheetHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800">
+                <LuLock className="h-5 w-5" aria-hidden />
+              </div>
+              <MobileBottomSheetTitle>Already claimed</MobileBottomSheetTitle>
+            </div>
+            <MobileBottomSheetDescription>
+              This item has already been claimed by someone else to avoid
+              duplicates.
+            </MobileBottomSheetDescription>
+          </MobileBottomSheetHeader>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={(event) => {
+              event.stopPropagation();
+              const target = document.querySelector('[data-claimable="true"]');
+              if (target instanceof HTMLElement) {
+                target.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'center',
+                });
+              }
+              onClaimInfoOpenChange(false);
+            }}
+          >
+            See other ideas
+          </Button>
+        </MobileBottomSheetContent>
+      </MobileBottomSheet>
+    );
+  }
+
+  if (allowClaims && isClaimed) {
+    return (
+      <div className="flex h-10 items-center gap-2 rounded-b-xl bg-pool px-4 text-xs font-semibold text-pool-foreground">
+        <LuGift className="h-4 w-4" aria-hidden />
+        <span>{purchaseStatusText ?? 'You’re on gift duty for this one'}</span>
+      </div>
+    );
+  }
+
+  if (!allowClaims && isClaimed) {
+    return (
+      <div className="flex h-10 items-center gap-2 rounded-b-xl bg-amber-100 px-4 text-xs font-semibold text-amber-800">
+        <LuGift className="h-4 w-4" aria-hidden />
+        <span>Already claimed</span>
+      </div>
+    );
+  }
+
+  return <div className="h-px w-full bg-border/70" aria-hidden />;
+}
+
+function WishlistNonOwnerTrigger({
+  allowClaims,
+  dragState,
+  handlePurchaseToggle,
+  imageBlock,
+  isClaimInfoOpen,
+  isClaimed,
+  isPurchasePending,
+  isPurchasedByMe,
+  isPurchasedBySomeoneElse,
+  onClaimInfoOpenChange,
+  press,
+  purchaseButtonAriaLabel,
+  purchaseButtonClassName,
+  purchaseButtonIconOnly,
+  purchaseStatusText,
+  wishlistItem,
+}: WishlistNonOwnerTriggerProps) {
+  return (
+    <Card
+      variant="interactive"
+      padding="none"
+      role="button"
+      className={cn(
+        'group relative flex min-w-0 cursor-pointer flex-col overflow-hidden [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30',
+        isPurchasedBySomeoneElse ? 'opacity-90' : '',
+      )}
+      data-claimable={allowClaims && !isClaimed ? 'true' : undefined}
+      data-pressed={press.pressed ? 'true' : 'false'}
+      data-testid="wishlist-item-row"
+      data-drag-state={dragState}
+      data-drop-target="false"
+      {...press.rowProps}
+    >
+      <div className="flex h-full flex-col gap-3 px-4 py-3 sm:flex-row">
+        {imageBlock}
+        <Flex justify="between" align="start" className="min-w-0 flex-1 gap-3">
+          <Box className="w-0 min-w-0 flex-1 overflow-hidden">
+            <Text
+              size="base"
+              weight="medium"
+              className="block min-w-0 max-w-full truncate"
+            >
+              {wishlistItem.title}
+            </Text>
+            <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
+              <Text size="xs" className="break-words text-muted-foreground">
+                {wishlistItem.note ?? ''}
+              </Text>
+            </Box>
+          </Box>
+          <div className="flex items-center gap-2">
+            {allowClaims ? (
+              !isPurchasedBySomeoneElse ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isPurchasedByMe ? 'secondary' : 'outline'}
+                  disabled={isPurchasePending}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onPointerUp={(event) => event.stopPropagation()}
+                  onClick={handlePurchaseToggle}
+                  className={cn(
+                    'flex items-center whitespace-nowrap',
+                    purchaseButtonClassName,
+                  )}
+                  aria-pressed={isPurchasedByMe}
+                  aria-label={purchaseButtonAriaLabel}
+                >
+                  {purchaseButtonIconOnly}
+                </Button>
+              ) : (
+                <div
+                  className="flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200"
+                  aria-hidden
+                >
+                  <LuGift className="h-4 w-4" />
+                  Claimed
+                </div>
+              )
+            ) : isClaimed ? (
+              <div
+                className="flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200"
+                aria-hidden
+              >
+                <LuGift className="h-4 w-4" />
+                Claimed
+              </div>
+            ) : null}
+            <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          </div>
+        </Flex>
+      </div>
+
+      {isClaimed ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-xl bg-background/60 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 sm:flex sm:backdrop-blur"
+        >
+          <div className="flex items-center gap-2 rounded-full bg-background/90 px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-border">
+            <LuLock className="h-4 w-4" />
+            {getClaimedLabel(isPurchasedBySomeoneElse)}
+          </div>
+        </div>
+      ) : null}
+
+      <WishlistNonOwnerFooter
+        allowClaims={allowClaims}
+        isClaimInfoOpen={isClaimInfoOpen}
+        isClaimed={isClaimed}
+        isPurchasedBySomeoneElse={isPurchasedBySomeoneElse}
+        onClaimInfoOpenChange={onClaimInfoOpenChange}
+        purchaseStatusText={purchaseStatusText}
+      />
+    </Card>
+  );
+}
+
+function WishlistOwnerTrigger({
+  actionMenu,
+  displayImageSrc,
+  dragState,
+  imageBlock,
+  imageErrored,
+  isCompactLayout,
+  onImageError,
+  press,
+  wishlistItem,
+}: WishlistOwnerTriggerProps) {
+  const desktopCardClass = cn(
+    'group min-w-0 rounded-xl border border-border/80 bg-card shadow-sm transition hover:border-border hover:shadow-md',
+    dragState === 'dragging-item' ? 'opacity-75' : '',
+    dragState === 'dragging-category' ? 'opacity-80' : '',
+  );
+
+  const mobileImageThumb =
+    displayImageSrc && !imageErrored ? (
+      <img
+        src={displayImageSrc}
+        alt={wishlistItem.title}
+        className="h-10 w-10 flex-shrink-0 rounded-lg border border-border/60 object-cover"
+        onError={onImageError}
+        loading="lazy"
+      />
+    ) : wishlistItem.hasImage ? (
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40 text-muted-foreground">
+        <LuImage className="h-4 w-4" aria-hidden />
+      </div>
+    ) : null;
+
+  return (
+    <div className="contents">
+      {!isCompactLayout ? (
+        <div className="hidden sm:block">
+          <Card
+            variant="interactive"
+            padding="sm"
+            className={desktopCardClass}
+            data-testid="wishlist-item-row"
+            data-drag-state={dragState}
+            data-drop-target="false"
+          >
+            <div className="flex gap-3">
+              {imageBlock}
+              <div className="min-w-0 flex-1">
+                <Flex justify="between" align="center" className="min-w-0 gap-2">
+                  <Text
+                    size="base"
+                    weight="medium"
+                    className="block w-0 min-w-0 max-w-full flex-1 truncate"
+                  >
+                    {wishlistItem.title}
+                  </Text>
+                  <div
+                    className="flex flex-shrink-0 items-center gap-2"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {actionMenu}
+                  </div>
+                </Flex>
+                {wishlistItem.note ? (
+                  <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
+                    <Text size="xs" className="break-words text-muted-foreground">
+                      {wishlistItem.note}
+                    </Text>
+                  </Box>
+                ) : null}
+              </div>
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
+      <div className={isCompactLayout ? 'block' : 'sm:hidden'}>
+        <Card
+          variant="interactive"
+          padding="none"
+          role="button"
+          className={cn(
+            'min-h-[4.25rem] min-w-0 cursor-pointer touch-pan-y rounded-xl border border-border/80 bg-card shadow-sm transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/20',
+            dragState === 'dragging-item' ? 'opacity-75' : '',
+            dragState === 'dragging-category' ? 'opacity-80' : '',
+          )}
+          data-pressed={press.pressed ? 'true' : 'false'}
+          data-testid="wishlist-item-row"
+          data-drag-state={dragState}
+          data-drop-target="false"
+          {...press.rowProps}
+        >
+          <div className="flex min-w-0 items-center gap-2 px-3 py-2.5">
+            {mobileImageThumb}
+            <Box className="w-0 min-w-0 flex-1 overflow-hidden">
+              <Text
+                size="base"
+                weight="medium"
+                className="block min-w-0 max-w-full truncate"
+              >
+                {wishlistItem.title}
+              </Text>
+              {wishlistItem.note ? (
+                <Text
+                  size="xs"
+                  className="block min-w-0 max-w-full truncate text-muted-foreground"
+                >
+                  {wishlistItem.note}
+                </Text>
+              ) : null}
+            </Box>
+
+            {actionMenu ? (
+              <Flex
+                align="center"
+                className="flex-shrink-0"
+                gap={1}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {actionMenu}
+              </Flex>
+            ) : null}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 export const WishlistItem = ({
   wishlistItem,
   isOwner = false,
@@ -346,19 +857,7 @@ export const WishlistItem = ({
   isReorderMode = false,
   dragState = 'idle',
   onStatusChange,
-}: {
-  wishlistItem: WishlistItemRecord;
-  isOwner?: boolean;
-  categories?: { id: string; name: string; order: number }[];
-  disableClaims?: boolean;
-  layout?: WishlistItemOwnerLayout;
-  isReorderMode?: boolean;
-  dragState?: WishlistItemDragState;
-  onStatusChange?: (
-    itemId: string,
-    status: WishlistItemStatusValue,
-  ) => boolean | void;
-}) => {
+}: WishlistItemProps) => {
   const user = useOptionalUser();
   const isOwnerByUser = user?.id === wishlistItem.ownerId;
   const canDelete = userHasPermission(
@@ -480,42 +979,11 @@ export const WishlistItem = ({
         initialMode="view"
         onStatusChange={onStatusChange}
         trigger={
-          <Card
-            variant="interactive"
-            padding="md"
-            className="group h-full cursor-pointer"
-          >
-            <div className="flex h-full flex-col gap-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <Text
-                    size="base"
-                    weight="medium"
-                    className="block truncate"
-                    aria-label={wishlistItem.title}
-                  >
-                    {wishlistItem.title}
-                  </Text>
-                  <Text
-                    size="xs"
-                    className="line-clamp-2 text-muted-foreground"
-                    aria-label={wishlistItem.note ?? 'No description'}
-                  >
-                    {wishlistItem.note ?? 'No description'}
-                  </Text>
-                </div>
-                <WishlistStatusBadge status={normalizedStatus} />
-              </div>
-              <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground">
-                <span className="truncate">{statusMeta.description}</span>
-                <div className="flex items-center gap-1 text-primary">
-                  <LuArchive className="h-3.5 w-3.5" aria-hidden />
-                  <span className="hidden sm:inline">View</span>
-                  <span className="sm:hidden">View</span>
-                </div>
-              </div>
-            </div>
-          </Card>
+          <WishlistArchivedTrigger
+            normalizedStatus={normalizedStatus}
+            statusMeta={statusMeta}
+            wishlistItem={wishlistItem}
+          />
         }
       />
     );
@@ -525,218 +993,19 @@ export const WishlistItem = ({
   if (!isOwner) {
     const allowClaims = !disableClaims;
     const isClaimed = isPurchasedByMe || isPurchasedBySomeoneElse;
-    const viewPurchaseExtras = allowClaims ? (
-      isPurchasedBySomeoneElse ? (
-        <Flex align="center" gap={2}>
-          <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
-          <Text size="sm" className="text-amber-800">
-            Someone already grabbed this one.
-          </Text>
-        </Flex>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <Text size="sm" className="text-muted-foreground">
-            Claim this gift so everyone else knows it’s handled.
-          </Text>
-          <Button
-            type="button"
-            variant={isPurchasedByMe ? 'secondary' : 'outline'}
-            disabled={isPurchasePending}
-            onClick={handlePurchaseToggle}
-            aria-pressed={isPurchasedByMe}
-            aria-label={purchaseButtonAriaLabel}
-            className={cn('justify-center sm:w-auto', purchaseButtonClassName)}
-          >
-            {purchaseButtonContent}
-          </Button>
-          {purchaseStatusText ? (
-            <Text size="sm" className="text-pool">
-              {purchaseStatusText}
-            </Text>
-          ) : null}
-        </div>
-      )
-    ) : isClaimed ? (
-      <Flex align="center" gap={2}>
-        <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
-        <Text size="sm" className="text-amber-800">
-          Someone already grabbed this one.
-        </Text>
-      </Flex>
-    ) : (
-      <Text size="sm" className="text-muted-foreground">
-        View-only link. Sign in to claim gifts.
-      </Text>
-    );
-
-    const trigger = (
-      <Card
-        variant="interactive"
-        padding="none"
-        role="button"
-        className={cn(
-          'group relative flex min-w-0 cursor-pointer flex-col overflow-hidden [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30',
-          isPurchasedBySomeoneElse ? 'opacity-90' : '',
-        )}
-        data-claimable={allowClaims && !isClaimed ? 'true' : undefined}
-        data-pressed={press.pressed ? 'true' : 'false'}
-        data-testid="wishlist-item-row"
-        data-drag-state={dragState}
-        data-drop-target="false"
-        {...press.rowProps}
-      >
-        <div className="flex h-full flex-col gap-3 px-4 py-3 sm:flex-row">
-          {imageBlock}
-          <Flex
-            justify="between"
-            align="start"
-            className="min-w-0 flex-1 gap-3"
-          >
-            <Box className="w-0 min-w-0 flex-1 overflow-hidden">
-              <Text
-                size="base"
-                weight="medium"
-                className="block min-w-0 max-w-full truncate"
-              >
-                {wishlistItem.title}
-              </Text>
-              <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-                <Text size="xs" className="break-words text-muted-foreground">
-                  {wishlistItem.note ?? ''}
-                </Text>
-              </Box>
-            </Box>
-            <div className="flex items-center gap-2">
-              {allowClaims ? (
-                !isPurchasedBySomeoneElse ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={isPurchasedByMe ? 'secondary' : 'outline'}
-                    disabled={isPurchasePending}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onPointerUp={(event) => event.stopPropagation()}
-                    onClick={handlePurchaseToggle}
-                    className={cn(
-                      'flex items-center whitespace-nowrap',
-                      purchaseButtonClassName,
-                    )}
-                    aria-pressed={isPurchasedByMe}
-                    aria-label={purchaseButtonAriaLabel}
-                  >
-                    {purchaseButtonIconOnly}
-                  </Button>
-                ) : (
-                  <div
-                    className="flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200"
-                    aria-hidden
-                  >
-                    <LuGift className="h-4 w-4" />
-                    Claimed
-                  </div>
-                )
-              ) : isClaimed ? (
-                <div
-                  className="flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200"
-                  aria-hidden
-                >
-                  <LuGift className="h-4 w-4" />
-                  Claimed
-                </div>
-              ) : null}
-              <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-            </div>
-          </Flex>
-        </div>
-
-        {isClaimed ? (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 hidden items-center justify-center rounded-xl bg-background/60 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 sm:flex sm:backdrop-blur"
-          >
-            <div className="flex items-center gap-2 rounded-full bg-background/90 px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-border">
-              <LuLock className="h-4 w-4" />
-              {isPurchasedBySomeoneElse
-                ? 'Locked by a friend'
-                : 'You claimed this'}
-            </div>
-          </div>
-        ) : null}
-
-        {allowClaims ? (
-          isPurchasedBySomeoneElse ? (
-            <MobileBottomSheet
-              open={isClaimInfoOpen}
-              onOpenChange={setIsClaimInfoOpen}
-            >
-              <MobileBottomSheetTrigger asChild>
-                <button
-                  type="button"
-                  onClick={(event) => event.stopPropagation()}
-                  className="flex h-10 items-center justify-between gap-2 bg-amber-100 px-4 text-left text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-200"
-                >
-                  <div className="flex items-center gap-2">
-                    <LuGift className="h-4 w-4" aria-hidden />
-                    <span>Someone already grabbed this</span>
-                  </div>
-                  <LuChevronRight className="h-4 w-4" aria-hidden />
-                </button>
-              </MobileBottomSheetTrigger>
-              <MobileBottomSheetContent className="gap-3 sm:gap-4">
-                <MobileBottomSheetHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800">
-                      <LuLock className="h-5 w-5" aria-hidden />
-                    </div>
-                    <MobileBottomSheetTitle>
-                      Already claimed
-                    </MobileBottomSheetTitle>
-                  </div>
-                  <MobileBottomSheetDescription>
-                    This item has already been claimed by someone else to avoid
-                    duplicates.
-                  </MobileBottomSheetDescription>
-                </MobileBottomSheetHeader>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    const target = document.querySelector(
-                      '[data-claimable="true"]',
-                    );
-                    if (target instanceof HTMLElement) {
-                      target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'center',
-                      });
-                    }
-                    setIsClaimInfoOpen(false);
-                  }}
-                >
-                  See other ideas
-                </Button>
-              </MobileBottomSheetContent>
-            </MobileBottomSheet>
-          ) : isClaimed ? (
-            <div className="flex h-10 items-center gap-2 rounded-b-xl bg-pool px-4 text-xs font-semibold text-pool-foreground">
-              <LuGift className="h-4 w-4" aria-hidden />
-              <span>
-                {purchaseStatusText ?? 'You’re on gift duty for this one'}
-              </span>
-            </div>
-          ) : (
-            <div className="h-px w-full bg-border/70" aria-hidden />
-          )
-        ) : isClaimed ? (
-          <div className="flex h-10 items-center gap-2 rounded-b-xl bg-amber-100 px-4 text-xs font-semibold text-amber-800">
-            <LuGift className="h-4 w-4" aria-hidden />
-            <span>Already claimed</span>
-          </div>
-        ) : (
-          <div className="h-px w-full bg-border/70" aria-hidden />
-        )}
-      </Card>
+    const viewPurchaseExtras = (
+      <WishlistNonOwnerExtras
+        allowClaims={allowClaims}
+        handlePurchaseToggle={handlePurchaseToggle}
+        isClaimed={isClaimed}
+        isPurchasePending={isPurchasePending}
+        isPurchasedByMe={isPurchasedByMe}
+        isPurchasedBySomeoneElse={isPurchasedBySomeoneElse}
+        purchaseButtonAriaLabel={purchaseButtonAriaLabel}
+        purchaseButtonClassName={purchaseButtonClassName}
+        purchaseButtonContent={purchaseButtonContent}
+        purchaseStatusText={purchaseStatusText}
+      />
     );
 
     return (
@@ -749,7 +1018,26 @@ export const WishlistItem = ({
         categories={categories}
         viewExtras={viewPurchaseExtras}
         onStatusChange={onStatusChange}
-        trigger={trigger}
+        trigger={
+          <WishlistNonOwnerTrigger
+            allowClaims={allowClaims}
+            dragState={dragState}
+            handlePurchaseToggle={handlePurchaseToggle}
+            imageBlock={imageBlock}
+            isClaimInfoOpen={isClaimInfoOpen}
+            isClaimed={isClaimed}
+            isPurchasePending={isPurchasePending}
+            isPurchasedByMe={isPurchasedByMe}
+            isPurchasedBySomeoneElse={isPurchasedBySomeoneElse}
+            onClaimInfoOpenChange={setIsClaimInfoOpen}
+            press={press}
+            purchaseButtonAriaLabel={purchaseButtonAriaLabel}
+            purchaseButtonClassName={purchaseButtonClassName}
+            purchaseButtonIconOnly={purchaseButtonIconOnly}
+            purchaseStatusText={purchaseStatusText}
+            wishlistItem={wishlistItem}
+          />
+        }
       />
     );
   }
@@ -788,127 +1076,6 @@ export const WishlistItem = ({
     </WishlistRowActionsMenu>
   ) : null;
 
-  const desktopCardClass = cn(
-    'group min-w-0 rounded-xl border border-border/80 bg-card shadow-sm transition hover:border-border hover:shadow-md',
-    dragState === 'dragging-item' ? 'opacity-75' : '',
-    dragState === 'dragging-category' ? 'opacity-80' : '',
-  );
-
-  const DesktopTrigger = !isCompactLayout ? (
-    <div className="hidden sm:block">
-      <Card
-        variant="interactive"
-        padding="sm"
-        className={desktopCardClass}
-        data-testid="wishlist-item-row"
-        data-drag-state={dragState}
-        data-drop-target="false"
-      >
-        <div className="flex gap-3">
-          {imageBlock}
-          <div className="min-w-0 flex-1">
-            <Flex justify="between" align="center" className="min-w-0 gap-2">
-              <Text
-                size="base"
-                weight="medium"
-                className="block w-0 min-w-0 max-w-full flex-1 truncate"
-              >
-                {wishlistItem.title}
-              </Text>
-              <div
-                className="flex flex-shrink-0 items-center gap-2"
-                onClick={(event) => event.stopPropagation()}
-              >
-                {actionMenu}
-              </div>
-            </Flex>
-            {wishlistItem.note ? (
-              <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-                <Text size="xs" className="break-words text-muted-foreground">
-                  {wishlistItem.note}
-                </Text>
-              </Box>
-            ) : null}
-          </div>
-        </div>
-      </Card>
-    </div>
-  ) : null;
-
-  const mobileImageThumb =
-    displayImageSrc && !imageErrored ? (
-      <img
-        src={displayImageSrc}
-        alt={wishlistItem.title}
-        className="h-10 w-10 flex-shrink-0 rounded-lg border border-border/60 object-cover"
-        onError={handleImageError}
-        loading="lazy"
-      />
-    ) : wishlistItem.hasImage ? (
-      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40 text-muted-foreground">
-        <LuImage className="h-4 w-4" aria-hidden />
-      </div>
-    ) : null;
-
-  const MobileTrigger = (
-    <div className={isCompactLayout ? 'block' : 'sm:hidden'}>
-      <Card
-        variant="interactive"
-        padding="none"
-        role="button"
-        className={cn(
-          'min-h-[4.25rem] min-w-0 cursor-pointer touch-pan-y rounded-xl border border-border/80 bg-card shadow-sm transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/20',
-          dragState === 'dragging-item' ? 'opacity-75' : '',
-          dragState === 'dragging-category' ? 'opacity-80' : '',
-        )}
-        data-pressed={press.pressed ? 'true' : 'false'}
-        data-testid="wishlist-item-row"
-        data-drag-state={dragState}
-        data-drop-target="false"
-        {...press.rowProps}
-      >
-        <div className="flex min-w-0 items-center gap-2 px-3 py-2.5">
-          {mobileImageThumb}
-          <Box className="w-0 min-w-0 flex-1 overflow-hidden">
-            <Text
-              size="base"
-              weight="medium"
-              className="block min-w-0 max-w-full truncate"
-            >
-              {wishlistItem.title}
-            </Text>
-            {wishlistItem.note ? (
-              <Text
-                size="xs"
-                className="block min-w-0 max-w-full truncate text-muted-foreground"
-              >
-                {wishlistItem.note}
-              </Text>
-            ) : null}
-          </Box>
-
-          {actionMenu ? (
-            <Flex
-              align="center"
-              className="flex-shrink-0"
-              gap={1}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {actionMenu}
-            </Flex>
-          ) : null}
-        </div>
-      </Card>
-    </div>
-  );
-
-  const Trigger = (
-    <div className="contents">
-      {DesktopTrigger}
-      {MobileTrigger}
-    </div>
-  );
-
   // ---------------- Owner: mobile row (explicit actions + chevron); row tap → read-only view
   return (
     <>
@@ -916,7 +1083,19 @@ export const WishlistItem = ({
         key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
         ref={editorRef}
         wishlistItem={toEditorWishlistItem(wishlistItem, normalizedStatus)}
-        trigger={Trigger} // desktop: row-as-trigger (edit/create); mobile: tap-to-view
+        trigger={
+          <WishlistOwnerTrigger
+            actionMenu={actionMenu}
+            displayImageSrc={displayImageSrc}
+            dragState={dragState}
+            imageBlock={imageBlock}
+            imageErrored={imageErrored}
+            isCompactLayout={isCompactLayout}
+            onImageError={handleImageError}
+            press={press}
+            wishlistItem={wishlistItem}
+          />
+        }
         canEdit={true}
         categories={categories}
         onStatusChange={onStatusChange}

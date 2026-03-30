@@ -177,6 +177,57 @@ type InviteQrDialogProps = Readonly<{
   open: boolean;
   qrDataUrl: string | null;
 }>;
+type FriendsTab = 'add' | 'requests' | 'friends';
+type FriendsMobileHeaderProps = Readonly<{
+  activeTab: FriendsTab;
+  friendsFilter: string;
+  onFriendsFilterChange: (value: string) => void;
+  onTabChange: (value: FriendsTab) => void;
+}>;
+type FriendsRequestsPanelProps = Readonly<{
+  acceptSelectedIncoming: () => Promise<void>;
+  anySelected: boolean;
+  cancelSelectedOutgoing: () => Promise<void>;
+  declineSelectedIncoming: () => Promise<void>;
+  incomingSelectMode: boolean;
+  incomingState: IncomingEntry[];
+  onHandleIncomingSelection: (requestId: string, selected: boolean) => void;
+  onHandleOutgoingSelection: (requestId: string, selected: boolean) => void;
+  onHandleIncomingTransition: (
+    requestId: string,
+    user: IncomingEntry['fromUser'],
+  ) => (snapshot: RelationshipSnapshot) => void;
+  onHandleOutgoingTransition: (
+    requestId: string,
+    user: OutgoingEntry['toUser'],
+  ) => (snapshot: RelationshipSnapshot) => void;
+  onToggleIncomingSelectMode: () => void;
+  onToggleOutgoingSelectMode: () => void;
+  outgoingSelectMode: boolean;
+  outgoingState: OutgoingEntry[];
+  selectedIncoming: Set<string>;
+  selectedOutgoing: Set<string>;
+  t: TranslateFn;
+}>;
+type FriendsListSectionProps = Readonly<{
+  activeTab: FriendsTab;
+  filteredFriends: FriendEntry[];
+  friendsState: FriendEntry[];
+  onRenderFriendRow: (friend: FriendEntry) => React.ReactNode;
+  t: TranslateFn;
+}>;
+type UseFriendsRouteStateOptions = Readonly<{
+  data: FriendsLoaderData;
+  setUnreadCount: (count: number) => void;
+}>;
+type FriendsRouteState = ReturnType<typeof useFriendsRouteState>;
+
+function getActiveTab(searchParams: URLSearchParams): FriendsTab {
+  const activeTabParam = (searchParams.get('tab') ?? 'friends').toLowerCase();
+  return activeTabParam === 'add' || activeTabParam === 'requests'
+    ? activeTabParam
+    : 'friends';
+}
 
 function addFriendIfMissing(
   friends: FriendEntry[],
@@ -856,6 +907,452 @@ function mapSearchResults(
   }));
 }
 
+function createOutgoingEntry(
+  requestId: string,
+  user: FriendEntry['user'],
+): OutgoingEntry {
+  return {
+    id: requestId,
+    toUser: user,
+    status: 'PENDING',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as unknown as OutgoingEntry;
+}
+
+function syncIncomingForFriendshipEvent(
+  detail: FriendshipEventDetail,
+  addFriendEntry: (entry: FriendEntry) => void,
+  setIncomingState: React.Dispatch<React.SetStateAction<IncomingEntry[]>>,
+) {
+  setIncomingState((prev) => {
+    const match = prev.find((request) => request.fromUser.id === detail.userId);
+    if (!match) return prev;
+    if (detail.state === 'FRIENDS') {
+      addFriendEntry(buildFriendEntry(match.id, match.fromUser, detail.friendshipId));
+    }
+    return applyIncomingRelationshipTransition(
+      prev,
+      match.id,
+      toRelationshipSnapshot(detail),
+    );
+  });
+}
+
+function syncOutgoingForFriendshipEvent(
+  detail: FriendshipEventDetail,
+  addFriendEntry: (entry: FriendEntry) => void,
+  setOutgoingState: React.Dispatch<React.SetStateAction<OutgoingEntry[]>>,
+) {
+  setOutgoingState((prev) => {
+    const match = prev.find((request) => request.toUser.id === detail.userId);
+    if (!match) return prev;
+    if (detail.state === 'FRIENDS') {
+      addFriendEntry(buildFriendEntry(match.id, match.toUser, detail.friendshipId));
+    }
+    return applyOutgoingRelationshipTransition(
+      prev,
+      match.id,
+      toRelationshipSnapshot(detail),
+    );
+  });
+}
+
+function syncFriendsForFriendshipEvent(
+  detail: FriendshipEventDetail,
+  setFriendsState: React.Dispatch<React.SetStateAction<FriendEntry[]>>,
+) {
+  if (detail.state === 'NONE') {
+    setFriendsState((prev) =>
+      prev.filter((friend) => friend.user.id !== detail.userId),
+    );
+  }
+
+  const inviteUser = extractInviteUser(detail);
+  if (detail.state !== 'FRIENDS' || !inviteUser) {
+    return;
+  }
+
+  setFriendsState((prev) =>
+    addFriendIfMissing(
+      prev,
+      buildFriendEntry(crypto.randomUUID(), inviteUser, detail.friendshipId),
+    ),
+  );
+}
+
+function useFriendsSearchParams() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = getActiveTab(searchParams);
+  const initialQ = searchParams.get('q') ?? '';
+  const [q, setQ] = useState(initialQ);
+
+  useEffect(() => {
+    setQ(initialQ);
+  }, [initialQ]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      const next = new URLSearchParams(searchParams);
+      if (q) next.set('q', q);
+      else next.delete('q');
+      next.set('tab', activeTab);
+      setSearchParams(next, {
+        preventScrollReset: true,
+      });
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [activeTab, q, searchParams, setSearchParams]);
+
+  const handleTabChange = useCallback(
+    (value: FriendsTab) => {
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', value);
+      if (q) next.set('q', q);
+      setSearchParams(next, {
+        preventScrollReset: true,
+      });
+    },
+    [q, searchParams, setSearchParams],
+  );
+
+  return {
+    activeTab,
+    q,
+    setQ,
+    searchParams,
+    handleTabChange,
+  };
+}
+
+function useFriendsRouteState({
+  data,
+  setUnreadCount,
+}: UseFriendsRouteStateOptions) {
+  const [friendsState, setFriendsState] = useState<FriendEntry[]>(data.friends);
+  const [incomingState, setIncomingState] = useState<IncomingEntry[]>(
+    data.incoming,
+  );
+  const [outgoingState, setOutgoingState] = useState<OutgoingEntry[]>(
+    data.outgoing,
+  );
+  const [incomingSelectMode, setIncomingSelectMode] = useState(false);
+  const [outgoingSelectMode, setOutgoingSelectMode] = useState(false);
+  const [selectedIncoming, setSelectedIncoming] = useState<Set<string>>(
+    new Set(),
+  );
+  const [selectedOutgoing, setSelectedOutgoing] = useState<Set<string>>(
+    new Set(),
+  );
+  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
+  const [mutuals] = useState<
+    Record<
+      string,
+      {
+        groups: Array<{
+          id: string;
+          name: string;
+        }>;
+        more: number;
+      }
+    >
+  >({});
+
+  const anySelected =
+    (incomingSelectMode && selectedIncoming.size > 0) ||
+    (outgoingSelectMode && selectedOutgoing.size > 0);
+
+  const resetSelection = useCallback(() => {
+    setIncomingSelectMode(false);
+    setOutgoingSelectMode(false);
+    setSelectedIncoming(new Set());
+    setSelectedOutgoing(new Set());
+  }, []);
+
+  const batchAccept = useCallback(
+    async (ids: string[]) => {
+      await runOptimisticRequestBatch(
+        ids,
+        'accept',
+        incomingState,
+        setIncomingState,
+        setUnreadCount,
+      );
+    },
+    [incomingState, setUnreadCount],
+  );
+  const batchDecline = useCallback(
+    async (ids: string[]) => {
+      await runOptimisticRequestBatch(
+        ids,
+        'reject',
+        incomingState,
+        setIncomingState,
+        setUnreadCount,
+      );
+    },
+    [incomingState, setUnreadCount],
+  );
+  const batchCancel = useCallback(
+    async (ids: string[]) => {
+      await runOptimisticRequestBatch(
+        ids,
+        'cancel',
+        outgoingState,
+        setOutgoingState,
+      );
+    },
+    [outgoingState],
+  );
+
+  useEffect(() => {
+    setFriendsState(data.friends);
+  }, [data.friends]);
+  useEffect(() => {
+    setIncomingState(data.incoming);
+  }, [data.incoming]);
+  useEffect(() => {
+    setOutgoingState(data.outgoing);
+  }, [data.outgoing]);
+
+  const addFriendEntry = useCallback((entry: FriendEntry) => {
+    setFriendsState((prev) => addFriendIfMissing(prev, entry));
+  }, []);
+
+  const handleIncomingTransition = useCallback(
+    (requestId: string, user: IncomingEntry['fromUser']) =>
+      (snapshot: RelationshipSnapshot) => {
+        if (snapshot.state === 'FRIENDS') {
+          addFriendEntry(buildFriendEntry(requestId, user, snapshot.friendshipId));
+        }
+        setIncomingState((prev) =>
+          applyIncomingRelationshipTransition(prev, requestId, snapshot),
+        );
+      },
+    [addFriendEntry],
+  );
+  const handleOutgoingTransition = useCallback(
+    (requestId: string, user: OutgoingEntry['toUser']) =>
+      (snapshot: RelationshipSnapshot) => {
+        if (snapshot.state === 'FRIENDS') {
+          addFriendEntry(buildFriendEntry(requestId, user, snapshot.friendshipId));
+        }
+        setOutgoingState((prev) =>
+          applyOutgoingRelationshipTransition(prev, requestId, snapshot),
+        );
+      },
+    [addFriendEntry],
+  );
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<FriendshipEventDetail>).detail;
+      syncIncomingForFriendshipEvent(detail, addFriendEntry, setIncomingState);
+      syncOutgoingForFriendshipEvent(detail, addFriendEntry, setOutgoingState);
+      syncFriendsForFriendshipEvent(detail, setFriendsState);
+    };
+
+    window.addEventListener(FRIENDSHIP_UPDATED_EVENT, handler as EventListener);
+    return () =>
+      window.removeEventListener(
+        FRIENDSHIP_UPDATED_EVENT,
+        handler as EventListener,
+      );
+  }, [addFriendEntry]);
+
+  const toggleIncomingSelectMode = useCallback(() => {
+    setIncomingSelectMode((value) => !value);
+    setSelectedIncoming(new Set());
+  }, []);
+  const toggleOutgoingSelectMode = useCallback(() => {
+    setOutgoingSelectMode((value) => !value);
+    setSelectedOutgoing(new Set());
+  }, []);
+  const handleIncomingSelection = useCallback(
+    (requestId: string, selected: boolean) => {
+      setSelectedIncoming((prev) => toggleSelection(prev, requestId, selected));
+    },
+    [],
+  );
+  const handleOutgoingSelection = useCallback(
+    (requestId: string, selected: boolean) => {
+      setSelectedOutgoing((prev) => toggleSelection(prev, requestId, selected));
+    },
+    [],
+  );
+  const acceptSelectedIncoming = useCallback(async () => {
+    await batchAccept(Array.from(selectedIncoming));
+    resetSelection();
+  }, [batchAccept, resetSelection, selectedIncoming]);
+  const declineSelectedIncoming = useCallback(async () => {
+    await batchDecline(Array.from(selectedIncoming));
+    resetSelection();
+  }, [batchDecline, resetSelection, selectedIncoming]);
+  const cancelSelectedOutgoing = useCallback(async () => {
+    await batchCancel(Array.from(selectedOutgoing));
+    resetSelection();
+  }, [batchCancel, resetSelection, selectedOutgoing]);
+
+  return {
+    acceptSelectedIncoming,
+    addFriendEntry,
+    anySelected,
+    cancelSelectedOutgoing,
+    declineSelectedIncoming,
+    friendsState,
+    handleIncomingSelection,
+    handleIncomingTransition,
+    handleOutgoingSelection,
+    handleOutgoingTransition,
+    incomingSelectMode,
+    incomingState,
+    mutuals,
+    openSwipeId,
+    outgoingSelectMode,
+    outgoingState,
+    selectedIncoming,
+    selectedOutgoing,
+    setFriendsState,
+    setOpenSwipeId,
+    setOutgoingState,
+    toggleIncomingSelectMode,
+    toggleOutgoingSelectMode,
+  };
+}
+
+function FriendsMobileHeader({
+  activeTab,
+  friendsFilter,
+  onFriendsFilterChange,
+  onTabChange,
+}: FriendsMobileHeaderProps) {
+  return (
+    <div className="sticky top-0 z-10 -mx-4 mb-4 border-b border-border bg-background/80 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:hidden">
+      <div className="mx-auto max-w-3xl">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-center">
+          <SegmentedTabs value={activeTab} onChange={onTabChange} />
+          {activeTab === 'friends' ? (
+            <div className="sm:col-span-2">
+              <Input
+                value={friendsFilter}
+                onChange={(event) => onFriendsFilterChange(event.currentTarget.value)}
+                placeholder="Search friends"
+                aria-label="Search"
+              />
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FriendsRequestsPanel({
+  acceptSelectedIncoming,
+  anySelected,
+  cancelSelectedOutgoing,
+  declineSelectedIncoming,
+  incomingSelectMode,
+  incomingState,
+  onHandleIncomingSelection,
+  onHandleOutgoingSelection,
+  onHandleIncomingTransition,
+  onHandleOutgoingTransition,
+  onToggleIncomingSelectMode,
+  onToggleOutgoingSelectMode,
+  outgoingSelectMode,
+  outgoingState,
+  selectedIncoming,
+  selectedOutgoing,
+  t,
+}: FriendsRequestsPanelProps) {
+  return (
+    <>
+      {incomingState.length > 0 ? (
+        <IncomingRequestSection
+          incoming={incomingState}
+          isSelectMode={incomingSelectMode}
+          onStateChange={onHandleIncomingTransition}
+          onToggleMode={onToggleIncomingSelectMode}
+          onToggleSelected={onHandleIncomingSelection}
+          selectedIncoming={selectedIncoming}
+          t={t}
+        />
+      ) : null}
+
+      {outgoingState.length > 0 ? (
+        <OutgoingRequestSection
+          isSelectMode={outgoingSelectMode}
+          onStateChange={onHandleOutgoingTransition}
+          onToggleMode={onToggleOutgoingSelectMode}
+          onToggleSelected={onHandleOutgoingSelection}
+          outgoing={outgoingState}
+          selectedOutgoing={selectedOutgoing}
+          t={t}
+        />
+      ) : null}
+
+      {anySelected ? (
+        <RequestSelectionBar
+          onAccept={acceptSelectedIncoming}
+          onCancel={cancelSelectedOutgoing}
+          onDecline={declineSelectedIncoming}
+          selectedIncoming={selectedIncoming}
+          selectedOutgoing={selectedOutgoing}
+        />
+      ) : null}
+
+      {incomingState.length === 0 && outgoingState.length === 0 ? (
+        <EmptyState
+          title="No requests"
+          description="You don't have any incoming or outgoing requests."
+        />
+      ) : null}
+    </>
+  );
+}
+
+function FriendsListSection({
+  activeTab,
+  filteredFriends,
+  friendsState,
+  onRenderFriendRow,
+  t,
+}: FriendsListSectionProps) {
+  if (friendsState.length === 0) {
+    return (
+      <EmptyState
+        title={t('friends.emptyTitle')}
+        description={t('friends.emptyDescription')}
+        action={
+          <Button asChild variant="ghost">
+            <Link to="/groups">{t('friends.emptyCta')}</Link>
+          </Button>
+        }
+      />
+    );
+  }
+
+  return (
+    <section
+      className={cn(activeTab !== 'friends' ? 'hidden sm:block' : undefined)}
+    >
+      <h2 className="text-lg font-semibold">{t('friends.friends')}</h2>
+      {filteredFriends.length > 40 ? (
+        <VirtualizedFriendsList
+          items={filteredFriends}
+          rowHeight={72}
+          renderRow={onRenderFriendRow}
+        />
+      ) : (
+        <ul className="mt-3 space-y-3">
+          {filteredFriends.map((friend) => onRenderFriendRow(friend))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function useFriendSearch(query: string) {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -1018,232 +1515,35 @@ const FriendsRoute = () => {
   const { t } = useTranslation();
   const { setUnreadCount } = useNotificationsStore();
   useFriendWishlistPrefetch(data.friends.map((friend) => friend.user.username));
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTabParam = (searchParams.get('tab') ?? 'friends').toLowerCase();
-  const activeTab: 'add' | 'requests' | 'friends' =
-    activeTabParam === 'add' || activeTabParam === 'requests'
-      ? (activeTabParam as any)
-      : 'friends';
-  const initialQ = searchParams.get('q') ?? '';
-  const [q, setQ] = useState(initialQ);
+  const { activeTab, handleTabChange, q, setQ } = useFriendsSearchParams();
   const [friendsFilter, setFriendsFilter] = useState('');
-  useEffect(() => {
-    setQ(initialQ);
-  }, [initialQ]);
-  useEffect(() => {
-    const tId = setTimeout(() => {
-      const next = new URLSearchParams(searchParams);
-      if (q) next.set('q', q);
-      else next.delete('q');
-      next.set('tab', activeTab);
-      setSearchParams(next, {
-        preventScrollReset: true,
-      });
-    }, 300);
-    return () => clearTimeout(tId);
-  }, [q, activeTab, searchParams, setSearchParams]);
-  const [friendsState, setFriendsState] = useState<FriendEntry[]>(data.friends);
-  const [incomingState, setIncomingState] = useState<IncomingEntry[]>(
-    data.incoming,
-  );
-  const [outgoingState, setOutgoingState] = useState<OutgoingEntry[]>(
-    data.outgoing,
-  );
-  const [incomingSelectMode, setIncomingSelectMode] = useState(false);
-  const [outgoingSelectMode, setOutgoingSelectMode] = useState(false);
-  const [selectedIncoming, setSelectedIncoming] = useState<Set<string>>(
-    new Set(),
-  );
-  const [selectedOutgoing, setSelectedOutgoing] = useState<Set<string>>(
-    new Set(),
-  );
-  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
-  const [mutuals] = useState<
-    Record<
-      string,
-      {
-        groups: Array<{
-          id: string;
-          name: string;
-        }>;
-        more: number;
-      }
-    >
-  >({});
-  const anySelected =
-    (incomingSelectMode && selectedIncoming.size > 0) ||
-    (outgoingSelectMode && selectedOutgoing.size > 0);
-  const resetSelection = () => {
-    setIncomingSelectMode(false);
-    setOutgoingSelectMode(false);
-    setSelectedIncoming(new Set());
-    setSelectedOutgoing(new Set());
-  };
-  const batchAccept = useCallback(
-    async (ids: string[]) => {
-      await runOptimisticRequestBatch(
-        ids,
-        'accept',
-        incomingState,
-        setIncomingState,
-        setUnreadCount,
-      );
-    },
-    [incomingState, setUnreadCount],
-  );
-  const batchDecline = useCallback(
-    async (ids: string[]) => {
-      await runOptimisticRequestBatch(
-        ids,
-        'reject',
-        incomingState,
-        setIncomingState,
-        setUnreadCount,
-      );
-    },
-    [incomingState, setUnreadCount],
-  );
-  const batchCancel = useCallback(
-    async (ids: string[]) => {
-      await runOptimisticRequestBatch(
-        ids,
-        'cancel',
-        outgoingState,
-        setOutgoingState,
-      );
-    },
-    [outgoingState],
-  );
-
-  // Keep local state in sync when loader data changes (e.g., after accepting an invite)
-  useEffect(() => {
-    setFriendsState(data.friends);
-  }, [data.friends]);
-  useEffect(() => {
-    setIncomingState(data.incoming);
-  }, [data.incoming]);
-  useEffect(() => {
-    setOutgoingState(data.outgoing);
-  }, [data.outgoing]);
-  const addFriendEntry = useCallback((entry: FriendEntry) => {
-    setFriendsState((prev) => addFriendIfMissing(prev, entry));
-  }, []);
-  const handleIncomingTransition = useCallback(
-    (requestId: string, user: IncomingEntry['fromUser']) =>
-      (snapshot: RelationshipSnapshot) => {
-        if (snapshot.state === 'FRIENDS') {
-          addFriendEntry(buildFriendEntry(requestId, user, snapshot.friendshipId));
-        }
-        setIncomingState((prev) =>
-          applyIncomingRelationshipTransition(prev, requestId, snapshot),
-        );
-      },
-    [addFriendEntry],
-  );
-  const handleOutgoingTransition = useCallback(
-    (requestId: string, user: OutgoingEntry['toUser']) =>
-      (snapshot: RelationshipSnapshot) => {
-        if (snapshot.state === 'FRIENDS') {
-          addFriendEntry(buildFriendEntry(requestId, user, snapshot.friendshipId));
-        }
-        setOutgoingState((prev) =>
-          applyOutgoingRelationshipTransition(prev, requestId, snapshot),
-        );
-      },
-    [addFriendEntry],
-  );
-  useEffect(() => {
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent<FriendshipEventDetail>).detail;
-      setIncomingState((prev) => {
-        const match = prev.find((req) => req.fromUser.id === detail.userId);
-        if (!match) return prev;
-        if (detail.state === 'FRIENDS') {
-          addFriendEntry(
-            buildFriendEntry(match.id, match.fromUser, detail.friendshipId),
-          );
-        }
-        return applyIncomingRelationshipTransition(
-          prev,
-          match.id,
-          toRelationshipSnapshot(detail),
-        );
-      });
-      setOutgoingState((prev) => {
-        const match = prev.find((req) => req.toUser.id === detail.userId);
-        if (!match) return prev;
-        if (detail.state === 'FRIENDS') {
-          addFriendEntry(
-            buildFriendEntry(match.id, match.toUser, detail.friendshipId),
-          );
-        }
-        return applyOutgoingRelationshipTransition(
-          prev,
-          match.id,
-          toRelationshipSnapshot(detail),
-        );
-      });
-      if (detail.state === 'NONE') {
-        setFriendsState((prev) =>
-          prev.filter((friend) => friend.user.id !== detail.userId),
-        );
-      }
-      // Handle invite accept case: if we became friends and we don't have
-      // an incoming/outgoing match, add using the provided user payload.
-      const inviteUser = extractInviteUser(detail);
-      if (detail.state === 'FRIENDS' && inviteUser) {
-        setFriendsState((prev) => {
-          return addFriendIfMissing(
-            prev,
-            buildFriendEntry(
-              crypto.randomUUID(),
-              inviteUser,
-              detail.friendshipId,
-            ),
-          );
-        });
-      }
-    };
-    window.addEventListener(FRIENDSHIP_UPDATED_EVENT, handler as EventListener);
-    return () =>
-      window.removeEventListener(
-        FRIENDSHIP_UPDATED_EVENT,
-        handler as EventListener,
-      );
-  }, [addFriendEntry]);
-
-  const toggleIncomingSelectMode = useCallback(() => {
-    setIncomingSelectMode((value) => !value);
-    setSelectedIncoming(new Set());
-  }, []);
-  const toggleOutgoingSelectMode = useCallback(() => {
-    setOutgoingSelectMode((value) => !value);
-    setSelectedOutgoing(new Set());
-  }, []);
-  const handleIncomingSelection = useCallback(
-    (requestId: string, selected: boolean) => {
-      setSelectedIncoming((prev) => toggleSelection(prev, requestId, selected));
-    },
-    [],
-  );
-  const handleOutgoingSelection = useCallback(
-    (requestId: string, selected: boolean) => {
-      setSelectedOutgoing((prev) => toggleSelection(prev, requestId, selected));
-    },
-    [],
-  );
-  const acceptSelectedIncoming = useCallback(async () => {
-    await batchAccept(Array.from(selectedIncoming));
-    resetSelection();
-  }, [batchAccept, selectedIncoming]);
-  const declineSelectedIncoming = useCallback(async () => {
-    await batchDecline(Array.from(selectedIncoming));
-    resetSelection();
-  }, [batchDecline, selectedIncoming]);
-  const cancelSelectedOutgoing = useCallback(async () => {
-    await batchCancel(Array.from(selectedOutgoing));
-    resetSelection();
-  }, [batchCancel, selectedOutgoing]);
+  const {
+    acceptSelectedIncoming,
+    anySelected,
+    cancelSelectedOutgoing,
+    declineSelectedIncoming,
+    friendsState,
+    handleIncomingSelection,
+    handleIncomingTransition,
+    handleOutgoingSelection,
+    handleOutgoingTransition,
+    incomingSelectMode,
+    incomingState,
+    mutuals,
+    openSwipeId,
+    outgoingSelectMode,
+    outgoingState,
+    selectedIncoming,
+    selectedOutgoing,
+    setFriendsState,
+    setOpenSwipeId,
+    setOutgoingState,
+    toggleIncomingSelectMode,
+    toggleOutgoingSelectMode,
+  }: FriendsRouteState = useFriendsRouteState({
+    data,
+    setUnreadCount,
+  });
   const filteredFriends = useMemo(
     () => filterFriends(friendsState, friendsFilter),
     [friendsFilter, friendsState],
@@ -1277,7 +1577,7 @@ const FriendsRoute = () => {
         toast.error(t('toasts.genericError'));
       }
     },
-    [t],
+    [setFriendsState, t],
   );
   const renderFriendRow = useCallback(
     (friend: FriendEntry) => (
@@ -1294,43 +1594,28 @@ const FriendsRoute = () => {
         t={t}
       />
     ),
-    [handleRemoveFriend, mutuals, openSwipeId, t],
+    [handleRemoveFriend, mutuals, openSwipeId, setOpenSwipeId, t],
   );
-  const handleTabChange = useCallback(
-    (value: 'add' | 'requests' | 'friends') => {
-      const next = new URLSearchParams(searchParams);
-      next.set('tab', value);
-      if (q) next.set('q', q);
-      setSearchParams(next, {
-        preventScrollReset: true,
+  const handleOutgoingCreated = useCallback(
+    (requestId: string, user: FriendEntry['user']) => {
+      setOutgoingState((prev) => {
+        if (prev.some((request) => request.id === requestId || request.toUser.id === user.id)) {
+          return prev;
+        }
+        return [createOutgoingEntry(requestId, user), ...prev];
       });
     },
-    [q, searchParams, setSearchParams],
+    [setOutgoingState],
   );
 
   return (
     <div className="container py-6 sm:py-8">
-      {/* Mobile-only sticky header: segmented tabs + search */}
-      <div className="sticky top-0 z-10 -mx-4 mb-4 border-b border-border bg-background/80 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:hidden">
-        <div className="mx-auto max-w-3xl">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-center">
-            <SegmentedTabs
-              value={activeTab}
-              onChange={handleTabChange}
-            />
-            {activeTab === 'friends' ? (
-              <div className="sm:col-span-2">
-                <Input
-                  value={friendsFilter}
-                  onChange={(e) => setFriendsFilter(e.currentTarget.value)}
-                  placeholder={'Search friends'}
-                  aria-label="Search"
-                />
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
+      <FriendsMobileHeader
+        activeTab={activeTab}
+        friendsFilter={friendsFilter}
+        onFriendsFilterChange={setFriendsFilter}
+        onTabChange={handleTabChange}
+      />
 
       <Stack gap={4}>
         {/* Add panel: visible on mobile when tab=add; always visible on desktop */}
@@ -1347,25 +1632,7 @@ const FriendsRoute = () => {
           <AddFriendsPanel
             query={q}
             onQueryChange={setQ}
-            onOutgoingCreated={(requestId, user) => {
-              setOutgoingState((prev) => {
-                if (
-                  prev.some(
-                    (r) => r.id === requestId || r.toUser.id === user.id,
-                  )
-                ) {
-                  return prev;
-                }
-                const entry = {
-                  id: requestId,
-                  toUser: user,
-                  status: 'PENDING',
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                } as unknown as OutgoingEntry;
-                return [entry, ...prev];
-              });
-            }}
+            onOutgoingCreated={handleOutgoingCreated}
           />
         </section>
 
@@ -1375,77 +1642,35 @@ const FriendsRoute = () => {
             activeTab !== 'requests' ? 'hidden sm:block' : undefined,
           )}
         >
-          {incomingState.length > 0 ? (
-            <IncomingRequestSection
-              incoming={incomingState}
-              isSelectMode={incomingSelectMode}
-              onStateChange={handleIncomingTransition}
-              onToggleMode={toggleIncomingSelectMode}
-              onToggleSelected={handleIncomingSelection}
-              selectedIncoming={selectedIncoming}
-              t={t}
-            />
-          ) : null}
-
-          {outgoingState.length > 0 ? (
-            <OutgoingRequestSection
-              isSelectMode={outgoingSelectMode}
-              onStateChange={handleOutgoingTransition}
-              onToggleMode={toggleOutgoingSelectMode}
-              onToggleSelected={handleOutgoingSelection}
-              outgoing={outgoingState}
-              selectedOutgoing={selectedOutgoing}
-              t={t}
-            />
-          ) : null}
-          {anySelected ? (
-            <RequestSelectionBar
-              onAccept={acceptSelectedIncoming}
-              onCancel={cancelSelectedOutgoing}
-              onDecline={declineSelectedIncoming}
-              selectedIncoming={selectedIncoming}
-              selectedOutgoing={selectedOutgoing}
-            />
-          ) : null}
-          {incomingState.length === 0 && outgoingState.length === 0 ? (
-            <EmptyState
-              title="No requests"
-              description="You don't have any incoming or outgoing requests."
-            />
-          ) : null}
+          <FriendsRequestsPanel
+            acceptSelectedIncoming={acceptSelectedIncoming}
+            anySelected={anySelected}
+            cancelSelectedOutgoing={cancelSelectedOutgoing}
+            declineSelectedIncoming={declineSelectedIncoming}
+            incomingSelectMode={incomingSelectMode}
+            incomingState={incomingState}
+            onHandleIncomingSelection={handleIncomingSelection}
+            onHandleOutgoingSelection={handleOutgoingSelection}
+            onHandleIncomingTransition={handleIncomingTransition}
+            onHandleOutgoingTransition={handleOutgoingTransition}
+            onToggleIncomingSelectMode={toggleIncomingSelectMode}
+            onToggleOutgoingSelectMode={toggleOutgoingSelectMode}
+            outgoingSelectMode={outgoingSelectMode}
+            outgoingState={outgoingState}
+            selectedIncoming={selectedIncoming}
+            selectedOutgoing={selectedOutgoing}
+            t={t}
+          />
         </div>
 
         {/* Friends: visible on mobile when tab=friends; always visible on desktop */}
-        {friendsState.length > 0 ? (
-          <section
-            className={cn(
-              activeTab !== 'friends' ? 'hidden sm:block' : undefined,
-            )}
-          >
-            <h2 className="text-lg font-semibold">{t('friends.friends')}</h2>
-            {filteredFriends.length > 40 ? (
-              <VirtualizedFriendsList
-                items={filteredFriends}
-                rowHeight={72}
-                renderRow={renderFriendRow}
-              />
-            ) : (
-              <ul className="mt-3 space-y-3">
-                {filteredFriends.map((friend) => renderFriendRow(friend))}
-              </ul>
-            )}
-          </section>
-        ) : (
-          <EmptyState
-            title={t('friends.emptyTitle')}
-            description={t('friends.emptyDescription')}
-            action={
-              <Button asChild variant="ghost">
-                <Link to="/groups">{t('friends.emptyCta')}</Link>
-              </Button>
-            }
-          />
-        )}
+        <FriendsListSection
+          activeTab={activeTab}
+          filteredFriends={filteredFriends}
+          friendsState={friendsState}
+          onRenderFriendRow={renderFriendRow}
+          t={t}
+        />
       </Stack>
       {/* Nested routes (e.g., /friends/accept/:code) render here */}
       <Outlet />
