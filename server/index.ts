@@ -10,6 +10,7 @@ import getPort, { portNumbers } from 'get-port';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { type ServerBuild } from 'react-router';
+import { getCanonicalRedirectTarget } from './redirects.js';
 
 const MODE = process.env.NODE_ENV ?? 'development';
 const IS_PROD = MODE === 'production';
@@ -34,35 +35,20 @@ const viteDevServer = IS_PROD
 
 const app = express();
 
-const getHost = (req: { get: (key: string) => string | undefined }) =>
-  req.get('X-Forwarded-Host') ?? req.get('host') ?? '';
-
 // fly is our proxy
 app.set('trust proxy', true);
-
-// ensure HTTPS only (X-Forwarded-Proto comes from Fly)
-app.use((req, res, next) => {
-  if (req.method !== 'GET') return next();
-  const proto = req.get('X-Forwarded-Proto');
-  const host = getHost(req);
-  if (proto === 'http') {
-    res.set('X-Forwarded-Proto', 'https');
-    res.redirect(`https://${host}${req.originalUrl}`);
-    return;
-  }
-  next();
-});
 
 // no ending slashes for SEO reasons
 // https://github.com/epicweb-dev/epic-stack/discussions/108
 app.get('*', (req, res, next) => {
-  if (req.path.endsWith('/') && req.path.length > 1) {
-    const query = req.url.slice(req.path.length);
-    const safepath = req.path.slice(0, -1).replace(/\/+/g, '/');
-    res.redirect(302, safepath + query);
-  } else {
-    next();
+  const redirectTarget = getCanonicalRedirectTarget(req.originalUrl);
+
+  if (redirectTarget) {
+    res.redirect(302, redirectTarget);
+    return;
   }
+
+  next();
 });
 
 app.use(compression());
