@@ -19,8 +19,17 @@ describe('buildSafeAppRedirectTarget', () => {
     expect(buildSafeAppRedirectTarget('//evil.com/')).toBe('/');
   });
 
+  it('returns a safe root path for slash-only targets', () => {
+    expect(buildSafeAppRedirectTarget('//')).toBe('/');
+    expect(buildSafeAppRedirectTarget('////')).toBe('/');
+  });
+
   it('falls back to a safe relative target for degenerate external paths', () => {
     expect(buildSafeAppRedirectTarget('///evil.com///?x=1')).toBe('/?x=1');
+  });
+
+  it('returns a safe root path for malformed external-looking targets', () => {
+    expect(buildSafeAppRedirectTarget('///foo')).toBe('/');
   });
 
   it('preserves query strings exactly', () => {
@@ -51,5 +60,14 @@ describe('getCanonicalRedirectTarget', () => {
 
   it('returns a safe path for protocol-relative inputs', () => {
     expect(getCanonicalRedirectTarget('//evil.com/')).toBe('/');
+  });
+
+  it('returns a safe path for slash-only targets', () => {
+    expect(getCanonicalRedirectTarget('//')).toBe('/');
+    expect(getCanonicalRedirectTarget('////')).toBe('/');
+  });
+
+  it('returns a safe path for malformed external-looking targets', () => {
+    expect(getCanonicalRedirectTarget('///foo')).toBe('/');
   });
 });
