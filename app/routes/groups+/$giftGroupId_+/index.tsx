@@ -293,10 +293,12 @@ const InlineBudgetEditor = ({
     fd.set('intent', 'member-update-self');
     fd.set('giftGroupId', giftGroupId);
     fd.set('contributionCents', String(cents));
-    void fetcher.submit(fd, {
-      method: 'post',
-      action: `/groups/${giftGroupId}/settings`,
-    });
+    Promise.resolve(
+      fetcher.submit(fd, {
+        method: 'post',
+        action: `/groups/${giftGroupId}/settings`,
+      }),
+    ).catch(() => {});
     track('group_budget_saved', { groupId: giftGroupId });
   };
 
