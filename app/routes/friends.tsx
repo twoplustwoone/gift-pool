@@ -67,6 +67,901 @@ export const meta: MetaFunction<typeof loader> = () => {
     },
   ];
 };
+
+type FriendsLoaderData = Awaited<ReturnType<typeof loader>>;
+type FriendEntry = FriendsLoaderData['friends'][number];
+type IncomingEntry = FriendsLoaderData['incoming'][number];
+type OutgoingEntry = FriendsLoaderData['outgoing'][number];
+type SearchResult = {
+  user: FriendEntry['user'];
+  relationship: RelationshipSnapshot;
+};
+type RequestMutationAction = 'accept' | 'reject' | 'cancel';
+type RequestMutationResponse = {
+  ok: boolean;
+  unreadCount: number | null;
+};
+
+function addFriendIfMissing(
+  friends: FriendEntry[],
+  entry: FriendEntry,
+) {
+  if (friends.some((item) => item.user.id === entry.user.id)) {
+    return friends;
+  }
+  return [...friends, entry];
+}
+
+function buildFriendEntry(
+  requestId: string,
+  user: FriendEntry['user'],
+  friendshipId?: string | null,
+): FriendEntry {
+  return {
+    friendshipId: friendshipId ?? requestId,
+    createdAt: new Date(),
+    user,
+  };
+}
+
+async function submitRequestMutation(
+  id: string,
+  action: RequestMutationAction,
+): Promise<RequestMutationResponse> {
+  const response = await fetch(`/api/friends/requests/${id}/${action}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    ...(action === 'cancel'
+      ? {}
+      : {
+          headers: {
+            Accept: 'application/json',
+          },
+        }),
+  });
+
+  if (!response.ok) {
+    return { ok: false, unreadCount: null };
+  }
+
+  if (action === 'cancel') {
+    return { ok: true, unreadCount: null };
+  }
+
+  const payload = (await response.json()) as { unreadCount?: number };
+  return {
+    ok: true,
+    unreadCount:
+      typeof payload.unreadCount === 'number' ? payload.unreadCount : null,
+  };
+}
+
+async function runBatchRequestMutation(
+  ids: string[],
+  action: RequestMutationAction,
+) {
+  const results = await Promise.allSettled(
+    ids.map((id) => submitRequestMutation(id, action)),
+  );
+  let unreadCount: number | null = null;
+  const failedIds: string[] = [];
+
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled' && result.value.ok) {
+      if (result.value.unreadCount != null) {
+        unreadCount = result.value.unreadCount;
+      }
+      return;
+    }
+
+    failedIds.push(ids[index] ?? '');
+  });
+
+  return { failedIds, unreadCount };
+}
+
+function getRequestMutationMessages(
+  action: RequestMutationAction,
+  count: number,
+) {
+  if (action === 'accept') {
+    return {
+      error: 'Some requests could not be accepted.',
+      success: `Accepted ${count} request${count > 1 ? 's' : ''}.`,
+    };
+  }
+
+  if (action === 'reject') {
+    return {
+      error: 'Some requests could not be declined.',
+      success: `Declined ${count} request${count > 1 ? 's' : ''}.`,
+    };
+  }
+
+  return {
+    error: 'Some requests could not be cancelled.',
+    success: `Cancelled ${count} request${count > 1 ? 's' : ''}.`,
+  };
+}
+
+function filterFriends(
+  friends: FriendEntry[],
+  term: string,
+) {
+  const normalizedTerm = term.trim().toLowerCase();
+  if (!normalizedTerm) return friends;
+
+  return friends.filter((friend) => {
+    const user = friend.user;
+    return (
+      (user.name ?? '').toLowerCase().includes(normalizedTerm) ||
+      user.username.toLowerCase().includes(normalizedTerm)
+    );
+  });
+}
+
+function toggleSelection(set: Set<string>, id: string, selected: boolean) {
+  const next = new Set(set);
+  if (selected) next.add(id);
+  else next.delete(id);
+  return next;
+}
+
+function applyIncomingRelationshipTransition(
+  incoming: IncomingEntry[],
+  requestId: string,
+  snapshot: RelationshipSnapshot,
+) {
+  if (snapshot.state === 'FRIENDS' || snapshot.state === 'NONE') {
+    return incoming.filter((request) => request.id !== requestId);
+  }
+  return incoming;
+}
+
+function applyOutgoingRelationshipTransition(
+  outgoing: OutgoingEntry[],
+  requestId: string,
+  snapshot: RelationshipSnapshot,
+) {
+  if (snapshot.state === 'FRIENDS' || snapshot.state === 'NONE') {
+    return outgoing.filter((request) => request.id !== requestId);
+  }
+  return outgoing;
+}
+
+function extractInviteUser(detail: FriendshipEventDetail) {
+  return (detail as FriendshipEventDetail & { user?: FriendEntry['user'] }).user;
+}
+
+function toRelationshipSnapshot(
+  detail: Pick<
+    FriendshipEventDetail,
+    'state' | 'friendshipId' | 'incomingRequestId' | 'outgoingRequestId'
+  >,
+): RelationshipSnapshot {
+  return {
+    state: detail.state,
+    friendshipId: detail.friendshipId ?? null,
+    incomingRequestId: detail.incomingRequestId ?? null,
+    outgoingRequestId: detail.outgoingRequestId ?? null,
+  };
+}
+
+function getMutualGroupChips(
+  mutuals: Record<
+    string,
+    {
+      groups: Array<{
+        id: string;
+        name: string;
+      }>;
+      more: number;
+    }
+  >,
+  userId: string,
+) {
+  const mutualEntry = mutuals[userId];
+  return {
+    extraGroupCount: mutualEntry?.more ?? 0,
+    mutualGroups: mutualEntry ? mutualEntry.groups.slice(0, 2) : [],
+  };
+}
+
+type TranslateFn = ReturnType<typeof useTranslation>['t'];
+
+function IncomingRequestSection({
+  incoming,
+  isSelectMode,
+  onStateChange,
+  onToggleMode,
+  onToggleSelected,
+  selectedIncoming,
+  t,
+}: {
+  incoming: IncomingEntry[];
+  isSelectMode: boolean;
+  onStateChange: (
+    requestId: string,
+    user: IncomingEntry['fromUser'],
+  ) => (snapshot: RelationshipSnapshot) => void;
+  onToggleMode: () => void;
+  onToggleSelected: (requestId: string, selected: boolean) => void;
+  selectedIncoming: Set<string>;
+  t: TranslateFn;
+}) {
+  if (incoming.length === 0) return null;
+
+  return (
+    <section id="incoming-requests">
+      <h2 className="text-lg font-semibold">{t('friends.incomingRequests')}</h2>
+      <div className="mt-2 flex items-center justify-between">
+        <div className="text-xs text-muted-foreground">
+          {isSelectMode
+            ? `${selectedIncoming.size} selected`
+            : `${incoming.length} pending`}
+        </div>
+        <Button size="sm" variant="ghost" onClick={onToggleMode}>
+          {isSelectMode ? 'Done' : 'Select'}
+        </Button>
+      </div>
+      <ul className="mt-3 space-y-3">
+        {incoming.map((request) => {
+          const user = request.fromUser;
+          const username = user.username;
+          const selected = selectedIncoming.has(request.id);
+          return (
+            <li
+              key={request.id}
+              className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
+            >
+              {isSelectMode ? (
+                <input
+                  type="checkbox"
+                  aria-label={`Select @${username}`}
+                  checked={selected}
+                  onChange={(event) =>
+                    onToggleSelected(request.id, event.currentTarget.checked)
+                  }
+                  className="h-4 w-4"
+                />
+              ) : null}
+              <Avatar size="s" image={user.image} user={user} />
+              <div className="flex-1 text-foreground">@{username}</div>
+              {isSelectMode ? null : (
+                <FriendActionButton
+                  targetUserId={user.id}
+                  targetUserName={`@${username}`}
+                  relationship={{
+                    state: 'PENDING_INCOMING',
+                    friendshipId: null,
+                    incomingRequestId: request.id,
+                    outgoingRequestId: null,
+                  }}
+                  variant="compact"
+                  onStateChange={onStateChange(request.id, user)}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function OutgoingRequestSection({
+  isSelectMode,
+  onStateChange,
+  onToggleMode,
+  onToggleSelected,
+  outgoing,
+  selectedOutgoing,
+  t,
+}: {
+  isSelectMode: boolean;
+  onStateChange: (
+    requestId: string,
+    user: OutgoingEntry['toUser'],
+  ) => (snapshot: RelationshipSnapshot) => void;
+  onToggleMode: () => void;
+  onToggleSelected: (requestId: string, selected: boolean) => void;
+  outgoing: OutgoingEntry[];
+  selectedOutgoing: Set<string>;
+  t: TranslateFn;
+}) {
+  if (outgoing.length === 0) return null;
+
+  return (
+    <section id="outgoing-requests">
+      <h2 className="text-lg font-semibold">{t('friends.outgoingRequests')}</h2>
+      <div className="mt-2 flex items-center justify-between">
+        <div className="text-xs text-muted-foreground">
+          {isSelectMode
+            ? `${selectedOutgoing.size} selected`
+            : `${outgoing.length} pending`}
+        </div>
+        <Button size="sm" variant="ghost" onClick={onToggleMode}>
+          {isSelectMode ? 'Done' : 'Select'}
+        </Button>
+      </div>
+      <ul className="mt-3 space-y-3">
+        {outgoing.map((request) => {
+          const user = request.toUser;
+          const username = user.username;
+          const selected = selectedOutgoing.has(request.id);
+          return (
+            <li
+              key={request.id}
+              className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
+            >
+              {isSelectMode ? (
+                <input
+                  type="checkbox"
+                  aria-label={`Select @${username}`}
+                  checked={selected}
+                  onChange={(event) =>
+                    onToggleSelected(request.id, event.currentTarget.checked)
+                  }
+                  className="h-4 w-4"
+                />
+              ) : null}
+              <Avatar size="s" image={user.image} user={user} />
+              <div className="flex-1 text-foreground">@{username}</div>
+              {isSelectMode ? null : (
+                <FriendActionButton
+                  targetUserId={user.id}
+                  targetUserName={`@${username}`}
+                  relationship={{
+                    state: 'PENDING_OUTGOING',
+                    friendshipId: null,
+                    incomingRequestId: null,
+                    outgoingRequestId: request.id,
+                  }}
+                  variant="compact"
+                  onStateChange={onStateChange(request.id, user)}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function RequestSelectionBar({
+  onAccept,
+  onCancel,
+  onDecline,
+  selectedIncoming,
+  selectedOutgoing,
+}: {
+  onAccept: () => void;
+  onCancel: () => void;
+  onDecline: () => void;
+  selectedIncoming: Set<string>;
+  selectedOutgoing: Set<string>;
+}) {
+  const totalSelected = selectedIncoming.size + selectedOutgoing.size;
+  if (totalSelected === 0) return null;
+
+  return (
+    <div className="sticky bottom-0 z-10 mt-4 rounded-t-xl border border-border bg-card p-3 shadow-lg">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-muted-foreground">{totalSelected} selected</div>
+        <div className="flex flex-wrap items-center gap-2">
+          {selectedIncoming.size > 0 ? (
+            <>
+              <Button size="sm" onClick={onAccept}>
+                Accept ({selectedIncoming.size})
+              </Button>
+              <Button size="sm" variant="secondary" onClick={onDecline}>
+                Decline ({selectedIncoming.size})
+              </Button>
+            </>
+          ) : null}
+          {selectedOutgoing.size > 0 ? (
+            <Button size="sm" variant="secondary" onClick={onCancel}>
+              Cancel ({selectedOutgoing.size})
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FriendRowActions({
+  displayName,
+  friend,
+  onRemove,
+  t,
+}: {
+  displayName: string;
+  friend: FriendEntry;
+  onRemove: (friend: FriendEntry) => Promise<void>;
+  t: TranslateFn;
+}) {
+  const user = friend.user;
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        asChild
+        size="sm"
+        variant="default"
+        aria-label={t('friends.viewWishlist')}
+      >
+        <Link to={`/users/${user.username}/wishlist`}>
+          <LuHeart />
+          <span className="ml-2 hidden sm:inline">{t('friends.viewWishlist')}</span>
+        </Link>
+      </Button>
+      <Button
+        asChild
+        size="sm"
+        variant="secondary"
+        aria-label={t('friends.viewProfile')}
+      >
+        <Link to={`/users/${user.username}`}>
+          <LuUser />
+          <span className="ml-2 hidden sm:inline">{t('friends.viewProfile')}</span>
+        </Link>
+      </Button>
+      <ConfirmDialog
+        title={t('friends.removeConfirmTitle')}
+        description={
+          <p className="text-sm text-muted-foreground">
+            {t('friends.removeConfirmDescription', {
+              name: displayName,
+            })}
+          </p>
+        }
+        confirmText={t('friends.removeConfirmConfirm')}
+        onConfirm={() => onRemove(friend)}
+      >
+        <Button size="sm" variant="destructive" aria-label={t('friends.remove')}>
+          <LuTrash />
+          <span className="ml-2 hidden sm:inline">{t('friends.remove')}</span>
+        </Button>
+      </ConfirmDialog>
+    </div>
+  );
+}
+
+function FriendRow({
+  friend,
+  mutuals,
+  onClose,
+  onOpen,
+  onRemove,
+  open,
+  t,
+}: {
+  friend: FriendEntry;
+  mutuals: Record<
+    string,
+    {
+      groups: Array<{
+        id: string;
+        name: string;
+      }>;
+      more: number;
+    }
+  >;
+  onClose: () => void;
+  onOpen: () => void;
+  onRemove: (friend: FriendEntry) => Promise<void>;
+  open: boolean;
+  t: TranslateFn;
+}) {
+  const user = friend.user;
+  const displayName = user.name ?? user.username;
+  const chips = getMutualGroupChips(mutuals, user.id);
+
+  return (
+    <SwipeableFriendRow
+      open={open}
+      onOpen={onOpen}
+      onClose={onClose}
+      rightActions={null}
+    >
+      <FriendSummary
+        user={user}
+        displayName={displayName}
+        mutualGroups={chips.mutualGroups}
+        extraGroupCount={chips.extraGroupCount}
+      />
+      <FriendRowActions
+        displayName={displayName}
+        friend={friend}
+        onRemove={onRemove}
+        t={t}
+      />
+    </SwipeableFriendRow>
+  );
+}
+
+function SearchResultRow({
+  onOutgoingCreated,
+  result,
+}: {
+  onOutgoingCreated?: (
+    requestId: string,
+    user: FriendEntry['user'],
+  ) => void;
+  result: SearchResult;
+}) {
+  const { relationship, user } = result;
+  const username = user.username;
+
+  const handleStateChange = useCallback(
+    (snapshot: RelationshipSnapshot) => {
+      if (
+        snapshot.state === 'PENDING_OUTGOING' &&
+        snapshot.outgoingRequestId
+      ) {
+        onOutgoingCreated?.(snapshot.outgoingRequestId, user);
+      }
+    },
+    [onOutgoingCreated, user],
+  );
+
+  return (
+    <li className="flex flex-col gap-3 rounded-xl border border-border bg-secondary/20 p-3 sm:flex-row sm:items-center">
+      <div className="flex items-center gap-4">
+        <Avatar size="s" image={user.image} user={user} />
+        <div className="min-w-0">
+          <div className="truncate font-medium text-foreground">@{username}</div>
+        </div>
+      </div>
+      <div className="sm:ml-auto">
+        <FriendActionButton
+          targetUserId={user.id}
+          targetUserName={`@${username}`}
+          relationship={relationship}
+          variant="compact"
+          className="w-full sm:w-auto"
+          onStateChange={handleStateChange}
+        />
+      </div>
+    </li>
+  );
+}
+
+function SearchResultsPanel({
+  hasResults,
+  isLoading,
+  onOutgoingCreated,
+  query,
+  results,
+  showEmpty,
+}: {
+  hasResults: boolean;
+  isLoading: boolean;
+  onOutgoingCreated?: (
+    requestId: string,
+    user: FriendEntry['user'],
+  ) => void;
+  query: string;
+  results: SearchResult[];
+  showEmpty: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="mt-3 space-y-3">
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full" />
+      </div>
+    );
+  }
+
+  if (hasResults) {
+    return (
+      <div className="mt-3 max-h-64 overflow-y-auto pr-1 md:max-h-96">
+        <ul className="space-y-3">
+          {results.map((result) => (
+            <SearchResultRow
+              key={result.user.id}
+              result={result}
+              onOutgoingCreated={onOutgoingCreated}
+            />
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  if (showEmpty) {
+    return (
+      <div className="mt-3">
+        <EmptyState
+          title={`No users found for "${query.trim()}"`}
+          description="Try a different username."
+        />
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function InviteLinkPanel({
+  inviteUrl,
+  onCopy,
+  onCreate,
+  onOpenQr,
+}: {
+  inviteUrl: string | null;
+  onCopy: () => void;
+  onCreate: () => void;
+  onOpenQr: () => void;
+}) {
+  if (!inviteUrl) {
+    return (
+      <Button onClick={onCreate} className="w-full">
+        <LuLink className="mr-2" /> Create Friend Link
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+      <Input
+        readOnly
+        aria-label="Friend invite link"
+        value={inviteUrl}
+        onClick={(event) => event.currentTarget.select()}
+        className="truncate"
+      />
+      <div className="flex w-full flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label="Copy invite link"
+          onClick={onCopy}
+          className="min-w-[120px] flex-1 sm:flex-none"
+        >
+          <LuCopy />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onOpenQr}
+          className="min-w-[120px] flex-1 sm:flex-none"
+        >
+          <LuQrCode className="md:mr-2" />
+          <Text size="sm" className="hidden md:block">
+            Show QR
+          </Text>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function InviteQrDialog({
+  inviteUrl,
+  onClose,
+  onCopy,
+  open,
+  qrDataUrl,
+}: {
+  inviteUrl: string | null;
+  onClose: () => void;
+  onCopy: () => void;
+  open: boolean;
+  qrDataUrl: string | null;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Friend Invite QR</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col items-center gap-4 py-2">
+          {qrDataUrl ? (
+            <img src={qrDataUrl} alt="Friend invite QR" className="h-48 w-48" />
+          ) : (
+            <Skeleton className="h-48 w-48" />
+          )}
+          {inviteUrl ? (
+            <div className="max-w-full break-all text-center text-xs text-muted-foreground">
+              {inviteUrl}
+            </div>
+          ) : null}
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+          {inviteUrl ? <Button onClick={onCopy}>Copy Link</Button> : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function mapSearchResults(
+  results: Array<{
+    relationship: {
+      friendship?: { id?: string | null } | null;
+      incoming?: { id?: string | null } | null;
+      outgoing?: { id?: string | null } | null;
+      state: string;
+    };
+    user: FriendEntry['user'];
+  }>,
+): SearchResult[] {
+  return results.map((result) => ({
+    user: result.user,
+    relationship: {
+      state: result.relationship.state as RelationshipSnapshot['state'],
+      friendshipId: result.relationship.friendship?.id ?? null,
+      incomingRequestId: result.relationship.incoming?.id ?? null,
+      outgoingRequestId: result.relationship.outgoing?.id ?? null,
+    },
+  }));
+}
+
+function useFriendSearch(query: string) {
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const requestVersion = useRef(0);
+  const [settledVersion, setSettledVersion] = useState(0);
+  const loadingStartedAt = useRef<number | null>(null);
+  const hideLoadingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const version = ++requestVersion.current;
+    const trimmedQuery = query.trim();
+
+    const timeout = setTimeout(async () => {
+      if (trimmedQuery.length < 2) {
+        setResults([]);
+        setIsLoading(false);
+        setSettledVersion(version);
+        return;
+      }
+
+      if (hideLoadingTimer.current) {
+        clearTimeout(hideLoadingTimer.current);
+        hideLoadingTimer.current = null;
+      }
+      loadingStartedAt.current = Date.now();
+      setIsLoading(true);
+
+      try {
+        const response = await fetch(
+          `/api/users/search?q=${encodeURIComponent(trimmedQuery)}`,
+          {
+            credentials: 'same-origin',
+            signal: controller.signal,
+          },
+        );
+        if (!response.ok) throw new Error('search failed');
+        const payload = (await response.json()) as {
+          results: Array<{
+            relationship: {
+              friendship?: { id?: string | null } | null;
+              incoming?: { id?: string | null } | null;
+              outgoing?: { id?: string | null } | null;
+              state: string;
+            };
+            user: FriendEntry['user'];
+          }>;
+        };
+
+        if (version === requestVersion.current) {
+          setResults(mapSearchResults(payload.results));
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (controller.signal.aborted) return;
+
+        const minSpinnerMs = 300;
+        const started = loadingStartedAt.current ?? Date.now();
+        const remaining = Math.max(0, minSpinnerMs - (Date.now() - started));
+
+        const finalize = () => {
+          setIsLoading(false);
+          setSettledVersion(version);
+          hideLoadingTimer.current = null;
+        };
+
+        if (remaining === 0) {
+          finalize();
+        } else {
+          hideLoadingTimer.current = setTimeout(finalize, remaining);
+        }
+      }
+    }, 400);
+
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+      if (hideLoadingTimer.current) {
+        clearTimeout(hideLoadingTimer.current);
+        hideLoadingTimer.current = null;
+      }
+    };
+  }, [query]);
+
+  const hasResults = results.length > 0;
+  const showEmpty =
+    !isLoading &&
+    query.trim().length >= 2 &&
+    !hasResults &&
+    settledVersion === requestVersion.current;
+
+  return { hasResults, isLoading, results, showEmpty };
+}
+
+function useInviteLinkController() {
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  const copyInviteLink = useCallback(async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Friend invite link copied');
+    } catch {
+      toast.error('Unable to copy link');
+    }
+  }, []);
+
+  const loadInvite = useCallback(async () => {
+    const response = await fetch('/api/friends/invite', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { inviteUrl: string };
+    setInviteUrl(payload.inviteUrl);
+    return payload.inviteUrl;
+  }, []);
+
+  const createInvite = useCallback(async () => {
+    const nextInviteUrl = await loadInvite();
+    if (!nextInviteUrl) return;
+    await copyInviteLink(nextInviteUrl);
+  }, [copyInviteLink, loadInvite]);
+
+  const openQr = useCallback(async () => {
+    if (!inviteUrl) return;
+
+    try {
+      const qrCodeModule: { toDataURL: (value: string, options: { margin: number; scale: number }) => Promise<string> } =
+        await import('qrcode');
+      const dataUrl = await qrCodeModule.toDataURL(inviteUrl, {
+        margin: 1,
+        scale: 6,
+      });
+      setQrDataUrl(dataUrl);
+      setQrOpen(true);
+    } catch {
+      toast.error('Unable to generate QR code');
+    }
+  }, [inviteUrl]);
+
+  useEffect(() => {
+    loadInvite().catch(() => {});
+  }, [loadInvite]);
+
+  return {
+    closeQr: () => setQrOpen(false),
+    createInvite,
+    copyInviteLink,
+    inviteUrl,
+    openQr,
+    qrDataUrl,
+    qrOpen,
+  };
+}
 const FriendsRoute = () => {
   const data = useLoaderData<typeof loader>();
   const { t } = useTranslation();
@@ -96,9 +991,6 @@ const FriendsRoute = () => {
     }, 300);
     return () => clearTimeout(tId);
   }, [q, activeTab, searchParams, setSearchParams]);
-  type FriendEntry = (typeof data.friends)[number];
-  type IncomingEntry = (typeof data.incoming)[number];
-  type OutgoingEntry = (typeof data.outgoing)[number];
   const [friendsState, setFriendsState] = useState<FriendEntry[]>(data.friends);
   const [incomingState, setIncomingState] = useState<IncomingEntry[]>(
     data.incoming,
@@ -136,121 +1028,68 @@ const FriendsRoute = () => {
     setSelectedIncoming(new Set());
     setSelectedOutgoing(new Set());
   };
-  async function batchAccept(ids: string[]) {
-    const snapshot = incomingState.filter((req) => ids.includes(req.id));
-    setIncomingState((prev) => prev.filter((r) => !ids.includes(r.id)));
-    const results = await Promise.allSettled(
-      ids.map((id) =>
-        fetch(`/api/friends/requests/${id}/accept`, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {
-            Accept: 'application/json',
-          },
-        }).then(async (r) => ({
-          ok: r.ok,
-          json: r.ok ? await r.json() : null,
-        })),
-      ),
-    );
-    let unread: number | null = null;
-    const failedIds: string[] = [];
-    results.forEach((res, index) => {
-      if (res.status === 'fulfilled' && res.value.ok) {
-        const j = res.value.json as any;
-        if (typeof j?.unreadCount === 'number') unread = j.unreadCount;
-      } else if (res.status === 'rejected') {
-        failedIds.push(ids[index] ?? '');
-      } else if (!res.value.ok) {
-        failedIds.push(ids[index] ?? '');
+  const batchAccept = useCallback(
+    async (ids: string[]) => {
+      const snapshot = incomingState.filter((request) => ids.includes(request.id));
+      setIncomingState((prev) =>
+        prev.filter((request) => !ids.includes(request.id)),
+      );
+      const { failedIds, unreadCount } = await runBatchRequestMutation(
+        ids,
+        'accept',
+      );
+      const messages = getRequestMutationMessages('accept', ids.length);
+      if (unreadCount != null) setUnreadCount(unreadCount);
+      if (failedIds.length > 0) {
+        const failed = snapshot.filter((request) => failedIds.includes(request.id));
+        setIncomingState((prev) => [...failed, ...prev]);
+        toast.error(messages.error);
+        return;
       }
-    });
-    if (unread != null) setUnreadCount(unread);
-    if (failedIds.length > 0) {
-      const failed = snapshot.filter((request) =>
-        failedIds.includes(request.id),
+      toast.success(messages.success);
+    },
+    [incomingState, setUnreadCount],
+  );
+  const batchDecline = useCallback(
+    async (ids: string[]) => {
+      const snapshot = incomingState.filter((request) => ids.includes(request.id));
+      setIncomingState((prev) =>
+        prev.filter((request) => !ids.includes(request.id)),
       );
-      setIncomingState((prev) => [...failed, ...prev]);
-      toast.error('Some requests could not be accepted.');
-    } else {
-      toast.success(
-        `Accepted ${ids.length} request${ids.length > 1 ? 's' : ''}.`,
+      const { failedIds, unreadCount } = await runBatchRequestMutation(
+        ids,
+        'reject',
       );
-    }
-  }
-  async function batchDecline(ids: string[]) {
-    const snapshot = incomingState.filter((req) => ids.includes(req.id));
-    setIncomingState((prev) => prev.filter((r) => !ids.includes(r.id)));
-    const results = await Promise.allSettled(
-      ids.map((id) =>
-        fetch(`/api/friends/requests/${id}/reject`, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {
-            Accept: 'application/json',
-          },
-        }).then(async (r) => ({
-          ok: r.ok,
-          json: r.ok ? await r.json() : null,
-        })),
-      ),
-    );
-    let unread: number | null = null;
-    const failedIds: string[] = [];
-    results.forEach((res, index) => {
-      if (res.status === 'fulfilled' && res.value.ok) {
-        const j = res.value.json as any;
-        if (typeof j?.unreadCount === 'number') unread = j.unreadCount;
-      } else if (res.status === 'rejected') {
-        failedIds.push(ids[index] ?? '');
-      } else if (!res.value.ok) {
-        failedIds.push(ids[index] ?? '');
+      const messages = getRequestMutationMessages('reject', ids.length);
+      if (unreadCount != null) setUnreadCount(unreadCount);
+      if (failedIds.length > 0) {
+        const failed = snapshot.filter((request) => failedIds.includes(request.id));
+        setIncomingState((prev) => [...failed, ...prev]);
+        toast.error(messages.error);
+        return;
       }
-    });
-    if (unread != null) setUnreadCount(unread);
-    if (failedIds.length > 0) {
-      const failed = snapshot.filter((request) =>
-        failedIds.includes(request.id),
+      toast.success(messages.success);
+    },
+    [incomingState, setUnreadCount],
+  );
+  const batchCancel = useCallback(
+    async (ids: string[]) => {
+      const snapshot = outgoingState.filter((request) => ids.includes(request.id));
+      setOutgoingState((prev) =>
+        prev.filter((request) => !ids.includes(request.id)),
       );
-      setIncomingState((prev) => [...failed, ...prev]);
-      toast.error('Some requests could not be declined.');
-    } else {
-      toast.success(
-        `Declined ${ids.length} request${ids.length > 1 ? 's' : ''}.`,
-      );
-    }
-  }
-  async function batchCancel(ids: string[]) {
-    const snapshot = outgoingState.filter((req) => ids.includes(req.id));
-    setOutgoingState((prev) => prev.filter((r) => !ids.includes(r.id)));
-    const results = await Promise.allSettled(
-      ids.map((id) =>
-        fetch(`/api/friends/requests/${id}/cancel`, {
-          method: 'POST',
-          credentials: 'same-origin',
-        }),
-      ),
-    );
-    const failedIds: string[] = [];
-    results.forEach((res, index) => {
-      if (res.status === 'fulfilled' && !res.value.ok) {
-        failedIds.push(ids[index] ?? '');
-      } else if (res.status === 'rejected') {
-        failedIds.push(ids[index] ?? '');
+      const { failedIds } = await runBatchRequestMutation(ids, 'cancel');
+      const messages = getRequestMutationMessages('cancel', ids.length);
+      if (failedIds.length > 0) {
+        const failed = snapshot.filter((request) => failedIds.includes(request.id));
+        setOutgoingState((prev) => [...failed, ...prev]);
+        toast.error(messages.error);
+        return;
       }
-    });
-    if (failedIds.length > 0) {
-      const failed = snapshot.filter((request) =>
-        failedIds.includes(request.id),
-      );
-      setOutgoingState((prev) => [...failed, ...prev]);
-      toast.error('Some requests could not be cancelled.');
-    } else {
-      toast.success(
-        `Cancelled ${ids.length} request${ids.length > 1 ? 's' : ''}.`,
-      );
-    }
-  }
+      toast.success(messages.success);
+    },
+    [outgoingState],
+  );
 
   // Keep local state in sync when loader data changes (e.g., after accepting an invite)
   useEffect(() => {
@@ -263,34 +1102,17 @@ const FriendsRoute = () => {
     setOutgoingState(data.outgoing);
   }, [data.outgoing]);
   const addFriendEntry = useCallback((entry: FriendEntry) => {
-    setFriendsState((prev) => {
-      if (prev.some((item) => item.user.id === entry.user.id)) {
-        return prev;
-      }
-      return [...prev, entry];
-    });
+    setFriendsState((prev) => addFriendIfMissing(prev, entry));
   }, []);
   const handleIncomingTransition = useCallback(
     (requestId: string, user: IncomingEntry['fromUser']) =>
       (snapshot: RelationshipSnapshot) => {
         if (snapshot.state === 'FRIENDS') {
-          setIncomingState((prev) =>
-            prev.filter((req) => req.id !== requestId),
-          );
-          addFriendEntry({
-            friendshipId: snapshot.friendshipId ?? requestId,
-            createdAt: new Date(),
-            user,
-          });
-          return;
+          addFriendEntry(buildFriendEntry(requestId, user, snapshot.friendshipId));
         }
-        if (snapshot.state === 'NONE') {
-          setIncomingState((prev) =>
-            prev.filter((req) => req.id !== requestId),
-          );
-          return;
-        }
-        // For PENDING_INCOMING, do not mutate the list
+        setIncomingState((prev) =>
+          applyIncomingRelationshipTransition(prev, requestId, snapshot),
+        );
       },
     [addFriendEntry],
   );
@@ -298,23 +1120,11 @@ const FriendsRoute = () => {
     (requestId: string, user: OutgoingEntry['toUser']) =>
       (snapshot: RelationshipSnapshot) => {
         if (snapshot.state === 'FRIENDS') {
-          setOutgoingState((prev) =>
-            prev.filter((req) => req.id !== requestId),
-          );
-          addFriendEntry({
-            friendshipId: snapshot.friendshipId ?? requestId,
-            createdAt: new Date(),
-            user,
-          });
-          return;
+          addFriendEntry(buildFriendEntry(requestId, user, snapshot.friendshipId));
         }
-        if (snapshot.state === 'NONE') {
-          setOutgoingState((prev) =>
-            prev.filter((req) => req.id !== requestId),
-          );
-          return;
-        }
-        // For PENDING_OUTGOING, do not mutate the list
+        setOutgoingState((prev) =>
+          applyOutgoingRelationshipTransition(prev, requestId, snapshot),
+        );
       },
     [addFriendEntry],
   );
@@ -325,30 +1135,29 @@ const FriendsRoute = () => {
         const match = prev.find((req) => req.fromUser.id === detail.userId);
         if (!match) return prev;
         if (detail.state === 'FRIENDS') {
-          addFriendEntry({
-            friendshipId: detail.friendshipId ?? match.id,
-            createdAt: new Date(),
-            user: match.fromUser,
-          });
+          addFriendEntry(
+            buildFriendEntry(match.id, match.fromUser, detail.friendshipId),
+          );
         }
-        return prev.filter((req) => req.id !== match.id);
+        return applyIncomingRelationshipTransition(
+          prev,
+          match.id,
+          toRelationshipSnapshot(detail),
+        );
       });
       setOutgoingState((prev) => {
         const match = prev.find((req) => req.toUser.id === detail.userId);
         if (!match) return prev;
         if (detail.state === 'FRIENDS') {
-          addFriendEntry({
-            friendshipId: detail.friendshipId ?? match.id,
-            createdAt: new Date(),
-            user: match.toUser,
-          });
-          return prev.filter((req) => req.id !== match.id);
+          addFriendEntry(
+            buildFriendEntry(match.id, match.toUser, detail.friendshipId),
+          );
         }
-        // Only remove the outgoing request if it is no longer pending
-        if (detail.state === 'NONE') {
-          return prev.filter((req) => req.id !== match.id);
-        }
-        return prev;
+        return applyOutgoingRelationshipTransition(
+          prev,
+          match.id,
+          toRelationshipSnapshot(detail),
+        );
       });
       if (detail.state === 'NONE') {
         setFriendsState((prev) =>
@@ -357,18 +1166,17 @@ const FriendsRoute = () => {
       }
       // Handle invite accept case: if we became friends and we don't have
       // an incoming/outgoing match, add using the provided user payload.
-      if (detail.state === 'FRIENDS' && (detail as any).user) {
+      const inviteUser = extractInviteUser(detail);
+      if (detail.state === 'FRIENDS' && inviteUser) {
         setFriendsState((prev) => {
-          const user = (detail as any).user as FriendEntry['user'];
-          if (prev.some((f) => f.user.id === user.id)) return prev;
-          return [
-            {
-              friendshipId: detail.friendshipId ?? crypto.randomUUID(),
-              createdAt: new Date(),
-              user,
-            },
-            ...prev,
-          ];
+          return addFriendIfMissing(
+            prev,
+            buildFriendEntry(
+              crypto.randomUUID(),
+              inviteUser,
+              detail.friendshipId,
+            ),
+          );
         });
       }
     };
@@ -380,7 +1188,101 @@ const FriendsRoute = () => {
       );
   }, [addFriendEntry]);
 
-  // Removed debug logging
+  const toggleIncomingSelectMode = useCallback(() => {
+    setIncomingSelectMode((value) => !value);
+    setSelectedIncoming(new Set());
+  }, []);
+  const toggleOutgoingSelectMode = useCallback(() => {
+    setOutgoingSelectMode((value) => !value);
+    setSelectedOutgoing(new Set());
+  }, []);
+  const handleIncomingSelection = useCallback(
+    (requestId: string, selected: boolean) => {
+      setSelectedIncoming((prev) => toggleSelection(prev, requestId, selected));
+    },
+    [],
+  );
+  const handleOutgoingSelection = useCallback(
+    (requestId: string, selected: boolean) => {
+      setSelectedOutgoing((prev) => toggleSelection(prev, requestId, selected));
+    },
+    [],
+  );
+  const acceptSelectedIncoming = useCallback(async () => {
+    await batchAccept(Array.from(selectedIncoming));
+    resetSelection();
+  }, [batchAccept, selectedIncoming]);
+  const declineSelectedIncoming = useCallback(async () => {
+    await batchDecline(Array.from(selectedIncoming));
+    resetSelection();
+  }, [batchDecline, selectedIncoming]);
+  const cancelSelectedOutgoing = useCallback(async () => {
+    await batchCancel(Array.from(selectedOutgoing));
+    resetSelection();
+  }, [batchCancel, selectedOutgoing]);
+  const filteredFriends = useMemo(
+    () => filterFriends(friendsState, friendsFilter),
+    [friendsFilter, friendsState],
+  );
+  const handleRemoveFriend = useCallback(
+    async (friend: FriendEntry) => {
+      const displayName = friend.user.name ?? friend.user.username;
+      try {
+        const response = await fetch('/api/friends/remove', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: friend.user.id,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error('remove failed');
+        }
+        setFriendsState((prev) =>
+          prev.filter((entry) => entry.friendshipId !== friend.friendshipId),
+        );
+        toast.success(
+          t('friends.removeSuccess', {
+            name: displayName,
+          }),
+        );
+      } catch {
+        toast.error(t('toasts.genericError'));
+      }
+    },
+    [t],
+  );
+  const renderFriendRow = useCallback(
+    (friend: FriendEntry) => (
+      <FriendRow
+        key={friend.friendshipId}
+        friend={friend}
+        mutuals={mutuals}
+        onClose={() =>
+          setOpenSwipeId((id) => (id === friend.friendshipId ? null : id))
+        }
+        onOpen={() => setOpenSwipeId(friend.friendshipId)}
+        onRemove={handleRemoveFriend}
+        open={openSwipeId === friend.friendshipId}
+        t={t}
+      />
+    ),
+    [handleRemoveFriend, mutuals, openSwipeId, t],
+  );
+  const handleTabChange = useCallback(
+    (value: 'add' | 'requests' | 'friends') => {
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', value);
+      if (q) next.set('q', q);
+      setSearchParams(next, {
+        preventScrollReset: true,
+      });
+    },
+    [q, searchParams, setSearchParams],
+  );
 
   return (
     <div className="container py-6 sm:py-8">
@@ -390,14 +1292,7 @@ const FriendsRoute = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-center">
             <SegmentedTabs
               value={activeTab}
-              onChange={(v) => {
-                const next = new URLSearchParams(searchParams);
-                next.set('tab', v);
-                if (q) next.set('q', q);
-                setSearchParams(next, {
-                  preventScrollReset: true,
-                });
-              }}
+              onChange={handleTabChange}
             />
             {activeTab === 'friends' ? (
               <div className="sm:col-span-2">
@@ -457,204 +1352,36 @@ const FriendsRoute = () => {
           )}
         >
           {incomingState.length > 0 ? (
-            <section id="incoming-requests">
-              <h2 className="text-lg font-semibold">
-                {t('friends.incomingRequests')}
-              </h2>
-              <div className="mt-2 flex items-center justify-between">
-                <div className="text-xs text-muted-foreground">
-                  {incomingSelectMode
-                    ? `${selectedIncoming.size} selected`
-                    : `${incomingState.length} pending`}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setIncomingSelectMode((v) => !v);
-                      setSelectedIncoming(new Set());
-                    }}
-                  >
-                    {incomingSelectMode ? 'Done' : 'Select'}
-                  </Button>
-                </div>
-              </div>
-              <ul className="mt-3 space-y-3">
-                {incomingState.map((request) => {
-                  const user = request.fromUser;
-                  const username = user.username;
-                  const selected = selectedIncoming.has(request.id);
-                  return (
-                    <li
-                      key={request.id}
-                      className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
-                    >
-                      {incomingSelectMode ? (
-                        <input
-                          type="checkbox"
-                          aria-label={`Select @${username}`}
-                          checked={selected}
-                          onChange={(e) => {
-                            setSelectedIncoming((prev) => {
-                              const next = new Set(prev);
-                              if (e.currentTarget.checked) next.add(request.id);
-                              else next.delete(request.id);
-                              return next;
-                            });
-                          }}
-                          className="h-4 w-4"
-                        />
-                      ) : null}
-                      <Avatar size="s" image={user.image} user={user} />
-                      <div className="flex-1 text-foreground">@{username}</div>
-                      {incomingSelectMode ? null : (
-                        <FriendActionButton
-                          targetUserId={user.id}
-                          targetUserName={`@${username}`}
-                          relationship={{
-                            state: 'PENDING_INCOMING',
-                            friendshipId: null,
-                            incomingRequestId: request.id,
-                            outgoingRequestId: null,
-                          }}
-                          variant="compact"
-                          onStateChange={handleIncomingTransition(
-                            request.id,
-                            user,
-                          )}
-                        />
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
+            <IncomingRequestSection
+              incoming={incomingState}
+              isSelectMode={incomingSelectMode}
+              onStateChange={handleIncomingTransition}
+              onToggleMode={toggleIncomingSelectMode}
+              onToggleSelected={handleIncomingSelection}
+              selectedIncoming={selectedIncoming}
+              t={t}
+            />
           ) : null}
 
           {outgoingState.length > 0 ? (
-            <section id="outgoing-requests">
-              <h2 className="text-lg font-semibold">
-                {t('friends.outgoingRequests')}
-              </h2>
-              <div className="mt-2 flex items-center justify-between">
-                <div className="text-xs text-muted-foreground">
-                  {outgoingSelectMode
-                    ? `${selectedOutgoing.size} selected`
-                    : `${outgoingState.length} pending`}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setOutgoingSelectMode((v) => !v);
-                      setSelectedOutgoing(new Set());
-                    }}
-                  >
-                    {outgoingSelectMode ? 'Done' : 'Select'}
-                  </Button>
-                </div>
-              </div>
-              <ul className="mt-3 space-y-3">
-                {outgoingState.map((request) => {
-                  const user = request.toUser;
-                  const username = user.username;
-                  const selected = selectedOutgoing.has(request.id);
-                  return (
-                    <li
-                      key={request.id}
-                      className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
-                    >
-                      {outgoingSelectMode ? (
-                        <input
-                          type="checkbox"
-                          aria-label={`Select @${username}`}
-                          checked={selected}
-                          onChange={(e) => {
-                            setSelectedOutgoing((prev) => {
-                              const next = new Set(prev);
-                              if (e.currentTarget.checked) next.add(request.id);
-                              else next.delete(request.id);
-                              return next;
-                            });
-                          }}
-                          className="h-4 w-4"
-                        />
-                      ) : null}
-                      <Avatar size="s" image={user.image} user={user} />
-                      <div className="flex-1 text-foreground">@{username}</div>
-                      {outgoingSelectMode ? null : (
-                        <FriendActionButton
-                          targetUserId={user.id}
-                          targetUserName={`@${username}`}
-                          relationship={{
-                            state: 'PENDING_OUTGOING',
-                            friendshipId: null,
-                            incomingRequestId: null,
-                            outgoingRequestId: request.id,
-                          }}
-                          variant="compact"
-                          onStateChange={handleOutgoingTransition(
-                            request.id,
-                            user,
-                          )}
-                        />
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
+            <OutgoingRequestSection
+              isSelectMode={outgoingSelectMode}
+              onStateChange={handleOutgoingTransition}
+              onToggleMode={toggleOutgoingSelectMode}
+              onToggleSelected={handleOutgoingSelection}
+              outgoing={outgoingState}
+              selectedOutgoing={selectedOutgoing}
+              t={t}
+            />
           ) : null}
           {anySelected ? (
-            <div className="sticky bottom-0 z-10 mt-4 rounded-t-xl border border-border bg-card p-3 shadow-lg">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-sm text-muted-foreground">
-                  {selectedIncoming.size + selectedOutgoing.size} selected
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {selectedIncoming.size > 0 ? (
-                    <>
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          const ids = Array.from(selectedIncoming);
-                          await batchAccept(ids);
-                          resetSelection();
-                        }}
-                      >
-                        Accept ({selectedIncoming.size})
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={async () => {
-                          const ids = Array.from(selectedIncoming);
-                          await batchDecline(ids);
-                          resetSelection();
-                        }}
-                      >
-                        Decline ({selectedIncoming.size})
-                      </Button>
-                    </>
-                  ) : null}
-                  {selectedOutgoing.size > 0 ? (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={async () => {
-                        const ids = Array.from(selectedOutgoing);
-                        await batchCancel(ids);
-                        resetSelection();
-                      }}
-                    >
-                      Cancel ({selectedOutgoing.size})
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            </div>
+            <RequestSelectionBar
+              onAccept={acceptSelectedIncoming}
+              onCancel={cancelSelectedOutgoing}
+              onDecline={declineSelectedIncoming}
+              selectedIncoming={selectedIncoming}
+              selectedOutgoing={selectedOutgoing}
+            />
           ) : null}
           {incomingState.length === 0 && outgoingState.length === 0 ? (
             <EmptyState
@@ -672,240 +1399,17 @@ const FriendsRoute = () => {
             )}
           >
             <h2 className="text-lg font-semibold">{t('friends.friends')}</h2>
-            {(() => {
-              const filtered = friendsState.filter((f) => {
-                const term = friendsFilter.trim().toLowerCase();
-                if (!term) return true;
-                const u = f.user;
-                return (
-                  (u.name ?? '').toLowerCase().includes(term) ||
-                  u.username.toLowerCase().includes(term)
-                );
-              });
-              if (filtered.length > 40) {
-                return (
-                  <VirtualizedFriendsList
-                    items={filtered}
-                    rowHeight={72}
-                    renderRow={(friend) => {
-                      const user = friend.user;
-                      const displayName = user.name ?? user.username;
-                      const mu = mutuals[user.id];
-                      const chips = mu ? mu.groups.slice(0, 2) : [];
-                      return (
-                        <SwipeableFriendRow
-                          key={friend.friendshipId}
-                          open={openSwipeId === friend.friendshipId}
-                          onOpen={() => setOpenSwipeId(friend.friendshipId)}
-                          onClose={() =>
-                            setOpenSwipeId((id) =>
-                              id === friend.friendshipId ? null : id,
-                            )
-                          }
-                          rightActions={null}
-                        >
-                          <FriendSummary
-                            user={user}
-                            displayName={displayName}
-                            mutualGroups={chips}
-                            extraGroupCount={mu?.more ?? 0}
-                          />
-                          <div className="flex items-center gap-2">
-                            <Button
-                              asChild
-                              size="sm"
-                              variant="default"
-                              aria-label={t('friends.viewWishlist')}
-                            >
-                              <Link to={`/users/${user.username}/wishlist`}>
-                                <LuHeart />
-                                <span className="ml-2 hidden sm:inline">
-                                  {t('friends.viewWishlist')}
-                                </span>
-                              </Link>
-                            </Button>
-                            <Button
-                              asChild
-                              size="sm"
-                              variant="secondary"
-                              aria-label={t('friends.viewProfile')}
-                            >
-                              <Link to={`/users/${user.username}`}>
-                                <LuUser />
-                                <span className="ml-2 hidden sm:inline">
-                                  {t('friends.viewProfile')}
-                                </span>
-                              </Link>
-                            </Button>
-                            <ConfirmDialog
-                              title={t('friends.removeConfirmTitle')}
-                              description={
-                                <p className="text-sm text-muted-foreground">
-                                  {t('friends.removeConfirmDescription', {
-                                    name: displayName,
-                                  })}
-                                </p>
-                              }
-                              confirmText={t('friends.removeConfirmConfirm')}
-                              onConfirm={async () => {
-                                try {
-                                  const res = await fetch(
-                                    '/api/friends/remove',
-                                    {
-                                      method: 'POST',
-                                      credentials: 'same-origin',
-                                      headers: {
-                                        'Content-Type': 'application/json',
-                                      },
-                                      body: JSON.stringify({
-                                        userId: user.id,
-                                      }),
-                                    },
-                                  );
-                                  if (!res.ok) throw new Error('remove failed');
-                                  setFriendsState((prev) =>
-                                    prev.filter(
-                                      (f) =>
-                                        f.friendshipId !== friend.friendshipId,
-                                    ),
-                                  );
-                                  toast.success(
-                                    t('friends.removeSuccess', {
-                                      name: displayName,
-                                    }),
-                                  );
-                                } catch {
-                                  toast.error(t('toasts.genericError'));
-                                }
-                              }}
-                            >
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                aria-label={t('friends.remove')}
-                              >
-                                <LuTrash />
-                                <span className="ml-2 hidden sm:inline">
-                                  {t('friends.remove')}
-                                </span>
-                              </Button>
-                            </ConfirmDialog>
-                          </div>
-                        </SwipeableFriendRow>
-                      );
-                    }}
-                  />
-                );
-              }
-              return (
-                <ul className="mt-3 space-y-3">
-                  {filtered.map((friend) => {
-                    const user = friend.user;
-                    const displayName = user.name ?? user.username;
-                    const mu = mutuals[user.id];
-                    const chips = mu ? mu.groups.slice(0, 2) : [];
-                    return (
-                      <SwipeableFriendRow
-                        key={friend.friendshipId}
-                        open={openSwipeId === friend.friendshipId}
-                        onOpen={() => setOpenSwipeId(friend.friendshipId)}
-                        onClose={() =>
-                          setOpenSwipeId((id) =>
-                            id === friend.friendshipId ? null : id,
-                          )
-                        }
-                        rightActions={null}
-                      >
-                        <FriendSummary
-                          user={user}
-                          displayName={displayName}
-                          mutualGroups={chips}
-                          extraGroupCount={mu?.more ?? 0}
-                        />
-                        <div className="flex items-center gap-2">
-                          <Button
-                            asChild
-                            size="sm"
-                            variant="default"
-                            aria-label={t('friends.viewWishlist')}
-                          >
-                            <Link to={`/users/${user.username}/wishlist`}>
-                              <LuHeart />
-                              <span className="ml-2 hidden sm:inline">
-                                {t('friends.viewWishlist')}
-                              </span>
-                            </Link>
-                          </Button>
-                          <Button
-                            asChild
-                            size="sm"
-                            variant="secondary"
-                            aria-label={t('friends.viewProfile')}
-                          >
-                            <Link to={`/users/${user.username}`}>
-                              <LuUser />
-                              <span className="ml-2 hidden sm:inline">
-                                {t('friends.viewProfile')}
-                              </span>
-                            </Link>
-                          </Button>
-                          <ConfirmDialog
-                            title={t('friends.removeConfirmTitle')}
-                            description={
-                              <p className="text-sm text-muted-foreground">
-                                {t('friends.removeConfirmDescription', {
-                                  name: displayName,
-                                })}
-                              </p>
-                            }
-                            confirmText={t('friends.removeConfirmConfirm')}
-                            onConfirm={async () => {
-                              try {
-                                const res = await fetch('/api/friends/remove', {
-                                  method: 'POST',
-                                  credentials: 'same-origin',
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                  },
-                                  body: JSON.stringify({
-                                    userId: user.id,
-                                  }),
-                                });
-                                if (!res.ok) throw new Error('remove failed');
-                                setFriendsState((prev) =>
-                                  prev.filter(
-                                    (f) =>
-                                      f.friendshipId !== friend.friendshipId,
-                                  ),
-                                );
-                                toast.success(
-                                  t('friends.removeSuccess', {
-                                    name: displayName,
-                                  }),
-                                );
-                              } catch {
-                                toast.error(t('toasts.genericError'));
-                              }
-                            }}
-                          >
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              aria-label={t('friends.remove')}
-                            >
-                              <LuTrash />
-                              <span className="ml-2 hidden sm:inline">
-                                {t('friends.remove')}
-                              </span>
-                            </Button>
-                          </ConfirmDialog>
-                        </div>
-                      </SwipeableFriendRow>
-                    );
-                  })}
-                </ul>
-              );
-            })()}
+            {filteredFriends.length > 40 ? (
+              <VirtualizedFriendsList
+                items={filteredFriends}
+                rowHeight={72}
+                renderRow={renderFriendRow}
+              />
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {filteredFriends.map((friend) => renderFriendRow(friend))}
+              </ul>
+            )}
           </section>
         ) : (
           <EmptyState
@@ -1147,193 +1651,27 @@ function AddFriendsPanel({
     },
     [controlledQuery, onQueryChange],
   );
-  const [results, setResults] = useState<
-    Array<{
-      user: {
-        id: string;
-        username: string;
-        name: string | null;
-        image: {
-          id: string;
-          altText: string | null;
-        } | null;
-      };
-      relationship: RelationshipSnapshot;
-    }>
-  >([]);
-  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const requestVersion = useRef(0);
-  const [settledVersion, setSettledVersion] = useState(0);
-  const loadingStartedAt = useRef<number | null>(null);
-  const hideLoadingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [qrOpen, setQrOpen] = useState(false);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  // Simplified invite management for Add tab: we generate a fresh 24h link on mount
-
-  // Debounced search
-  useEffect(() => {
-    const controller = new AbortController();
-    const version = ++requestVersion.current;
-    const q = query.trim();
-    const timeout = setTimeout(async () => {
-      if (q.length < 2) {
-        setResults([]);
-        setIsLoading(false);
-        setSettledVersion(version);
-        return;
-      }
-      // Start loading and note the start time, clear any pending hide timers
-      if (hideLoadingTimer.current) {
-        clearTimeout(hideLoadingTimer.current);
-        hideLoadingTimer.current = null;
-      }
-      loadingStartedAt.current = Date.now();
-      setIsLoading(true);
-      try {
-        const res = await fetch(
-          `/api/users/search?q=${encodeURIComponent(q)}`,
-          {
-            credentials: 'same-origin',
-            signal: controller.signal,
-          },
-        );
-        if (!res.ok) throw new Error('search failed');
-        const data = (await res.json()) as {
-          results: Array<{
-            user: any;
-            relationship: {
-              state: string;
-              friendship?: {
-                id?: string | null;
-              } | null;
-              incoming?: {
-                id?: string | null;
-              } | null;
-              outgoing?: {
-                id?: string | null;
-              } | null;
-            };
-          }>;
-        };
-        const next = data.results.map((r) => ({
-          user: r.user,
-          relationship: {
-            state: r.relationship.state as RelationshipSnapshot['state'],
-            friendshipId: r.relationship.friendship?.id ?? null,
-            incomingRequestId: r.relationship.incoming?.id ?? null,
-            outgoingRequestId: r.relationship.outgoing?.id ?? null,
-          },
-        }));
-        // Only apply if this is the latest request
-        if (version === requestVersion.current) {
-          setResults(next);
-        }
-      } catch {
-        // ignore
-      } finally {
-        if (!controller.signal.aborted) {
-          const MIN_SPINNER_MS = 300;
-          const started = loadingStartedAt.current ?? Date.now();
-          const elapsed = Date.now() - started;
-          const remaining = Math.max(0, MIN_SPINNER_MS - elapsed);
-          if (remaining === 0) {
-            setIsLoading(false);
-            setSettledVersion(version);
-          } else {
-            hideLoadingTimer.current = setTimeout(() => {
-              setIsLoading(false);
-              setSettledVersion(version);
-              hideLoadingTimer.current = null;
-            }, remaining);
-          }
-        }
-      }
-    }, 400);
-    return () => {
-      clearTimeout(timeout);
-      controller.abort();
-      if (hideLoadingTimer.current) {
-        clearTimeout(hideLoadingTimer.current);
-        hideLoadingTimer.current = null;
-      }
-    };
-  }, [query]);
-  const createInvite = useCallback(async () => {
-    const res = await fetch('/api/friends/invite', {
-      method: 'POST',
-      credentials: 'same-origin',
-    });
-    if (!res.ok) return;
-    const data = (await res.json()) as {
-      inviteUrl: string;
-    };
-    setInviteUrl(data.inviteUrl);
-    try {
-      await navigator.clipboard.writeText(data.inviteUrl);
-      toast.success('Friend invite link copied');
-    } catch {}
-  }, []);
-
-  // Fetch current invite on mount
-  useEffect(() => {
-    const loadInvite = async () => {
-      try {
-        const res = await fetch('/api/friends/invite', {
-          method: 'POST',
-          credentials: 'same-origin',
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          inviteUrl: string;
-        };
-        setInviteUrl(data.inviteUrl);
-      } catch {}
-    };
-
-    loadInvite().catch(() => {});
-  }, []);
-
-  // Rotate/disable removed in Add tab to simplify UX
-
-  const openQr = useCallback(async () => {
-    if (!inviteUrl) return;
-    try {
-      const mod: any = await import('qrcode');
-      const url = await mod.toDataURL(inviteUrl, {
-        margin: 1,
-        scale: 6,
-      });
-      setQrDataUrl(url);
-      setQrOpen(true);
-    } catch {
-      toast.error('Unable to generate QR code');
-    }
-  }, [inviteUrl]);
+  const { hasResults, isLoading, results, showEmpty } = useFriendSearch(query);
+  const {
+    closeQr,
+    createInvite,
+    copyInviteLink,
+    inviteUrl,
+    openQr,
+    qrDataUrl,
+    qrOpen,
+  } = useInviteLinkController();
   const handleCopyInviteLink = useCallback(async () => {
     if (!inviteUrl) return;
-    try {
-      await navigator.clipboard.writeText(inviteUrl);
-      toast.success('Friend invite link copied');
-    } catch {
-      toast.error('Unable to copy link');
-    }
-  }, [inviteUrl]);
+    await copyInviteLink(inviteUrl);
+  }, [copyInviteLink, inviteUrl]);
   const handleOpenQr = useCallback(() => {
     openQr().catch(() => {});
   }, [openQr]);
   const handleCreateInvite = useCallback(() => {
     createInvite().catch(() => {});
   }, [createInvite]);
-  const hasResults = useMemo(() => results.length > 0, [results.length]);
-  const showEmpty = useMemo(
-    () =>
-      !isLoading &&
-      query.trim().length >= 2 &&
-      results.length === 0 &&
-      settledVersion === requestVersion.current,
-    [isLoading, query, results.length, settledVersion],
-  );
+
   return (
     <div className="mt-4 grid gap-4 md:grid-cols-2">
       <div>
@@ -1343,152 +1681,33 @@ function AddFriendsPanel({
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
         />
-        {isLoading ? (
-          <div className="mt-3 space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
-        ) : null}
-        {!isLoading && hasResults ? (
-          <div className="mt-3 max-h-64 overflow-y-auto pr-1 md:max-h-96">
-            <ul className="space-y-3">
-              {results.map(({ user, relationship }) => {
-                const username = user.username;
-                return (
-                  <li
-                    key={user.id}
-                    className="flex flex-col gap-3 rounded-xl border border-border bg-secondary/20 p-3 sm:flex-row sm:items-center"
-                  >
-                    <div className="flex items-center gap-4">
-                      <Avatar size="s" image={user.image} user={user} />
-                      <div className="min-w-0">
-                        <div className="truncate font-medium text-foreground">
-                          @{username}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="sm:ml-auto">
-                      <FriendActionButton
-                        targetUserId={user.id}
-                        targetUserName={`@${username}`}
-                        relationship={relationship}
-                        variant="compact"
-                        className="w-full sm:w-auto"
-                        onStateChange={(snapshot) => {
-                          if (
-                            snapshot.state === 'PENDING_OUTGOING' &&
-                            snapshot.outgoingRequestId
-                          ) {
-                            onOutgoingCreated?.(
-                              snapshot.outgoingRequestId,
-                              user,
-                            );
-                          }
-                        }}
-                      />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ) : showEmpty ? (
-          <div className="mt-3">
-            <EmptyState
-              title={`No users found for "${query.trim()}"`}
-              description="Try a different username."
-            />
-          </div>
-        ) : null}
+        <SearchResultsPanel
+          query={query}
+          results={results}
+          isLoading={isLoading}
+          hasResults={hasResults}
+          showEmpty={showEmpty}
+          onOutgoingCreated={onOutgoingCreated}
+        />
       </div>
       <div>
         <div className="mb-2 text-sm font-medium">Invite via link</div>
-        {inviteUrl ? (
-          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
-            <Input
-              readOnly
-              aria-label="Friend invite link"
-              value={inviteUrl}
-              onClick={(e) => (e.currentTarget as HTMLInputElement).select()}
-              className="truncate"
-            />
-            <div className="flex w-full flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label="Copy invite link"
-                onClick={handleCopyInviteLink}
-                className="min-w-[120px] flex-1 sm:flex-none"
-              >
-                <LuCopy />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleOpenQr}
-                className="min-w-[120px] flex-1 sm:flex-none"
-              >
-                <LuQrCode className="md:mr-2" />
-                <Text size="sm" className="hidden md:block">
-                  Show QR
-                </Text>
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <Button onClick={handleCreateInvite} className="w-full">
-            <LuLink className="mr-2" /> Create Friend Link
-          </Button>
-        )}
+        <InviteLinkPanel
+          inviteUrl={inviteUrl}
+          onCopy={handleCopyInviteLink}
+          onCreate={handleCreateInvite}
+          onOpenQr={handleOpenQr}
+        />
       </div>
-
-      {/* QR Modal */}
-      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Friend Invite QR</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-2">
-            {qrDataUrl ? (
-              <img
-                src={qrDataUrl}
-                alt="Friend invite QR"
-                className="h-48 w-48"
-              />
-            ) : (
-              <Skeleton className="h-48 w-48" />
-            )}
-            {inviteUrl ? (
-              <div className="max-w-full break-all text-center text-xs text-muted-foreground">
-                {inviteUrl}
-              </div>
-            ) : null}
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="secondary" onClick={() => setQrOpen(false)}>
-              Close
-            </Button>
-            {inviteUrl ? (
-              <Button
-                onClick={async () => {
-                  try {
-                    if (!inviteUrl) return;
-                    await navigator.clipboard.writeText(inviteUrl);
-                    toast.success('Friend invite link copied');
-                  } catch {
-                    toast.error('Unable to copy link');
-                  }
-                }}
-              >
-                Copy Link
-              </Button>
-            ) : null}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rotate/Disable removed in Add tab */}
+      <InviteQrDialog
+        open={qrOpen}
+        qrDataUrl={qrDataUrl}
+        inviteUrl={inviteUrl}
+        onClose={closeQr}
+        onCopy={() => {
+          handleCopyInviteLink().catch(() => {});
+        }}
+      />
     </div>
   );
 }
