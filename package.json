@@ -25,6 +25,7 @@
     "start:mocks": "cross-env NODE_ENV=production MOCKS=true tsx .",
     "pretest": "run-s build:icons prisma:generate",
     "test": "vitest",
+    "precoverage": "run-s build:icons prisma:generate",
     "coverage": "vitest run --coverage",
     "test:e2e": "npm run test:e2e:dev --silent",
     "pretest:e2e:dev": "npm run clean:vite",
