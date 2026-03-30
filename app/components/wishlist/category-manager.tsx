@@ -63,6 +63,20 @@ export const CategoryManager = ({
     hiddenInput.value = mutationId;
     formElement.append(hiddenInput);
   };
+  const handleDeleteCategory = (categoryId: string) => {
+    const clientMutationId = createClientMutationId();
+    pendingActionMutationIdRef.current = clientMutationId;
+    Promise.resolve(
+      actionFetcher.submit(
+        {
+          intent: 'delete',
+          id: categoryId,
+          clientMutationId,
+        },
+        { method: 'post', action: '/wishlist/categories' },
+      ),
+    ).catch(() => {});
+  };
 
   useToast(
     (createFetcher.data as any)?.toast ?? (actionFetcher.data as any)?.toast,
@@ -269,18 +283,7 @@ export const CategoryManager = ({
                       size="icon"
                       variant="ghost"
                       aria-label="Delete category"
-                      onClick={() => {
-                        const clientMutationId = createClientMutationId();
-                        pendingActionMutationIdRef.current = clientMutationId;
-                        void actionFetcher.submit(
-                          {
-                            intent: 'delete',
-                            id: cat.id,
-                            clientMutationId,
-                          },
-                          { method: 'post', action: '/wishlist/categories' },
-                        );
-                      }}
+                      onClick={() => handleDeleteCategory(cat.id)}
                     >
                       <LuTrash className="h-4 w-4" />
                     </Button>

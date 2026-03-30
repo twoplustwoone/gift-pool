@@ -36,6 +36,22 @@ export interface BoxProps extends HTMLAttributes<HTMLDivElement> {
   className?: string;
 }
 
+function buildSpaceClasses(prefix: string, values: Array<[string, number | undefined]>) {
+  return values.map(([key, value]) =>
+    value !== undefined ? `${prefix}${key}-${value}` : null,
+  );
+}
+
+function buildSizeClass(prefix: string, value: string | number | undefined) {
+  if (value === undefined) return null;
+  return typeof value === 'number' ? `${prefix}-${value}` : `${prefix}-[${value}]`;
+}
+
+function buildBackgroundClass(bg: string | undefined) {
+  if (!bg) return null;
+  return bg.startsWith('#') ? `bg-[${bg}]` : `bg-${bg}`;
+}
+
 /**
  * A generic Box primitive for layout and styling. Supports spacing,
  * background, size, border-radius, and custom element type.
@@ -68,24 +84,30 @@ const Box = forwardRef<HTMLElement, BoxProps>(
     },
     ref,
   ) => {
+    const paddingClasses = buildSpaceClasses('', [
+      ['p', p],
+      ['px', px],
+      ['py', py],
+      ['pt', pt],
+      ['pr', pr],
+      ['pb', pb],
+      ['pl', pl],
+    ]);
+    const marginClasses = buildSpaceClasses('', [
+      ['m', m],
+      ['mx', mx],
+      ['my', my],
+      ['mt', mt],
+      ['mr', mr],
+      ['mb', mb],
+      ['ml', ml],
+    ]);
     const classes = clsx(
-      p !== undefined && `p-${p}`,
-      px !== undefined && `px-${px}`,
-      py !== undefined && `py-${py}`,
-      pt !== undefined && `pt-${pt}`,
-      pr !== undefined && `pr-${pr}`,
-      pb !== undefined && `pb-${pb}`,
-      pl !== undefined && `pl-${pl}`,
-      m !== undefined && `m-${m}`,
-      mx !== undefined && `mx-${mx}`,
-      my !== undefined && `my-${my}`,
-      mt !== undefined && `mt-${mt}`,
-      mr !== undefined && `mr-${mr}`,
-      mb !== undefined && `mb-${mb}`,
-      ml !== undefined && `ml-${ml}`,
-      bg && (bg.startsWith('#') ? `bg-[${bg}]` : `bg-${bg}`),
-      w !== undefined && (typeof w === 'number' ? `w-${w}` : `w-[${w}]`),
-      h !== undefined && (typeof h === 'number' ? `h-${h}` : `h-[${h}]`),
+      paddingClasses,
+      marginClasses,
+      buildBackgroundClass(bg),
+      buildSizeClass('w', w),
+      buildSizeClass('h', h),
       rounded !== undefined && `rounded-${rounded}`,
       className,
     );

@@ -37,6 +37,144 @@ import { useIsDesktop } from './hooks/use-is-desktop';
 
 type WishlistPublicShare = { token: string; createdAt: Date };
 
+function toActiveShare(
+  incomingShare: { token: string; createdAt: string } | null | undefined,
+) {
+  if (incomingShare === undefined) return undefined;
+  return incomingShare
+    ? {
+        ...incomingShare,
+        createdAt: new Date(incomingShare.createdAt),
+      }
+    : null;
+}
+
+function resolveWishlistLink(path: string, origin: string) {
+  return origin ? new URL(path, origin).toString() : path;
+}
+
+function PrivateLinkCard({
+  copied,
+  onCopy,
+}: {
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-border/80 bg-muted/30 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">Private link (requires login)</p>
+          <p className="text-xs text-muted-foreground">
+            Anyone you share this with must log in.
+          </p>
+        </div>
+        <Button size="sm" variant="secondary" onClick={onCopy}>
+          {copied ? 'Copied' : 'Copy private link'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function PublicLinkCard({
+  confirmingRevoke,
+  copied,
+  hasPublicLink,
+  isPending,
+  onCancelRevoke,
+  onConfirmRevoke,
+  onCopy,
+  onGenerate,
+  onStartRevoke,
+  publicLink,
+  publicLinkRef,
+}: {
+  confirmingRevoke: boolean;
+  copied: boolean;
+  hasPublicLink: boolean;
+  isPending: boolean;
+  onCancelRevoke: () => void;
+  onConfirmRevoke: () => void;
+  onCopy: () => void;
+  onGenerate: () => void;
+  onStartRevoke: () => void;
+  publicLink: string;
+  publicLinkRef: React.RefObject<HTMLInputElement>;
+}) {
+  return (
+    <div className="rounded-xl border border-border/80 bg-background p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold">Public link (no login)</p>
+          <Badge
+            variant={hasPublicLink ? 'pool' : 'default'}
+            className={hasPublicLink ? '' : 'bg-muted text-muted-foreground'}
+          >
+            {hasPublicLink ? 'On' : 'Off'}
+          </Badge>
+        </div>
+        {hasPublicLink ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={onCopy}>
+              {copied ? 'Copied' : 'Copy public link'}
+            </Button>
+            {confirmingRevoke ? (
+              <>
+                <Button size="sm" variant="outline" onClick={onCancelRevoke}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={onConfirmRevoke}
+                >
+                  Revoke link
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" variant="destructive" onClick={onStartRevoke}>
+                Revoke
+              </Button>
+            )}
+          </div>
+        ) : null}
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Anyone with this link can view your wishlist. No login required.
+      </p>
+
+      {hasPublicLink ? (
+        <div className="mt-3 space-y-2">
+          <Input
+            ref={publicLinkRef}
+            readOnly
+            value={publicLink}
+            onClick={(event) => event.currentTarget.select()}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Revoking disables this link immediately. Are you sure?
+          </p>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Only share with people you trust. Anyone with the link can view.
+          </div>
+          <Button
+            type="button"
+            onClick={onGenerate}
+            disabled={isPending}
+            className="w-full sm:w-auto"
+          >
+            Generate public link
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export const WishlistShareDialog = ({
   username,
   displayName,
@@ -66,16 +204,9 @@ export const WishlistShareDialog = ({
   }, [publicShare]);
 
   useEffect(() => {
-    const incomingShare = (shareFetcher.data as any)?.publicShare;
-    if (incomingShare !== undefined) {
-      setActiveShare(
-        incomingShare
-          ? {
-              ...incomingShare,
-              createdAt: new Date(incomingShare.createdAt),
-            }
-          : null,
-      );
+    const nextActiveShare = toActiveShare((shareFetcher.data as any)?.publicShare);
+    if (nextActiveShare !== undefined) {
+      setActiveShare(nextActiveShare);
     }
   }, [shareFetcher.data]);
 
@@ -88,7 +219,7 @@ export const WishlistShareDialog = ({
       return;
     }
     hasLoadedShare.current = true;
-    void shareFetcher.load('/wishlist/share');
+    Promise.resolve(shareFetcher.load('/wishlist/share')).catch(() => {});
   }, [open, publicShare, shareFetcher, shareFetcher.data]);
 
   useEffect(() => {
@@ -103,15 +234,14 @@ export const WishlistShareDialog = ({
     requestInfo?.origin ??
     (typeof window !== 'undefined' ? window.location.origin : '');
 
-  const privateLink = resolvedOrigin
-    ? new URL(`/users/${username}/wishlist`, resolvedOrigin).toString()
-    : `/users/${username}/wishlist`;
+  const privateLink = resolveWishlistLink(
+    `/users/${username}/wishlist`,
+    resolvedOrigin,
+  );
   const publicLink =
-    activeShare && resolvedOrigin
-      ? new URL(`/w/public/${activeShare.token}`, resolvedOrigin).toString()
-      : activeShare
-        ? `/w/public/${activeShare.token}`
-        : '';
+    activeShare ?
+      resolveWishlistLink(`/w/public/${activeShare.token}`, resolvedOrigin)
+    : '';
   const isPending = shareFetcher.state !== 'idle';
 
   const copyLink = async (link: string, type: 'private' | 'public') => {
@@ -133,22 +263,35 @@ export const WishlistShareDialog = ({
     }
   };
 
-  const generatePublicLink = () =>
-    void shareFetcher.submit(
-      { intent: 'generate-public-link' },
-      { method: 'post', action: '/wishlist/share' },
-    );
+  const generatePublicLink = () => {
+    Promise.resolve(
+      shareFetcher.submit(
+        { intent: 'generate-public-link' },
+        { method: 'post', action: '/wishlist/share' },
+      ),
+    ).catch(() => {});
+  };
 
-  const revokePublicLink = () =>
-    void shareFetcher.submit(
-      { intent: 'revoke-public-link' },
-      { method: 'post', action: '/wishlist/share' },
-    );
+  const revokePublicLink = () => {
+    Promise.resolve(
+      shareFetcher.submit(
+        { intent: 'revoke-public-link' },
+        { method: 'post', action: '/wishlist/share' },
+      ),
+    ).catch(() => {});
+  };
 
-  const statusLabel = activeShare ? 'On' : 'Off';
   const hasPublicLink = Boolean(activeShare);
   const [confirmingRevoke, setConfirmingRevoke] = useState(false);
   const isDesktop = useIsDesktop();
+  const handleCopyPrivateLink = () => copyLink(privateLink, 'private');
+  const handleCopyPublicLink = () => copyLink(publicLink, 'public');
+  const handleStartRevoke = () => setConfirmingRevoke(true);
+  const handleCancelRevoke = () => setConfirmingRevoke(false);
+  const handleConfirmRevoke = () => {
+    revokePublicLink();
+    setConfirmingRevoke(false);
+  };
 
   const triggerButton = (
     <Button
@@ -168,112 +311,23 @@ export const WishlistShareDialog = ({
   const shareBody = (
     <>
       <Stack gap={4}>
-        <div className="rounded-xl border border-border/80 bg-muted/30 p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">
-                Private link (requires login)
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Anyone you share this with must log in.
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => copyLink(privateLink, 'private')}
-            >
-              {copiedType === 'private' ? 'Copied' : 'Copy private link'}
-            </Button>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-background p-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold">Public link (no login)</p>
-              <Badge
-                variant={hasPublicLink ? 'pool' : 'default'}
-                className={
-                  hasPublicLink ? '' : 'bg-muted text-muted-foreground'
-                }
-              >
-                {statusLabel}
-              </Badge>
-            </div>
-            {hasPublicLink ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => copyLink(publicLink, 'public')}
-                >
-                  {copiedType === 'public' ? 'Copied' : 'Copy public link'}
-                </Button>
-                {confirmingRevoke ? (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setConfirmingRevoke(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => {
-                        revokePublicLink();
-                        setConfirmingRevoke(false);
-                      }}
-                    >
-                      Revoke link
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => setConfirmingRevoke(true)}
-                  >
-                    Revoke
-                  </Button>
-                )}
-              </div>
-            ) : null}
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Anyone with this link can view your wishlist. No login required.
-          </p>
-
-          {hasPublicLink ? (
-            <div className="mt-3 space-y-2">
-              <Input
-                ref={publicLinkRef}
-                readOnly
-                value={publicLink}
-                onClick={(event) => event.currentTarget.select()}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Revoking disables this link immediately. Are you sure?
-              </p>
-            </div>
-          ) : (
-            <div className="mt-3 space-y-3">
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                Only share with people you trust. Anyone with the link can view.
-              </div>
-              <Button
-                type="button"
-                onClick={generatePublicLink}
-                disabled={isPending}
-                className="w-full sm:w-auto"
-              >
-                Generate public link
-              </Button>
-            </div>
-          )}
-        </div>
+        <PrivateLinkCard
+          copied={copiedType === 'private'}
+          onCopy={handleCopyPrivateLink}
+        />
+        <PublicLinkCard
+          confirmingRevoke={confirmingRevoke}
+          copied={copiedType === 'public'}
+          hasPublicLink={hasPublicLink}
+          isPending={isPending}
+          onCancelRevoke={handleCancelRevoke}
+          onConfirmRevoke={handleConfirmRevoke}
+          onCopy={handleCopyPublicLink}
+          onGenerate={generatePublicLink}
+          onStartRevoke={handleStartRevoke}
+          publicLink={publicLink}
+          publicLinkRef={publicLinkRef}
+        />
       </Stack>
 
       <p className="text-[11px] text-muted-foreground">

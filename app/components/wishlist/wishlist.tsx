@@ -198,6 +198,23 @@ export const Wishlist = ({
   });
 
   const customCategoryIds = orderedCategories.map((category) => category.id);
+  const handleConfirmDeleteCategory = () => {
+    if (!pendingDeleteCategory) return;
+    Promise.resolve(
+      actionFetcher.submit(
+        {
+          intent: 'delete',
+          id: pendingDeleteCategory.id,
+          clientMutationId: createClientMutationId(),
+        },
+        {
+          method: 'post',
+          action: '/wishlist/categories',
+        },
+      ),
+    ).catch(() => {});
+    setPendingDeleteCategory(null);
+  };
 
   const itemIdsByCategoryKey = useMemo(() => {
     return categories.reduce<Record<string, string[]>>((acc, category) => {
@@ -664,21 +681,7 @@ export const Wishlist = ({
               disabled={
                 !pendingDeleteCategory || actionFetcher.state !== 'idle'
               }
-              onClick={() => {
-                if (!pendingDeleteCategory) return;
-                void actionFetcher.submit(
-                  {
-                    intent: 'delete',
-                    id: pendingDeleteCategory.id,
-                    clientMutationId: createClientMutationId(),
-                  },
-                  {
-                    method: 'post',
-                    action: '/wishlist/categories',
-                  },
-                );
-                setPendingDeleteCategory(null);
-              }}
+              onClick={handleConfirmDeleteCategory}
             >
               Delete
             </Button>
