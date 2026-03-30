@@ -37,9 +37,9 @@ export const UserDropdown = () => {
           <img
             className="size-9 rounded-full object-cover"
             alt={user.name ?? user.username}
-            src={getUserImgSrc(user.image?.id)}
-            width={256}
-            height={256}
+            src={getUserImgSrc(user.image?.id, { size: 64 })}
+            width={36}
+            height={36}
           />
         </Link>
       </DropdownMenuTrigger>
