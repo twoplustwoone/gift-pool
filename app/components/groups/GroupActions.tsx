@@ -33,10 +33,12 @@ export const GroupActions = ({
     const fd = new FormData();
     fd.set('giftGroupId', giftGroupId);
     fd.set('intent', intent);
-    void fetcher.submit(fd, {
-      method: 'post',
-      action: `/groups/${giftGroupId}`,
-    });
+    Promise.resolve(
+      fetcher.submit(fd, {
+        method: 'post',
+        action: `/groups/${giftGroupId}`,
+      }),
+    ).catch(() => {});
   };
 
   return (

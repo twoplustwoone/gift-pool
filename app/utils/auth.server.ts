@@ -153,7 +153,7 @@ export async function logout(
   if (sessionId) {
     // the .catch is important because that's what triggers the query.
     // learn more about PrismaPromise: https://www.prisma.io/docs/orm/reference/prisma-client-reference#prismapromise-behavior
-    void prisma.session
+    prisma.session
       .deleteMany({ where: { id: sessionId } })
       .catch(() => {});
   }

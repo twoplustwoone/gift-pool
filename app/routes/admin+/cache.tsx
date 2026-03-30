@@ -9,7 +9,7 @@ import {
   useFetcher,
   useLoaderData,
   useSearchParams,
-  useSubmit
+  useSubmit,
 } from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary';
 import { Field } from '#app/components/forms.tsx';
@@ -97,7 +97,7 @@ const CacheAdminRoute = () => {
   const limit = searchParams.get('limit') ?? '100';
   const instance = searchParams.get('instance') ?? data.instance;
   const handleFormChange = useDebounce((form: HTMLFormElement) => {
-    void submit(form);
+    Promise.resolve(submit(form)).catch(() => {});
   }, 400);
   return (
     <div className="container">
