@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   LuArrowUpDown,
   LuCheck,
@@ -45,15 +45,16 @@ export const CategoryManager = ({
   const pendingCreateMutationIdRef = useRef<string | null>(null);
   const pendingCreateNameRef = useRef<string | null>(null);
   const pendingActionMutationIdRef = useRef<string | null>(null);
-  const attachClientMutationIdToForm = (event: FormEvent<HTMLFormElement>) => {
-    const formElement = event.currentTarget;
-    const mutationId = createClientMutationId();
+  const setClientMutationIdOnForm = (
+    formElement: HTMLFormElement,
+    mutationId: string,
+  ) => {
     const existingInput = formElement.elements.namedItem(
       'clientMutationId',
     ) as HTMLInputElement | null;
     if (existingInput) {
       existingInput.value = mutationId;
-      return mutationId;
+      return;
     }
 
     const hiddenInput = document.createElement('input');
@@ -61,7 +62,6 @@ export const CategoryManager = ({
     hiddenInput.name = 'clientMutationId';
     hiddenInput.value = mutationId;
     formElement.append(hiddenInput);
-    return mutationId;
   };
 
   useToast(
@@ -186,8 +186,9 @@ export const CategoryManager = ({
           action="/wishlist/categories"
           className="flex gap-2"
           onSubmit={(event) => {
-            pendingCreateMutationIdRef.current =
-              attachClientMutationIdToForm(event);
+            const mutationId = createClientMutationId();
+            pendingCreateMutationIdRef.current = mutationId;
+            setClientMutationIdOnForm(event.currentTarget, mutationId);
             pendingCreateNameRef.current = createName.trim();
           }}
         >
@@ -217,8 +218,9 @@ export const CategoryManager = ({
                   action="/wishlist/categories"
                   className="flex flex-1 items-center gap-2"
                   onSubmit={(event) => {
-                    pendingActionMutationIdRef.current =
-                      attachClientMutationIdToForm(event);
+                    const mutationId = createClientMutationId();
+                    pendingActionMutationIdRef.current = mutationId;
+                    setClientMutationIdOnForm(event.currentTarget, mutationId);
                   }}
                 >
                   <input type="hidden" name="intent" value="rename" />
