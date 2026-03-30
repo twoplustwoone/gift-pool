@@ -56,16 +56,13 @@ export const BottomNavLink = ({
         )
       }
     >
-      {({ isActive, isPending }) => {
-        return (
-          <BottomNavLinkContent
-            icon={icon}
-            label={label}
-            isActive={isActive}
-            isPending={isPending}
-          />
-        );
-      }}
+      {({ isActive, isPending }) => (
+        <BottomNavLinkContent
+          icon={icon}
+          label={label}
+          isActive={isActive}
+          isPending={isPending} />
+      )}
     </NavLink>
   );
 };
