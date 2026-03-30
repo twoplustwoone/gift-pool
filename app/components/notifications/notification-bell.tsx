@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LuBell, LuCheckCheck, LuLoader, LuX } from 'react-icons/lu';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
@@ -81,6 +81,181 @@ const MARK_ALL_ENDPOINT = '/api/notifications/read-all';
 const FRIEND_ACCEPT_EVENT = 'FRIEND_ACCEPT';
 
 type PendingActionKey = `${string}:${string}`;
+type NotificationTranslator = ReturnType<typeof useTranslation>['t'];
+type NotificationLocale = Parameters<typeof formatRelativeTime>[1];
+
+function NotificationRowActions({
+  notification,
+  pendingActionKeys,
+  onAction,
+  t,
+}: {
+  notification: ApiNotification;
+  pendingActionKeys: Set<PendingActionKey>;
+  onAction: (notification: ApiNotification, action: NotificationActionPayload) => void;
+  t: NotificationTranslator;
+}) {
+  if (notification.actions.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-2 px-4 pb-3">
+      {notification.actions.map((action) => {
+        const actionKey: PendingActionKey = `${notification.id}:${action.kind}`;
+        const isPending = pendingActionKeys.has(actionKey);
+
+        return (
+          <Button
+            key={actionKey}
+            size="sm"
+            variant={
+              action.kind === FRIEND_ACCEPT_EVENT ? 'default' : 'secondary'
+            }
+            onClick={() => onAction(notification, action)}
+            disabled={isPending}
+          >
+            {isPending ? (
+              <LuLoader className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+            ) : null}
+            {action.labelKey
+              ? t(
+                  action.labelKey,
+                  sanitizeTranslationParams(notification.messageParams),
+                )
+              : (action.label ?? '')}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
+function NotificationListItem({
+  locale,
+  notification,
+  onDelete,
+  onOpen,
+  onAction,
+  pendingActionKeys,
+  pendingDeleteIds,
+  t,
+}: {
+  locale: NotificationLocale;
+  notification: ApiNotification;
+  onDelete: (event: React.MouseEvent<HTMLButtonElement>, notificationId: string) => void;
+  onOpen: (notification: ApiNotification) => void;
+  onAction: (notification: ApiNotification, action: NotificationActionPayload) => void;
+  pendingActionKeys: Set<PendingActionKey>;
+  pendingDeleteIds: Set<string>;
+  t: NotificationTranslator;
+}) {
+  const isUnread = notification.status === 'UNREAD';
+  const message = t(
+    notification.messageKey,
+    sanitizeTranslationParams(notification.messageParams),
+  );
+  const relativeTime = formatRelativeTime(notification.createdAt, locale);
+
+  return (
+    <li key={notification.id} className="relative border-b last:border-b-0">
+      <button
+        type="button"
+        className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-accent"
+        aria-label="Dismiss notification"
+        onClick={(event) => onDelete(event, notification.id)}
+        disabled={pendingDeleteIds.has(notification.id)}
+      >
+        <LuX className="h-4 w-4" aria-hidden />
+      </button>
+      <button
+        type="button"
+        className={cn(
+          'flex w-full flex-col gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'hover:bg-accent/40',
+        )}
+        onClick={() => onOpen(notification)}
+      >
+        <div className="flex items-start gap-3">
+          <span
+            className={cn(
+              'mt-1 h-2.5 w-2.5 shrink-0 rounded-full',
+              isUnread ? 'bg-primary' : 'border border-border bg-transparent',
+            )}
+            aria-hidden
+          />
+          <div className="flex-1">
+            <div className="line-clamp-2 text-sm text-foreground">{message}</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {relativeTime}
+            </div>
+          </div>
+        </div>
+      </button>
+      <NotificationRowActions
+        notification={notification}
+        pendingActionKeys={pendingActionKeys}
+        onAction={onAction}
+        t={t}
+      />
+    </li>
+  );
+}
+
+function NotificationsList({
+  loading,
+  locale,
+  notifications,
+  onDelete,
+  onOpen,
+  onAction,
+  pendingActionKeys,
+  pendingDeleteIds,
+  t,
+}: {
+  loading: boolean;
+  locale: NotificationLocale;
+  notifications: ApiNotification[];
+  onDelete: (event: React.MouseEvent<HTMLButtonElement>, notificationId: string) => void;
+  onOpen: (notification: ApiNotification) => void;
+  onAction: (notification: ApiNotification, action: NotificationActionPayload) => void;
+  pendingActionKeys: Set<PendingActionKey>;
+  pendingDeleteIds: Set<string>;
+  t: NotificationTranslator;
+}) {
+  if (loading && notifications.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-sm text-muted-foreground">
+        <LuLoader className="h-5 w-5 animate-spin" aria-hidden />
+        <span>{t('notifications.loading')}</span>
+      </div>
+    );
+  }
+
+  if (!loading && notifications.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-sm text-muted-foreground">
+        <span>{t('notifications.empty')}</span>
+      </div>
+    );
+  }
+
+  return (
+    <ul className="max-h-80 overflow-y-auto">
+      {notifications.map((notification) => (
+        <NotificationListItem
+          key={notification.id}
+          locale={locale}
+          notification={notification}
+          onDelete={onDelete}
+          onOpen={onOpen}
+          onAction={onAction}
+          pendingActionKeys={pendingActionKeys}
+          pendingDeleteIds={pendingDeleteIds}
+          t={t}
+        />
+      ))}
+    </ul>
+  );
+}
 
 export const NotificationBell = () => {
   const navigate = useNavigate();
@@ -151,7 +326,7 @@ export const NotificationBell = () => {
   useEffect(() => {
     if (!open) return;
     if (!initialFetchCompleted && !loading) {
-      void loadNotifications();
+      loadNotifications().catch(() => {});
     }
     track('notifications_open');
   }, [open, initialFetchCompleted, loading, loadNotifications]);
@@ -279,7 +454,7 @@ export const NotificationBell = () => {
       }
       setOpen(false);
       if (notification.targetUrl) {
-        void navigate(notification.targetUrl);
+        Promise.resolve(navigate(notification.targetUrl)).catch(() => {});
       }
     },
     [markNotificationRead, navigate],
@@ -413,133 +588,31 @@ export const NotificationBell = () => {
 
   const displayCount = unreadCount > 9 ? '9+' : unreadCount.toString();
 
-  const listContent = useMemo(() => {
-    if (loading && notifications.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-sm text-muted-foreground">
-          <LuLoader className="h-5 w-5 animate-spin" aria-hidden />
-          <span>{t('notifications.loading')}</span>
-        </div>
-      );
-    }
-    if (!loading && notifications.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-sm text-muted-foreground">
-          <span>{t('notifications.empty')}</span>
-        </div>
-      );
-    }
-    return (
-      <ul className="max-h-80 overflow-y-auto">
-        {notifications.map((notification) => {
-          const isUnread = notification.status === 'UNREAD';
-          const message = t(
-            notification.messageKey,
-            sanitizeTranslationParams(notification.messageParams),
-          );
-          const relativeTime = formatRelativeTime(
-            notification.createdAt,
-            locale,
-          );
-          return (
-            <li
-              key={notification.id}
-              className="relative border-b last:border-b-0"
-            >
-              <button
-                type="button"
-                className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-accent"
-                aria-label="Dismiss notification"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void deleteNotification(notification.id);
-                }}
-                disabled={pendingDeleteIds.has(notification.id)}
-              >
-                <LuX className="h-4 w-4" aria-hidden />
-              </button>
-              <button
-                type="button"
-                className={cn(
-                  'flex w-full flex-col gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  'hover:bg-accent/40',
-                )}
-                onClick={() => void handleNotificationClick(notification)}
-              >
-                <div className="flex items-start gap-3">
-                  <span
-                    className={cn(
-                      'mt-1 h-2.5 w-2.5 shrink-0 rounded-full',
-                      isUnread
-                        ? 'bg-primary'
-                        : 'border border-border bg-transparent',
-                    )}
-                    aria-hidden
-                  />
-                  <div className="flex-1">
-                    <div className="line-clamp-2 text-sm text-foreground">
-                      {message}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {relativeTime}
-                    </div>
-                  </div>
-                </div>
-              </button>
-              {notification.actions.length > 0 ? (
-                <div className="flex items-center gap-2 px-4 pb-3">
-                  {notification.actions.map((action) => (
-                    <Button
-                      key={`${notification.id}-${action.kind}`}
-                      size="sm"
-                      variant={
-                        action.kind === FRIEND_ACCEPT_EVENT
-                          ? 'default'
-                          : 'secondary'
-                      }
-                      onClick={() =>
-                        void handleFriendAction(notification, action)
-                      }
-                      disabled={pendingActionKeys.has(
-                        `${notification.id}:${action.kind}`,
-                      )}
-                    >
-                      {pendingActionKeys.has(
-                        `${notification.id}:${action.kind}`,
-                      ) ? (
-                        <LuLoader
-                          className="mr-2 h-4 w-4 animate-spin"
-                          aria-hidden
-                        />
-                      ) : null}
-                      {action.labelKey
-                        ? t(
-                            action.labelKey,
-                            sanitizeTranslationParams(
-                              notification.messageParams,
-                            ),
-                          )
-                        : (action.label ?? '')}
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
-    );
-  }, [
-    deleteNotification,
-    handleNotificationClick,
-    handleFriendAction,
-    locale,
-    loading,
-    notifications,
-    pendingActionKeys,
-    pendingDeleteIds,
-    t,
-  ]);
+  const handleDeleteNotificationClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>, notificationId: string) => {
+      event.stopPropagation();
+      deleteNotification(notificationId).catch(() => {});
+    },
+    [deleteNotification],
+  );
+  const handleNotificationOpen = useCallback(
+    (notification: ApiNotification) => {
+      handleNotificationClick(notification).catch(() => {});
+    },
+    [handleNotificationClick],
+  );
+  const handleFriendNotificationAction = useCallback(
+    (notification: ApiNotification, action: NotificationActionPayload) => {
+      handleFriendAction(notification, action).catch(() => {});
+    },
+    [handleFriendAction],
+  );
+  const handleLoadMore = useCallback(() => {
+    loadNotifications({
+      cursor: nextCursor ?? undefined,
+      append: true,
+    }).catch(() => {});
+  }, [loadNotifications, nextCursor]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -571,7 +644,7 @@ export const NotificationBell = () => {
                 <Button
                   size="icon"
                   variant="ghost"
-                  onClick={() => void markAllAsRead()}
+                  onClick={markAllAsRead}
                   disabled={unreadCount === 0 || markAllPending}
                   aria-label={t('notifications.markAllRead')}
                 >
@@ -589,19 +662,24 @@ export const NotificationBell = () => {
         {error ? (
           <div className="px-4 py-3 text-sm text-destructive">{error}</div>
         ) : null}
-        {listContent}
+        <NotificationsList
+          loading={loading}
+          locale={locale}
+          notifications={notifications}
+          onDelete={handleDeleteNotificationClick}
+          onOpen={handleNotificationOpen}
+          onAction={handleFriendNotificationAction}
+          pendingActionKeys={pendingActionKeys}
+          pendingDeleteIds={pendingDeleteIds}
+          t={t}
+        />
         {hasMore ? (
           <div className="border-t px-4 py-2">
             <Button
               type="button"
               variant="ghost"
               className="w-full"
-              onClick={() =>
-                void loadNotifications({
-                  cursor: nextCursor ?? undefined,
-                  append: true,
-                })
-              }
+              onClick={handleLoadMore}
               disabled={loading}
             >
               {loading ? (
