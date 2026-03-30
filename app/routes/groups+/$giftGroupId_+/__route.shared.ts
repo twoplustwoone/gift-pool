@@ -54,6 +54,7 @@ export const SETTINGS_MEMBER_INTENTS = new Set([
 type SettingsMemberIntent = (typeof SETTINGS_MEMBER_INTENTS extends Set<infer T>
   ? T
   : never) & string;
+type GroupMemberRole = 'ADMIN' | 'MEMBER' | 'OWNER';
 
 type PendingFetcher = {
   formAction?: string;
@@ -103,8 +104,8 @@ function applyOwnershipTransfer<TMember>(
   members: TMember[],
   newOwnerUserId: string,
   getUserId: (member: TMember) => string,
-  getRole: (member: TMember) => 'ADMIN' | 'MEMBER' | 'OWNER',
-  setRole: (member: TMember, role: 'ADMIN' | 'MEMBER' | 'OWNER') => TMember,
+  getRole: (member: TMember) => GroupMemberRole,
+  setRole: (member: TMember, role: GroupMemberRole) => TMember,
 ) {
   return members.map((member) => {
     const memberUserId = getUserId(member);
@@ -123,7 +124,7 @@ function applyMemberRoleUpdate<TMember>(
   memberUserId: string,
   intent: Exclude<SettingsMemberIntent, 'member-remove' | 'ownership-transfer'>,
   getUserId: (member: TMember) => string,
-  setRole: (member: TMember, role: 'ADMIN' | 'MEMBER' | 'OWNER') => TMember,
+  setRole: (member: TMember, role: GroupMemberRole) => TMember,
 ) {
   const nextRole = intent === 'member-promote-admin' ? 'ADMIN' : 'MEMBER';
 
@@ -145,8 +146,8 @@ export function applyPendingSettingsMemberMutations<TMember>({
   members: TMember[];
   settingsAction: string;
   getUserId: (member: TMember) => string;
-  getRole: (member: TMember) => 'ADMIN' | 'MEMBER' | 'OWNER';
-  setRole: (member: TMember, role: 'ADMIN' | 'MEMBER' | 'OWNER') => TMember;
+  getRole: (member: TMember) => GroupMemberRole;
+  setRole: (member: TMember, role: GroupMemberRole) => TMember;
 }) {
   let nextMembers = [...members];
 

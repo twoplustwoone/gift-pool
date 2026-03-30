@@ -201,15 +201,12 @@ function buildInitialValues({
 }
 
 function getActionSubmissionValue(actionData: WishlistItemEditorActionData) {
-  if (
-    !actionData?.result ||
-    actionData.result.status !== 'success' ||
-    !('value' in actionData.result)
-  ) {
+  const result = actionData?.result;
+  if (result?.status !== 'success' || !('value' in result)) {
     return null;
   }
 
-  return (actionData.result as { value: z.infer<typeof WishlistItemSchema> }).value;
+  return (result as { value: z.infer<typeof WishlistItemSchema> }).value;
 }
 
 function useSubmissionImageSync({

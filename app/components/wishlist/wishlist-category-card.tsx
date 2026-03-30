@@ -178,6 +178,60 @@ export type CategoryCardProps = {
   onAttachClientMutationId: (event: FormEvent<HTMLFormElement>) => void;
   categoryHandle?: CategoryHandle;
 };
+type CategoryItemsGridProps = Readonly<
+  Pick<
+    CategoryCardProps,
+    | 'dragState'
+    | 'isOwner'
+    | 'isPublicView'
+    | 'itemsForCategory'
+    | 'onStatusChange'
+    | 'optimisticCategories'
+  >
+>;
+type CategoryReorderBodyProps = Readonly<
+  Pick<CategoryCardProps, 'canReorder' | 'dragState' | 'itemIds' | 'itemsForCategory'>
+>;
+type WishlistCategoryBodyProps = Readonly<
+  Pick<
+    CategoryCardProps,
+    | 'canReorder'
+    | 'dragState'
+    | 'isCollapsed'
+    | 'isItemReorderMode'
+    | 'isOwner'
+    | 'isPublicView'
+    | 'itemIds'
+    | 'itemsForCategory'
+    | 'onStatusChange'
+    | 'optimisticCategories'
+  >
+>;
+type CategoryActionsMenuProps = Readonly<
+  Pick<
+    CategoryCardProps,
+    | 'canReorder'
+    | 'category'
+    | 'isCategoryReorderMode'
+    | 'isItemReorderMode'
+    | 'isOwner'
+    | 'onOpenQuickAdd'
+    | 'onRequestDelete'
+    | 'onSetEditing'
+    | 'onStartCategoryReorder'
+    | 'onStartItemReorder'
+  >
+>;
+type CategoryEditFormProps = Readonly<
+  Pick<
+    CategoryCardProps,
+    'actionFetcher' | 'category' | 'onAttachClientMutationId' | 'onSetEditing'
+  >
+>;
+type CategoryTitleProps = Readonly<{
+  category: CategoryCardProps['category'];
+  count: number;
+}>;
 
 function CategoryItemsGrid({
   dragState,
@@ -186,15 +240,7 @@ function CategoryItemsGrid({
   itemsForCategory,
   onStatusChange,
   optimisticCategories,
-}: Pick<
-  CategoryCardProps,
-  | 'dragState'
-  | 'isOwner'
-  | 'isPublicView'
-  | 'itemsForCategory'
-  | 'onStatusChange'
-  | 'optimisticCategories'
->) {
+}: CategoryItemsGridProps) {
   return (
     <Grid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} gap={3}>
       {itemsForCategory.map((item) => (
@@ -219,10 +265,7 @@ function CategoryReorderBody({
   dragState,
   itemIds,
   itemsForCategory,
-}: Pick<
-  CategoryCardProps,
-  'canReorder' | 'dragState' | 'itemIds' | 'itemsForCategory'
->) {
+}: CategoryReorderBodyProps) {
   return (
     <SortableContext
       items={itemIds.map((itemId) => toItemDragId(itemId))}
@@ -286,19 +329,7 @@ function WishlistCategoryBody({
   itemsForCategory,
   onStatusChange,
   optimisticCategories,
-}: Pick<
-  CategoryCardProps,
-  | 'canReorder'
-  | 'dragState'
-  | 'isCollapsed'
-  | 'isItemReorderMode'
-  | 'isOwner'
-  | 'isPublicView'
-  | 'itemIds'
-  | 'itemsForCategory'
-  | 'onStatusChange'
-  | 'optimisticCategories'
->) {
+}: WishlistCategoryBodyProps) {
   if (isCollapsed && !isItemReorderMode) return null;
 
   return (
@@ -335,19 +366,7 @@ function CategoryActionsMenu({
   onSetEditing,
   onStartCategoryReorder,
   onStartItemReorder,
-}: Pick<
-  CategoryCardProps,
-  | 'canReorder'
-  | 'category'
-  | 'isCategoryReorderMode'
-  | 'isItemReorderMode'
-  | 'isOwner'
-  | 'onOpenQuickAdd'
-  | 'onRequestDelete'
-  | 'onSetEditing'
-  | 'onStartCategoryReorder'
-  | 'onStartItemReorder'
->) {
+}: CategoryActionsMenuProps) {
   if (!isOwner || isItemReorderMode || isCategoryReorderMode) return null;
 
   return (
@@ -397,10 +416,7 @@ function CategoryEditForm({
   category,
   onAttachClientMutationId,
   onSetEditing,
-}: Pick<
-  CategoryCardProps,
-  'actionFetcher' | 'category' | 'onAttachClientMutationId' | 'onSetEditing'
->) {
+}: CategoryEditFormProps) {
   return (
     <actionFetcher.Form
       method="post"
@@ -441,10 +457,7 @@ function CategoryEditForm({
 function CategoryTitle({
   category,
   count,
-}: {
-  category: CategoryCardProps['category'];
-  count: number;
-}) {
+}: CategoryTitleProps) {
   return (
     <Heading>
       <Flex align="center" gap={2}>

@@ -63,14 +63,43 @@ export type WishlistUser = Pick<User, 'id' | 'username' | 'name'> & {
 
 type WishlistPublicShare = { token: string; createdAt: Date };
 type WishlistView = 'wishlist' | 'past';
+type WishlistViewToggleProps = Readonly<{
+  onChange: (view: WishlistView) => void;
+  view: WishlistView;
+}>;
+type WishlistReorderBannerProps = Readonly<{
+  finishReorderMode: () => void;
+  isCategoryReorderMode: boolean;
+  isItemReorderMode: boolean;
+  startCategoryReorderMode: () => void;
+  startItemReorderMode: () => void;
+}>;
+type CategoryReorderListProps = Readonly<{
+  customCategories: Array<{ id: string; name: string; order: number }>;
+  defaultCategory: { id: null; name: string; order: number } | null;
+  dragState: string;
+  itemIdsByCategoryKey: Record<string, string[]>;
+}>;
+type WishlistEmptyStateProps = Readonly<{
+  archivedItemsCount: number;
+  displayName: string;
+  isOwner: boolean;
+}>;
+type DeleteCategoryDialogProps = Readonly<{
+  actionFetcherState: string;
+  onConfirm: () => void;
+  onOpenChange: (open: boolean) => void;
+  pendingDeleteCategory: { id: string; name: string } | null;
+}>;
+
+function isWishlistItem(value: WishlistItem | undefined): value is WishlistItem {
+  return Boolean(value);
+}
 
 function WishlistViewToggle({
   onChange,
   view,
-}: {
-  onChange: (view: WishlistView) => void;
-  view: WishlistView;
-}) {
+}: WishlistViewToggleProps) {
   return (
     <div className="inline-flex w-full max-w-md rounded-full bg-muted p-1 text-sm">
       <button
@@ -107,13 +136,7 @@ function WishlistReorderBanner({
   isItemReorderMode,
   startCategoryReorderMode,
   startItemReorderMode,
-}: {
-  finishReorderMode: () => void;
-  isCategoryReorderMode: boolean;
-  isItemReorderMode: boolean;
-  startCategoryReorderMode: () => void;
-  startItemReorderMode: () => void;
-}) {
+}: WishlistReorderBannerProps) {
   return (
     <div className="sticky top-2 z-20 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2 shadow-sm backdrop-blur">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -173,12 +196,7 @@ function CategoryReorderList({
   defaultCategory,
   dragState,
   itemIdsByCategoryKey,
-}: {
-  customCategories: Array<{ id: string; name: string; order: number }>;
-  defaultCategory: { id: null; name: string; order: number } | null;
-  dragState: string;
-  itemIdsByCategoryKey: Record<string, string[]>;
-}) {
+}: CategoryReorderListProps) {
   return (
     <div className="space-y-3">
       {defaultCategory ? (
@@ -264,11 +282,7 @@ function WishlistEmptyState({
   archivedItemsCount,
   displayName,
   isOwner,
-}: {
-  archivedItemsCount: number;
-  displayName: string;
-  isOwner: boolean;
-}) {
+}: WishlistEmptyStateProps) {
   return (
     <div className="flex w-full flex-col items-center justify-center">
       {isOwner ? (
@@ -293,12 +307,7 @@ function DeleteCategoryDialog({
   onConfirm,
   onOpenChange,
   pendingDeleteCategory,
-}: {
-  actionFetcherState: string;
-  onConfirm: () => void;
-  onOpenChange: (open: boolean) => void;
-  pendingDeleteCategory: { id: string; name: string } | null;
-}) {
+}: DeleteCategoryDialogProps) {
   return (
     <Dialog
       open={pendingDeleteCategory !== null}
@@ -338,7 +347,7 @@ function getItemsForCategory(
 ) {
   return (itemIdsByCategoryKey[categoryKeyFromId(categoryId)] ?? [])
     .map((id) => itemById.get(id))
-    .filter(Boolean) as WishlistItem[];
+    .filter(isWishlistItem);
 }
 
 function useWishlistViewParam(searchParams: URLSearchParams, setSearchParams: ReturnType<typeof useSearchParams>[1]) {

@@ -87,6 +87,16 @@ type WishlistItemRecord = (Pick<
     imageSource: WishlistItemImageSource | null;
   }> &
   Partial<{ purchase: { purchasedById: string } | null }>;
+type WishlistItemImageBlockProps = Readonly<{
+  displayImageSrc: string | null;
+  imageErrored: boolean;
+  imageFetcherState: string;
+  isOwner: boolean;
+  onImageError: (event?: React.SyntheticEvent) => void;
+  onRemoveImage: (event?: React.SyntheticEvent) => void;
+  onRetryImage: (event?: React.SyntheticEvent) => void;
+  title: string;
+}>;
 
 function toEditorWishlistItem(
   wishlistItem: WishlistItemRecord,
@@ -215,12 +225,12 @@ function useWishlistImageController({
   const imageSrc = wishlistItem.hasImage
     ? getWishlistItemImgSrc(wishlistItem.id)
     : null;
+  const imageVersionBase = wishlistItem.updatedAt
+    ? new Date(wishlistItem.updatedAt).getTime()
+    : 0;
+  const imageVersionValue = imageVersionBase + imageVersion;
   const displayImageSrc = imageSrc
-    ? `${imageSrc}${imageSrc.includes('?') ? '&' : '?'}v=${
-        (wishlistItem.updatedAt
-          ? new Date(wishlistItem.updatedAt).getTime()
-          : 0) + imageVersion
-      }`
+    ? `${imageSrc}${imageSrc.includes('?') ? '&' : '?'}v=${imageVersionValue}`
     : null;
 
   React.useEffect(() => {
@@ -285,16 +295,7 @@ function WishlistItemImageBlock({
   onRemoveImage,
   onRetryImage,
   title,
-}: {
-  displayImageSrc: string | null;
-  imageErrored: boolean;
-  imageFetcherState: string;
-  isOwner: boolean;
-  onImageError: (event?: React.SyntheticEvent) => void;
-  onRemoveImage: (event?: React.SyntheticEvent) => void;
-  onRetryImage: (event?: React.SyntheticEvent) => void;
-  title: string;
-}) {
+}: WishlistItemImageBlockProps) {
   if (!(displayImageSrc || imageErrored)) return null;
 
   return (

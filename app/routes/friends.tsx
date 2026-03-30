@@ -82,6 +82,101 @@ type RequestMutationResponse = {
   unreadCount: number | null;
 };
 type RequestListEntryUser = IncomingEntry['fromUser'] | OutgoingEntry['toUser'];
+type FriendRequestRowProps = Readonly<{
+  onStateChange: (snapshot: RelationshipSnapshot) => void;
+  onToggleSelected: (requestId: string, selected: boolean) => void;
+  relationship: RelationshipSnapshot;
+  requestId: string;
+  selected: boolean;
+  selectMode: boolean;
+  user: RequestListEntryUser;
+}>;
+type IncomingRequestSectionProps = Readonly<{
+  incoming: IncomingEntry[];
+  isSelectMode: boolean;
+  onStateChange: (
+    requestId: string,
+    user: IncomingEntry['fromUser'],
+  ) => (snapshot: RelationshipSnapshot) => void;
+  onToggleMode: () => void;
+  onToggleSelected: (requestId: string, selected: boolean) => void;
+  selectedIncoming: Set<string>;
+  t: TranslateFn;
+}>;
+type OutgoingRequestSectionProps = Readonly<{
+  isSelectMode: boolean;
+  onStateChange: (
+    requestId: string,
+    user: OutgoingEntry['toUser'],
+  ) => (snapshot: RelationshipSnapshot) => void;
+  onToggleMode: () => void;
+  onToggleSelected: (requestId: string, selected: boolean) => void;
+  outgoing: OutgoingEntry[];
+  selectedOutgoing: Set<string>;
+  t: TranslateFn;
+}>;
+type RequestSelectionBarProps = Readonly<{
+  onAccept: () => void;
+  onCancel: () => void;
+  onDecline: () => void;
+  selectedIncoming: Set<string>;
+  selectedOutgoing: Set<string>;
+}>;
+type FriendRowActionsProps = Readonly<{
+  displayName: string;
+  friend: FriendEntry;
+  onRemove: (friend: FriendEntry) => Promise<void>;
+  t: TranslateFn;
+}>;
+type FriendRowProps = Readonly<{
+  friend: FriendEntry;
+  mutuals: Record<
+    string,
+    {
+      groups: Array<{
+        id: string;
+        name: string;
+      }>;
+      more: number;
+    }
+  >;
+  onClose: () => void;
+  onOpen: () => void;
+  onRemove: (friend: FriendEntry) => Promise<void>;
+  open: boolean;
+  t: TranslateFn;
+}>;
+type SearchResultRowProps = Readonly<{
+  onOutgoingCreated?: (
+    requestId: string,
+    user: FriendEntry['user'],
+  ) => void;
+  result: SearchResult;
+}>;
+type SearchResultsPanelProps = Readonly<{
+  hasResults: boolean;
+  isLoading: boolean;
+  onOutgoingCreated?: (
+    requestId: string,
+    user: FriendEntry['user'],
+  ) => void;
+  query: string;
+  results: SearchResult[];
+  showEmpty: boolean;
+}>;
+type InviteLinkPanelProps = Readonly<{
+  inviteUrl: string | null;
+  onCopy: () => void;
+  onCreate: () => void;
+  onOpenQr: () => void;
+}>;
+type InviteQrDialogProps = Readonly<{
+  inviteUrl: string | null;
+  onClose: () => void;
+  onCopy: () => void;
+  open: boolean;
+  qrDataUrl: string | null;
+}>;
 
 function addFriendIfMissing(
   friends: FriendEntry[],
@@ -305,15 +400,7 @@ function FriendRequestRow({
   selected,
   selectMode,
   user,
-}: {
-  onStateChange: (snapshot: RelationshipSnapshot) => void;
-  onToggleSelected: (requestId: string, selected: boolean) => void;
-  relationship: RelationshipSnapshot;
-  requestId: string;
-  selected: boolean;
-  selectMode: boolean;
-  user: RequestListEntryUser;
-}) {
+}: FriendRequestRowProps) {
   const username = user.username;
 
   return (
@@ -354,18 +441,7 @@ function IncomingRequestSection({
   onToggleSelected,
   selectedIncoming,
   t,
-}: {
-  incoming: IncomingEntry[];
-  isSelectMode: boolean;
-  onStateChange: (
-    requestId: string,
-    user: IncomingEntry['fromUser'],
-  ) => (snapshot: RelationshipSnapshot) => void;
-  onToggleMode: () => void;
-  onToggleSelected: (requestId: string, selected: boolean) => void;
-  selectedIncoming: Set<string>;
-  t: TranslateFn;
-}) {
+}: IncomingRequestSectionProps) {
   if (incoming.length === 0) return null;
 
   return (
@@ -416,18 +492,7 @@ function OutgoingRequestSection({
   outgoing,
   selectedOutgoing,
   t,
-}: {
-  isSelectMode: boolean;
-  onStateChange: (
-    requestId: string,
-    user: OutgoingEntry['toUser'],
-  ) => (snapshot: RelationshipSnapshot) => void;
-  onToggleMode: () => void;
-  onToggleSelected: (requestId: string, selected: boolean) => void;
-  outgoing: OutgoingEntry[];
-  selectedOutgoing: Set<string>;
-  t: TranslateFn;
-}) {
+}: OutgoingRequestSectionProps) {
   if (outgoing.length === 0) return null;
 
   return (
@@ -476,13 +541,7 @@ function RequestSelectionBar({
   onDecline,
   selectedIncoming,
   selectedOutgoing,
-}: {
-  onAccept: () => void;
-  onCancel: () => void;
-  onDecline: () => void;
-  selectedIncoming: Set<string>;
-  selectedOutgoing: Set<string>;
-}) {
+}: RequestSelectionBarProps) {
   const totalSelected = selectedIncoming.size + selectedOutgoing.size;
   if (totalSelected === 0) return null;
 
@@ -517,12 +576,7 @@ function FriendRowActions({
   friend,
   onRemove,
   t,
-}: {
-  displayName: string;
-  friend: FriendEntry;
-  onRemove: (friend: FriendEntry) => Promise<void>;
-  t: TranslateFn;
-}) {
+}: FriendRowActionsProps) {
   const user = friend.user;
 
   return (
@@ -578,24 +632,7 @@ function FriendRow({
   onRemove,
   open,
   t,
-}: {
-  friend: FriendEntry;
-  mutuals: Record<
-    string,
-    {
-      groups: Array<{
-        id: string;
-        name: string;
-      }>;
-      more: number;
-    }
-  >;
-  onClose: () => void;
-  onOpen: () => void;
-  onRemove: (friend: FriendEntry) => Promise<void>;
-  open: boolean;
-  t: TranslateFn;
-}) {
+}: FriendRowProps) {
   const user = friend.user;
   const displayName = user.name ?? user.username;
   const chips = getMutualGroupChips(mutuals, user.id);
@@ -626,13 +663,7 @@ function FriendRow({
 function SearchResultRow({
   onOutgoingCreated,
   result,
-}: {
-  onOutgoingCreated?: (
-    requestId: string,
-    user: FriendEntry['user'],
-  ) => void;
-  result: SearchResult;
-}) {
+}: SearchResultRowProps) {
   const { relationship, user } = result;
   const username = user.username;
 
@@ -677,17 +708,7 @@ function SearchResultsPanel({
   query,
   results,
   showEmpty,
-}: {
-  hasResults: boolean;
-  isLoading: boolean;
-  onOutgoingCreated?: (
-    requestId: string,
-    user: FriendEntry['user'],
-  ) => void;
-  query: string;
-  results: SearchResult[];
-  showEmpty: boolean;
-}) {
+}: SearchResultsPanelProps) {
   if (isLoading) {
     return (
       <div className="mt-3 space-y-3">
@@ -733,12 +754,7 @@ function InviteLinkPanel({
   onCopy,
   onCreate,
   onOpenQr,
-}: {
-  inviteUrl: string | null;
-  onCopy: () => void;
-  onCreate: () => void;
-  onOpenQr: () => void;
-}) {
+}: InviteLinkPanelProps) {
   if (!inviteUrl) {
     return (
       <Button onClick={onCreate} className="w-full">
@@ -788,13 +804,7 @@ function InviteQrDialog({
   onCopy,
   open,
   qrDataUrl,
-}: {
-  inviteUrl: string | null;
-  onClose: () => void;
-  onCopy: () => void;
-  open: boolean;
-  qrDataUrl: string | null;
-}) {
+}: InviteQrDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent>
