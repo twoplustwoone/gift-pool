@@ -12,7 +12,6 @@ import {
 } from '@prisma/client';
 import {
   type FormEvent,
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -63,6 +62,310 @@ export type WishlistUser = Pick<User, 'id' | 'username' | 'name'> & {
 };
 
 type WishlistPublicShare = { token: string; createdAt: Date };
+type WishlistView = 'wishlist' | 'past';
+
+function WishlistViewToggle({
+  onChange,
+  view,
+}: {
+  onChange: (view: WishlistView) => void;
+  view: WishlistView;
+}) {
+  return (
+    <div className="inline-flex w-full max-w-md rounded-full bg-muted p-1 text-sm">
+      <button
+        type="button"
+        className={`flex-1 rounded-full px-4 py-2 font-semibold transition ${
+          view === 'wishlist'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground'
+        }`}
+        aria-pressed={view === 'wishlist'}
+        onClick={() => onChange('wishlist')}
+      >
+        Wishlist
+      </button>
+      <button
+        type="button"
+        className={`flex-1 rounded-full px-4 py-2 font-semibold transition ${
+          view === 'past'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground'
+        }`}
+        aria-pressed={view === 'past'}
+        onClick={() => onChange('past')}
+      >
+        Past items
+      </button>
+    </div>
+  );
+}
+
+function WishlistReorderBanner({
+  finishReorderMode,
+  isCategoryReorderMode,
+  isItemReorderMode,
+  startCategoryReorderMode,
+  startItemReorderMode,
+}: {
+  finishReorderMode: () => void;
+  isCategoryReorderMode: boolean;
+  isItemReorderMode: boolean;
+  startCategoryReorderMode: () => void;
+  startItemReorderMode: () => void;
+}) {
+  return (
+    <div className="sticky top-2 z-20 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2 shadow-sm backdrop-blur">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <Text size="sm" weight="bold" className="text-emerald-900">
+            Reorder mode
+          </Text>
+          <Text size="xs" className="text-emerald-800">
+            Drag handles to move {isCategoryReorderMode ? 'categories' : 'items'}.
+          </Text>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-full border border-emerald-200 bg-background/80 p-1 text-xs">
+            <button
+              type="button"
+              aria-label="Item reorder mode"
+              className={`rounded-full px-3 py-1.5 font-semibold transition ${
+                isItemReorderMode
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-emerald-900 hover:bg-emerald-100'
+              }`}
+              onClick={startItemReorderMode}
+            >
+              Items
+            </button>
+            <button
+              type="button"
+              aria-label="Category reorder mode"
+              className={`rounded-full px-3 py-1.5 font-semibold transition ${
+                isCategoryReorderMode
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-emerald-900 hover:bg-emerald-100'
+              }`}
+              onClick={startCategoryReorderMode}
+            >
+              Categories
+            </button>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            aria-label="Done reordering"
+            className="border border-emerald-200 bg-white/90 hover:bg-white"
+            onClick={finishReorderMode}
+          >
+            Done
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CategoryReorderList({
+  customCategories,
+  defaultCategory,
+  dragState,
+  itemIdsByCategoryKey,
+}: {
+  customCategories: Array<{ id: string; name: string; order: number }>;
+  defaultCategory: { id: null; name: string; order: number } | null;
+  dragState: string;
+  itemIdsByCategoryKey: Record<string, string[]>;
+}) {
+  return (
+    <div className="space-y-3">
+      {defaultCategory ? (
+        <div
+          className="rounded-xl border border-border/80 bg-surface px-4 py-3 shadow-sm"
+          data-testid="wishlist-category-row"
+          data-drag-state={dragState}
+          data-drop-target="false"
+        >
+          <div className="flex min-h-10 items-center justify-between gap-3">
+            <Text weight="bold">{defaultCategory.name}</Text>
+            <Text size="xs" className="text-muted-foreground">
+              ({itemIdsByCategoryKey[DEFAULT_CATEGORY_KEY]?.length ?? 0})
+            </Text>
+          </div>
+        </div>
+      ) : null}
+      <SortableContext
+        items={customCategories.map((category) => toCategoryDragId(category.id))}
+        strategy={rectSortingStrategy}
+      >
+        {customCategories.map((category) => (
+          <SortableShell key={category.id} id={toCategoryDragId(category.id)}>
+            {({ attributes, listeners, setActivatorNodeRef, isDragging }) => (
+              <div
+                className={`rounded-xl border border-border/80 bg-surface px-4 py-3 shadow-sm transition ${
+                  isDragging
+                    ? 'border-emerald-300 bg-emerald-50/80 ring-2 ring-emerald-300'
+                    : ''
+                }`}
+                data-testid="wishlist-category-row"
+                data-drag-state={dragState}
+                data-drop-target="false"
+              >
+                <div className="flex min-h-10 items-center gap-3">
+                  <button
+                    type="button"
+                    ref={setActivatorNodeRef}
+                    aria-label={`Drag category ${category.name}`}
+                    className="inline-flex h-10 w-10 touch-none items-center justify-center rounded-lg border border-transparent text-muted-foreground transition hover:bg-muted/70 hover:text-foreground active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    {...attributes}
+                    {...listeners}
+                  >
+                    <svg
+                      className="h-4 w-4"
+                      aria-hidden
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <line x1="8" y1="6" x2="21" y2="6" />
+                      <line x1="8" y1="12" x2="21" y2="12" />
+                      <line x1="8" y1="18" x2="21" y2="18" />
+                      <line x1="3" y1="6" x2="3.01" y2="6" />
+                      <line x1="3" y1="12" x2="3.01" y2="12" />
+                      <line x1="3" y1="18" x2="3.01" y2="18" />
+                    </svg>
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <Flex align="center" gap={2}>
+                      <Text weight="bold" className="truncate">
+                        {category.name}
+                      </Text>
+                      <Text size="xs" className="text-muted-foreground">
+                        ({itemIdsByCategoryKey[category.id]?.length ?? 0})
+                      </Text>
+                    </Flex>
+                  </div>
+                </div>
+              </div>
+            )}
+          </SortableShell>
+        ))}
+      </SortableContext>
+    </div>
+  );
+}
+
+function WishlistEmptyState({
+  archivedItemsCount,
+  displayName,
+  isOwner,
+}: {
+  archivedItemsCount: number;
+  displayName: string;
+  isOwner: boolean;
+}) {
+  return (
+    <div className="flex w-full flex-col items-center justify-center">
+      {isOwner ? (
+        <p className="text-center text-base text-slate-500">
+          Looks like you don't have any items in your wishlist yet!
+          {archivedItemsCount ? ' Past items are available in the Past items tab.' : ''}
+        </p>
+      ) : (
+        <p className="text-center text-base text-slate-500">
+          {displayName} doesn't have any active items in their wishlist right now!
+          {archivedItemsCount
+            ? ' Their past items are available in the Past items tab.'
+            : ''}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function DeleteCategoryDialog({
+  actionFetcherState,
+  onConfirm,
+  onOpenChange,
+  pendingDeleteCategory,
+}: {
+  actionFetcherState: string;
+  onConfirm: () => void;
+  onOpenChange: (open: boolean) => void;
+  pendingDeleteCategory: { id: string; name: string } | null;
+}) {
+  return (
+    <Dialog
+      open={pendingDeleteCategory !== null}
+      onOpenChange={onOpenChange}
+    >
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Delete category</DialogTitle>
+          <DialogDescription>
+            {pendingDeleteCategory
+              ? `Delete ${pendingDeleteCategory.name}? Items in this category will move to Default (Uncategorized).`
+              : 'Delete this category? Items in this category will move to Default (Uncategorized).'}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={!pendingDeleteCategory || actionFetcherState !== 'idle'}
+            onClick={onConfirm}
+          >
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function getItemsForCategory(
+  categoryId: string | null,
+  itemById: Map<string, WishlistItem>,
+  itemIdsByCategoryKey: Record<string, string[]>,
+) {
+  return (itemIdsByCategoryKey[categoryKeyFromId(categoryId)] ?? [])
+    .map((id) => itemById.get(id))
+    .filter(Boolean) as WishlistItem[];
+}
+
+function useWishlistViewParam(searchParams: URLSearchParams, setSearchParams: ReturnType<typeof useSearchParams>[1]) {
+  const initialView =
+    searchParams.get('view') === 'past' ? ('past' as const) : ('wishlist' as const);
+  const [view, setView] = useState<WishlistView>(initialView);
+
+  const handleViewChange = useCallback(
+    (next: WishlistView) => {
+      const params = new URLSearchParams(searchParams);
+      if (next === 'past') {
+        params.set('view', 'past');
+      } else {
+        params.delete('view');
+      }
+      setSearchParams(params, { replace: true });
+      setView(next);
+    },
+    [searchParams, setSearchParams],
+  );
+
+  useEffect(() => {
+    setView(searchParams.get('view') === 'past' ? 'past' : 'wishlist');
+  }, [searchParams]);
+
+  return { handleViewChange, view };
+}
 
 export const Wishlist = ({
   user,
@@ -79,34 +382,10 @@ export const Wishlist = ({
 }) => {
   const displayName = user.name ?? user.username;
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialView =
-    searchParams.get('view') === 'past'
-      ? ('past' as const)
-      : ('wishlist' as const);
-  const [view, setView] = useState<'wishlist' | 'past'>(initialView);
-
-  const handleViewChange = useCallback(
-    (next: 'wishlist' | 'past') => {
-      const params = new URLSearchParams(searchParams);
-      if (next === 'past') {
-        params.set('view', 'past');
-      } else {
-        params.delete('view');
-      }
-      setSearchParams(params, { replace: true });
-      setView(next);
-    },
-    [searchParams, setSearchParams],
+  const { handleViewChange, view } = useWishlistViewParam(
+    searchParams,
+    setSearchParams,
   );
-
-  // Sync view from searchParams
-  useEffect(() => {
-    const paramsView =
-      searchParams.get('view') === 'past'
-        ? ('past' as const)
-        : ('wishlist' as const);
-    setView(paramsView);
-  }, [searchParams]);
 
   // orderedCategories lives here — written by both category mutations hook and reorder hook
   const [orderedCategories, setOrderedCategories] = useState(() =>
@@ -197,8 +476,7 @@ export const Wishlist = ({
     return hasDefaultItems;
   });
 
-  const customCategoryIds = orderedCategories.map((category) => category.id);
-  const handleConfirmDeleteCategory = () => {
+  const handleConfirmDeleteCategory = useCallback(() => {
     if (!pendingDeleteCategory) return;
     Promise.resolve(
       actionFetcher.submit(
@@ -214,7 +492,7 @@ export const Wishlist = ({
       ),
     ).catch(() => {});
     setPendingDeleteCategory(null);
-  };
+  }, [actionFetcher, pendingDeleteCategory]);
 
   const itemIdsByCategoryKey = useMemo(() => {
     return categories.reduce<Record<string, string[]>>((acc, category) => {
@@ -290,6 +568,11 @@ export const Wishlist = ({
     (category): category is { id: string; name: string; order: number } =>
       category.id !== null,
   );
+  const handleDeleteDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setPendingDeleteCategory(null);
+    }
+  }, []);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-x-clip">
@@ -319,30 +602,7 @@ export const Wishlist = ({
       />
       <div className="mx-auto min-h-0 w-full max-w-6xl flex-1 px-3 py-8 sm:px-6">
         <Stack gap={4}>
-          <div className="inline-flex w-full max-w-md rounded-full bg-muted p-1 text-sm">
-            <button
-              type="button"
-              className={`flex-1 rounded-full px-4 py-2 font-semibold transition ${view === 'wishlist'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground'
-                }`}
-              aria-pressed={view === 'wishlist'}
-              onClick={() => handleViewChange('wishlist')}
-            >
-              Wishlist
-            </button>
-            <button
-              type="button"
-              className={`flex-1 rounded-full px-4 py-2 font-semibold transition ${view === 'past'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground'
-                }`}
-              aria-pressed={view === 'past'}
-              onClick={() => handleViewChange('past')}
-            >
-              Past items
-            </button>
-          </div>
+          <WishlistViewToggle view={view} onChange={handleViewChange} />
 
           {showEducation && view === 'wishlist' ? (
             <PastEducationCallout
@@ -354,55 +614,13 @@ export const Wishlist = ({
           ) : null}
 
           {isReorderMode ? (
-            <div className="sticky top-2 z-20 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2 shadow-sm backdrop-blur">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <Text size="sm" weight="bold" className="text-emerald-900">
-                    Reorder mode
-                  </Text>
-                  <Text size="xs" className="text-emerald-800">
-                    Drag handles to move{' '}
-                    {isCategoryReorderMode ? 'categories' : 'items'}.
-                  </Text>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="inline-flex rounded-full border border-emerald-200 bg-background/80 p-1 text-xs">
-                    <button
-                      type="button"
-                      aria-label="Item reorder mode"
-                      className={`rounded-full px-3 py-1.5 font-semibold transition ${isItemReorderMode
-                          ? 'bg-emerald-600 text-white shadow-sm'
-                          : 'text-emerald-900 hover:bg-emerald-100'
-                        }`}
-                      onClick={startItemReorderMode}
-                    >
-                      Items
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Category reorder mode"
-                      className={`rounded-full px-3 py-1.5 font-semibold transition ${isCategoryReorderMode
-                          ? 'bg-emerald-600 text-white shadow-sm'
-                          : 'text-emerald-900 hover:bg-emerald-100'
-                        }`}
-                      onClick={startCategoryReorderMode}
-                    >
-                      Categories
-                    </button>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    aria-label="Done reordering"
-                    className="border border-emerald-200 bg-white/90 hover:bg-white"
-                    onClick={finishReorderMode}
-                  >
-                    Done
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <WishlistReorderBanner
+              finishReorderMode={finishReorderMode}
+              isCategoryReorderMode={isCategoryReorderMode}
+              isItemReorderMode={isItemReorderMode}
+              startCategoryReorderMode={startCategoryReorderMode}
+              startItemReorderMode={startItemReorderMode}
+            />
           ) : null}
 
           {view === 'wishlist' ? (
@@ -422,103 +640,12 @@ export const Wishlist = ({
                   }`}
               >
                 {isCategoryReorderMode ? (
-                  <div className="space-y-3">
-                    {defaultCategory ? (
-                      <div
-                        className="rounded-xl border border-border/80 bg-surface px-4 py-3 shadow-sm"
-                        data-testid="wishlist-category-row"
-                        data-drag-state={dragState}
-                        data-drop-target="false"
-                      >
-                        <div className="flex min-h-10 items-center justify-between gap-3">
-                          <Text weight="bold">{defaultCategory.name}</Text>
-                          <Text size="xs" className="text-muted-foreground">
-                            (
-                            {itemIdsByCategoryKey[DEFAULT_CATEGORY_KEY]
-                              ?.length ?? 0}
-                            )
-                          </Text>
-                        </div>
-                      </div>
-                    ) : null}
-                    <SortableContext
-                      items={customCategoryIds.map((categoryId) =>
-                        toCategoryDragId(categoryId),
-                      )}
-                      strategy={rectSortingStrategy}
-                    >
-                      {customCategories.map((category) => (
-                        <SortableShell
-                          key={category.id}
-                          id={toCategoryDragId(category.id)}
-                        >
-                          {({
-                            attributes,
-                            listeners,
-                            setActivatorNodeRef,
-                            isDragging,
-                          }) => (
-                            <div
-                              className={`rounded-xl border border-border/80 bg-surface px-4 py-3 shadow-sm transition ${isDragging
-                                  ? 'border-emerald-300 bg-emerald-50/80 ring-2 ring-emerald-300'
-                                  : ''
-                                }`}
-                              data-testid="wishlist-category-row"
-                              data-drag-state={dragState}
-                              data-drop-target="false"
-                            >
-                              <div className="flex min-h-10 items-center gap-3">
-                                <button
-                                  type="button"
-                                  ref={setActivatorNodeRef}
-                                  aria-label={`Drag category ${category.name}`}
-                                  className="inline-flex h-10 w-10 touch-none items-center justify-center rounded-lg border border-transparent text-muted-foreground transition hover:bg-muted/70 hover:text-foreground active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
-                                  onClick={(event) => event.stopPropagation()}
-                                  onPointerDown={(event) =>
-                                    event.stopPropagation()
-                                  }
-                                  {...attributes}
-                                  {...listeners}
-                                >
-                                  <svg
-                                    className="h-4 w-4"
-                                    aria-hidden
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                  >
-                                    <line x1="8" y1="6" x2="21" y2="6" />
-                                    <line x1="8" y1="12" x2="21" y2="12" />
-                                    <line x1="8" y1="18" x2="21" y2="18" />
-                                    <line x1="3" y1="6" x2="3.01" y2="6" />
-                                    <line x1="3" y1="12" x2="3.01" y2="12" />
-                                    <line x1="3" y1="18" x2="3.01" y2="18" />
-                                  </svg>
-                                </button>
-                                <div className="min-w-0 flex-1">
-                                  <Flex align="center" gap={2}>
-                                    <Text weight="bold" className="truncate">
-                                      {category.name}
-                                    </Text>
-                                    <Text
-                                      size="xs"
-                                      className="text-muted-foreground"
-                                    >
-                                      (
-                                      {itemIdsByCategoryKey[category.id]
-                                        ?.length ?? 0}
-                                      )
-                                    </Text>
-                                  </Flex>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </SortableShell>
-                      ))}
-                    </SortableContext>
-                  </div>
+                  <CategoryReorderList
+                    customCategories={customCategories}
+                    defaultCategory={defaultCategory}
+                    dragState={dragState}
+                    itemIdsByCategoryKey={itemIdsByCategoryKey}
+                  />
                 ) : (
                   <>
                     {defaultCategory ? (
@@ -541,11 +668,11 @@ export const Wishlist = ({
                           activeItemCategoryKey !== DEFAULT_CATEGORY_KEY
                         }
                         dragState={dragState}
-                        itemsForCategory={(
-                          itemIdsByCategoryKey[DEFAULT_CATEGORY_KEY] ?? []
-                        )
-                          .map((id) => itemById.get(id))
-                          .filter(Boolean) as WishlistItem[]}
+                        itemsForCategory={getItemsForCategory(
+                          null,
+                          itemById,
+                          itemIdsByCategoryKey,
+                        )}
                         itemIds={itemIdsByCategoryKey[DEFAULT_CATEGORY_KEY] ?? []}
                         optimisticCategories={optimisticCategories}
                         actionFetcher={actionFetcher}
@@ -561,76 +688,56 @@ export const Wishlist = ({
                     ) : null}
                     <div className="space-y-4">
                       {customCategories.map((category) => (
-                        <Fragment key={category.id}>
-                          <WishlistCategoryCard
-                            category={category}
-                            isOwner={isOwner}
-                            isPublicView={isPublicView}
-                            canReorder={canReorder}
-                            isItemReorderMode={isItemReorderMode}
-                            isCategoryReorderMode={isCategoryReorderMode}
-                            isCollapsed={
-                              isItemReorderMode
-                                ? false
-                                : Boolean(collapsed[category.id])
-                            }
-                            isEditing={
-                              category.id !== null &&
-                              editingId === category.id &&
-                              !isCategoryReorderMode &&
-                              !isItemReorderMode
-                            }
-                            isCategoryDropHighlighted={
-                              isItemReorderMode &&
-                              itemDropTargetCategoryKey === category.id &&
-                              activeItemCategoryKey !== category.id
-                            }
-                            dragState={dragState}
-                            itemsForCategory={(
-                              itemIdsByCategoryKey[category.id] ?? []
-                            )
-                              .map((id) => itemById.get(id))
-                              .filter(Boolean) as WishlistItem[]}
-                            itemIds={itemIdsByCategoryKey[category.id] ?? []}
-                            optimisticCategories={optimisticCategories}
-                            actionFetcher={actionFetcher}
-                            onToggleCollapse={() => toggle(category.id)}
-                            onSetEditing={setEditingId}
-                            onRequestDelete={setPendingDeleteCategory}
-                            onOpenQuickAdd={openQuickAdd}
-                            onStartItemReorder={startItemReorderMode}
-                            onStartCategoryReorder={startCategoryReorderMode}
-                            onStatusChange={handleStatusChange}
-                            onAttachClientMutationId={
-                              attachClientMutationIdToForm
-                            }
-                          />
-                        </Fragment>
+                        <WishlistCategoryCard
+                          key={category.id}
+                          category={category}
+                          isOwner={isOwner}
+                          isPublicView={isPublicView}
+                          canReorder={canReorder}
+                          isItemReorderMode={isItemReorderMode}
+                          isCategoryReorderMode={isCategoryReorderMode}
+                          isCollapsed={
+                            isItemReorderMode ? false : Boolean(collapsed[category.id])
+                          }
+                          isEditing={
+                            editingId === category.id &&
+                            !isCategoryReorderMode &&
+                            !isItemReorderMode
+                          }
+                          isCategoryDropHighlighted={
+                            isItemReorderMode &&
+                            itemDropTargetCategoryKey === category.id &&
+                            activeItemCategoryKey !== category.id
+                          }
+                          dragState={dragState}
+                          itemsForCategory={getItemsForCategory(
+                            category.id,
+                            itemById,
+                            itemIdsByCategoryKey,
+                          )}
+                          itemIds={itemIdsByCategoryKey[category.id] ?? []}
+                          optimisticCategories={optimisticCategories}
+                          actionFetcher={actionFetcher}
+                          onToggleCollapse={() => toggle(category.id)}
+                          onSetEditing={setEditingId}
+                          onRequestDelete={setPendingDeleteCategory}
+                          onOpenQuickAdd={openQuickAdd}
+                          onStartItemReorder={startItemReorderMode}
+                          onStartCategoryReorder={startCategoryReorderMode}
+                          onStatusChange={handleStatusChange}
+                          onAttachClientMutationId={attachClientMutationIdToForm}
+                        />
                       ))}
                     </div>
                   </>
                 )}
 
                 {activeItems.length === 0 ? (
-                  <div className="flex w-full flex-col items-center justify-center">
-                    {isOwner ? (
-                      <p className="text-center text-base text-slate-500">
-                        Looks like you don't have any items in your wishlist
-                        yet!
-                        {archivedItems.length
-                          ? ' Past items are available in the Past items tab.'
-                          : ''}
-                      </p>
-                    ) : (
-                      <p className="text-center text-base text-slate-500">
-                        {displayName} doesn't have any active items in their
-                        wishlist right now!
-                        {archivedItems.length
-                          ? ' Their past items are available in the Past items tab.'
-                          : ''}
-                      </p>
-                    )}
-                  </div>
+                  <WishlistEmptyState
+                    archivedItemsCount={archivedItems.length}
+                    displayName={displayName}
+                    isOwner={isOwner}
+                  />
                 ) : null}
               </div>
             </DndContext>
@@ -650,44 +757,12 @@ export const Wishlist = ({
           )}
         </Stack>
       </div>
-      <Dialog
-        open={pendingDeleteCategory !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPendingDeleteCategory(null);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete category</DialogTitle>
-            <DialogDescription>
-              {pendingDeleteCategory
-                ? `Delete ${pendingDeleteCategory.name}? Items in this category will move to Default (Uncategorized).`
-                : 'Delete this category? Items in this category will move to Default (Uncategorized).'}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setPendingDeleteCategory(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={
-                !pendingDeleteCategory || actionFetcher.state !== 'idle'
-              }
-              onClick={handleConfirmDeleteCategory}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteCategoryDialog
+        actionFetcherState={actionFetcher.state}
+        onConfirm={handleConfirmDeleteCategory}
+        onOpenChange={handleDeleteDialogOpenChange}
+        pendingDeleteCategory={pendingDeleteCategory}
+      />
     </div>
   );
 };

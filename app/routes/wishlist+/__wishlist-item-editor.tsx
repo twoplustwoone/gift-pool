@@ -144,6 +144,177 @@ type EditorProps = {
   ) => boolean | void;
 };
 
+type WishlistItemEditorActionData =
+  | {
+      result: SubmissionResult<z.infer<typeof WishlistItemSchema>>;
+      intent: 'save' | 'save-add-another';
+      toast: Toast | null;
+      imageError?: string | null;
+      imageAction?: z.infer<typeof ImageActionSchema>;
+      analyticsEventId?: string | null;
+      requestId?: string;
+    }
+  | undefined;
+
+type EditorInitialValues = {
+  title: string;
+  url: string;
+  note: string;
+  categoryId: string;
+  type: string;
+  hasImage: boolean;
+  updatedAt: WishlistItem['updatedAt'] | null;
+};
+
+function resolveInitialMode({
+  canEdit,
+  hasId,
+  initialMode,
+}: {
+  canEdit: boolean;
+  hasId: boolean;
+  initialMode: EditorProps['initialMode'];
+}): 'view' | 'edit' | 'create' {
+  if (initialMode === 'view') return 'view';
+  if (initialMode === 'edit') return 'edit';
+  if (initialMode === 'create') return 'create';
+  if (!hasId) return 'create';
+  return canEdit ? 'edit' : 'view';
+}
+
+function buildInitialValues({
+  defaultCategoryId,
+  wishlistItem,
+}: {
+  defaultCategoryId: string | null;
+  wishlistItem: EditorProps['wishlistItem'];
+}): EditorInitialValues {
+  return {
+    title: wishlistItem?.title ?? '',
+    url: wishlistItem?.url ?? '',
+    note: wishlistItem?.note ?? '',
+    categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
+    type: wishlistItem?.type ?? 'text',
+    hasImage: wishlistItem?.hasImage ?? false,
+    updatedAt: wishlistItem?.updatedAt ?? null,
+  };
+}
+
+function getActionSubmissionValue(actionData: WishlistItemEditorActionData) {
+  if (
+    !actionData?.result ||
+    actionData.result.status !== 'success' ||
+    !('value' in actionData.result)
+  ) {
+    return null;
+  }
+
+  return (actionData.result as { value: z.infer<typeof WishlistItemSchema> }).value;
+}
+
+function useSubmissionImageSync({
+  actionData,
+  currentImageSrc,
+  defaultCategoryId,
+  fileInputRef,
+  initialValuesRef,
+  setHasPendingImageChange,
+  setImageActionState,
+  setImageError,
+  setImageUrlValue,
+  setImageWarning,
+  setOpen,
+  setPreviewVersion,
+  shouldResetForm,
+  wishlistItem,
+}: {
+  actionData: WishlistItemEditorActionData;
+  currentImageSrc: string | null;
+  defaultCategoryId: string | null;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  initialValuesRef: React.MutableRefObject<EditorInitialValues>;
+  setHasPendingImageChange: React.Dispatch<React.SetStateAction<boolean>>;
+  setImageActionState: React.Dispatch<
+    React.SetStateAction<z.infer<typeof ImageActionSchema>>
+  >;
+  setImageError: React.Dispatch<React.SetStateAction<string | null>>;
+  setImageUrlValue: React.Dispatch<React.SetStateAction<string>>;
+  setImageWarning: React.Dispatch<React.SetStateAction<string | null>>;
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setPreviewVersion: React.Dispatch<React.SetStateAction<number>>;
+  shouldResetForm: boolean;
+  wishlistItem: EditorProps['wishlistItem'];
+}) {
+  useEffect(() => {
+    if (actionData?.imageError) {
+      setImageError(actionData.imageError);
+      if (actionData.imageAction === 'none' && !currentImageSrc) {
+        setImageWarning(actionData.imageError);
+      }
+    }
+
+    if (actionData?.result?.status !== 'success') return;
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setHasPendingImageChange(false);
+    setImageActionState('none');
+    setImageWarning(null);
+    setImageError(null);
+    setImageUrlValue('');
+    setPreviewVersion((value) => value + 1);
+
+    const nextValue = getActionSubmissionValue(actionData);
+    initialValuesRef.current = shouldResetForm
+      ? {
+          title: '',
+          url: '',
+          note: '',
+          categoryId:
+            nextValue?.categoryId ??
+            initialValuesRef.current.categoryId ??
+            defaultCategoryId ??
+            '',
+          type: nextValue?.type ?? initialValuesRef.current.type,
+          hasImage: false,
+          updatedAt: null,
+        }
+      : {
+          title: nextValue?.title ?? initialValuesRef.current.title,
+          url: nextValue?.url ?? initialValuesRef.current.url,
+          note: nextValue?.note ?? initialValuesRef.current.note,
+          categoryId: nextValue?.categoryId ?? initialValuesRef.current.categoryId,
+          type: nextValue?.type ?? initialValuesRef.current.type,
+          hasImage:
+            (nextValue as { hasImage?: boolean } | null)?.hasImage ??
+            wishlistItem?.hasImage ??
+            initialValuesRef.current.hasImage,
+          updatedAt: wishlistItem?.updatedAt ?? initialValuesRef.current.updatedAt,
+        };
+
+    if (actionData.intent === 'save') {
+      setOpen(false);
+    }
+  }, [
+    actionData,
+    currentImageSrc,
+    defaultCategoryId,
+    fileInputRef,
+    initialValuesRef,
+    setHasPendingImageChange,
+    setImageActionState,
+    setImageError,
+    setImageUrlValue,
+    setImageWarning,
+    setOpen,
+    setPreviewVersion,
+    shouldResetForm,
+    wishlistItem?.hasImage,
+    wishlistItem?.updatedAt,
+  ]);
+}
+
 export type WishlistItemEditorHandle = {
   open: () => void;
   close: () => void;
@@ -173,25 +344,16 @@ export const WishlistItemEditor = React.forwardRef<
     ref,
   ) => {
     const hasId = Boolean(wishlistItem?.id);
-    const computedInitial: 'view' | 'edit' | 'create' =
-      initialMode === 'auto'
-        ? hasId
-          ? canEdit
-            ? 'edit'
-            : 'view'
-          : 'create'
-        : initialMode === 'view'
-          ? 'view'
-          : initialMode === 'edit'
-            ? 'edit'
-            : 'create';
+    const computedInitial = resolveInitialMode({
+      canEdit,
+      hasId,
+      initialMode,
+    });
 
     const [open, setOpen] = React.useState(false);
     const [mode, setMode] = React.useState<'view' | 'edit' | 'create'>(
       computedInitial,
     );
-
-    const itemIdLabel = wishlistItem?.id ?? 'new-item';
 
     const openView: WishlistItemEditorHandle['openView'] = useCallback(({
       fromTrigger = false,
@@ -255,17 +417,7 @@ export const WishlistItemEditor = React.forwardRef<
     const ToggleIcon = currentStatus === 'ACTIVE' ? LuArchive : LuListChecks;
     useToast((statusFetcher.data as any)?.toast);
 
-    const actionData = useActionData<typeof action>() as
-      | {
-          result: SubmissionResult<z.infer<typeof WishlistItemSchema>>;
-          intent: 'save' | 'save-add-another';
-          toast: Toast | null;
-          imageError?: string | null;
-          imageAction?: z.infer<typeof ImageActionSchema>;
-          analyticsEventId?: string | null;
-          requestId?: string;
-        }
-      | undefined;
+    const actionData = useActionData<typeof action>() as WishlistItemEditorActionData;
     const requestInfo = useOptionalRequestInfo();
     const trackedAnalyticsEventIdRef = useRef<string | null>(null);
     const requestIdFallback = requestInfo?.requestId ?? null;
@@ -295,15 +447,12 @@ export const WishlistItemEditor = React.forwardRef<
     const [hasPendingImageChange, setHasPendingImageChange] = useState(false);
     const [isImageLoading, setIsImageLoading] = useState(false);
     const [imageUrlValue, setImageUrlValue] = useState('');
-    const initialValuesRef = useRef({
-      title: wishlistItem?.title ?? '',
-      url: wishlistItem?.url ?? '',
-      note: wishlistItem?.note ?? '',
-      categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
-      type: wishlistItem?.type ?? 'text',
-      hasImage: wishlistItem?.hasImage ?? false,
-      updatedAt: wishlistItem?.updatedAt ?? null,
-    });
+    const initialValuesRef = useRef(
+      buildInitialValues({
+        defaultCategoryId,
+        wishlistItem,
+      }),
+    );
 
     useToast(actionData?.toast);
     const actionStatus = actionData?.result?.status;
@@ -434,15 +583,10 @@ export const WishlistItemEditor = React.forwardRef<
       setImageWarning(null);
       setImageError(null);
       setImageUrlValue('');
-      initialValuesRef.current = {
-        title: wishlistItem?.title ?? '',
-        url: wishlistItem?.url ?? '',
-        note: wishlistItem?.note ?? '',
-        categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
-        type: wishlistItem?.type ?? 'text',
-        hasImage: wishlistItem?.hasImage ?? false,
-        updatedAt: wishlistItem?.updatedAt ?? null,
-      };
+      initialValuesRef.current = buildInitialValues({
+        defaultCategoryId,
+        wishlistItem,
+      });
     }, [
       currentImageSrc,
       wishlistItem?.title,
@@ -453,82 +597,31 @@ export const WishlistItemEditor = React.forwardRef<
       wishlistItem?.hasImage,
       wishlistItem?.updatedAt,
       defaultCategoryId,
+      wishlistItem,
     ]);
-
-    useEffect(() => {
-      if (actionData?.imageError) {
-        setImageError(actionData.imageError);
-        if (actionData.imageAction === 'none' && !currentImageSrc) {
-          setImageWarning(actionData.imageError);
-        }
-      }
-
-      if (actionData?.result?.status === 'success') {
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-        setHasPendingImageChange(false);
-        setImageActionState('none');
-        setImageWarning(null);
-        setImageError(null);
-        setImageUrlValue('');
-        setPreviewVersion((v) => v + 1);
-        const nextValue =
-          actionData?.result &&
-          actionData.result.status === 'success' &&
-          'value' in actionData.result
-            ? (
-                actionData.result as {
-                  value: z.infer<typeof WishlistItemSchema>;
-                }
-              ).value
-            : null;
-        initialValuesRef.current = shouldResetForm
-          ? {
-              title: '',
-              url: '',
-              note: '',
-              categoryId: (nextValue?.categoryId ??
-                initialValuesRef.current.categoryId ??
-                defaultCategoryId ??
-                '') as string,
-              type: nextValue?.type ?? initialValuesRef.current.type,
-              hasImage: false,
-              updatedAt: null,
-            }
-          : {
-              title: nextValue?.title ?? initialValuesRef.current.title,
-              url: nextValue?.url ?? initialValuesRef.current.url,
-              note: nextValue?.note ?? initialValuesRef.current.note,
-              categoryId: (nextValue?.categoryId ??
-                initialValuesRef.current.categoryId ??
-                '') as string,
-              type: nextValue?.type ?? initialValuesRef.current.type,
-              hasImage:
-                (nextValue as any)?.hasImage ??
-                wishlistItem?.hasImage ??
-                initialValuesRef.current.hasImage,
-              updatedAt:
-                wishlistItem?.updatedAt ?? initialValuesRef.current.updatedAt,
-            };
-
-        if (shouldResetForm) {
-          formRef.current?.reset();
-          setImagePreview(currentImageSrc);
-        }
-        if (actionData.intent === 'save') {
-          setOpen(false);
-        }
-      }
-    }, [
+    useSubmissionImageSync({
       actionData,
       currentImageSrc,
       defaultCategoryId,
+      fileInputRef,
+      initialValuesRef,
+      setHasPendingImageChange,
+      setImageActionState,
+      setImageError,
+      setImageUrlValue,
+      setImageWarning,
+      setOpen,
+      setPreviewVersion,
       shouldResetForm,
-      itemIdLabel,
-      wishlistItem?.hasImage,
-      wishlistItem?.updatedAt,
-    ]);
+      wishlistItem,
+    });
+
+    useEffect(() => {
+      if (!shouldResetForm) return;
+      if (actionData?.result?.status !== 'success') return;
+      formRef.current?.reset();
+      setImagePreview(currentImageSrc);
+    }, [actionData?.result?.status, currentImageSrc, shouldResetForm]);
 
     const handlePasteImage = (event: React.ClipboardEvent<HTMLDivElement>) => {
       const [file] = Array.from(event.clipboardData?.files ?? []).filter((f) =>
