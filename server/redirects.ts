@@ -2,7 +2,7 @@ const SAFE_REDIRECT_BASE_URL = 'http://localhost';
 const SAFE_REDIRECT_HOST = 'localhost';
 
 function normalizePathname(pathname: string) {
-  const normalizedPathname = pathname.replace(/\/+/g, '/');
+  const normalizedPathname = pathname.replaceAll(/\/+/g, '/');
 
   if (!normalizedPathname || normalizedPathname === '/') {
     return '/';
