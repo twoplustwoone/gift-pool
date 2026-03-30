@@ -126,40 +126,40 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const locale = getLocaleFromRequest(request);
   const user = userId
     ? await time(
-        () =>
-          prisma.user.findUniqueOrThrow({
-            select: {
-              id: true,
-              name: true,
-              username: true,
-              image: {
-                select: {
-                  id: true,
-                },
+      () =>
+        prisma.user.findUniqueOrThrow({
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            image: {
+              select: {
+                id: true,
               },
-              roles: {
-                select: {
-                  name: true,
-                  permissions: {
-                    select: {
-                      entity: true,
-                      action: true,
-                      access: true,
-                    },
+            },
+            roles: {
+              select: {
+                name: true,
+                permissions: {
+                  select: {
+                    entity: true,
+                    action: true,
+                    access: true,
                   },
                 },
               },
             },
-            where: {
-              id: userId,
-            },
-          }),
-        {
-          timings,
-          type: 'find user',
-          desc: 'find user in root',
-        },
-      )
+          },
+          where: {
+            id: userId,
+          },
+        }),
+      {
+        timings,
+        type: 'find user',
+        desc: 'find user in root',
+      },
+    )
     : null;
   if (userId && !user) {
     console.info('something weird happened');
@@ -173,11 +173,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const { toast, headers: toastHeaders } = await getToast(request);
   const unreadCount = userId
     ? await prisma.notification.count({
-        where: {
-          userId,
-          status: 'UNREAD',
-        },
-      })
+      where: {
+        userId,
+        status: 'UNREAD',
+      },
+    })
     : 0;
   const honeyProps = await honeypot.getInputProps();
   return data(
