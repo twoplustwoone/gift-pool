@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WishlistItem } from './wishlist-item';
 
 const mockOpenView = vi.fn();
+let mockUser = { id: 'owner-id', roles: [] as string[] };
 
 vi.mock('react-router', async () => {
   const actual = await vi.importActual('react-router');
@@ -26,7 +27,7 @@ vi.mock('#app/utils/user.ts', async () => {
   const actual = await vi.importActual('#app/utils/user.ts');
   return {
     ...actual,
-    useOptionalUser: () => ({ id: 'owner-id', roles: [] }),
+    useOptionalUser: () => mockUser,
     userHasPermission: () => true,
   };
 });
@@ -63,9 +64,12 @@ vi.mock('#app/routes/wishlist+/__wishlist-item-editor', () => {
 describe('WishlistItem', () => {
   beforeEach(() => {
     mockOpenView.mockClear();
+    mockUser = { id: 'owner-id', roles: [] };
   });
 
-  it('opens the viewer when owners tap the mobile trigger', () => {
+  it('opens the viewer when owners tap the mobile trigger', async () => {
+    const user = userEvent.setup();
+
     render(
       <WishlistItem
         isOwner
@@ -91,14 +95,39 @@ describe('WishlistItem', () => {
       throw new Error('Expected mobile wishlist row trigger');
     }
 
-    fireEvent.pointerDown(trigger, {
-      pointerType: 'touch',
-      clientX: 0,
-      clientY: 0,
-    });
-    fireEvent.pointerUp(trigger, { pointerType: 'touch' });
+    await user.click(trigger);
 
-    expect(mockOpenView).toHaveBeenCalledWith({ fromTrigger: true });
+    expect(mockOpenView).toHaveBeenCalledWith();
+  });
+
+  it('opens the viewer when owners click the desktop row', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <WishlistItem
+        isOwner
+        categories={[]}
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Item one',
+          note: 'A note',
+          url: null,
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    const row = screen.getAllByTestId('wishlist-item-row')[0];
+    if (!row) {
+      throw new Error('Expected desktop wishlist row trigger');
+    }
+    await user.click(row);
+
+    expect(mockOpenView).toHaveBeenCalledWith();
   });
 
   it('renders owner row hooks and action menu without opening viewer', () => {
@@ -212,5 +241,64 @@ describe('WishlistItem', () => {
     expect(
       screen.queryByRole('button', { name: /item actions for item one/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it('opens the viewer when non-owners click the wishlist row', async () => {
+    const user = userEvent.setup();
+    mockUser = { id: 'friend-id', roles: [] };
+
+    render(
+      <WishlistItem
+        categories={[]}
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Friend item',
+          note: 'A note',
+          url: null,
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    const row = screen.getAllByTestId('wishlist-item-row')[0];
+    if (!row) {
+      throw new Error('Expected wishlist row trigger');
+    }
+    await user.click(row);
+
+    expect(mockOpenView).toHaveBeenCalledWith();
+  });
+
+  it('does not open the viewer when non-owners click the claim button', async () => {
+    const user = userEvent.setup();
+    mockUser = { id: 'friend-id', roles: [] };
+
+    render(
+      <WishlistItem
+        categories={[]}
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Friend item',
+          note: 'A note',
+          url: null,
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+          purchase: null,
+        }}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: /i'll grab this gift/i }),
+    );
+
+    expect(mockOpenView).not.toHaveBeenCalled();
   });
 });

@@ -112,6 +112,7 @@ type WishlistItemProps = Readonly<{
 }>;
 type WishlistArchivedTriggerProps = Readonly<{
   normalizedStatus: WishlistItemStatusValue;
+  onOpen: () => void;
   statusMeta: ReturnType<typeof getWishlistStatusMeta>;
   wishlistItem: WishlistItemRecord;
 }>;
@@ -137,6 +138,7 @@ type WishlistNonOwnerTriggerProps = Readonly<{
   isPurchasePending: boolean;
   isPurchasedByMe: boolean;
   isPurchasedBySomeoneElse: boolean;
+  onOpen: () => void;
   onClaimInfoOpenChange: (open: boolean) => void;
   press: ReturnType<typeof usePressFeedback<HTMLDivElement>>;
   purchaseButtonAriaLabel: string;
@@ -152,6 +154,7 @@ type WishlistOwnerTriggerProps = Readonly<{
   imageBlock: React.ReactNode;
   imageErrored: boolean;
   isCompactLayout: boolean;
+  onOpen: () => void;
   onImageError: (event?: React.SyntheticEvent) => void;
   press: ReturnType<typeof usePressFeedback<HTMLDivElement>>;
   wishlistItem: WishlistItemRecord;
@@ -159,6 +162,15 @@ type WishlistOwnerTriggerProps = Readonly<{
 
 function getClaimedLabel(isPurchasedBySomeoneElse: boolean) {
   return isPurchasedBySomeoneElse ? 'Locked by a friend' : 'You claimed this';
+}
+
+function handleRowKeyDown(
+  event: React.KeyboardEvent<HTMLElement>,
+  onOpen: () => void,
+) {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  onOpen();
 }
 
 function toEditorWishlistItem(
@@ -402,6 +414,7 @@ function WishlistItemImageBlock({
 
 function WishlistArchivedTrigger({
   normalizedStatus,
+  onOpen,
   statusMeta,
   wishlistItem,
 }: WishlistArchivedTriggerProps) {
@@ -410,6 +423,10 @@ function WishlistArchivedTrigger({
       variant="interactive"
       padding="md"
       className="group h-full cursor-pointer"
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => handleRowKeyDown(event, onOpen)}
     >
       <div className="flex h-full flex-col gap-3">
         <div className="flex items-start justify-between gap-2">
@@ -612,6 +629,7 @@ function WishlistNonOwnerTrigger({
   isPurchasePending,
   isPurchasedByMe,
   isPurchasedBySomeoneElse,
+  onOpen,
   onClaimInfoOpenChange,
   press,
   purchaseButtonAriaLabel,
@@ -625,6 +643,7 @@ function WishlistNonOwnerTrigger({
       variant="interactive"
       padding="none"
       role="button"
+      tabIndex={0}
       className={cn(
         'group relative flex min-w-0 cursor-pointer flex-col overflow-hidden [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30',
         isPurchasedBySomeoneElse ? 'opacity-90' : '',
@@ -634,6 +653,13 @@ function WishlistNonOwnerTrigger({
       data-testid="wishlist-item-row"
       data-drag-state={dragState}
       data-drop-target="false"
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        press.rowProps.onKeyDown?.(event);
+        if (!event.defaultPrevented) {
+          handleRowKeyDown(event, onOpen);
+        }
+      }}
       {...press.rowProps}
     >
       <div className="flex h-full flex-col gap-3 px-4 py-3 sm:flex-row">
@@ -727,6 +753,7 @@ function WishlistOwnerTrigger({
   imageBlock,
   imageErrored,
   isCompactLayout,
+  onOpen,
   onImageError,
   press,
   wishlistItem,
@@ -763,6 +790,10 @@ function WishlistOwnerTrigger({
             data-testid="wishlist-item-row"
             data-drag-state={dragState}
             data-drop-target="false"
+            role="button"
+            tabIndex={0}
+            onClick={onOpen}
+            onKeyDown={(event) => handleRowKeyDown(event, onOpen)}
           >
             <div className="flex gap-3">
               {imageBlock}
@@ -800,6 +831,7 @@ function WishlistOwnerTrigger({
           variant="interactive"
           padding="none"
           role="button"
+          tabIndex={0}
           className={cn(
             'min-h-[4.25rem] min-w-0 cursor-pointer touch-pan-y rounded-xl border border-border/80 bg-card shadow-sm transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/20',
             dragState === 'dragging-item' ? 'opacity-75' : '',
@@ -809,6 +841,13 @@ function WishlistOwnerTrigger({
           data-testid="wishlist-item-row"
           data-drag-state={dragState}
           data-drop-target="false"
+          onClick={onOpen}
+          onKeyDown={(event) => {
+            press.rowProps.onKeyDown?.(event);
+            if (!event.defaultPrevented) {
+              handleRowKeyDown(event, onOpen);
+            }
+          }}
           {...press.rowProps}
         >
           <div className="flex min-w-0 items-center gap-2 px-3 py-2.5">
@@ -958,34 +997,28 @@ export const WishlistItem = ({
     </>
   );
 
-  const press = usePressFeedback<HTMLDivElement>(
-    isOwner && !isReorderMode
-      ? {
-          onClick: () => {
-            editorRef.current?.openView({ fromTrigger: true });
-          },
-        }
-      : undefined,
-  );
+  const press = usePressFeedback<HTMLDivElement>();
 
   if (!isActiveStatus) {
     return (
-      <WishlistItemEditor
-        key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
-        ref={editorRef}
-        wishlistItem={toEditorWishlistItem(wishlistItem, normalizedStatus)}
-        canEdit={isOwner}
-        categories={categories}
-        initialMode="view"
-        onStatusChange={onStatusChange}
-        trigger={
-          <WishlistArchivedTrigger
-            normalizedStatus={normalizedStatus}
-            statusMeta={statusMeta}
-            wishlistItem={wishlistItem}
-          />
-        }
-      />
+      <>
+        <WishlistArchivedTrigger
+          normalizedStatus={normalizedStatus}
+          onOpen={() => editorRef.current?.openView()}
+          statusMeta={statusMeta}
+          wishlistItem={wishlistItem}
+        />
+        <WishlistItemEditor
+          key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
+          ref={editorRef}
+          wishlistItem={toEditorWishlistItem(wishlistItem, normalizedStatus)}
+          canEdit={isOwner}
+          categories={categories}
+          initialMode="view"
+          onStatusChange={onStatusChange}
+          showDefaultTrigger={false}
+        />
+      </>
     );
   }
 
@@ -1009,36 +1042,38 @@ export const WishlistItem = ({
     );
 
     return (
-      <WishlistItemEditor
-        key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
-        ref={editorRef}
-        wishlistItem={toEditorWishlistItem(wishlistItem, normalizedStatus)}
-        canEdit={false}
-        initialMode="view"
-        categories={categories}
-        viewExtras={viewPurchaseExtras}
-        onStatusChange={onStatusChange}
-        trigger={
-          <WishlistNonOwnerTrigger
-            allowClaims={allowClaims}
-            dragState={dragState}
-            handlePurchaseToggle={handlePurchaseToggle}
-            imageBlock={imageBlock}
-            isClaimInfoOpen={isClaimInfoOpen}
-            isClaimed={isClaimed}
-            isPurchasePending={isPurchasePending}
-            isPurchasedByMe={isPurchasedByMe}
-            isPurchasedBySomeoneElse={isPurchasedBySomeoneElse}
-            onClaimInfoOpenChange={setIsClaimInfoOpen}
-            press={press}
-            purchaseButtonAriaLabel={purchaseButtonAriaLabel}
-            purchaseButtonClassName={purchaseButtonClassName}
-            purchaseButtonIconOnly={purchaseButtonIconOnly}
-            purchaseStatusText={purchaseStatusText}
-            wishlistItem={wishlistItem}
-          />
-        }
-      />
+      <>
+        <WishlistNonOwnerTrigger
+          allowClaims={allowClaims}
+          dragState={dragState}
+          handlePurchaseToggle={handlePurchaseToggle}
+          imageBlock={imageBlock}
+          isClaimInfoOpen={isClaimInfoOpen}
+          isClaimed={isClaimed}
+          isPurchasePending={isPurchasePending}
+          isPurchasedByMe={isPurchasedByMe}
+          isPurchasedBySomeoneElse={isPurchasedBySomeoneElse}
+          onClaimInfoOpenChange={setIsClaimInfoOpen}
+          onOpen={() => editorRef.current?.openView()}
+          press={press}
+          purchaseButtonAriaLabel={purchaseButtonAriaLabel}
+          purchaseButtonClassName={purchaseButtonClassName}
+          purchaseButtonIconOnly={purchaseButtonIconOnly}
+          purchaseStatusText={purchaseStatusText}
+          wishlistItem={wishlistItem}
+        />
+        <WishlistItemEditor
+          key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
+          ref={editorRef}
+          wishlistItem={toEditorWishlistItem(wishlistItem, normalizedStatus)}
+          canEdit={false}
+          initialMode="view"
+          categories={categories}
+          viewExtras={viewPurchaseExtras}
+          onStatusChange={onStatusChange}
+          showDefaultTrigger={false}
+        />
+      </>
     );
   }
 
@@ -1083,22 +1118,22 @@ export const WishlistItem = ({
         key={`${wishlistItem.id}-${wishlistItem.updatedAt ?? ''}-${normalizedStatus}`}
         ref={editorRef}
         wishlistItem={toEditorWishlistItem(wishlistItem, normalizedStatus)}
-        trigger={
-          <WishlistOwnerTrigger
-            actionMenu={actionMenu}
-            displayImageSrc={displayImageSrc}
-            dragState={dragState}
-            imageBlock={imageBlock}
-            imageErrored={imageErrored}
-            isCompactLayout={isCompactLayout}
-            onImageError={handleImageError}
-            press={press}
-            wishlistItem={wishlistItem}
-          />
-        }
         canEdit={true}
         categories={categories}
         onStatusChange={onStatusChange}
+        showDefaultTrigger={false}
+      />
+      <WishlistOwnerTrigger
+        actionMenu={actionMenu}
+        displayImageSrc={displayImageSrc}
+        dragState={dragState}
+        imageBlock={imageBlock}
+        imageErrored={imageErrored}
+        isCompactLayout={isCompactLayout}
+        onImageError={handleImageError}
+        onOpen={() => editorRef.current?.openView()}
+        press={press}
+        wishlistItem={wishlistItem}
       />
       {canDelete ? (
         <DeleteWishlistItem
