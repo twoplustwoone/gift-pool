@@ -7,14 +7,20 @@ FROM node:20-bookworm-slim as base
 ENV NODE_ENV production
 
 # Install openssl for Prisma
-RUN apt-get update && apt-get install --no-install-recommends -y fuse3 openssl sqlite3 ca-certificates
+RUN apt-get update && \
+  apt-get install --no-install-recommends -y \
+    ca-certificates \
+    fuse3 \
+    openssl \
+    sqlite3 && \
+  rm -rf /var/lib/apt/lists/*
 
 # Install all node_modules, including dev dependencies
 FROM base as deps
 
 WORKDIR /myapp
 
-ADD package.json package-lock.json .npmrc ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci --include=dev --ignore-scripts && npm rebuild esbuild better-sqlite3 sharp
 
 # Setup production node_modules
@@ -23,7 +29,7 @@ FROM base as production-deps
 WORKDIR /myapp
 
 COPY --from=deps /myapp/node_modules /myapp/node_modules
-ADD package.json package-lock.json .npmrc ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm prune --omit=dev
 
 # Build the app
@@ -40,11 +46,15 @@ ENV COMMIT_SHA=$COMMIT_SHA
 WORKDIR /myapp
 
 COPY --from=deps /myapp/node_modules /myapp/node_modules
+COPY package.json package-lock.json .npmrc components.json index.js postcss.config.js react-router.config.ts tailwind.config.ts tsconfig.json vite.config.ts ./
+COPY app ./app
+COPY prisma ./prisma
+COPY public ./public
+COPY server ./server
+COPY types ./types
+COPY other ./other
 
-ADD prisma .
 RUN npx prisma generate
-
-ADD . .
 
 # Mount the secret and set it as an environment variable and run the build
 RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN \
@@ -67,8 +77,11 @@ ENV NODE_ENV="production"
 # For WAL support: https://github.com/prisma/prisma-engines/issues/4675#issuecomment-1914383246
 ENV PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK="1"
 
-# add shortcut for connecting to database CLI
-RUN echo "#!/bin/sh\nset -x\nsqlite3 \$DATABASE_URL" > /usr/local/bin/database-cli && chmod +x /usr/local/bin/database-cli
+# Allow LiteFS to expose the FUSE mount to the non-root app process and add a
+# shortcut for connecting to the database CLI.
+RUN printf 'user_allow_other\n' >> /etc/fuse.conf && \
+  echo "#!/bin/sh\nset -x\nsqlite3 \$DATABASE_URL" > /usr/local/bin/database-cli && \
+  chmod +x /usr/local/bin/database-cli
 
 WORKDIR /myapp
 
@@ -81,15 +94,15 @@ COPY --from=build /myapp/node_modules/.prisma /myapp/node_modules/.prisma
 
 COPY --from=build /myapp/server-build /myapp/server-build
 COPY --from=build /myapp/build /myapp/build
+COPY --from=build /myapp/index.js /myapp/index.js
 COPY --from=build /myapp/package.json /myapp/package.json
 COPY --from=build /myapp/prisma /myapp/prisma
+COPY --from=build /myapp/public /myapp/public
 COPY --from=build /myapp/app/components/ui/icons /myapp/app/components/ui/icons
 
 # prepare for litefs
 COPY --from=flyio/litefs:0.5.14 /usr/local/bin/litefs /usr/local/bin/litefs
-ADD other/litefs.yml /etc/litefs.yml
-RUN mkdir -p /data ${LITEFS_DIR}
-
-ADD . .
+COPY other/litefs.yml /etc/litefs.yml
+RUN mkdir -p /data ${LITEFS_DIR} && chown -R node:node /myapp /data ${LITEFS_DIR}
 
 CMD ["litefs", "mount"]
