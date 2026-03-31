@@ -3,6 +3,8 @@ fuse:
   # Required. This is the mount directory that applications will
   # use to access their SQLite databases.
   dir: '${LITEFS_DIR}'
+  # Allow the non-root app process to access the LiteFS mount.
+  allow-other: true
 
 data:
   # Path to internal data storage.
@@ -40,4 +42,4 @@ exec:
   - cmd: sqlite3 $CACHE_DATABASE_PATH "PRAGMA journal_mode = WAL;"
     if-candidate: true
 
-  - cmd: npm start
+  - cmd: 'su -m -s /bin/sh node -c "cd /myapp && npm start"'

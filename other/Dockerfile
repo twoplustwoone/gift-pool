@@ -71,6 +71,9 @@ ENV NODE_ENV="production"
 # For WAL support: https://github.com/prisma/prisma-engines/issues/4675#issuecomment-1914383246
 ENV PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK="1"
 
+# Allow LiteFS to expose the FUSE mount to the non-root app process.
+RUN printf 'user_allow_other\n' >> /etc/fuse.conf
+
 # add shortcut for connecting to database CLI
 RUN echo "#!/bin/sh\nset -x\nsqlite3 \$DATABASE_URL" > /usr/local/bin/database-cli && chmod +x /usr/local/bin/database-cli
 
@@ -93,9 +96,7 @@ COPY --from=build /myapp/app/components/ui/icons /myapp/app/components/ui/icons
 
 # prepare for litefs
 COPY --from=flyio/litefs:0.5.14 /usr/local/bin/litefs /usr/local/bin/litefs
-ADD other/litefs.yml /etc/litefs.yml
-RUN mkdir -p /data ${LITEFS_DIR}
-
-ADD . .
+COPY other/litefs.yml /etc/litefs.yml
+RUN mkdir -p /data ${LITEFS_DIR} && chown -R node:node /myapp /data ${LITEFS_DIR}
 
 CMD ["litefs", "mount"]
