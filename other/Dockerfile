@@ -7,7 +7,13 @@ FROM node:20-bookworm-slim as base
 ENV NODE_ENV production
 
 # Install openssl for Prisma
-RUN apt-get update && apt-get install --no-install-recommends -y fuse3 openssl sqlite3 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+  apt-get install --no-install-recommends -y \
+    fuse3 \
+    openssl \
+    sqlite3 \
+    ca-certificates && \
+  rm -rf /var/lib/apt/lists/*
 
 # Install all node_modules, including dev dependencies
 FROM base as deps
@@ -71,11 +77,11 @@ ENV NODE_ENV="production"
 # For WAL support: https://github.com/prisma/prisma-engines/issues/4675#issuecomment-1914383246
 ENV PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK="1"
 
-# Allow LiteFS to expose the FUSE mount to the non-root app process.
-RUN printf 'user_allow_other\n' >> /etc/fuse.conf
-
-# add shortcut for connecting to database CLI
-RUN echo "#!/bin/sh\nset -x\nsqlite3 \$DATABASE_URL" > /usr/local/bin/database-cli && chmod +x /usr/local/bin/database-cli
+# Allow LiteFS to expose the FUSE mount to the non-root app process and add a
+# shortcut for connecting to the database CLI.
+RUN printf 'user_allow_other\n' >> /etc/fuse.conf && \
+  echo "#!/bin/sh\nset -x\nsqlite3 \$DATABASE_URL" > /usr/local/bin/database-cli && \
+  chmod +x /usr/local/bin/database-cli
 
 WORKDIR /myapp
 
