@@ -133,3 +133,59 @@ test('friends can view the full profile details', async () => {
   expect(data).toHaveProperty('userJoinedDisplay');
   expect(data.relationship.state).toBe('FRIENDS');
 });
+
+test('viewing your own profile redirects to /me', async () => {
+  await ensureUserRole();
+  const viewer = await prisma.user.create({
+    data: {
+      ...createUser(),
+      password: { create: createPassword() },
+      roles: { connect: { name: 'user' } },
+    },
+  });
+
+  const request = await buildAuthenticatedRequest(viewer.id, viewer.username);
+  const context = {
+    cspNonce: undefined,
+    serverBuild: undefined,
+  } as unknown as AppLoadContext;
+
+  const response = await loader(
+    toLoaderArgs({
+      params: { username: viewer.username },
+      request,
+      context,
+    }),
+  );
+
+  expect(response).toBeInstanceOf(Response);
+  expect((response as Response).status).toBe(302);
+  expect((response as Response).headers.get('Location')).toBe('/me');
+});
+
+test('missing users return a 404 response', async () => {
+  await ensureUserRole();
+  const viewer = await prisma.user.create({
+    data: {
+      ...createUser(),
+      password: { create: createPassword() },
+      roles: { connect: { name: 'user' } },
+    },
+  });
+
+  const request = await buildAuthenticatedRequest(viewer.id, 'missing-user');
+  const context = {
+    cspNonce: undefined,
+    serverBuild: undefined,
+  } as unknown as AppLoadContext;
+
+  await expect(
+    loader(
+      toLoaderArgs({
+        params: { username: 'missing-user' },
+        request,
+        context,
+      }),
+    ),
+  ).rejects.toMatchObject({ status: 404 });
+});

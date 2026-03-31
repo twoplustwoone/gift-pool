@@ -222,14 +222,14 @@ type UseFriendsRouteStateOptions = Readonly<{
 }>;
 type FriendsRouteState = ReturnType<typeof useFriendsRouteState>;
 
-function getActiveTab(searchParams: URLSearchParams): FriendsTab {
+export function getActiveTab(searchParams: URLSearchParams): FriendsTab {
   const activeTabParam = (searchParams.get('tab') ?? 'friends').toLowerCase();
   return activeTabParam === 'add' || activeTabParam === 'requests'
     ? activeTabParam
     : 'friends';
 }
 
-function addFriendIfMissing(
+export function addFriendIfMissing(
   friends: FriendEntry[],
   entry: FriendEntry,
 ) {
@@ -239,7 +239,7 @@ function addFriendIfMissing(
   return [...friends, entry];
 }
 
-function buildFriendEntry(
+export function buildFriendEntry(
   requestId: string,
   user: FriendEntry['user'],
   friendshipId?: string | null,
@@ -251,7 +251,7 @@ function buildFriendEntry(
   };
 }
 
-async function submitRequestMutation(
+export async function submitRequestMutation(
   id: string,
   action: RequestMutationAction,
 ): Promise<RequestMutationResponse> {
@@ -283,7 +283,7 @@ async function submitRequestMutation(
   };
 }
 
-async function runBatchRequestMutation(
+export async function runBatchRequestMutation(
   ids: string[],
   action: RequestMutationAction,
 ) {
@@ -307,7 +307,7 @@ async function runBatchRequestMutation(
   return { failedIds, unreadCount };
 }
 
-async function runOptimisticRequestBatch<TRequest extends { id: string }>(
+export async function runOptimisticRequestBatch<TRequest extends { id: string }>(
   ids: string[],
   action: RequestMutationAction,
   requests: TRequest[],
@@ -334,7 +334,7 @@ async function runOptimisticRequestBatch<TRequest extends { id: string }>(
   toast.success(messages.success);
 }
 
-function getRequestMutationMessages(
+export function getRequestMutationMessages(
   action: RequestMutationAction,
   count: number,
 ) {
@@ -358,7 +358,7 @@ function getRequestMutationMessages(
   };
 }
 
-function filterFriends(
+export function filterFriends(
   friends: FriendEntry[],
   term: string,
 ) {
@@ -374,14 +374,14 @@ function filterFriends(
   });
 }
 
-function toggleSelection(set: Set<string>, id: string, selected: boolean) {
+export function toggleSelection(set: Set<string>, id: string, selected: boolean) {
   const next = new Set(set);
   if (selected) next.add(id);
   else next.delete(id);
   return next;
 }
 
-function applyIncomingRelationshipTransition(
+export function applyIncomingRelationshipTransition(
   incoming: IncomingEntry[],
   requestId: string,
   snapshot: RelationshipSnapshot,
@@ -392,7 +392,7 @@ function applyIncomingRelationshipTransition(
   return incoming;
 }
 
-function applyOutgoingRelationshipTransition(
+export function applyOutgoingRelationshipTransition(
   outgoing: OutgoingEntry[],
   requestId: string,
   snapshot: RelationshipSnapshot,
@@ -403,11 +403,11 @@ function applyOutgoingRelationshipTransition(
   return outgoing;
 }
 
-function extractInviteUser(detail: FriendshipEventDetail) {
+export function extractInviteUser(detail: FriendshipEventDetail) {
   return (detail as FriendshipEventDetail & { user?: FriendEntry['user'] }).user;
 }
 
-function toRelationshipSnapshot(
+export function toRelationshipSnapshot(
   detail: Pick<
     FriendshipEventDetail,
     'state' | 'friendshipId' | 'incomingRequestId' | 'outgoingRequestId'
@@ -421,7 +421,7 @@ function toRelationshipSnapshot(
   };
 }
 
-function getMutualGroupChips(
+export function getMutualGroupChips(
   mutuals: Record<
     string,
     {
@@ -885,7 +885,7 @@ function InviteQrDialog({
   );
 }
 
-function mapSearchResults(
+export function mapSearchResults(
   results: Array<{
     relationship: {
       friendship?: { id?: string | null } | null;
@@ -907,7 +907,7 @@ function mapSearchResults(
   }));
 }
 
-function createOutgoingEntry(
+export function createOutgoingEntry(
   requestId: string,
   user: FriendEntry['user'],
 ): OutgoingEntry {
@@ -920,7 +920,7 @@ function createOutgoingEntry(
   } as unknown as OutgoingEntry;
 }
 
-function syncIncomingForFriendshipEvent(
+export function syncIncomingForFriendshipEvent(
   detail: FriendshipEventDetail,
   addFriendEntry: (entry: FriendEntry) => void,
   setIncomingState: React.Dispatch<React.SetStateAction<IncomingEntry[]>>,
@@ -939,7 +939,7 @@ function syncIncomingForFriendshipEvent(
   });
 }
 
-function syncOutgoingForFriendshipEvent(
+export function syncOutgoingForFriendshipEvent(
   detail: FriendshipEventDetail,
   addFriendEntry: (entry: FriendEntry) => void,
   setOutgoingState: React.Dispatch<React.SetStateAction<OutgoingEntry[]>>,
@@ -958,7 +958,7 @@ function syncOutgoingForFriendshipEvent(
   });
 }
 
-function syncFriendsForFriendshipEvent(
+export function syncFriendsForFriendshipEvent(
   detail: FriendshipEventDetail,
   setFriendsState: React.Dispatch<React.SetStateAction<FriendEntry[]>>,
 ) {
