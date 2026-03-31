@@ -17,11 +17,12 @@ jobs:
     name: ⬣ ESLint
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 20
-      - uses: bahmutov/npm-install@v1
+          cache: npm
+      - run: npm ci
       - run: npm run build:icons
       - run: npm run lint
 
@@ -29,11 +30,12 @@ jobs:
     name: ʦ TypeScript
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 20
-      - uses: bahmutov/npm-install@v1
+          cache: npm
+      - run: npm ci
       - run: npm run build:icons
       - run: npm run typecheck --if-present
 
@@ -41,11 +43,12 @@ jobs:
     name: ⚡ Vitest
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 20
-      - uses: bahmutov/npm-install@v1
+          cache: npm
+      - run: npm ci
       - run: cp .env.example .env
       - run: npm run build:icons
       - run: npm run test -- --coverage
@@ -55,16 +58,17 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
       - run: cp .env.example .env
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 20
-      - uses: bahmutov/npm-install@v1
+          cache: npm
+      - run: npm ci
       - run: npm run test:e2e:install
       - run: npx prisma migrate deploy
       - id: db-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: prisma/data.db
           key: db-cache-schema_${{
@@ -76,7 +80,7 @@ jobs:
           MINIMAL_SEED: true
       - run: npm run build
       - run: npx playwright test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: playwright-report

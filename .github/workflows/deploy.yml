@@ -22,17 +22,17 @@ jobs:
     name: Deploy
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
         with:
           fetch-depth: 50
 
-      - uses: SebRollen/toml-action@v1.2.0
+      - uses: SebRollen/toml-action@b1b3628f55fc3a28208d4203ada8b737e9687876
         id: app_name
         with:
           file: fly.toml
           field: app
 
-      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be
 
       # Production (main)
       - name: Deploy Production (main branch)
