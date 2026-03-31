@@ -64,7 +64,7 @@ jobs:
       - run: npm run test:e2e:install
       - run: npx prisma migrate deploy
       - id: db-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: prisma/data.db
           key: db-cache-schema_${{
