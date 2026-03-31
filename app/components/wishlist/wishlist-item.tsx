@@ -149,6 +149,7 @@ type WishlistNonOwnerTriggerProps = Readonly<{
 }>;
 type WishlistOwnerTriggerProps = Readonly<{
   actionMenu: React.ReactNode;
+  ariaLabel: string;
   displayImageSrc: string | null;
   dragState: WishlistItemDragState;
   imageBlock: React.ReactNode;
@@ -748,6 +749,7 @@ function WishlistNonOwnerTrigger({
 
 function WishlistOwnerTrigger({
   actionMenu,
+  ariaLabel,
   displayImageSrc,
   dragState,
   imageBlock,
@@ -786,6 +788,7 @@ function WishlistOwnerTrigger({
           <Card
             variant="interactive"
             padding="sm"
+            aria-label={ariaLabel}
             className={desktopCardClass}
             data-testid="wishlist-item-row"
             data-drag-state={dragState}
@@ -831,6 +834,7 @@ function WishlistOwnerTrigger({
           variant="interactive"
           padding="none"
           role="button"
+          aria-label={ariaLabel}
           tabIndex={0}
           className={cn(
             'min-h-[4.25rem] min-w-0 cursor-pointer touch-pan-y rounded-xl border border-border/80 bg-card shadow-sm transition [-webkit-tap-highlight-color:transparent] data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/20',
@@ -1125,13 +1129,14 @@ export const WishlistItem = ({
       />
       <WishlistOwnerTrigger
         actionMenu={actionMenu}
+        ariaLabel={wishlistItem.title}
         displayImageSrc={displayImageSrc}
         dragState={dragState}
         imageBlock={imageBlock}
         imageErrored={imageErrored}
         isCompactLayout={isCompactLayout}
         onImageError={handleImageError}
-        onOpen={() => editorRef.current?.openView()}
+        onOpen={() => editorRef.current?.openEdit()}
         press={press}
         wishlistItem={wishlistItem}
       />
