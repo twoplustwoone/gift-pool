@@ -1,16 +1,13 @@
 /**
  * @vitest-environment jsdom
  */
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { createRoutesStub } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  FRIENDSHIP_UPDATED_EVENT,
-  dispatchFriendshipUpdate,
-} from '#app/utils/friendship-events.ts';
+import { dispatchFriendshipUpdate } from '#app/utils/friendship-events.ts';
 import FriendsRoute, {
   addFriendIfMissing,
   applyIncomingRelationshipTransition,
@@ -264,22 +261,37 @@ function createFriend(friendshipId: string, username: string, name = username) {
 
 function createIncoming(id: string, username: string, name = username) {
   return {
-    createdAt: new Date('2026-03-31T00:00:00.000Z').toISOString(),
+    createdAt: new Date('2026-03-31T00:00:00.000Z'),
     fromUser: createUser(`${id}-user`, username, name),
+    fromUserId: `${id}-user`,
     id,
+    notification: null,
     status: 'PENDING',
-    updatedAt: new Date('2026-03-31T00:00:00.000Z').toISOString(),
+    toUserId: 'viewer-1',
+    updatedAt: new Date('2026-03-31T00:00:00.000Z'),
   };
 }
 
 function createOutgoing(id: string, username: string, name = username) {
   return {
-    createdAt: new Date('2026-03-31T00:00:00.000Z').toISOString(),
+    createdAt: new Date('2026-03-31T00:00:00.000Z'),
+    fromUserId: 'viewer-1',
     id,
+    notification: null,
     status: 'PENDING',
     toUser: createUser(`${id}-user`, username, name),
-    updatedAt: new Date('2026-03-31T00:00:00.000Z').toISOString(),
+    toUserId: `${id}-user`,
+    updatedAt: new Date('2026-03-31T00:00:00.000Z'),
   };
+}
+
+function applyStateUpdate<T>(
+  updater: React.SetStateAction<T>,
+  previous: T,
+): T {
+  return typeof updater === 'function'
+    ? (updater as (prev: T) => T)(previous)
+    : updater;
 }
 
 function renderFriendsRoute({
@@ -439,11 +451,16 @@ describe('/friends route helpers', () => {
   it('optimistically removes requests and restores failures', async () => {
     const requests = [{ id: 'request-1' }, { id: 'request-2' }];
     const updates: Array<Array<{ id: string }>> = [];
-    const setRequests = vi.fn((updater: (prev: Array<{ id: string }>) => Array<{ id: string }>) => {
-      const next = updater(updates.length === 0 ? requests : updates.at(-1)!);
+    const setRequests: React.Dispatch<React.SetStateAction<Array<{ id: string }>>> = (
+      updater,
+    ) => {
+      const next = applyStateUpdate(
+        updater,
+        updates.length === 0 ? requests : (updates.at(-1) ?? requests),
+      );
       updates.push(next);
       return next;
-    });
+    };
 
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response(null, { status: 500 }))
@@ -574,8 +591,8 @@ describe('/friends route helpers', () => {
 
   it('syncs incoming, outgoing, and existing friends from friendship events', () => {
     const addFriendEntry = vi.fn();
-    const incomingUpdates: Array<Array<ReturnType<typeof createIncoming>>> = [];
-    const outgoingUpdates: Array<Array<ReturnType<typeof createOutgoing>>> = [];
+    const incomingUpdates: Array<unknown[]> = [];
+    const outgoingUpdates: Array<unknown[]> = [];
     const friendUpdates: Array<Array<ReturnType<typeof createFriend>>> = [];
 
     syncIncomingForFriendshipEvent(
@@ -586,12 +603,9 @@ describe('/friends route helpers', () => {
       },
       addFriendEntry,
       (updater) => {
-        incomingUpdates.push(
-          updater([createIncoming('incoming-1', 'sam', 'Sam')]) as Array<
-            ReturnType<typeof createIncoming>
-          >,
-        );
-        return incomingUpdates.at(-1)!;
+        const next = applyStateUpdate(updater, [createIncoming('incoming-1', 'sam', 'Sam')]);
+        incomingUpdates.push(next as unknown[]);
+        return incomingUpdates.at(-1) ?? [];
       },
     );
 
@@ -603,12 +617,9 @@ describe('/friends route helpers', () => {
       },
       addFriendEntry,
       (updater) => {
-        outgoingUpdates.push(
-          updater([createOutgoing('outgoing-1', 'jules', 'Jules')]) as Array<
-            ReturnType<typeof createOutgoing>
-          >,
-        );
-        return outgoingUpdates.at(-1)!;
+        const next = applyStateUpdate(updater, [createOutgoing('outgoing-1', 'jules', 'Jules')]);
+        outgoingUpdates.push(next as unknown[]);
+        return outgoingUpdates.at(-1) ?? [];
       },
     );
 
@@ -619,11 +630,9 @@ describe('/friends route helpers', () => {
       },
       (updater) => {
         friendUpdates.push(
-          updater([createFriend('friendship-1', 'alex', 'Alex')]) as Array<
-            ReturnType<typeof createFriend>
-          >,
+          applyStateUpdate(updater, [createFriend('friendship-1', 'alex', 'Alex')]),
         );
-        return friendUpdates.at(-1)!;
+        return friendUpdates.at(-1) ?? [];
       },
     );
 
@@ -636,9 +645,9 @@ describe('/friends route helpers', () => {
       },
       (updater) => {
         friendUpdates.push(
-          updater(friendUpdates.at(-1) ?? []) as Array<ReturnType<typeof createFriend>>,
+          applyStateUpdate(updater, friendUpdates.at(-1) ?? []),
         );
-        return friendUpdates.at(-1)!;
+        return friendUpdates.at(-1) ?? [];
       },
     );
 
@@ -646,7 +655,7 @@ describe('/friends route helpers', () => {
     expect(incomingUpdates[0]).toEqual([]);
     expect(outgoingUpdates[0]).toEqual([]);
     expect(friendUpdates[0]).toEqual([]);
-    expect(friendUpdates[1][0]?.user.username).toBe('pat');
+    expect(friendUpdates[1]?.[0]?.user.username).toBe('pat');
     expect(
       extractInviteUser({
         state: 'FRIENDS',
@@ -681,7 +690,9 @@ describe('/friends route rendering', () => {
   it('renders requests tab, selection mode, and batch actions', async () => {
     renderFriendsRoute({ entry: '/friends?tab=requests' });
 
-    expect((await screen.findAllByRole('button', { name: 'Select' })).length).toBe(2);
+    await expect(
+      screen.findAllByRole('button', { name: 'Select' }),
+    ).resolves.toHaveLength(2);
     await userEvent.click((await screen.findAllByRole('button', { name: 'Select' }))[0]!);
     expect(screen.getByLabelText('Select @sam')).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText('Select @sam'));

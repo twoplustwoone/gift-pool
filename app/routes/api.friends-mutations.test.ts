@@ -42,8 +42,8 @@ vi.mock('#app/utils/db.server.ts', () => ({
 import { action as acceptAction } from './api.friends.requests..accept.ts';
 import { action as cancelAction } from './api.friends.requests..cancel.ts';
 import { action as rejectAction } from './api.friends.requests..reject.ts';
-import { action as requestAction } from './api.friends.requests.ts';
 import { action as removeAction } from './api.friends.remove.ts';
+import { action as requestAction } from './api.friends.requests.ts';
 
 beforeEach(() => {
   requireUserId.mockReset().mockResolvedValue('viewer-1');
@@ -277,4 +277,3 @@ describe('friends mutation routes', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 });
-

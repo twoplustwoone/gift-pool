@@ -39,9 +39,7 @@ vi.mock('#app/components/friends/friend-gate-card.tsx', () => ({
 }));
 
 vi.mock('#app/utils/misc.tsx', async () => {
-  const actual = await vi.importActual<typeof import('#app/utils/misc.tsx')>(
-    '#app/utils/misc.tsx',
-  );
+  const actual = await vi.importActual('#app/utils/misc.tsx');
   return {
     ...actual,
     getUserImgSrc: (id?: string | null) => (id ? `/images/${id}` : '/images/default'),
@@ -179,7 +177,9 @@ describe('/users/:username route component', () => {
         name: 'description',
       },
     ]);
-    expect(meta({ data: undefined, params: { username: 'alex' } } as never)[0]).toEqual({
+    expect(
+      meta({ data: undefined, params: { username: 'alex' } } as never),
+    ).toContainEqual({
       title: 'alex | GiftPool',
     });
   });

@@ -47,9 +47,7 @@ const loaderDataSnapshot: {
 };
 
 vi.mock('react-router', async () => {
-  const actual = await vi.importActual<typeof import('react-router')>(
-    'react-router',
-  );
+  const actual = await vi.importActual('react-router');
 
   return {
     ...actual,
@@ -95,9 +93,9 @@ vi.mock('#app/utils/user.ts', () => ({
   useOptionalUser: () => useOptionalUser(),
 }));
 
-import IndexRoute, { loader, meta } from './index.tsx';
 import { HOME_COPY } from '#app/components/home/home-copy.ts';
 import { HomePanels } from '#app/components/home/HomePanels.tsx';
+import IndexRoute, { loader, meta } from './index.tsx';
 
 beforeEach(() => {
   fetcherLoad.mockReset();

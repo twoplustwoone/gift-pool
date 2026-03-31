@@ -16,9 +16,7 @@ const pressState = {
 };
 
 vi.mock('react-router', async () => {
-  const actual = await vi.importActual<typeof import('react-router')>(
-    'react-router',
-  );
+  const actual = await vi.importActual('react-router');
 
   return {
     ...actual,
@@ -173,6 +171,9 @@ describe('group surface components', () => {
     expect(fetcherSubmit).toHaveBeenCalledTimes(2);
 
     const leaveCall = fetcherSubmit.mock.calls[0];
+    if (!leaveCall) {
+      throw new Error('expected leave call');
+    }
     const leaveData = leaveCall[0] as FormData;
     expect(leaveData.get('giftGroupId')).toBe('group-42');
     expect(leaveData.get('intent')).toBe('leave-gift-group');
@@ -182,6 +183,9 @@ describe('group surface components', () => {
     });
 
     const deleteCall = fetcherSubmit.mock.calls[1];
+    if (!deleteCall) {
+      throw new Error('expected delete call');
+    }
     const deleteData = deleteCall[0] as FormData;
     expect(deleteData.get('intent')).toBe('delete-gift-group');
   });
