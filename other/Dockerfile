@@ -9,10 +9,10 @@ ENV NODE_ENV production
 # Install openssl for Prisma
 RUN apt-get update && \
   apt-get install --no-install-recommends -y \
+    ca-certificates \
     fuse3 \
     openssl \
-    sqlite3 \
-    ca-certificates && \
+    sqlite3 && \
   rm -rf /var/lib/apt/lists/*
 
 # Install all node_modules, including dev dependencies
