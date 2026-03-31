@@ -26,7 +26,7 @@ jobs:
         with:
           fetch-depth: 50
 
-      - uses: SebRollen/toml-action@b1b3628f55fc3a28208d4203ada8b737e9687876
+      - uses: SebRollen/toml-action@4cdab426d5e7838199ed25c199e8c0a1ce806671
         id: app_name
         with:
           file: fly.toml
