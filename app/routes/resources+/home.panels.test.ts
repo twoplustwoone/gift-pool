@@ -20,6 +20,21 @@ vi.mock('#app/utils/db.server', () => ({
 
 import { loader } from './home.panels.tsx';
 
+function localCalendarDate(year: number, monthIndex: number, day: number) {
+  return new Date(year, monthIndex, day, 12);
+}
+
+function expectedBirthdayOutput(monthIndex: number, day: number) {
+  const nextBirthday = new Date(2026, monthIndex, day);
+  return {
+    dateISO: nextBirthday.toISOString().slice(0, 10),
+    dateLabel: new Intl.DateTimeFormat('en', {
+      day: 'numeric',
+      month: 'short',
+    }).format(nextBirthday),
+  };
+}
+
 describe('app/routes/resources+/home.panels.tsx', () => {
   it('returns mocked empty and data responses when requested', async () => {
     await expect(
@@ -79,7 +94,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
           groupMembers: [
             {
               user: {
-                birthday: new Date('1990-04-05T00:00:00.000Z'),
+                birthday: localCalendarDate(1990, 3, 5),
                 id: 'friend-near',
                 name: 'Alex',
                 username: 'alex',
@@ -87,7 +102,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
             },
             {
               user: {
-                birthday: new Date('1992-06-20T00:00:00.000Z'),
+                birthday: localCalendarDate(1992, 5, 20),
                 id: 'friend-far',
                 name: 'Distant',
                 username: 'distant',
@@ -95,7 +110,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
             },
             {
               user: {
-                birthday: new Date('1991-04-08T00:00:00.000Z'),
+                birthday: localCalendarDate(1991, 3, 8),
                 id: 'viewer-1',
                 name: 'Viewer',
                 username: 'viewer',
@@ -110,7 +125,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
           groupMembers: [
             {
               user: {
-                birthday: new Date('1990-04-05T00:00:00.000Z'),
+                birthday: localCalendarDate(1990, 3, 5),
                 id: 'friend-near',
                 name: 'Alex',
                 username: 'alex',
@@ -126,7 +141,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
             },
             {
               user: {
-                birthday: new Date('1993-04-03T00:00:00.000Z'),
+                birthday: localCalendarDate(1993, 3, 3),
                 id: 'friend-soon',
                 name: null,
                 username: 'soon',
@@ -138,7 +153,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
     ]);
 
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-03-31T12:00:00.000Z'));
+    vi.setSystemTime(localCalendarDate(2026, 2, 31));
 
     try {
       const result = await loader({
@@ -187,15 +202,13 @@ describe('app/routes/resources+/home.panels.tsx', () => {
         'Alex',
       ]);
       expect(result.birthdays[0]).toMatchObject({
+        ...expectedBirthdayOutput(3, 3),
         username: 'soon',
       });
       expect(result.birthdays[1]).toMatchObject({
+        ...expectedBirthdayOutput(3, 5),
         username: 'alex',
       });
-      for (const birthday of result.birthdays) {
-        expect(birthday.dateISO).toMatch(/^2026-04-0[24]$/);
-        expect(birthday.dateLabel).toMatch(/^Apr \d{1,2}$/);
-      }
     } finally {
       vi.useRealTimers();
     }
