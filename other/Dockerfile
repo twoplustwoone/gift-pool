@@ -7,14 +7,14 @@ FROM node:20-bookworm-slim as base
 ENV NODE_ENV production
 
 # Install openssl for Prisma
-RUN apt-get update && apt-get install --no-install-recommends -y fuse3 openssl sqlite3 ca-certificates
+RUN apt-get update && apt-get install --no-install-recommends -y fuse3 openssl sqlite3 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Install all node_modules, including dev dependencies
 FROM base as deps
 
 WORKDIR /myapp
 
-ADD package.json package-lock.json .npmrc ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci --include=dev --ignore-scripts && npm rebuild esbuild better-sqlite3 sharp
 
 # Setup production node_modules
@@ -23,7 +23,7 @@ FROM base as production-deps
 WORKDIR /myapp
 
 COPY --from=deps /myapp/node_modules /myapp/node_modules
-ADD package.json package-lock.json .npmrc ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm prune --omit=dev
 
 # Build the app
@@ -40,11 +40,15 @@ ENV COMMIT_SHA=$COMMIT_SHA
 WORKDIR /myapp
 
 COPY --from=deps /myapp/node_modules /myapp/node_modules
+COPY package.json package-lock.json .npmrc components.json index.js postcss.config.js react-router.config.ts tailwind.config.ts tsconfig.json vite.config.ts ./
+COPY app ./app
+COPY prisma ./prisma
+COPY public ./public
+COPY server ./server
+COPY types ./types
+COPY other ./other
 
-ADD prisma .
 RUN npx prisma generate
-
-ADD . .
 
 # Mount the secret and set it as an environment variable and run the build
 RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN \
@@ -81,8 +85,10 @@ COPY --from=build /myapp/node_modules/.prisma /myapp/node_modules/.prisma
 
 COPY --from=build /myapp/server-build /myapp/server-build
 COPY --from=build /myapp/build /myapp/build
+COPY --from=build /myapp/index.js /myapp/index.js
 COPY --from=build /myapp/package.json /myapp/package.json
 COPY --from=build /myapp/prisma /myapp/prisma
+COPY --from=build /myapp/public /myapp/public
 COPY --from=build /myapp/app/components/ui/icons /myapp/app/components/ui/icons
 
 # prepare for litefs
