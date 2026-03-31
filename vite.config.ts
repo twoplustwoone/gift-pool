@@ -93,6 +93,7 @@ export default defineConfig({
     coverage: {
       include: ['app/**/*.{ts,tsx}'],
       all: true,
+      reporter: ['text', 'html', 'lcov'],
     },
   },
 });
