@@ -27,6 +27,6 @@ jobs:
       - run: cp .env.example .env
       - run: npm run coverage
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@3988e54db2467c7e9583a4af619c3f5647d6b8ad
+        uses: SonarSource/sonarqube-scan-action@299e4b793aaa83bf2aba7c9c14bedbb485688ec4
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
