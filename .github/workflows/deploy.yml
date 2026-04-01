@@ -32,7 +32,7 @@ jobs:
           file: fly.toml
           field: app
 
-      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be
+      - uses: superfly/flyctl-actions/setup-flyctl@63da3ecc5e2793b98a3f2519b3d75d4f4c11cec2
 
       # Production (main)
       - name: Deploy Production (main branch)
