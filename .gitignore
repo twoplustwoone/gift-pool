@@ -28,3 +28,7 @@ node_modules
 
 *storybook.log
 storybook-static
+
+# IDE / AI tool local configs
+.codex/
+.cursor/
