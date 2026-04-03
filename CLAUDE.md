@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Gift Pool is a full-stack web application for managing wishlists and coordinating gifts within groups. Built with Remix, React, TypeScript, Prisma (SQLite), and Tailwind CSS. Deployed on Fly.io with LiteFS for distributed SQLite.
+Gift Pool is a full-stack web application for managing wishlists and coordinating gifts within groups. Built with React Router v7, React, TypeScript, Prisma (SQLite), and Tailwind CSS. Deployed on Fly.io with LiteFS for distributed SQLite.
 
 ## Commands
 
@@ -62,7 +62,7 @@ app/
 │   ├── friends/        # Friend relationship components
 │   ├── groups/         # Gift group components
 │   └── wishlist/       # Wishlist components
-├── routes/             # File-based routing (Remix flat-routes)
+├── routes/             # File-based routing (react-router flat-routes)
 │   ├── _auth+/         # Auth flows (login, signup, verify, reset)
 │   ├── _marketing+/    # Public pages (about, privacy, tos)
 │   ├── admin+/         # Admin dashboard
@@ -82,7 +82,7 @@ tests/
 └── setup/             # Test config
 ```
 
-### Routing Conventions (remix-flat-routes)
+### Routing Conventions (react-router flat-routes)
 
 - `_prefix+/` = route group (e.g., `_auth+/login.tsx`)
 - `$param` = dynamic segment (e.g., `$giftGroupId_+/`)
