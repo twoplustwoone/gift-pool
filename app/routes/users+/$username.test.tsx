@@ -13,11 +13,9 @@ vi.mock('#app/utils/user.ts', () => ({
 }));
 
 vi.mock('#app/components/friends/friend-action-button.tsx', () => ({
-  FriendActionButton: ({
-    targetUserName,
-  }: {
-    targetUserName: string;
-  }) => <button type="button">Add {targetUserName}</button>,
+  FriendActionButton: ({ targetUserName }: { targetUserName: string }) => (
+    <button type="button">Add {targetUserName}</button>
+  ),
 }));
 
 vi.mock('#app/components/friends/friend-gate-card.tsx', () => ({
@@ -42,11 +40,12 @@ vi.mock('#app/utils/misc.tsx', async () => {
   const actual = await vi.importActual('#app/utils/misc.tsx');
   return {
     ...actual,
-    getUserImgSrc: (id?: string | null) => (id ? `/images/${id}` : '/images/default'),
+    getUserImgSrc: (id?: string | null) =>
+      id ? `/images/${id}` : '/images/default',
   };
 });
 
-import ProfileRoute, { meta } from './$username.tsx';
+import ProfileRoute, { meta } from './$username_+/index.tsx';
 
 describe('/users/:username route component', () => {
   it('renders the friend gate when the profile is not visible', async () => {
@@ -82,7 +81,9 @@ describe('/users/:username route component', () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Send a friend request to view Taylor's profile details."),
+      screen.getByText(
+        "Send a friend request to view Taylor's profile details.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Go to friends' })).toHaveAttribute(
       'href',
@@ -119,7 +120,9 @@ describe('/users/:username route component', () => {
 
     render(<App initialEntries={['/users/taylor']} />);
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Taylor' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Taylor' }),
+    ).toBeInTheDocument();
     expect(screen.getByText('Joined 3/31/2026')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Logout' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'My wishlist' })).toHaveAttribute(
@@ -161,16 +164,24 @@ describe('/users/:username route component', () => {
 
     render(<App initialEntries={['/users/taylor']} />);
 
-    expect(await screen.findByRole('button', { name: 'Add Taylor' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: "Taylor's wishlist" })).toHaveAttribute(
-      'href',
-      '/users/taylor/wishlist',
-    );
-    expect(screen.queryByRole('button', { name: 'Logout' })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Add Taylor' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: "Taylor's wishlist" }),
+    ).toHaveAttribute('href', '/users/taylor/wishlist');
+    expect(
+      screen.queryByRole('button', { name: 'Logout' }),
+    ).not.toBeInTheDocument();
   });
 
   it('builds route meta from data and params', () => {
-    expect(meta({ data: { user: { name: 'Taylor' } }, params: { username: 'taylor' } } as never)).toEqual([
+    expect(
+      meta({
+        data: { user: { name: 'Taylor' } },
+        params: { username: 'taylor' },
+      } as never),
+    ).toEqual([
       { title: 'Taylor | GiftPool' },
       {
         content: 'Profile of Taylor on GiftPool',

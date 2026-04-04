@@ -12,7 +12,7 @@ import {
   toLoaderArgs,
 } from '#tests/route-module-test-utils.ts';
 import { getSessionCookieHeader } from '#tests/utils.ts';
-import { loader } from './$username.tsx';
+import { loader } from './$username_+/index.tsx';
 
 const ensureUserRole = () =>
   prisma.role.upsert({

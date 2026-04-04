@@ -1,10 +1,12 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { type LoaderFunctionArgs,
+import {
+  type LoaderFunctionArgs,
   Form,
   Link,
   redirect,
   useLoaderData,
-  type MetaFunction } from 'react-router';
+  type MetaFunction,
+} from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { FriendGateCard } from '#app/components/friends/friend-gate-card.tsx';
@@ -18,12 +20,14 @@ import { type RelationshipState } from '#app/utils/friends.ts';
 import { useTranslation } from '#app/utils/i18n.tsx';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useOptionalUser } from '#app/utils/user.ts';
+
 type Relationship = {
   state: RelationshipState;
   friendshipId: string | null;
   incomingRequestId: string | null;
   outgoingRequestId: string | null;
 };
+
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { username } = params;
   const userId = await requireUserId(request);
@@ -37,12 +41,15 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       username,
     },
   });
+
   invariantResponse(targetUser, 'User not found', {
     status: 404,
   });
+
   if (targetUser.id === userId) {
     return redirect('/me');
   }
+
   const relationshipDetails = await getRelationshipDetails(
     userId,
     targetUser.id,
@@ -54,6 +61,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     outgoingRequestId: relationshipDetails.outgoing?.id ?? null,
   };
   const canViewProfile = relationship.state === 'FRIENDS';
+
   if (!canViewProfile) {
     return {
       canViewProfile,
@@ -61,6 +69,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       relationship,
     };
   }
+
   const user = await prisma.user.findFirst({
     select: {
       id: true,
@@ -77,9 +86,11 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       id: targetUser.id,
     },
   });
+
   invariantResponse(user, 'User not found', {
     status: 404,
   });
+
   return {
     user,
     canViewProfile,
@@ -87,6 +98,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     relationship,
   };
 }
+
 const ProfileRoute = () => {
   const data = useLoaderData<typeof loader>();
   const { t } = useTranslation();
@@ -95,6 +107,7 @@ const ProfileRoute = () => {
   const loggedInUser = useOptionalUser();
   const isLoggedInUser = data.user.id === loggedInUser?.id;
   const relationship = data.relationship;
+
   if (!data.canViewProfile) {
     return (
       <FriendGateCard
@@ -112,6 +125,7 @@ const ProfileRoute = () => {
       />
     );
   }
+
   return (
     <div className="container mb-48 mt-36 flex flex-col items-center justify-center">
       <Spacer size="4xs" />
@@ -182,7 +196,9 @@ const ProfileRoute = () => {
     </div>
   );
 };
+
 export default ProfileRoute;
+
 export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
   const displayName = data?.user.name ?? params.username;
   return [
@@ -195,6 +211,7 @@ export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
     },
   ];
 };
+
 export const ErrorBoundary = () => {
   return (
     <GeneralErrorBoundary
