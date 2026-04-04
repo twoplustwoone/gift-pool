@@ -22,6 +22,7 @@ import {
   useNavigation,
   useFetchers,
   useLoaderData,
+  useRouteError,
 } from 'react-router';
 import { HoneypotProvider } from 'remix-utils/honeypot/react';
 import { toast } from 'sonner';
@@ -42,6 +43,7 @@ import { usePwaInstallPrompt } from './hooks/use-pwa-install-prompt.ts';
 import nunitoStyleSheet from './styles/nunito-font.css?url';
 import tailwindStyleSheetUrl from './styles/tailwind.css?url';
 import { getUserId, logout } from './utils/auth.server.ts';
+import { isChunkLoadError, reloadOnceForChunkError } from './utils/chunk-error.client.ts';
 import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx';
 import { prisma } from './utils/db.server.ts';
 import { honeypot } from './utils/honeypot.server.ts';
@@ -473,6 +475,7 @@ export function useOptimisticThemeMode() {
 export const ErrorBoundary = () => {
   // the nonce doesn't rely on the loader so we can access that
   const nonce = useNonce();
+  const error = useRouteError();
 
   // NOTE: you cannot use useLoaderData in an ErrorBoundary because the loader
   // likely failed to run so we have to do the best we can.
@@ -481,6 +484,22 @@ export const ErrorBoundary = () => {
 
   // Just make sure your root route never errors out and you'll always be able
   // to give the user a better UX.
+
+  const isChunkError = isChunkLoadError(error);
+
+  useEffect(() => {
+    reloadOnceForChunkError(error);
+  }, [error]);
+
+  if (isChunkError) {
+    return (
+      <Document nonce={nonce}>
+        <div className="container flex items-center justify-center p-20 text-h2">
+          <p>Updating, please wait…</p>
+        </div>
+      </Document>
+    );
+  }
 
   return (
     <Document nonce={nonce}>
