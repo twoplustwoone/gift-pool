@@ -5,18 +5,27 @@ import { Icon } from '#app/components/ui/icon.tsx';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 
 type UserProfileCardUser = {
-  image?: {
-    id: string;
+  readonly image?: {
+    readonly id: string;
   } | null;
-  username: string;
-  name: string | null;
+  readonly username: string;
+  readonly name: string | null;
 };
 
 type UserProfileCardProps = {
-  actions: React.ReactNode;
-  showLogout?: boolean;
-  user: UserProfileCardUser;
-  userJoinedDisplay: string;
+  readonly actions: React.ReactNode;
+  readonly showLogout?: boolean;
+  readonly user: UserProfileCardUser;
+  readonly userJoinedDisplay: string;
+};
+
+type UserProfileSelfActionsProps = {
+  readonly wishlistTo: string;
+};
+
+type UserProfileWishlistActionProps = {
+  readonly label: string;
+  readonly wishlistTo: string;
 };
 
 export function UserProfileCard({
@@ -71,7 +80,9 @@ export function UserProfileCard({
   );
 }
 
-export function UserProfileSelfActions({ wishlistTo }: { wishlistTo: string }) {
+export function UserProfileSelfActions({
+  wishlistTo,
+}: UserProfileSelfActionsProps) {
   return (
     <>
       <UserProfileWishlistAction label="My wishlist" wishlistTo={wishlistTo} />
@@ -87,10 +98,7 @@ export function UserProfileSelfActions({ wishlistTo }: { wishlistTo: string }) {
 export function UserProfileWishlistAction({
   label,
   wishlistTo,
-}: {
-  label: string;
-  wishlistTo: string;
-}) {
+}: UserProfileWishlistActionProps) {
   return (
     <Button asChild>
       <Link to={wishlistTo} prefetch="intent">

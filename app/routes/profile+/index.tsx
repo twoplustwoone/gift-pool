@@ -9,10 +9,7 @@ import {
   UserProfileSelfActions,
   UserProfileWishlistAction,
 } from '#app/components/users/user-profile-card.tsx';
-import {
-  getUserProfileMeta,
-  UserProfileRouteErrorBoundary,
-} from '#app/components/users/user-profile-route.tsx';
+import { getUserProfileMeta } from '#app/components/users/user-profile-route.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { useOptionalUser } from '#app/utils/user.ts';
@@ -68,4 +65,4 @@ const ProfileIndex = () => {
 };
 export default ProfileIndex;
 export const meta: MetaFunction<typeof loader> = getUserProfileMeta;
-export const ErrorBoundary = UserProfileRouteErrorBoundary;
+export { UserProfileRouteErrorBoundary as ErrorBoundary } from '#app/components/users/user-profile-route.tsx';

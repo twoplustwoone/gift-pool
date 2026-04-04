@@ -12,10 +12,7 @@ import {
   UserProfileSelfActions,
   UserProfileWishlistAction,
 } from '#app/components/users/user-profile-card.tsx';
-import {
-  getUserProfileMeta,
-  UserProfileRouteErrorBoundary,
-} from '#app/components/users/user-profile-route.tsx';
+import { getUserProfileMeta } from '#app/components/users/user-profile-route.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getRelationshipDetails } from '#app/utils/friends.server.ts';
@@ -157,4 +154,4 @@ const ProfileRoute = () => {
 
 export default ProfileRoute;
 export const meta: MetaFunction<typeof loader> = getUserProfileMeta;
-export const ErrorBoundary = UserProfileRouteErrorBoundary;
+export { UserProfileRouteErrorBoundary as ErrorBoundary } from '#app/components/users/user-profile-route.tsx';

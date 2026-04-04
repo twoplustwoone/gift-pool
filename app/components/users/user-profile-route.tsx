@@ -1,15 +1,23 @@
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 
 type UserProfileMetaDescriptor = {
-  data?: {
-    user?: {
-      name?: string | null;
+  readonly data?: {
+    readonly user?: {
+      readonly name?: string | null;
     };
   };
-  params: {
-    username?: string;
+  readonly params: {
+    readonly username?: string;
   };
 };
+
+function UserProfileNotFound({
+  params,
+}: {
+  readonly params: { username?: string };
+}) {
+  return <p>No user with the username "{params.username}" exists</p>;
+}
 
 export function getUserProfileMeta({
   data,
@@ -32,9 +40,7 @@ export function UserProfileRouteErrorBoundary() {
   return (
     <GeneralErrorBoundary
       statusHandlers={{
-        404: ({ params }) => (
-          <p>No user with the username "{params.username}" exists</p>
-        ),
+        404: UserProfileNotFound,
       }}
     />
   );
