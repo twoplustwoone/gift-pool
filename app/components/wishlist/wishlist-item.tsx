@@ -800,7 +800,7 @@ function WishlistOwnerTrigger({
                   <Text
                     size="base"
                     weight="medium"
-                    className="block w-0 min-w-0 max-w-full flex-1 truncate"
+                    className="block min-w-0 max-w-full truncate"
                   >
                     {wishlistItem.title}
                   </Text>
