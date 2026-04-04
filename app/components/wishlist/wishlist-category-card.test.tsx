@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createRoutesStub } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -138,7 +139,8 @@ describe('WishlistCategoryCard', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('calls onToggleCollapse on header click in normal mode', () => {
+  it('calls onToggleCollapse on header click in normal mode', async () => {
+    const user = userEvent.setup();
     const onToggleCollapse = vi.fn();
     const App = createRoutesStub([
       {
@@ -152,7 +154,30 @@ describe('WishlistCategoryCard', () => {
       },
     ]);
     render(<App />);
-    fireEvent.click(screen.getByText('Books').closest('div')!.parentElement!);
+    await user.click(screen.getByRole('button', { name: /books \(0\)/i }));
+    expect(onToggleCollapse).toHaveBeenCalled();
+  });
+
+  it('calls onToggleCollapse when pressing Enter on the category header button', async () => {
+    const user = userEvent.setup();
+    const onToggleCollapse = vi.fn();
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <WishlistCategoryCard
+            {...baseProps}
+            onToggleCollapse={onToggleCollapse}
+          />
+        ),
+      },
+    ]);
+    render(<App />);
+
+    await user.tab();
+    await user.keyboard('{Enter}');
+
+    expect(screen.getByRole('button', { name: /books \(0\)/i })).toHaveFocus();
     expect(onToggleCollapse).toHaveBeenCalled();
   });
 

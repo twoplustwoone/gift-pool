@@ -262,7 +262,6 @@ const PhotoRoute = () => {
           })}
           value="submit"
         />
-        <button type="submit" className="sr-only" aria-hidden />
         <div className="relative h-52 w-52 overflow-hidden rounded-full border border-dashed border-muted-foreground/50">
           <img
             src={currentImage}

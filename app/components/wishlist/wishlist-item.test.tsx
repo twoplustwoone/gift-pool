@@ -69,6 +69,22 @@ describe('WishlistItem', () => {
     mockUser = { id: 'owner-id', roles: [] };
   });
 
+  const getFirstWishlistItemRow = () => {
+    const row = screen.getAllByTestId('wishlist-item-row')[0];
+    if (!row) {
+      throw new Error('Expected wishlist row trigger');
+    }
+    return row;
+  };
+
+  const getLastWishlistItemRow = () => {
+    const row = screen.getAllByTestId('wishlist-item-row').at(-1);
+    if (!row) {
+      throw new Error('Expected wishlist row trigger');
+    }
+    return row;
+  };
+
   it('opens the editor when owners tap the mobile trigger', async () => {
     const user = userEvent.setup();
 
@@ -90,13 +106,7 @@ describe('WishlistItem', () => {
       />,
     );
 
-    const trigger = screen
-      .getAllByTestId('wishlist-item-row')
-      .find((element) => element.getAttribute('role') === 'button');
-    if (!trigger) {
-      throw new Error('Expected mobile wishlist row trigger');
-    }
-
+    const trigger = getLastWishlistItemRow();
     await user.click(trigger);
 
     expect(mockOpenEdit).toHaveBeenCalledWith();
@@ -123,10 +133,7 @@ describe('WishlistItem', () => {
       />,
     );
 
-    const row = screen.getAllByTestId('wishlist-item-row')[0];
-    if (!row) {
-      throw new Error('Expected desktop wishlist row trigger');
-    }
+    const row = getFirstWishlistItemRow();
     await user.click(row);
 
     expect(mockOpenEdit).toHaveBeenCalledWith();
@@ -151,7 +158,7 @@ describe('WishlistItem', () => {
       />,
     );
 
-    const row = screen.getAllByTestId('wishlist-item-row')[0];
+    const row = getFirstWishlistItemRow();
     expect(row).toHaveAttribute('data-drag-state', 'idle');
     const actionsButton = screen.getAllByRole('button', {
       name: /item actions for item one/i,
@@ -226,13 +233,7 @@ describe('WishlistItem', () => {
       />,
     );
 
-    const trigger = screen
-      .getAllByTestId('wishlist-item-row')
-      .find((element) => element.getAttribute('role') === 'button');
-    if (!trigger) {
-      throw new Error('Expected mobile wishlist row trigger');
-    }
-
+    const trigger = getFirstWishlistItemRow();
     fireEvent.pointerDown(trigger, {
       pointerType: 'touch',
       clientX: 0,
@@ -268,10 +269,7 @@ describe('WishlistItem', () => {
       />,
     );
 
-    const row = screen.getAllByTestId('wishlist-item-row')[0];
-    if (!row) {
-      throw new Error('Expected wishlist row trigger');
-    }
+    const row = getFirstWishlistItemRow();
     await user.click(row);
 
     expect(mockOpenView).toHaveBeenCalledWith();
@@ -306,5 +304,58 @@ describe('WishlistItem', () => {
 
     expect(mockOpenView).not.toHaveBeenCalled();
     expect(mockOpenEdit).not.toHaveBeenCalled();
+  });
+
+  it('opens the viewer when non-owners press Enter on the row button', async () => {
+    const user = userEvent.setup();
+    mockUser = { id: 'friend-id', roles: [] };
+
+    render(
+      <WishlistItem
+        categories={[]}
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Friend item',
+          note: 'A note',
+          url: null,
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    getFirstWishlistItemRow().focus();
+    await user.keyboard('{Enter}');
+
+    expect(mockOpenView).toHaveBeenCalledWith();
+    expect(mockOpenEdit).not.toHaveBeenCalled();
+  });
+
+  it('renders already claimed inside the row button for read-only claimed items', () => {
+    mockUser = { id: 'viewer-id', roles: [] };
+
+    render(
+      <WishlistItem
+        categories={[]}
+        disableClaims
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Public Claimed Item',
+          note: 'A note',
+          url: null,
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+          purchase: { purchasedById: 'friend-id' },
+        }}
+      />,
+    );
+
+    expect(getFirstWishlistItemRow()).toHaveTextContent(/already claimed/i);
   });
 });

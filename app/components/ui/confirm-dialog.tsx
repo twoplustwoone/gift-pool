@@ -1,13 +1,27 @@
-import { type ReactNode, useState } from 'react';
+import { isValidElement, type ReactNode, useState } from 'react';
 import { Button } from './button';
 import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from './dialog';
+
+function renderDialogDescription(description?: ReactNode) {
+  if (!description) {
+    return null;
+  }
+
+  if (isValidElement(description)) {
+    return <DialogDescription asChild>{description}</DialogDescription>;
+  }
+
+  return <DialogDescription>{description}</DialogDescription>;
+}
 
 export function ConfirmDialog({
   title = 'Confirm',
@@ -27,15 +41,21 @@ export function ConfirmDialog({
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
   const canConfirm = requireText ? typed === requireText : true;
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) {
+      setTyped('');
+    }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <span onClick={() => setOpen(true)}>{children}</span>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        {description}
+        {renderDialogDescription(description)}
         {requireText ? (
           <input
             className="mt-2 w-full rounded border p-2"

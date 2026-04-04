@@ -487,7 +487,7 @@ export async function action({ request }: ActionFunctionArgs) {
     case SettingsIntent.MemberUpdateSelf: {
       await updateOwnPreferences(request, v.giftGroupId, {
         contributionCents: v.contributionCents
-          ? parseInt(v.contributionCents, 10)
+          ? Number.parseInt(v.contributionCents, 10)
           : undefined,
         budgetVisibilityOverride: (v.budgetVisibilityOverride ??
           'INHERIT') as any,
@@ -509,7 +509,11 @@ export async function action({ request }: ActionFunctionArgs) {
       return submission.reply();
     }
     case SettingsIntent.ReminderAdd: {
-      await addReminder(request, v.giftGroupId, parseInt(v.offsetDays, 10));
+      await addReminder(
+        request,
+        v.giftGroupId,
+        Number.parseInt(v.offsetDays, 10),
+      );
       return submission.reply();
     }
     case SettingsIntent.ReminderRemove: {

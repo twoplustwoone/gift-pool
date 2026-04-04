@@ -141,6 +141,7 @@ describe('WishlistItemEditor image reset', () => {
     );
 
     await user.click(screen.getByText('Open'));
+    expect(screen.getByLabelText('Image')).toHaveAttribute('type', 'file');
     const fileInput = document.querySelector('input[type="file"]');
     if (!(fileInput instanceof HTMLInputElement)) {
       throw new Error('Expected image file input');
