@@ -232,6 +232,28 @@ type CategoryTitleProps = Readonly<{
   category: CategoryCardProps['category'];
   count: number;
 }>;
+type CategoryHeaderProps = Readonly<
+  Pick<
+    CategoryCardProps,
+    | 'category'
+    | 'categoryHandle'
+    | 'canReorder'
+    | 'isCategoryReorderMode'
+    | 'isEditing'
+    | 'isItemReorderMode'
+    | 'isOwner'
+    | 'isCollapsed'
+    | 'itemsForCategory'
+    | 'actionFetcher'
+    | 'onAttachClientMutationId'
+    | 'onOpenQuickAdd'
+    | 'onRequestDelete'
+    | 'onSetEditing'
+    | 'onStartCategoryReorder'
+    | 'onStartItemReorder'
+    | 'onToggleCollapse'
+  >
+>;
 
 function CategoryItemsGrid({
   dragState,
@@ -472,6 +494,96 @@ function CategoryTitle({
   );
 }
 
+function CategoryHeader({
+  actionFetcher,
+  canReorder,
+  category,
+  categoryHandle,
+  isCategoryReorderMode,
+  isCollapsed,
+  isEditing,
+  isItemReorderMode,
+  isOwner,
+  itemsForCategory,
+  onAttachClientMutationId,
+  onOpenQuickAdd,
+  onRequestDelete,
+  onSetEditing,
+  onStartCategoryReorder,
+  onStartItemReorder,
+  onToggleCollapse,
+}: CategoryHeaderProps) {
+  const canToggleCollapse =
+    !isEditing && !isItemReorderMode && !isCategoryReorderMode;
+  const titleContent = (
+    <>
+      {!isItemReorderMode ? (
+        <Icon
+          name={isCollapsed ? 'chevron-right' : 'chevron-down'}
+          className="h-4 w-4"
+        />
+      ) : null}
+      {isEditing ? (
+        <CategoryEditForm
+          actionFetcher={actionFetcher}
+          category={category}
+          onAttachClientMutationId={onAttachClientMutationId}
+          onSetEditing={onSetEditing}
+        />
+      ) : (
+        <CategoryTitle category={category} count={itemsForCategory.length} />
+      )}
+    </>
+  );
+
+  return (
+    <div
+      className={`flex min-h-14 items-center justify-between gap-2 rounded-t-xl bg-surface ${
+        canToggleCollapse ? 'hover:bg-muted' : ''
+      }`}
+    >
+      {canToggleCollapse ? (
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 self-stretch rounded-tl-xl px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-4"
+          aria-expanded={!isCollapsed}
+          onClick={onToggleCollapse}
+        >
+          {titleContent}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 sm:px-4">
+          {titleContent}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
+        {categoryHandle ? (
+          <DragHandle
+            label={`Drag category ${category.name}`}
+            active={Boolean(categoryHandle.isDragging)}
+            attributes={categoryHandle.attributes}
+            listeners={categoryHandle.listeners}
+            setActivatorNodeRef={categoryHandle.setActivatorNodeRef}
+          />
+        ) : null}
+        <CategoryActionsMenu
+          canReorder={canReorder}
+          category={category}
+          isCategoryReorderMode={isCategoryReorderMode}
+          isItemReorderMode={isItemReorderMode}
+          isOwner={isOwner}
+          onOpenQuickAdd={onOpenQuickAdd}
+          onRequestDelete={onRequestDelete}
+          onSetEditing={onSetEditing}
+          onStartCategoryReorder={onStartCategoryReorder}
+          onStartItemReorder={onStartItemReorder}
+        />
+      </div>
+    </div>
+  );
+}
+
 export const WishlistCategoryCard = ({
   category,
   isOwner,
@@ -515,60 +627,25 @@ export const WishlistCategoryCard = ({
         dragState={dragState}
         categoryName={category.name}
       >
-        <div
-          className={`flex min-h-14 items-center justify-between gap-2 rounded-t-xl bg-surface px-3 py-2 sm:px-4 ${isItemReorderMode ? '' : 'cursor-pointer hover:bg-muted'
-            }`}
-          onClick={() => {
-            if (isItemReorderMode || isCategoryReorderMode) return;
-            onToggleCollapse();
-          }}
-        >
-          <div className="flex min-w-0 items-center gap-2">
-            {!isItemReorderMode ? (
-              <Icon
-                name={isCollapsed ? 'chevron-right' : 'chevron-down'}
-                className="h-4 w-4"
-              />
-            ) : null}
-            {isEditing ? (
-              <CategoryEditForm
-                actionFetcher={actionFetcher}
-                category={category}
-                onAttachClientMutationId={onAttachClientMutationId}
-                onSetEditing={onSetEditing}
-              />
-            ) : (
-              <CategoryTitle category={category} count={itemsForCategory.length} />
-            )}
-          </div>
-
-          <div
-            className="flex items-center gap-2"
-            onClick={(event) => event.stopPropagation()}
-          >
-            {categoryHandle ? (
-              <DragHandle
-                label={`Drag category ${category.name}`}
-                active={Boolean(categoryHandle.isDragging)}
-                attributes={categoryHandle.attributes}
-                listeners={categoryHandle.listeners}
-                setActivatorNodeRef={categoryHandle.setActivatorNodeRef}
-              />
-            ) : null}
-            <CategoryActionsMenu
-              canReorder={canReorder}
-              category={category}
-              isCategoryReorderMode={isCategoryReorderMode}
-              isItemReorderMode={isItemReorderMode}
-              isOwner={isOwner}
-              onOpenQuickAdd={onOpenQuickAdd}
-              onRequestDelete={onRequestDelete}
-              onSetEditing={onSetEditing}
-              onStartCategoryReorder={onStartCategoryReorder}
-              onStartItemReorder={onStartItemReorder}
-            />
-          </div>
-        </div>
+        <CategoryHeader
+          actionFetcher={actionFetcher}
+          canReorder={canReorder}
+          category={category}
+          categoryHandle={categoryHandle}
+          isCategoryReorderMode={isCategoryReorderMode}
+          isCollapsed={isCollapsed}
+          isEditing={isEditing}
+          isItemReorderMode={isItemReorderMode}
+          isOwner={isOwner}
+          itemsForCategory={itemsForCategory}
+          onAttachClientMutationId={onAttachClientMutationId}
+          onOpenQuickAdd={onOpenQuickAdd}
+          onRequestDelete={onRequestDelete}
+          onSetEditing={onSetEditing}
+          onStartCategoryReorder={onStartCategoryReorder}
+          onStartItemReorder={onStartItemReorder}
+          onToggleCollapse={onToggleCollapse}
+        />
       </HeaderDropTarget>
       <WishlistCategoryBody
         canReorder={canReorder}
