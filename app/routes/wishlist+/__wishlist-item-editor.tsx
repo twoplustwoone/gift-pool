@@ -1126,7 +1126,9 @@ function EditorFormSection({
       <input type="hidden" name="imageAction" value={imageActionState} />
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-medium">Image</label>
+          <label htmlFor={imageFileInputProps.id} className="text-sm font-medium">
+            Image
+          </label>
           <Text size="xs" className="text-muted-foreground">
             Upload or paste. Max 10MB; stored images are compressed.
           </Text>
