@@ -174,9 +174,7 @@ test('cached friend wishlist navigation avoids a fresh loader request and logs o
       const url = new URL(route.request().url());
       const targetRoutes = url.searchParams.get('_routes') ?? '';
 
-      if (
-        targetRoutes.includes('routes/users+/$username_+/wishlist')
-      ) {
+      if (targetRoutes.includes('routes/users+/$username_+/wishlist')) {
         blockedWishlistLoaderRequests += 1;
         await route.abort();
         return;
@@ -311,6 +309,80 @@ test('cached friend wishlist navigation revalidates access before using prefetch
     await page
       .unroute(`**/resources/prefetch/users/${friend.username}/wishlist-access`)
       .catch(() => {});
+    await prisma.friendship.deleteMany({
+      where: {
+        userAId: friendship.userAId,
+        userBId: friendship.userBId,
+      },
+    });
+    await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
+  }
+});
+
+test('friend profile and wishlist navigation share a stable route branch', async ({
+  page,
+  login,
+}) => {
+  const routeResultErrors: string[] = [];
+  const createdUserIds: string[] = [];
+  const viewerData = createUser();
+  const friendData = createUser();
+
+  const [viewer, friend] = await Promise.all([
+    createUserWithRole(viewerData),
+    createUserWithRole(friendData),
+  ]);
+
+  createdUserIds.push(viewer.id, friend.id);
+
+  const friendship = normalizeFriendship(viewer.id, friend.id);
+  await prisma.friendship.create({ data: friendship });
+  await prisma.wishlistItem.create({
+    data: {
+      ownerId: friend.id,
+      title: 'Stable route navigation',
+      type: 'text',
+      sortOrder: 0,
+      status: 'ACTIVE',
+    },
+  });
+
+  page.on('pageerror', (error) => {
+    if (error.message.includes('No result found for routeId')) {
+      routeResultErrors.push(error.message);
+    }
+  });
+
+  try {
+    await login({ id: viewer.id });
+
+    await page.goto(`/users/${friend.username}`);
+    await expect(
+      page.getByRole('heading', { name: friend.name ?? friend.username }),
+    ).toBeVisible();
+
+    await page
+      .getByRole('link', {
+        name: `${friend.name ?? friend.username}'s wishlist`,
+      })
+      .click();
+
+    await expect(page).toHaveURL(`/users/${friend.username}/wishlist`);
+    await expect(page.getByText('Stable route navigation')).toBeVisible();
+
+    await page
+      .getByRole('link', { name: friend.name ?? friend.username })
+      .click();
+
+    await expect(page).toHaveURL(`/users/${friend.username}`);
+    await expect(
+      page.getByRole('heading', { name: friend.name ?? friend.username }),
+    ).toBeVisible();
+    expect(routeResultErrors).toEqual([]);
+  } finally {
+    await prisma.wishlistItem.deleteMany({
+      where: { ownerId: friend.id },
+    });
     await prisma.friendship.deleteMany({
       where: {
         userAId: friendship.userAId,
