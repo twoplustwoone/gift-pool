@@ -165,6 +165,21 @@ function getClaimedLabel(isPurchasedBySomeoneElse: boolean) {
   return isPurchasedBySomeoneElse ? 'Locked by a friend' : 'You claimed this';
 }
 
+function getClaimBadgeLabel({
+  allowClaims,
+  isClaimed,
+  isPurchasedBySomeoneElse,
+}: Pick<
+  WishlistNonOwnerTriggerProps,
+  'allowClaims' | 'isClaimed' | 'isPurchasedBySomeoneElse'
+>) {
+  if (!isPurchasedBySomeoneElse && (!isClaimed || allowClaims)) {
+    return null;
+  }
+
+  return allowClaims ? 'Claimed' : 'Already claimed';
+}
+
 function toEditorWishlistItem(
   wishlistItem: WishlistItemRecord,
   normalizedStatus: WishlistItemStatusValue,
@@ -631,6 +646,12 @@ function WishlistNonOwnerTrigger({
   purchaseStatusText,
   wishlistItem,
 }: WishlistNonOwnerTriggerProps) {
+  const claimBadgeLabel = getClaimBadgeLabel({
+    allowClaims,
+    isClaimed,
+    isPurchasedBySomeoneElse,
+  });
+
   return (
     <Card
       variant="default"
@@ -676,13 +697,13 @@ function WishlistNonOwnerTrigger({
               </Box>
             </Box>
             <div className="flex items-center gap-2">
-              {isPurchasedBySomeoneElse || (!allowClaims && isClaimed) ? (
+              {claimBadgeLabel ? (
                 <div
                   className="flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200"
                   aria-hidden
                 >
                   <LuGift className="h-4 w-4" />
-                  Claimed
+                  {claimBadgeLabel}
                 </div>
               ) : null}
               <LuChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
@@ -735,147 +756,184 @@ function WishlistNonOwnerTrigger({
   );
 }
 
-function WishlistOwnerTrigger({
+function WishlistOwnerDesktopTrigger({
+  actionMenu,
+  ariaLabel,
+  dragState,
+  imageBlock,
+  imageErrored,
+  onOpen,
+  wishlistItem,
+}: Omit<
+  WishlistOwnerTriggerProps,
+  'displayImageSrc' | 'isCompactLayout' | 'onImageError' | 'press'
+>) {
+  const desktopCardClass = cn(
+    'group min-w-0 rounded-xl border border-border/80 bg-card shadow-sm transition hover:border-border hover:shadow-md',
+    dragState === 'dragging-item' ? 'opacity-75' : '',
+    dragState === 'dragging-category' ? 'opacity-80' : '',
+  );
+  const renderDesktopImageOutsideButton = imageErrored && wishlistItem.hasImage;
+
+  return (
+    <div className="hidden sm:block">
+      <Card variant="default" padding="none" className={desktopCardClass}>
+        <div className="flex items-start gap-2">
+          {renderDesktopImageOutsideButton ? (
+            <div className="p-3 pr-0">{imageBlock}</div>
+          ) : null}
+          <button
+            type="button"
+            aria-label={ariaLabel}
+            className={cn(
+              'flex min-w-0 flex-1 gap-3 rounded-xl p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:hover:bg-muted sm:active:bg-muted/80',
+              renderDesktopImageOutsideButton ? 'pl-3' : '',
+            )}
+            data-testid="wishlist-item-row"
+            data-drag-state={dragState}
+            data-drop-target="false"
+            onClick={onOpen}
+          >
+            {renderDesktopImageOutsideButton ? null : imageBlock}
+            <div className="min-w-0 flex-1">
+              <Text
+                size="base"
+                weight="medium"
+                className="block min-w-0 max-w-full truncate"
+              >
+                {wishlistItem.title}
+              </Text>
+              {wishlistItem.note ? (
+                <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
+                  <Text
+                    size="xs"
+                    className="break-words text-muted-foreground"
+                  >
+                    {wishlistItem.note}
+                  </Text>
+                </Box>
+              ) : null}
+            </div>
+          </button>
+          {actionMenu ? (
+            <div className="flex flex-shrink-0 items-center gap-2 p-3 pl-0">
+              {actionMenu}
+            </div>
+          ) : null}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function WishlistOwnerMobileTrigger({
   actionMenu,
   ariaLabel,
   displayImageSrc,
   dragState,
-  imageBlock,
   imageErrored,
   isCompactLayout,
   onOpen,
   onImageError,
   press,
   wishlistItem,
-}: WishlistOwnerTriggerProps) {
-  const desktopCardClass = cn(
-    'group min-w-0 rounded-xl border border-border/80 bg-card shadow-sm transition hover:border-border hover:shadow-md',
-    dragState === 'dragging-item' ? 'opacity-75' : '',
-    dragState === 'dragging-category' ? 'opacity-80' : '',
-  );
+}: Omit<WishlistOwnerTriggerProps, 'imageBlock'>) {
+  const mobileImageThumb = displayImageSrc && !imageErrored ? (
+    <img
+      src={displayImageSrc}
+      alt={wishlistItem.title}
+      className="h-10 w-10 flex-shrink-0 rounded-lg border border-border/60 object-cover"
+      onError={onImageError}
+      loading="lazy"
+    />
+  ) : wishlistItem.hasImage ? (
+    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40 text-muted-foreground">
+      <LuImage className="h-4 w-4" aria-hidden />
+    </div>
+  ) : null;
 
-  const mobileImageThumb =
-    displayImageSrc && !imageErrored ? (
-      <img
-        src={displayImageSrc}
-        alt={wishlistItem.title}
-        className="h-10 w-10 flex-shrink-0 rounded-lg border border-border/60 object-cover"
-        onError={onImageError}
-        loading="lazy"
-      />
-    ) : wishlistItem.hasImage ? (
-      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40 text-muted-foreground">
-        <LuImage className="h-4 w-4" aria-hidden />
-      </div>
-    ) : null;
-  const renderDesktopImageOutsideButton = imageErrored && wishlistItem.hasImage;
+  return (
+    <div className={isCompactLayout ? 'block' : 'sm:hidden'}>
+      <Card
+        variant="default"
+        padding="none"
+        className={cn(
+          'min-w-0 rounded-xl border border-border/80 bg-card shadow-sm',
+          dragState === 'dragging-item' ? 'opacity-75' : '',
+          dragState === 'dragging-category' ? 'opacity-80' : '',
+        )}
+      >
+        <div className="flex min-h-[4.25rem] items-center gap-1">
+          <button
+            type="button"
+            aria-label={ariaLabel}
+            className="flex min-w-0 flex-1 cursor-pointer touch-pan-y items-center gap-2 rounded-xl px-3 py-2.5 text-left transition [-webkit-tap-highlight-color:transparent] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/20 sm:hover:bg-muted sm:active:bg-muted/80"
+            data-pressed={press.pressed ? 'true' : 'false'}
+            data-testid="wishlist-item-row"
+            data-drag-state={dragState}
+            data-drop-target="false"
+            onClick={onOpen}
+            {...press.rowProps}
+          >
+            {mobileImageThumb}
+            <Box className="w-0 min-w-0 flex-1 overflow-hidden">
+              <Text
+                size="base"
+                weight="medium"
+                className="block min-w-0 max-w-full truncate"
+              >
+                {wishlistItem.title}
+              </Text>
+              {wishlistItem.note ? (
+                <Text
+                  size="xs"
+                  className="block min-w-0 max-w-full truncate text-muted-foreground"
+                >
+                  {wishlistItem.note}
+                </Text>
+              ) : null}
+            </Box>
+          </button>
+
+          {actionMenu ? (
+            <Flex align="center" className="flex-shrink-0 pr-2" gap={1}>
+              {actionMenu}
+            </Flex>
+          ) : null}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function WishlistOwnerTrigger(props: WishlistOwnerTriggerProps) {
+  const { isCompactLayout } = props;
 
   return (
     <div className="contents">
       {!isCompactLayout ? (
-        <div className="hidden sm:block">
-          <Card
-            variant="default"
-            padding="none"
-            className={desktopCardClass}
-          >
-            <div className="flex items-start gap-2">
-              {renderDesktopImageOutsideButton ? (
-                <div className="p-3 pr-0">{imageBlock}</div>
-              ) : null}
-              <button
-                type="button"
-                aria-label={ariaLabel}
-                className={cn(
-                  'flex min-w-0 flex-1 gap-3 rounded-xl p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:hover:bg-muted sm:active:bg-muted/80',
-                  renderDesktopImageOutsideButton ? 'pl-3' : '',
-                )}
-                data-testid="wishlist-item-row"
-                data-drag-state={dragState}
-                data-drop-target="false"
-                onClick={onOpen}
-              >
-                {renderDesktopImageOutsideButton ? null : imageBlock}
-                <div className="min-w-0 flex-1">
-                  <Text
-                    size="base"
-                    weight="medium"
-                    className="block min-w-0 max-w-full truncate"
-                  >
-                    {wishlistItem.title}
-                  </Text>
-                  {wishlistItem.note ? (
-                    <Box className="max-h-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
-                      <Text
-                        size="xs"
-                        className="break-words text-muted-foreground"
-                      >
-                        {wishlistItem.note}
-                      </Text>
-                    </Box>
-                  ) : null}
-                </div>
-              </button>
-              {actionMenu ? (
-                <div className="flex flex-shrink-0 items-center gap-2 p-3 pl-0">
-                  {actionMenu}
-                </div>
-              ) : null}
-            </div>
-          </Card>
-        </div>
+        <WishlistOwnerDesktopTrigger
+          actionMenu={props.actionMenu}
+          ariaLabel={props.ariaLabel}
+          dragState={props.dragState}
+          imageBlock={props.imageBlock}
+          imageErrored={props.imageErrored}
+          onOpen={props.onOpen}
+          wishlistItem={props.wishlistItem}
+        />
       ) : null}
-
-      <div className={isCompactLayout ? 'block' : 'sm:hidden'}>
-        <Card
-          variant="default"
-          padding="none"
-          className={cn(
-            'min-w-0 rounded-xl border border-border/80 bg-card shadow-sm',
-            dragState === 'dragging-item' ? 'opacity-75' : '',
-            dragState === 'dragging-category' ? 'opacity-80' : '',
-          )}
-        >
-          <div className="flex min-h-[4.25rem] items-center gap-1">
-            <button
-              type="button"
-              aria-label={ariaLabel}
-              className="flex min-w-0 flex-1 cursor-pointer touch-pan-y items-center gap-2 rounded-xl px-3 py-2.5 text-left transition [-webkit-tap-highlight-color:transparent] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/20 sm:hover:bg-muted sm:active:bg-muted/80"
-              data-pressed={press.pressed ? 'true' : 'false'}
-              data-testid="wishlist-item-row"
-              data-drag-state={dragState}
-              data-drop-target="false"
-              onClick={onOpen}
-              {...press.rowProps}
-            >
-              {mobileImageThumb}
-              <Box className="w-0 min-w-0 flex-1 overflow-hidden">
-                <Text
-                  size="base"
-                  weight="medium"
-                  className="block min-w-0 max-w-full truncate"
-                >
-                  {wishlistItem.title}
-                </Text>
-                {wishlistItem.note ? (
-                  <Text
-                    size="xs"
-                    className="block min-w-0 max-w-full truncate text-muted-foreground"
-                  >
-                    {wishlistItem.note}
-                  </Text>
-                ) : null}
-              </Box>
-            </button>
-
-            {actionMenu ? (
-              <Flex align="center" className="flex-shrink-0 pr-2" gap={1}>
-                {actionMenu}
-              </Flex>
-            ) : null}
-          </div>
-        </Card>
-      </div>
+      <WishlistOwnerMobileTrigger
+        actionMenu={props.actionMenu}
+        ariaLabel={props.ariaLabel}
+        displayImageSrc={props.displayImageSrc}
+        dragState={props.dragState}
+        imageErrored={props.imageErrored}
+        isCompactLayout={props.isCompactLayout}
+        onImageError={props.onImageError}
+        onOpen={props.onOpen}
+        press={props.press}
+        wishlistItem={props.wishlistItem}
+      />
     </div>
   );
 }

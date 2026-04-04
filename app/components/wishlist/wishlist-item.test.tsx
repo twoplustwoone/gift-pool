@@ -333,4 +333,29 @@ describe('WishlistItem', () => {
     expect(mockOpenView).toHaveBeenCalledWith();
     expect(mockOpenEdit).not.toHaveBeenCalled();
   });
+
+  it('renders already claimed inside the row button for read-only claimed items', () => {
+    mockUser = { id: 'viewer-id', roles: [] };
+
+    render(
+      <WishlistItem
+        categories={[]}
+        disableClaims
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Public Claimed Item',
+          note: 'A note',
+          url: null,
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+          purchase: { purchasedById: 'friend-id' },
+        }}
+      />,
+    );
+
+    expect(getFirstWishlistItemRow()).toHaveTextContent(/already claimed/i);
+  });
 });

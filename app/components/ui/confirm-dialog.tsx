@@ -11,6 +11,18 @@ import {
   DialogTrigger,
 } from './dialog';
 
+function renderDialogDescription(description?: ReactNode) {
+  if (!description) {
+    return null;
+  }
+
+  if (isValidElement(description)) {
+    return <DialogDescription asChild>{description}</DialogDescription>;
+  }
+
+  return <DialogDescription>{description}</DialogDescription>;
+}
+
 export function ConfirmDialog({
   title = 'Confirm',
   description,
@@ -43,13 +55,7 @@ export function ConfirmDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        {description ? (
-          isValidElement(description) ? (
-            <DialogDescription asChild>{description}</DialogDescription>
-          ) : (
-            <DialogDescription>{description}</DialogDescription>
-          )
-        ) : null}
+        {renderDialogDescription(description)}
         {requireText ? (
           <input
             className="mt-2 w-full rounded border p-2"
