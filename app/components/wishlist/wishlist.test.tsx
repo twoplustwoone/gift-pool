@@ -226,7 +226,8 @@ describe('Wishlist components', () => {
     expect(
       screen.queryByRole('button', { name: /grab this gift/i }),
     ).not.toBeInTheDocument();
-    await screen.findByText(/already claimed/i);
+    const itemOneNode = await screen.findByText('Item one');
+    expect(itemOneNode.closest('button')).toHaveTextContent(/already claimed/i);
     const itemTwoNode = await screen.findByText('Item two');
     expect(
       itemTwoNode.closest('div')?.textContent?.match(/claimed/i)?.length ?? 0,
