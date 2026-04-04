@@ -1,16 +1,18 @@
 import { invariantResponse } from '@epic-web/invariant';
 import {
   type LoaderFunctionArgs,
-  Link,
   useLoaderData,
   type MetaFunction,
 } from 'react-router';
-import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
-import { Button } from '#app/components/ui/button.tsx';
 import {
   UserProfileCard,
   UserProfileSelfActions,
+  UserProfileWishlistAction,
 } from '#app/components/users/user-profile-card.tsx';
+import {
+  getUserProfileMeta,
+  UserProfileRouteErrorBoundary,
+} from '#app/components/users/user-profile-route.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { useOptionalUser } from '#app/utils/user.ts';
@@ -55,37 +57,15 @@ const ProfileIndex = () => {
         isLoggedInUser ? (
           <UserProfileSelfActions wishlistTo="/wishlist" />
         ) : (
-          <Button asChild>
-            <Link to="/wishlist" prefetch="intent">
-              {userDisplayName}'s wishlist
-            </Link>
-          </Button>
+          <UserProfileWishlistAction
+            label={`${userDisplayName}'s wishlist`}
+            wishlistTo="/wishlist"
+          />
         )
       }
     />
   );
 };
 export default ProfileIndex;
-export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
-  const displayName = data?.user.name ?? params.username;
-  return [
-    {
-      title: `${displayName} | GiftPool`,
-    },
-    {
-      name: 'description',
-      content: `Profile of ${displayName} on GiftPool`,
-    },
-  ];
-};
-export const ErrorBoundary = () => {
-  return (
-    <GeneralErrorBoundary
-      statusHandlers={{
-        404: ({ params }) => (
-          <p>No user with the username "{params.username}" exists</p>
-        ),
-      }}
-    />
-  );
-};
+export const meta: MetaFunction<typeof loader> = getUserProfileMeta;
+export const ErrorBoundary = UserProfileRouteErrorBoundary;

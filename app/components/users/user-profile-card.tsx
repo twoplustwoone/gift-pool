@@ -74,16 +74,28 @@ export function UserProfileCard({
 export function UserProfileSelfActions({ wishlistTo }: { wishlistTo: string }) {
   return (
     <>
-      <Button asChild>
-        <Link to={wishlistTo} prefetch="intent">
-          My wishlist
-        </Link>
-      </Button>
+      <UserProfileWishlistAction label="My wishlist" wishlistTo={wishlistTo} />
       <Button asChild>
         <Link to="/settings/profile" prefetch="intent">
           Edit profile
         </Link>
       </Button>
     </>
+  );
+}
+
+export function UserProfileWishlistAction({
+  label,
+  wishlistTo,
+}: {
+  label: string;
+  wishlistTo: string;
+}) {
+  return (
+    <Button asChild>
+      <Link to={wishlistTo} prefetch="intent">
+        {label}
+      </Link>
+    </Button>
   );
 }
