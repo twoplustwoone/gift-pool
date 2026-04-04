@@ -341,7 +341,7 @@ const InlineBudgetEditor = ({
             ) as HTMLInputElement;
             const next = Math.max(
               0,
-              Math.round(parseFloat(input.value || '0') * 100),
+              Math.round(Number.parseFloat(input.value || '0') * 100),
             );
             submit(next);
           }}
@@ -419,8 +419,8 @@ const InlineBudgetEditor = ({
           'input[name="dollars"]',
         ) as HTMLInputElement;
         const next = Math.max(
-          0,
-          Math.round(parseFloat(input.value || '0') * 100),
+              0,
+              Math.round(Number.parseFloat(input.value || '0') * 100),
         );
         submit(next);
         setEditing(false);
@@ -441,7 +441,10 @@ const InlineBudgetEditor = ({
           onFocus={handleFocusSelectAll}
           onMouseUp={handleMouseUpPreserve}
           onBlur={(e) => {
-            const v = Math.max(0, parseFloat(e.currentTarget.value || '0'));
+            const v = Math.max(
+              0,
+              Number.parseFloat(e.currentTarget.value || '0'),
+            );
             e.currentTarget.value = v.toFixed(2);
           }}
         />

@@ -42,7 +42,9 @@ export const createInviteLink = async (
   },
 ) => {
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + parseInt(expiresInDays, 10));
+  expiresAt.setDate(
+    expiresAt.getDate() + Number.parseInt(expiresInDays, 10),
+  );
   const userId = await requireUserWithGroupPermission(
     request,
     giftGroupId,
@@ -57,7 +59,7 @@ export const createInviteLink = async (
       label: label ?? '',
       roleGranted:
         (roleGranted as 'OWNER' | 'ADMIN' | 'MEMBER' | undefined) ?? 'MEMBER',
-      maxUses: maxUses ? parseInt(maxUses, 10) : null,
+      maxUses: maxUses ? Number.parseInt(maxUses, 10) : null,
       requireApproval: requireApproval === 'on' ? true : false,
     },
   });

@@ -30,7 +30,7 @@ export async function action({ request }: ActionFunctionArgs) {
     } else {
       const form = await request.formData().catch(() => null);
       const raw = form?.get('days');
-      if (typeof raw === 'string') days = parseInt(raw, 10);
+      if (typeof raw === 'string') days = Number.parseInt(raw, 10);
     }
   } catch {}
   const inviteUrl = await createFriendInvite(request, days);
