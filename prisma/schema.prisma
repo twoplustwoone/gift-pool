@@ -282,6 +282,7 @@ model WishlistItem {
   url        String?
   type       String
   image      Bytes?
+  hasImage   Boolean  @default(false)
   imageSource String?
   status     String            @default("ACTIVE")
   createdAt  DateTime          @default(now())
