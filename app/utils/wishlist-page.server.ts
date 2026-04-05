@@ -48,21 +48,21 @@ function mapWishlistItems(
     updatedAt: Date;
     sortOrder: number;
     status: string;
-    image: Uint8Array | Buffer | null;
+    hasImage: boolean;
     imageSource: string | null;
     purchase?: {
       purchasedById: string;
     } | null;
   }>,
 ): WishlistUser['wishlistItems'] {
-  return items.map(({ image, imageSource, status, ...item }) => {
+  return items.map(({ hasImage, imageSource, status, ...item }) => {
     const normalizedStatus: WishlistUser['wishlistItems'][number]['status'] =
       status === 'ACTIVE' ? 'ACTIVE' : ('ARCHIVED' as const);
 
     return {
       ...item,
       status: normalizedStatus,
-      hasImage: Boolean(image),
+      hasImage,
       imageSource:
         imageSource as WishlistUser['wishlistItems'][number]['imageSource'],
     };
@@ -163,7 +163,7 @@ export async function loadOwnWishlistPageData({
           type: true,
           updatedAt: true,
           sortOrder: true,
-          image: true,
+          hasImage: true,
           imageSource: true,
           status: true,
         },

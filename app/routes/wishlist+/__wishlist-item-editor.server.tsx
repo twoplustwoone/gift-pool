@@ -257,6 +257,7 @@ function buildWishlistItemDataWithImage({
       ? {
           image: nextImage,
           imageSource: nextImageSource ?? null,
+          hasImage: Boolean(nextImage),
         }
       : {}),
   };
@@ -286,7 +287,7 @@ async function saveUpdatedWishlistItem({
     sortOrder: true,
     updatedAt: true,
     status: true,
-    image: true,
+    hasImage: true,
     imageSource: true,
   } as const;
 
@@ -357,7 +358,7 @@ async function createWishlistItem({
       sortOrder: true,
       updatedAt: true,
       status: true,
-      image: true,
+      hasImage: true,
       imageSource: true,
     },
     data: {
@@ -471,7 +472,7 @@ export async function action({ request }: ActionFunctionArgs) {
         sortOrder: savedItem.sortOrder,
         updatedAt: savedItem.updatedAt,
         status: savedItem.status,
-        hasImage: Boolean(savedItem.image),
+        hasImage: savedItem.hasImage,
         imageSource: savedItem.imageSource,
       },
       clientMutationId,
