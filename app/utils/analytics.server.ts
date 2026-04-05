@@ -127,9 +127,7 @@ export async function getAnalyticsCounts(
   now = new Date(),
 ): Promise<AnalyticsCounts> {
   const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
   );
   const startOfLast7 = new Date(startOfToday.getTime() - DAY_MS * 6);
   const startOfLast30 = new Date(startOfToday.getTime() - DAY_MS * 29);
