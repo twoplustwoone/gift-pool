@@ -145,9 +145,7 @@ export async function loadOwnWishlistPageData({
   userId: string;
   includeAnalytics: boolean;
 }) {
-  const [, user] = await Promise.all([
-    cleanupWishlistPurchasesForOwner(userId),
-    prisma.user.findFirst({
+  const user = await prisma.user.findFirst({
     select: {
       id: true,
       name: true,
@@ -187,8 +185,9 @@ export async function loadOwnWishlistPageData({
     where: {
       id: userId,
     },
-  }),
-  ]);
+  });
+  // Run cleanup after the critical query — don't block the response on it
+  void cleanupWishlistPurchasesForOwner(userId);
 
   invariantResponse(user, 'User not found', {
     status: 404,
@@ -272,9 +271,7 @@ export async function loadFriendWishlistPageData({
     } as const;
   }
 
-  const [, user] = await Promise.all([
-    cleanupWishlistPurchasesForOwner(access.user.id),
-    prisma.user.findFirst({
+  const user = await prisma.user.findFirst({
     select: {
       id: true,
       name: true,
@@ -319,8 +316,9 @@ export async function loadFriendWishlistPageData({
     where: {
       id: access.user.id,
     },
-  }),
-  ]);
+  });
+  // Run cleanup after the critical query — don't block the response on it
+  void cleanupWishlistPurchasesForOwner(access.user.id);
 
   invariantResponse(user, 'User not found', {
     status: 404,
