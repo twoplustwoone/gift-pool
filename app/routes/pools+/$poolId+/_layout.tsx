@@ -2,7 +2,7 @@ import { LuGift } from 'react-icons/lu'
 import { Link, Outlet, useLoaderData } from 'react-router'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { Flex, Stack, Text } from '#app/components/ui-kit'
+import { Stack } from '#app/components/ui-kit'
 import {
 	POOL_STATUS_LABELS,
 	OCCASION_TYPE_LABELS,

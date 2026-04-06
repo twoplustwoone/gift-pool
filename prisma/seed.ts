@@ -3,7 +3,6 @@ import { prisma } from '#app/utils/db.server.ts'
 import {
 	cleanupDb,
 	createPassword,
-	createUser,
 	getUserImages,
 	img,
 } from '#tests/db-utils.ts'

@@ -1,6 +1,5 @@
 import { LuGift, LuPlus } from 'react-icons/lu'
 import { Link, type LoaderFunctionArgs, useLoaderData } from 'react-router'
-import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -38,15 +37,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	})
 
 	// Split into active and completed
-	const completedStatuses: PoolStatus[] = [
+	const completedStatuses = new Set<PoolStatus>([
 		POOL_STATUS.DELIVERED,
 		POOL_STATUS.CANCELLED,
-	]
+	])
 	const active = pools.filter(
-		p => !completedStatuses.includes(p.status as PoolStatus),
+		p => !completedStatuses.has(p.status as PoolStatus),
 	)
 	const completed = pools.filter(p =>
-		completedStatuses.includes(p.status as PoolStatus),
+		completedStatuses.has(p.status as PoolStatus),
 	)
 
 	return { active, completed, userId }

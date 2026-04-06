@@ -80,7 +80,6 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 		occasionType: pool.occasionType as OccasionType,
 		recipientLabel,
 		contributorCount: pool._count.contributors,
-		code,
 	}
 }
 
@@ -107,7 +106,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
 }
 
 const JoinPoolPage = () => {
-	const { poolTitle, occasionType, recipientLabel, contributorCount, code } =
+	const { poolTitle, occasionType, recipientLabel, contributorCount } =
 		useLoaderData<typeof loader>()
 	const navigate = useNavigate()
 

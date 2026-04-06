@@ -8,7 +8,7 @@ import {
 	DECISION_MODE,
 } from '#app/utils/pool-constants.ts'
 import { calculateContributions } from '#app/utils/pool-contributions.ts'
-import type { PoolStatus, DecisionMode, OccasionType } from '#app/utils/pool-constants.ts'
+import type { DecisionMode, OccasionType } from '#app/utils/pool-constants.ts'
 
 // ─── Selects ──────────────────────────────────────────────────────────────────
 

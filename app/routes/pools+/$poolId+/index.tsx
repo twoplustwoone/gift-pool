@@ -3,7 +3,7 @@
 // in a child route submit to that child's action, not the parent's.
 export { action } from './__route.server'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import {
@@ -26,7 +26,6 @@ import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
 import { Input } from '#app/components/ui/input.tsx'
-import { Label } from '#app/components/ui/label.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
 import { Flex, Stack, Text } from '#app/components/ui-kit'
 import { formatCents } from '#app/utils/pool-contributions.ts'
@@ -75,8 +74,15 @@ const ContributionEditor = ({
 	// User enters dollars (e.g. "30.00"); server converts to cents.
 	const defaultValue = currentCents !== null ? (currentCents / 100).toFixed(2) : ''
 	const [value, setValue] = useState(defaultValue)
+	useEffect(() => {
+		setValue(defaultValue)
+	}, [defaultValue])
+
+	const parsedValue = value === '' ? null : Number.parseFloat(value)
+	const parsedDefaultValue =
+		defaultValue === '' ? null : Number.parseFloat(defaultValue)
 	// Compare parsed floats so "30" and "30.00" are treated as equal (no false dirty).
-	const isDirty = parseFloat(value) !== parseFloat(defaultValue)
+	const isDirty = parsedValue !== parsedDefaultValue
 
 	const [form, fields] = useForm({
 		onValidate({ formData }) {
@@ -96,7 +102,6 @@ const ContributionEditor = ({
 			method="post"
 			{...getFormProps(form)}
 			className="flex items-center gap-2"
-			onSubmit={() => setValue(value)} // keep in sync after save
 		>
 			<input type="hidden" name="intent" value="update-contribution" />
 			<input type="hidden" name="poolId" value={poolId} />
@@ -128,7 +133,6 @@ const ContributionEditor = ({
 const IdeaCard = ({
 	idea,
 	poolId,
-	poolStatus,
 	isVoting,
 	myVoteIdeaId,
 	canManage,
@@ -137,7 +141,6 @@ const IdeaCard = ({
 }: {
 	idea: Idea
 	poolId: string
-	poolStatus: PoolStatus
 	isVoting: boolean
 	myVoteIdeaId: string | null
 	canManage: boolean
@@ -917,7 +920,6 @@ const PoolIndex = () => {
 									key={idea.id}
 									idea={idea}
 									poolId={pool.id}
-									poolStatus={status}
 									isVoting={isVoting}
 									myVoteIdeaId={myVoteIdeaId}
 									canManage={canManage}

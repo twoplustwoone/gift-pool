@@ -1,5 +1,5 @@
 import { parseWithZod } from '@conform-to/zod'
-import { data, redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from 'react-router'
+import { data, type ActionFunctionArgs, type LoaderFunctionArgs } from 'react-router'
 import { z } from 'zod'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
