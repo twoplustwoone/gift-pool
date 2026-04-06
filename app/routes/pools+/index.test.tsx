@@ -150,11 +150,18 @@ describe('app/routes/pools+/index.tsx', () => {
   });
 
   it('renders active and completed pool sections', () => {
+    const eventDate = '2026-06-14T00:00:00.000Z';
+    const expectedEventDate = new Date(eventDate).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
     renderRoute({
       active: [
         {
           _count: { contributors: 2, ideas: 1 },
-          eventDate: '2026-06-14T00:00:00.000Z',
+          eventDate,
           giftGroup: null,
           id: 'pool-open',
           occasionType: 'BIRTHDAY',
@@ -189,7 +196,7 @@ describe('app/routes/pools+/index.tsx', () => {
     expect(
       screen.getByText((_, element) => element?.textContent === 'Birthday for Alex'),
     ).toBeInTheDocument();
-    expect(screen.getByText('June 13, 2026')).toBeInTheDocument();
+    expect(screen.getByText(expectedEventDate)).toBeInTheDocument();
     expect(screen.getByText('Open')).toBeInTheDocument();
     expect(screen.getByText('Delivered')).toBeInTheDocument();
     expect(screen.getByText('Family')).toBeInTheDocument();
