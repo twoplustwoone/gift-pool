@@ -74,7 +74,7 @@ test.describe('Home page', () => {
     await expect(activityPanel.getByRole('listitem').first()).toBeVisible();
   });
 
-  test('keyboard navigation focuses CTAs and feature links', async ({
+  test('keyboard navigation focuses CTAs and footer links', async ({
     page,
   }) => {
     await page.goto('/');
@@ -93,18 +93,18 @@ test.describe('Home page', () => {
     );
     expect(primaryActive).toContain('Create Your Wishlist');
 
-    // Tab to a feature card link
+    // Tab to a footer link (features section has no interactive links)
     while (attempts++ < 20) {
       const activeText = await page.evaluate(
         () => (document.activeElement as HTMLElement | null)?.textContent || '',
       );
-      if (activeText?.includes('Learn more')) break;
+      if (activeText?.includes('About')) break;
       await page.keyboard.press('Tab');
     }
     const linkActive = await page.evaluate(
       () => (document.activeElement as HTMLElement | null)?.textContent || '',
     );
-    expect(linkActive).toContain('Learn more');
+    expect(linkActive).toContain('About');
   });
 
   // Snapshot tests can be enabled later once baselines are established

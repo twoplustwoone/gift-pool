@@ -194,7 +194,7 @@ export const HomeLoggedIn: React.FC<HomeLoggedInProps> = ({
 				</h2>
 
 				{/* Upcoming birthdays */}
-				<Card className="p-5">
+				<Card className="p-5" data-testid="panel-birthdays">
 					<Flex gap={2} align="center">
 						<LuCalendar size={16} className="shrink-0 text-blue-500" />
 						<h3 className="text-sm font-semibold">
@@ -234,7 +234,7 @@ export const HomeLoggedIn: React.FC<HomeLoggedInProps> = ({
 				</Card>
 
 				{/* Recent activity */}
-				<Card className="p-5">
+				<Card className="p-5" data-testid="panel-activity">
 					<Flex gap={2} align="center">
 						<LuActivity size={16} className="shrink-0 text-green-500" />
 						<h3 className="text-sm font-semibold">
@@ -277,7 +277,7 @@ export const HomeLoggedIn: React.FC<HomeLoggedInProps> = ({
 							</h3>
 							<div className="mt-3">
 								<Button asChild size="sm">
-									<Link to="/wishlist" prefetch="intent">
+									<Link to="/wishlist" prefetch="intent" data-testid="empty-wishlist-cta">
 										{HOME_COPY.panels.emptyWishlistCta}
 									</Link>
 								</Button>
@@ -291,7 +291,7 @@ export const HomeLoggedIn: React.FC<HomeLoggedInProps> = ({
 							</h3>
 							<div className="mt-3">
 								<Button asChild size="sm" variant="outline">
-									<Link to="/groups/new" prefetch="intent">
+									<Link to="/groups/new" prefetch="intent" data-testid="empty-groups-cta">
 										{HOME_COPY.panels.emptyGroupsCta}
 									</Link>
 								</Button>
