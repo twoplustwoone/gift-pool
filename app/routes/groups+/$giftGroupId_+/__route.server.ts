@@ -12,8 +12,6 @@ import {
   DestroyInviteLinkFormSchema,
   GiftGroupIdFormIntent,
   LeaveGroupFormSchema,
-  LockPlanFormSchema,
-  PlanGiftFormSchema,
 } from './__route.shared';
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
@@ -53,15 +51,6 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
           role: true,
           contributionCents: true,
           budgetVisibilityOverride: true,
-        },
-      },
-      giftPlans: {
-        select: {
-          id: true,
-          recipientUserId: true,
-          birthdayDate: true,
-          status: true,
-          lockedAt: true,
         },
       },
     },
@@ -263,7 +252,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 }
 export async function action({ request }: ActionFunctionArgs) {
   const { requireUserId } = await import('#app/utils/auth.server.ts');
-  const { deleteGiftGroup, createGiftPlan, lockGiftPlan, leaveGroup } =
+  const { deleteGiftGroup, leaveGroup } =
     await import('#app/utils/groups.server.ts');
   const { createInviteLink, destroyInviteLink } =
     await import('#app/utils/group-invitations.server.ts');
@@ -274,9 +263,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const submission = parseWithZod(formData, {
     schema: DeleteFormSchema.or(CreateInviteLinkFormSchema)
       .or(DestroyInviteLinkFormSchema)
-      .or(LeaveGroupFormSchema)
-      .or(PlanGiftFormSchema)
-      .or(LockPlanFormSchema),
+      .or(LeaveGroupFormSchema),
   });
   if (submission.status !== 'success') {
     return data(submission.reply(), {
@@ -340,30 +327,5 @@ export async function action({ request }: ActionFunctionArgs) {
         title: 'Success',
         description: 'You have left the group.',
       });
-    case GiftGroupIdFormIntent.PlanGift: {
-      const { recipientUserId, birthdayDate } = submission.value;
-      await createGiftPlan(
-        request,
-        giftGroupId,
-        recipientUserId,
-        new Date(birthdayDate),
-      );
-      return data(submission.reply(), {
-        headers: await createToastHeaders({
-          description: 'Gift plan created.',
-          type: 'success',
-        }),
-      });
-    }
-    case GiftGroupIdFormIntent.LockPlan: {
-      const { planId } = submission.value;
-      await lockGiftPlan(request, giftGroupId, planId);
-      return data(submission.reply(), {
-        headers: await createToastHeaders({
-          description: 'Budget locked for plan.',
-          type: 'success',
-        }),
-      });
-    }
   }
 }

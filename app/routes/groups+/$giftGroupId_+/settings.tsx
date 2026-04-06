@@ -52,9 +52,6 @@ import {
   removeReminder,
   transferOwnership,
   updateGroupSettings,
-  createGiftPlan,
-  lockGiftPlan,
-  unlockGiftPlan,
   promoteToAdmin,
   demoteAdminToMember,
   updateOwnPreferences,
@@ -121,22 +118,6 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
           usedCount: true,
           requireApproval: true,
           expiresAt: true,
-        },
-      },
-      giftPlans: {
-        select: {
-          id: true,
-          status: true,
-          birthdayDate: true,
-          lockedAt: true,
-          lockedById: true,
-          recipient: {
-            select: {
-              id: true,
-              username: true,
-              name: true,
-            },
-          },
         },
       },
     },
@@ -290,9 +271,6 @@ export enum SettingsIntent {
   OwnershipTransfer = 'ownership-transfer',
   ReminderAdd = 'reminder-add',
   ReminderRemove = 'reminder-remove',
-  GiftPlanCreate = 'giftplan-create',
-  GiftPlanLock = 'giftplan-lock',
-  GiftPlanUnlock = 'giftplan-unlock',
   MemberPromoteAdmin = 'member-promote-admin',
   MemberDemoteMember = 'member-demote-member',
   MemberUpdateSelf = 'member-update-self',
@@ -382,23 +360,6 @@ const DeleteGroupSchema = z.object({
   intent: z.literal(SettingsIntent.DeleteGroup),
   giftGroupId: z.string(),
 });
-const GiftPlanCreateSchema = z.object({
-  intent: z.literal(SettingsIntent.GiftPlanCreate),
-  giftGroupId: z.string(),
-  recipientUsername: z.string().min(1),
-  birthdayDate: z.string(),
-});
-const GiftPlanLockSchema = z.object({
-  intent: z.literal(SettingsIntent.GiftPlanLock),
-  giftGroupId: z.string(),
-  planId: z.string(),
-});
-const GiftPlanUnlockSchema = z.object({
-  intent: z.literal(SettingsIntent.GiftPlanUnlock),
-  giftGroupId: z.string(),
-  planId: z.string(),
-  reason: z.string().optional(),
-});
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const submission = parseWithZod(formData, {
@@ -411,9 +372,6 @@ export async function action({ request }: ActionFunctionArgs) {
       .or(OwnershipTransferSchema)
       .or(ReminderAddSchema)
       .or(ReminderRemoveSchema)
-      .or(GiftPlanCreateSchema)
-      .or(GiftPlanLockSchema)
-      .or(GiftPlanUnlockSchema)
       .or(MemberPromoteAdminSchema)
       .or(MemberDemoteMemberSchema)
       .or(MemberUpdateSelfSchema)
@@ -518,37 +476,6 @@ export async function action({ request }: ActionFunctionArgs) {
     }
     case SettingsIntent.ReminderRemove: {
       await removeReminder(request, v.giftGroupId, v.reminderId);
-      return submission.reply();
-    }
-    case SettingsIntent.GiftPlanCreate: {
-      const user = await prisma.user.findUnique({
-        where: {
-          username: v.recipientUsername,
-        },
-      });
-      if (!user)
-        return data(
-          {
-            message: 'User not found',
-          },
-          {
-            status: 400,
-          },
-        );
-      await createGiftPlan(
-        request,
-        v.giftGroupId,
-        user.id,
-        new Date(v.birthdayDate),
-      );
-      return submission.reply();
-    }
-    case SettingsIntent.GiftPlanLock: {
-      await lockGiftPlan(request, v.giftGroupId, v.planId);
-      return submission.reply();
-    }
-    case SettingsIntent.GiftPlanUnlock: {
-      await unlockGiftPlan(request, v.giftGroupId, v.planId, v.reason);
       return submission.reply();
     }
   }
