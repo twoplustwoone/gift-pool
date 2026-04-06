@@ -297,17 +297,20 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
 		case Intent.DeleteIdea: {
 			// Only the proposer or someone who can manage the pool can delete an idea
-			const idea = await prisma.giftIdea.findUnique({
-				where: { id: v.ideaId },
+			const idea = await prisma.giftIdea.findFirst({
+				where: { id: v.ideaId, poolId },
 				select: { proposedById: true },
 			})
+			if (!idea) {
+				throw data({ error: 'Idea not found.' }, { status: 404 })
+			}
 			if (idea?.proposedById !== userId) {
 				const ok = await canManagePool(userId, poolForPerms)
 				if (!ok) {
 					throw data({ error: 'Not allowed.' }, { status: 403 })
 				}
 			}
-			await deleteIdea(v.ideaId, userId)
+			await deleteIdea(poolId, v.ideaId, userId)
 			return data(submission.reply())
 		}
 
@@ -330,6 +333,9 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		case Intent.CloseVote: {
 			if (!(await canManagePool(userId, poolForPerms))) {
 				throw data({ error: 'Not allowed.' }, { status: 403 })
+			}
+			if (pool.status !== POOL_STATUS.VOTING) {
+				throw data({ error: 'Voting is not active.' }, { status: 400 })
 			}
 			await closeVote(poolId, userId)
 			return data(submission.reply())

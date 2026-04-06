@@ -317,12 +317,18 @@ export async function proposeIdea(input: ProposeIdeaInput) {
 	return idea
 }
 
-export async function deleteIdea(ideaId: string, actorId: string) {
-	const idea = await prisma.giftIdea.findUnique({
-		where: { id: ideaId },
+export async function deleteIdea(
+	poolId: string,
+	ideaId: string,
+	actorId: string,
+) {
+	const idea = await prisma.giftIdea.findFirst({
+		where: { id: ideaId, poolId },
 		select: { poolId: true, name: true },
 	})
-	if (!idea) return
+	if (!idea) {
+		throw data({ error: 'Idea not found.' }, { status: 404 })
+	}
 
 	await prisma.giftIdea.delete({ where: { id: ideaId } })
 
@@ -362,6 +368,15 @@ export async function castVote(
 	ideaId: string,
 	voterId: string,
 ) {
+	const idea = await prisma.giftIdea.findFirst({
+		where: { id: ideaId, poolId },
+		select: { id: true },
+	})
+
+	if (!idea) {
+		throw data({ error: 'Idea not found.' }, { status: 404 })
+	}
+
 	// Upsert: replacing an existing vote is fine
 	await prisma.ideaVote.upsert({
 		where: { poolId_voterId: { poolId, voterId } },
@@ -377,6 +392,18 @@ export async function castVote(
 
 // Close the vote — returns to OPEN without choosing. The organizer then picks.
 export async function closeVote(poolId: string, actorId: string) {
+	const pool = await prisma.pool.findUnique({
+		where: { id: poolId },
+		select: { status: true },
+	})
+
+	if (pool?.status !== POOL_STATUS.VOTING) {
+		throw data(
+			{ error: 'A vote can only be closed while voting is active.' },
+			{ status: 400 },
+		)
+	}
+
 	await prisma.pool.update({
 		where: { id: poolId },
 		data: { status: POOL_STATUS.OPEN },
@@ -395,8 +422,8 @@ export async function chooseIdea(
 	actorId: string,
 	finalPriceCents?: number | null,
 ) {
-	const idea = await prisma.giftIdea.findUnique({
-		where: { id: ideaId },
+	const idea = await prisma.giftIdea.findFirst({
+		where: { id: ideaId, poolId },
 		select: { estimatedPriceCents: true, name: true },
 	})
 
