@@ -1,4 +1,4 @@
-import { type LucideIcon, Heart, Home, UserCheck, Users } from 'lucide-react';
+import { type LucideIcon, Gift, Heart, Home, UserCheck, Users } from 'lucide-react';
 import { Link } from 'react-router';
 import { Logo } from '#app/components/logo';
 import { NotificationBell } from '#app/components/notifications/notification-bell.tsx';
@@ -18,6 +18,7 @@ const links: {
   { to: '/', icon: Home, label: 'Home', needsAuth: false },
   { to: '/wishlist', icon: Heart, label: 'Wishlist', needsAuth: true },
   { to: '/groups', icon: Users, label: 'Groups', needsAuth: true },
+  { to: '/pools', icon: Gift, label: 'Pools', needsAuth: true },
   { to: '/friends', icon: UserCheck, label: 'Friends', needsAuth: true },
 ];
 

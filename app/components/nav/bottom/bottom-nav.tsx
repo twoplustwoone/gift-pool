@@ -1,4 +1,4 @@
-import { type LucideIcon, Heart, Home, User, Users } from 'lucide-react';
+import { type LucideIcon, Gift, Heart, Home, User, Users } from 'lucide-react';
 import { useOptionalUser } from '#app/utils/user.ts';
 import { BottomNavLink } from './bottom-nav-link.tsx';
 
@@ -11,6 +11,7 @@ const links: {
   { to: '/', icon: Home, label: 'Home', needsAuth: false },
   { to: '/wishlist', icon: Heart, label: 'Wishlist', needsAuth: true },
   { to: '/groups', icon: Users, label: 'Groups', needsAuth: true },
+  { to: '/pools', icon: Gift, label: 'Pools', needsAuth: true },
   { to: '/friends', icon: User, label: 'Friends', needsAuth: true },
 ];
 
@@ -22,7 +23,7 @@ export const BottomNav = () => {
       className="fixed bottom-0 left-0 w-full border-t border-surface-border bg-surface text-foreground sm:hidden"
       data-testid="bottom-nav"
     >
-      <ul className="flex h-bottom-nav gap-1 px-1">
+      <ul className="flex h-bottom-nav px-0">
         {links
           .filter((l) => !l.needsAuth || user)
           .map((link) => (

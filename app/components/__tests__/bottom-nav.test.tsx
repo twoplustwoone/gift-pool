@@ -32,52 +32,40 @@ import { useOptionalUser } from '#app/utils/user.ts';
 import { BottomNav } from '../nav/bottom/bottom-nav.tsx';
 
 describe('<BottomNav />', () => {
+  function renderBottomNav(user: { id: string } | null = { id: 'user1' }) {
+    vi.mocked(useOptionalUser).mockReturnValue(user as any);
+
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => <BottomNav />,
+      },
+    ]);
+
+    render(<App initialEntries={['/']} />);
+  }
+
   afterEach(() => {
     vi.mocked(useOptionalUser).mockReset();
   });
 
   test('renders a navigation landmark', () => {
-    const App = createRoutesStub([
-      {
-        path: '/',
-        Component: () => <BottomNav />,
-      },
-    ]);
-
-    render(<App />);
+    renderBottomNav();
     const nav = screen.getByRole('navigation');
     expect(nav).toBeInTheDocument();
   });
 
-  test('contains four navigation items when authenticated', () => {
-    vi.mocked(useOptionalUser).mockReturnValue({ id: 'user1' } as any);
-
-    const App = createRoutesStub([
-      {
-        path: '/',
-        Component: () => <BottomNav />,
-      },
-    ]);
-
-    render(<App />);
+  test('renders exactly five items when authenticated', () => {
+    renderBottomNav({ id: 'user1' });
     const nav = screen.getByRole('navigation');
 
     const list = within(nav).getByRole('list');
     const items = within(list).getAllByRole('listitem');
-    expect(items).toHaveLength(4);
+    expect(items).toHaveLength(5);
   });
 
-  test('contains only the public navigation item when unauthenticated', () => {
-    vi.mocked(useOptionalUser).mockReturnValue(undefined);
-
-    const App = createRoutesStub([
-      {
-        path: '/',
-        Component: () => <BottomNav />,
-      },
-    ]);
-
-    render(<App />);
+  test('renders exactly one item when unauthenticated', () => {
+    renderBottomNav(null);
     const nav = screen.getByRole('navigation');
 
     const list = within(nav).getByRole('list');
@@ -85,24 +73,11 @@ describe('<BottomNav />', () => {
     expect(items).toHaveLength(1);
   });
 
-  test('buttons have accessible names', () => {
-    vi.mocked(useOptionalUser).mockReturnValue({ id: 'user1' } as any);
+  test('all five items have accessible labels', () => {
+    renderBottomNav({ id: 'user1' });
 
-    const App = createRoutesStub([
-      {
-        path: '/',
-        Component: () => <BottomNav />,
-      },
-    ]);
-
-    render(<App />);
-    const home = screen.getByRole('link', { name: /home/i });
-    const wishlist = screen.getByRole('link', { name: /wishlist/i });
-    const groups = screen.getByRole('link', { name: /groups/i });
-    const friends = screen.getByRole('link', { name: /friends/i });
-    expect(home).toBeInTheDocument();
-    expect(wishlist).toBeInTheDocument();
-    expect(groups).toBeInTheDocument();
-    expect(friends).toBeInTheDocument();
+    for (const name of ['Home', 'Wishlist', 'Groups', 'Pools', 'Friends']) {
+      expect(screen.getByRole('link', { name })).toBeInTheDocument();
+    }
   });
 });

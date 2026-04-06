@@ -33,13 +33,24 @@ const prefetchSpy = vi.fn();
 const getUserId = vi.fn();
 const wishlistItemCount = vi.fn();
 const groupCount = vi.fn();
+const poolFindMany = vi.fn();
 const useOptionalUser = vi.fn();
 const loaderDataSnapshot: {
+  activePools: Array<{
+    contributorCount: number;
+    eventDate: string | null;
+    id: string;
+    occasionType: string;
+    recipientName: string | null;
+    status: string;
+    title: string;
+  }>;
   groupCount: number;
   isLoggedIn: boolean;
   mock?: 'data' | 'empty';
   wishlistCount: number;
 } = {
+  activePools: [],
   groupCount: 0,
   isLoggedIn: false,
   mock: undefined,
@@ -86,6 +97,9 @@ vi.mock('#app/utils/db.server.ts', () => ({
     wishlistItem: {
       count: (...args: Array<unknown>) => wishlistItemCount(...args),
     },
+    pool: {
+      findMany: (...args: Array<unknown>) => poolFindMany(...args),
+    },
   },
 }));
 
@@ -106,8 +120,10 @@ beforeEach(() => {
   getUserId.mockReset();
   wishlistItemCount.mockReset();
   groupCount.mockReset();
+  poolFindMany.mockReset();
   useOptionalUser.mockReset();
   useOptionalUser.mockReturnValue(null);
+  loaderDataSnapshot.activePools = [];
   loaderDataSnapshot.groupCount = 0;
   loaderDataSnapshot.isLoggedIn = false;
   loaderDataSnapshot.mock = undefined;
@@ -117,6 +133,7 @@ beforeEach(() => {
 function renderIndexRoute({
   entry = '/',
   loaderData = {
+    activePools: [],
     groupCount: 0,
     isLoggedIn: false,
     mock: undefined,
@@ -126,14 +143,24 @@ function renderIndexRoute({
 }: {
   entry?: string;
   loaderData?: {
+    activePools: Array<{
+      contributorCount: number;
+      eventDate: string | null;
+      id: string;
+      occasionType: string;
+      recipientName: string | null;
+      status: string;
+      title: string;
+    }>;
     groupCount: number;
     isLoggedIn: boolean;
     mock?: 'data' | 'empty';
     wishlistCount: number;
   };
   user?: { id: string } | null;
-}) {
+} = {}) {
   useOptionalUser.mockReturnValue(user);
+  loaderDataSnapshot.activePools = loaderData.activePools;
   loaderDataSnapshot.groupCount = loaderData.groupCount;
   loaderDataSnapshot.isLoggedIn = loaderData.isLoggedIn;
   loaderDataSnapshot.mock = loaderData.mock;
@@ -165,6 +192,7 @@ describe('app/routes/index.tsx', () => {
         request: new Request('https://example.com/?mock=unknown'),
       } as never),
     ).resolves.toEqual({
+      activePools: [],
       groupCount: 0,
       isLoggedIn: false,
       mock: undefined,
@@ -185,6 +213,7 @@ describe('app/routes/index.tsx', () => {
         request: new Request('https://example.com/?mock=empty'),
       } as never),
     ).resolves.toEqual({
+      activePools: [],
       groupCount: 0,
       isLoggedIn: true,
       mock: 'empty',
@@ -198,6 +227,7 @@ describe('app/routes/index.tsx', () => {
         request: new Request('https://example.com/?mock=data'),
       } as never),
     ).resolves.toEqual({
+      activePools: [],
       groupCount: 1,
       isLoggedIn: true,
       mock: 'data',
@@ -209,6 +239,18 @@ describe('app/routes/index.tsx', () => {
     getUserId.mockResolvedValue('user-42');
     wishlistItemCount.mockResolvedValue(3);
     groupCount.mockResolvedValue(5);
+    poolFindMany.mockResolvedValue([
+      {
+        _count: { contributors: 4 },
+        eventDate: new Date('2026-06-14T00:00:00.000Z'),
+        id: 'pool-1',
+        occasionType: 'BIRTHDAY',
+        recipientName: null,
+        recipientUser: { name: 'Alex', username: 'alex' },
+        status: 'OPEN',
+        title: 'Alex Birthday Gift',
+      },
+    ]);
 
     await expect(
       loader({
@@ -217,6 +259,17 @@ describe('app/routes/index.tsx', () => {
         request: new Request('https://example.com/'),
       } as never),
     ).resolves.toEqual({
+      activePools: [
+        {
+          contributorCount: 4,
+          eventDate: '2026-06-14T00:00:00.000Z',
+          id: 'pool-1',
+          occasionType: 'BIRTHDAY',
+          recipientName: 'Alex',
+          status: 'OPEN',
+          title: 'Alex Birthday Gift',
+        },
+      ],
       groupCount: 5,
       isLoggedIn: true,
       mock: undefined,
@@ -229,6 +282,24 @@ describe('app/routes/index.tsx', () => {
     expect(groupCount).toHaveBeenCalledWith({
       where: { userId: 'user-42' },
     });
+    expect(poolFindMany).toHaveBeenCalledWith({
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        _count: { select: { contributors: true } },
+        eventDate: true,
+        id: true,
+        occasionType: true,
+        recipientName: true,
+        recipientUser: { select: { name: true, username: true } },
+        status: true,
+        title: true,
+      },
+      take: 6,
+      where: {
+        contributors: { some: { userId: 'user-42' } },
+        status: { in: ['OPEN', 'VOTING', 'DECIDED', 'PURCHASED'] },
+      },
+    });
   });
 
   it('builds the homepage title from the shared copy', () => {
@@ -237,15 +308,45 @@ describe('app/routes/index.tsx', () => {
     ]);
   });
 
-  it('renders the homepage, tracks CTA clicks, and enables prefetch for real users', async () => {
+  it('renders the dashboard and enables prefetch for real users', async () => {
     renderIndexRoute({
       loaderData: {
+        activePools: [
+          {
+            contributorCount: 2,
+            eventDate: null,
+            id: 'pool-1',
+            occasionType: 'BIRTHDAY',
+            recipientName: 'Alex',
+            status: 'OPEN',
+            title: 'Alex Birthday Gift',
+          },
+        ],
         groupCount: 1,
         isLoggedIn: true,
         wishlistCount: 2,
       },
       user: { id: 'user-7' },
     });
+
+    expect(
+      screen.getByRole('heading', { name: 'Your pools' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /Alex Birthday Gift/i }),
+    ).toHaveAttribute('href', '/pools/pool-1');
+
+    expect(prefetchSpy).toHaveBeenCalledWith({
+      enabled: true,
+      scopeKey: 'user-7',
+    });
+    await waitFor(() => {
+      expect(fetcherLoad).toHaveBeenCalledWith('/resources/home/panels');
+    });
+  });
+
+  it('renders the marketing page and tracks CTA clicks for logged-out visitors', async () => {
+    renderIndexRoute();
 
     expect(
       screen.getByRole('heading', { name: HOME_COPY.hero.headline }),
@@ -265,13 +366,9 @@ describe('app/routes/index.tsx', () => {
 
     expect(track).toHaveBeenNthCalledWith(1, 'home.cta.create_wishlist');
     expect(track).toHaveBeenNthCalledWith(2, 'home.cta.start_group');
-
     expect(prefetchSpy).toHaveBeenCalledWith({
-      enabled: true,
-      scopeKey: 'user-7',
-    });
-    await waitFor(() => {
-      expect(fetcherLoad).toHaveBeenCalledWith('/resources/home/panels');
+      enabled: false,
+      scopeKey: null,
     });
   });
 
@@ -279,6 +376,7 @@ describe('app/routes/index.tsx', () => {
     renderIndexRoute({
       entry: '/?mock=data',
       loaderData: {
+        activePools: [],
         groupCount: 1,
         isLoggedIn: true,
         mock: 'data',

@@ -1,0 +1,780 @@
+/**
+ * @vitest-environment node
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  getRouteResultData,
+  getRouteResultStatus,
+  toActionArgs,
+  toLoaderArgs,
+} from '#tests/route-module-test-utils.ts';
+
+const requireUserId = vi.fn();
+const requirePoolContributor = vi.fn();
+const canManagePool = vi.fn();
+const isPoolOrganizer = vi.fn();
+const addContributor = vi.fn();
+const assignDeliverer = vi.fn();
+const assignPurchaser = vi.fn();
+const callVote = vi.fn();
+const cancelPool = vi.fn();
+const castVote = vi.fn();
+const chooseIdea = vi.fn();
+const closeVote = vi.fn();
+const deleteIdea = vi.fn();
+const deletePool = vi.fn();
+const generatePoolInviteCode = vi.fn();
+const getContributionBreakdown = vi.fn();
+const markContributorPaid = vi.fn();
+const markDelivered = vi.fn();
+const markPurchased = vi.fn();
+const proposeIdea = vi.fn();
+const removeContributor = vi.fn();
+const updateContribution = vi.fn();
+const updateFinalPrice = vi.fn();
+const poolFindUnique = vi.fn();
+const giftIdeaFindFirst = vi.fn();
+const ideaVoteFindUnique = vi.fn();
+const redirectWithToast = vi.fn();
+
+vi.mock('#app/utils/auth.server.ts', () => ({
+  requireUserId: (...args: Array<unknown>) => requireUserId(...args),
+}));
+
+vi.mock('#app/utils/pool-permissions.server.ts', () => ({
+  canManagePool: (...args: Array<unknown>) => canManagePool(...args),
+  isPoolOrganizer: (...args: Array<unknown>) => isPoolOrganizer(...args),
+  requirePoolContributor: (...args: Array<unknown>) =>
+    requirePoolContributor(...args),
+}));
+
+vi.mock('#app/utils/db.server.ts', () => ({
+  prisma: {
+    giftIdea: {
+      findFirst: (...args: Array<unknown>) => giftIdeaFindFirst(...args),
+    },
+    ideaVote: {
+      findUnique: (...args: Array<unknown>) => ideaVoteFindUnique(...args),
+    },
+    pool: {
+      findUnique: (...args: Array<unknown>) => poolFindUnique(...args),
+    },
+  },
+}));
+
+vi.mock('#app/utils/pool.server.ts', () => ({
+  addContributor: (...args: Array<unknown>) => addContributor(...args),
+  assignDeliverer: (...args: Array<unknown>) => assignDeliverer(...args),
+  assignPurchaser: (...args: Array<unknown>) => assignPurchaser(...args),
+  callVote: (...args: Array<unknown>) => callVote(...args),
+  cancelPool: (...args: Array<unknown>) => cancelPool(...args),
+  castVote: (...args: Array<unknown>) => castVote(...args),
+  chooseIdea: (...args: Array<unknown>) => chooseIdea(...args),
+  closeVote: (...args: Array<unknown>) => closeVote(...args),
+  deleteIdea: (...args: Array<unknown>) => deleteIdea(...args),
+  deletePool: (...args: Array<unknown>) => deletePool(...args),
+  generatePoolInviteCode: (...args: Array<unknown>) =>
+    generatePoolInviteCode(...args),
+  getContributionBreakdown: (...args: Array<unknown>) =>
+    getContributionBreakdown(...args),
+  markContributorPaid: (...args: Array<unknown>) =>
+    markContributorPaid(...args),
+  markDelivered: (...args: Array<unknown>) => markDelivered(...args),
+  markPurchased: (...args: Array<unknown>) => markPurchased(...args),
+  poolSelect: {},
+  proposeIdea: (...args: Array<unknown>) => proposeIdea(...args),
+  removeContributor: (...args: Array<unknown>) => removeContributor(...args),
+  updateContribution: (...args: Array<unknown>) => updateContribution(...args),
+  updateFinalPrice: (...args: Array<unknown>) => updateFinalPrice(...args),
+}));
+
+vi.mock('#app/utils/toast.server.ts', () => ({
+  redirectWithToast: (...args: Array<unknown>) => redirectWithToast(...args),
+}));
+
+import { action, loader } from './__route.server.ts';
+
+function createFormRequest(form: Record<string, string>) {
+  return new Request('https://giftpool.app/pools/pool-1', {
+    body: new URLSearchParams(form),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    method: 'POST',
+  });
+}
+
+function createPool(overrides: Record<string, unknown> = {}) {
+  return {
+    chosenIdeaId: null,
+    contributors: [
+      {
+        contributionCents: 3000,
+        hasPaid: false,
+        joinedAt: new Date('2026-01-01T00:00:00.000Z'),
+        user: { id: 'viewer-1', image: null, name: 'Viewer', username: 'viewer' },
+        userId: 'viewer-1',
+      },
+    ],
+    deliverer: null,
+    delivererId: 'viewer-1',
+    eventDate: null,
+    finalPriceCents: null,
+    giftGroupId: null,
+    id: 'pool-1',
+    ideas: [],
+    inviteCode: 'invite-123',
+    occasionType: 'BIRTHDAY',
+    organizer: { id: 'viewer-1', image: null, name: 'Viewer', username: 'viewer' },
+    organizerId: 'viewer-1',
+    purchaser: null,
+    purchaserId: 'viewer-1',
+    recipientName: null,
+    recipientUser: null,
+    recipientUserId: null,
+    status: 'VOTING',
+    title: 'Birthday Pool',
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  requireUserId.mockReset().mockResolvedValue('viewer-1');
+  requirePoolContributor.mockReset().mockResolvedValue(undefined);
+  canManagePool.mockReset().mockResolvedValue(true);
+  isPoolOrganizer.mockReset().mockReturnValue(true);
+  addContributor.mockReset().mockResolvedValue(undefined);
+  assignDeliverer.mockReset().mockResolvedValue(undefined);
+  assignPurchaser.mockReset().mockResolvedValue(undefined);
+  callVote.mockReset().mockResolvedValue(undefined);
+  cancelPool.mockReset().mockResolvedValue(undefined);
+  castVote.mockReset().mockResolvedValue(undefined);
+  chooseIdea.mockReset().mockResolvedValue(undefined);
+  closeVote.mockReset().mockResolvedValue(undefined);
+  deleteIdea.mockReset().mockResolvedValue(undefined);
+  deletePool.mockReset().mockResolvedValue(undefined);
+  generatePoolInviteCode.mockReset().mockResolvedValue('invite-123');
+  getContributionBreakdown.mockReset().mockResolvedValue(null);
+  markContributorPaid.mockReset().mockResolvedValue(undefined);
+  markDelivered.mockReset().mockResolvedValue(undefined);
+  markPurchased.mockReset().mockResolvedValue(undefined);
+  proposeIdea.mockReset().mockResolvedValue(undefined);
+  removeContributor.mockReset().mockResolvedValue(undefined);
+  updateContribution.mockReset().mockResolvedValue(undefined);
+  updateFinalPrice.mockReset().mockResolvedValue(undefined);
+  giftIdeaFindFirst.mockReset();
+  ideaVoteFindUnique.mockReset().mockResolvedValue(null);
+  poolFindUnique.mockReset().mockResolvedValue(createPool());
+  redirectWithToast.mockReset().mockResolvedValue(
+    new Response(null, {
+      headers: { Location: '/pools' },
+      status: 302,
+    }),
+  );
+});
+
+describe('pool detail route loader', () => {
+  it('throws 404 when the pool cannot be loaded', async () => {
+    poolFindUnique.mockResolvedValue(null);
+
+    await expect(
+      loader(
+        toLoaderArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: new Request('https://giftpool.app/pools/pool-1'),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 404 } });
+  });
+
+  it('returns viewer state, vote, breakdown, and invite URL for decided pools', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({
+        contributors: [
+          {
+            contributionCents: 3000,
+            hasPaid: true,
+            joinedAt: new Date('2026-01-01T00:00:00.000Z'),
+            user: { id: 'viewer-1', image: null, name: 'Viewer', username: 'viewer' },
+            userId: 'viewer-1',
+          },
+        ],
+        status: 'DECIDED',
+      }),
+    );
+    isPoolOrganizer.mockReturnValue(false);
+    canManagePool.mockResolvedValue(true);
+    ideaVoteFindUnique.mockResolvedValue({ ideaId: 'idea-1' });
+    getContributionBreakdown.mockResolvedValue({ breakdown: [{ actualCents: 3000 }] });
+
+    const result = await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: new Request('https://giftpool.app/pools/pool-1'),
+      }),
+    );
+
+    await expect(getRouteResultData(result)).resolves.toMatchObject({
+      canManage: true,
+      contributionBreakdown: { breakdown: [{ actualCents: 3000 }] },
+      inviteUrl: 'https://giftpool.app/pools/join/invite-123',
+      isOrganizer: false,
+      myVoteIdeaId: 'idea-1',
+      viewer: { userId: 'viewer-1' },
+    });
+    expect(getContributionBreakdown).toHaveBeenCalledWith('pool-1');
+  });
+
+  it('returns null breakdowns for non-decided pools', async () => {
+    poolFindUnique.mockResolvedValue(createPool({ status: 'OPEN' }));
+
+    const result = await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: new Request('https://giftpool.app/pools/pool-1'),
+      }),
+    );
+
+    await expect(getRouteResultData(result)).resolves.toMatchObject({
+      contributionBreakdown: null,
+      myVoteIdeaId: null,
+    });
+    expect(getContributionBreakdown).not.toHaveBeenCalled();
+  });
+});
+
+describe('pool detail route action', () => {
+  it('returns a 400 submission response for invalid forms', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'cast-vote',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(400);
+    expect(castVote).not.toHaveBeenCalled();
+  });
+
+  it('proposes ideas with parsed optional price fields', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          estimatedPriceCents: '15.99',
+          intent: 'propose-idea',
+          name: 'Speaker',
+          poolId: 'pool-1',
+          url: '',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(proposeIdea).toHaveBeenCalledWith({
+      description: null,
+      estimatedPriceCents: 1599,
+      name: 'Speaker',
+      poolId: 'pool-1',
+      proposedById: 'viewer-1',
+      url: null,
+      wishlistItemId: null,
+    });
+  });
+
+  it('rejects deleting ideas that are not in the route pool', async () => {
+    giftIdeaFindFirst.mockResolvedValue(null);
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            ideaId: 'idea-2',
+            intent: 'delete-idea',
+            poolId: 'pool-1',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 404 } });
+
+    expect(canManagePool).not.toHaveBeenCalled();
+    expect(deleteIdea).not.toHaveBeenCalled();
+  });
+
+  it('allows same-pool idea deletion for the proposer', async () => {
+    giftIdeaFindFirst.mockResolvedValue({ proposedById: 'viewer-1' });
+
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          ideaId: 'idea-1',
+          intent: 'delete-idea',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(deleteIdea).toHaveBeenCalledWith('pool-1', 'idea-1', 'viewer-1');
+  });
+
+  it('allows managers to delete ideas proposed by someone else', async () => {
+    giftIdeaFindFirst.mockResolvedValue({ proposedById: 'friend-1' });
+
+    await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          ideaId: 'idea-1',
+          intent: 'delete-idea',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(canManagePool).toHaveBeenCalledWith('viewer-1', {
+      giftGroupId: null,
+      id: 'pool-1',
+      organizerId: 'viewer-1',
+      status: 'VOTING',
+    });
+    expect(deleteIdea).toHaveBeenCalledWith('pool-1', 'idea-1', 'viewer-1');
+  });
+
+  it('rejects vote submissions when the route pool is not voting', async () => {
+    poolFindUnique.mockResolvedValue(createPool({ status: 'OPEN' }));
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            ideaId: 'idea-1',
+            intent: 'cast-vote',
+            poolId: 'pool-1',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 400 } });
+
+    expect(castVote).not.toHaveBeenCalled();
+  });
+
+  it('passes same-pool votes through to castVote', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          ideaId: 'idea-1',
+          intent: 'cast-vote',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(castVote).toHaveBeenCalledWith('pool-1', 'idea-1', 'viewer-1');
+  });
+
+  it('requires managers to call a vote', async () => {
+    canManagePool.mockResolvedValue(false);
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            intent: 'call-vote',
+            poolId: 'pool-1',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 403 } });
+
+    expect(callVote).not.toHaveBeenCalled();
+  });
+
+  it('lets managers call a vote', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'call-vote',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(callVote).toHaveBeenCalledWith('pool-1', 'viewer-1');
+  });
+
+  it('rejects close-vote when the route pool is not voting', async () => {
+    poolFindUnique.mockResolvedValue(createPool({ status: 'DECIDED' }));
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            intent: 'close-vote',
+            poolId: 'pool-1',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 400 } });
+
+    expect(closeVote).not.toHaveBeenCalled();
+  });
+
+  it('allows managers to close an active vote', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'close-vote',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(closeVote).toHaveBeenCalledWith('pool-1', 'viewer-1');
+  });
+
+  it('lets managers choose an idea', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          finalPriceCents: '2500',
+          ideaId: 'idea-1',
+          intent: 'choose-idea',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(chooseIdea).toHaveBeenCalledWith('pool-1', 'idea-1', 'viewer-1', 2500);
+  });
+
+  it('updates the current user contribution in cents', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          contributionCents: '45.00',
+          intent: 'update-contribution',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(updateContribution).toHaveBeenCalledWith('pool-1', 'viewer-1', 4500);
+  });
+
+  it('assigns purchasers after ensuring they are contributors', async () => {
+    addContributor.mockRejectedValue(new Error('already a contributor'));
+
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'assign-purchaser',
+          poolId: 'pool-1',
+          userId: 'friend-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(addContributor).toHaveBeenCalledWith('pool-1', 'friend-1');
+    expect(assignPurchaser).toHaveBeenCalledWith('pool-1', 'friend-1', 'viewer-1');
+  });
+
+  it('assigns deliverers after ensuring they are contributors', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'assign-deliverer',
+          poolId: 'pool-1',
+          userId: 'friend-2',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(addContributor).toHaveBeenCalledWith('pool-1', 'friend-2');
+    expect(assignDeliverer).toHaveBeenCalledWith('pool-1', 'friend-2', 'viewer-1');
+  });
+
+  it('restricts purchased and delivered markers to their assigned users', async () => {
+    poolFindUnique.mockResolvedValue(createPool({ purchaserId: 'friend-1' }));
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            intent: 'mark-purchased',
+            poolId: 'pool-1',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 403 } });
+
+    poolFindUnique.mockResolvedValue(createPool({ delivererId: 'friend-2' }));
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            intent: 'mark-delivered',
+            poolId: 'pool-1',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 403 } });
+  });
+
+  it('marks purchased and delivered when the assigned user submits', async () => {
+    let result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'mark-purchased',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(markPurchased).toHaveBeenCalledWith('pool-1', 'viewer-1');
+
+    result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'mark-delivered',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(markDelivered).toHaveBeenCalledWith('pool-1', 'viewer-1');
+  });
+
+  it('restricts payment markers to the purchaser and forwards valid updates', async () => {
+    poolFindUnique.mockResolvedValue(createPool({ purchaserId: 'friend-1' }));
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            hasPaid: 'true',
+            intent: 'mark-paid',
+            poolId: 'pool-1',
+            targetUserId: 'friend-2',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 403 } });
+
+    poolFindUnique.mockResolvedValue(createPool({ purchaserId: 'viewer-1' }));
+
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          hasPaid: 'false',
+          intent: 'mark-paid',
+          poolId: 'pool-1',
+          targetUserId: 'friend-2',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(markContributorPaid).toHaveBeenCalledWith('pool-1', 'friend-2', false);
+  });
+
+  it('updates final price using dollar input', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          finalPriceCents: '25.00',
+          intent: 'update-final-price',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(updateFinalPrice).toHaveBeenCalledWith('pool-1', 2500, 'viewer-1');
+  });
+
+  it('returns generated invite URLs to managers', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'generate-invite',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    await expect(getRouteResultData(result)).resolves.toEqual({
+      inviteUrl: 'https://giftpool.app/pools/join/invite-123',
+    });
+  });
+
+  it('removes contributors when a manager requests it', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'remove-contributor',
+          poolId: 'pool-1',
+          userId: 'friend-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(removeContributor).toHaveBeenCalledWith('pool-1', 'friend-1', 'viewer-1');
+  });
+
+  it('prevents organizers from leaving and redirects other contributors', async () => {
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            intent: 'leave-pool',
+            poolId: 'pool-1',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 400 } });
+
+    poolFindUnique.mockResolvedValue(createPool({ organizerId: 'friend-1' }));
+
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'leave-pool',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(result).toBeInstanceOf(Response);
+    expect(removeContributor).toHaveBeenCalledWith('pool-1', 'viewer-1', 'viewer-1');
+    expect(redirectWithToast).toHaveBeenCalledWith('/pools', {
+      description: 'You have left the pool.',
+      title: 'Left pool',
+      type: 'success',
+    });
+  });
+
+  it('cancels pools for managers', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'cancel-pool',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(cancelPool).toHaveBeenCalledWith('pool-1', 'viewer-1');
+  });
+
+  it('requires organizers to delete the pool', async () => {
+    isPoolOrganizer.mockReturnValue(false);
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            intent: 'delete-pool',
+            poolId: 'pool-1',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 403 } });
+
+    expect(deletePool).not.toHaveBeenCalled();
+  });
+
+  it('redirects after deleting the pool as organizer', async () => {
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'delete-pool',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(result).toBeInstanceOf(Response);
+    expect(deletePool).toHaveBeenCalledWith('pool-1', 'viewer-1');
+    expect(redirectWithToast).toHaveBeenCalledWith('/pools', {
+      description: 'The pool has been deleted.',
+      title: 'Pool deleted',
+      type: 'success',
+    });
+  });
+});
