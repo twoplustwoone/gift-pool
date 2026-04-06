@@ -8,40 +8,48 @@ datasource db {
 }
 
 model User {
-  id                 String              @id @default(cuid())
-  email              String              @unique
-  username           String              @unique
-  name               String?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  birthday           DateTime?
-  address            Address?
-  connections        Connection[]
-  giftPlansLocked    GiftPlan[]          @relation("GiftPlan_LockedBy")
-  giftPlansReceived  GiftPlan[]          @relation("GiftPlan_Recipient")
-  groupActivities    GroupActivity[]     @relation("GroupActivity_Actor")
-  groupInvitations   GroupInvitation[]
-  groupReminders     GroupReminder[]     @relation("GroupReminder_CreatedBy")
-  joinRequests       JoinRequest[]       @relation("JoinRequest_User")
-  password           Password?
-  sessions           Session[]
-  image              UserImage?
-  giftGroups         UsersInGiftGroups[]
-  wishlistItems      WishlistItem[]
-  wishlistCategories WishlistCategory[]
-  roles              Role[]              @relation("RoleToUser")
-  notifications      Notification[]
-  friendRequestsSent FriendRequest[]     @relation("FriendRequestFromUser")
-  friendRequestsReceived FriendRequest[] @relation("FriendRequestToUser")
-  friendshipsA       Friendship[]        @relation("FriendshipUserA")
-  friendshipsB       Friendship[]        @relation("FriendshipUserB")
-  notificationPreferences UserNotificationPreference[]
+  id                           String                        @id @default(cuid())
+  email                        String                        @unique
+  username                     String                        @unique
+  name                         String?
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  birthday                     DateTime?
+  address                      Address?
+  connections                  Connection[]
+  groupActivities              GroupActivity[]               @relation("GroupActivity_Actor")
+  groupInvitations             GroupInvitation[]
+  groupReminders               GroupReminder[]               @relation("GroupReminder_CreatedBy")
+  joinRequests                 JoinRequest[]                 @relation("JoinRequest_User")
+  password                     Password?
+  sessions                     Session[]
+  image                        UserImage?
+  giftGroups                   UsersInGiftGroups[]
+  wishlistItems                WishlistItem[]
+  wishlistCategories           WishlistCategory[]
+  roles                        Role[]                        @relation("RoleToUser")
+  notifications                Notification[]
+  friendRequestsSent           FriendRequest[]               @relation("FriendRequestFromUser")
+  friendRequestsReceived       FriendRequest[]               @relation("FriendRequestToUser")
+  friendshipsA                 Friendship[]                  @relation("FriendshipUserA")
+  friendshipsB                 Friendship[]                  @relation("FriendshipUserB")
+  notificationPreferences      UserNotificationPreference[]
   notificationPreferenceAudits NotificationPreferenceAudit[]
-  friendInvitationsCreated FriendInvitation[] @relation("FriendInvitation_CreatedBy")
-  friendInvitationsUsed     FriendInvitation[] @relation("FriendInvitation_UsedBy")
-  wishlistPurchases        WishlistPurchase[]
-  wishlistPublicShare      WishlistPublicShare?
-  analyticsEvents          AnalyticsEvent[]
+  friendInvitationsCreated     FriendInvitation[]            @relation("FriendInvitation_CreatedBy")
+  friendInvitationsUsed        FriendInvitation[]            @relation("FriendInvitation_UsedBy")
+  wishlistPurchases            WishlistPurchase[]
+  wishlistPublicShare          WishlistPublicShare?
+  analyticsEvents              AnalyticsEvent[]
+  // Pool relations
+  poolsOrganized               Pool[]                        @relation("Pool_Organizer")
+  poolsAsPurchaser             Pool[]                        @relation("Pool_Purchaser")
+  poolsAsDeliverer             Pool[]                        @relation("Pool_Deliverer")
+  poolsAsRecipient             Pool[]                        @relation("Pool_Recipient")
+  poolContributions            PoolContributor[]
+  giftIdeasProposed            GiftIdea[]
+  ideaVotesCast                IdeaVote[]
+  poolActivities               PoolActivity[]                @relation("PoolActivity_Actor")
+  poolMessages                 PoolMessage[]
 }
 
 model Friendship {
@@ -58,14 +66,14 @@ model Friendship {
 }
 
 model FriendRequest {
-  id         String   @id @default(cuid())
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  status     String   @default("PENDING")
-  fromUserId String
-  toUserId   String
-  fromUser   User     @relation("FriendRequestFromUser", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUser     User     @relation("FriendRequestToUser", fields: [toUserId], references: [id], onDelete: Cascade)
+  id           String        @id @default(cuid())
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  status       String        @default("PENDING")
+  fromUserId   String
+  toUserId     String
+  fromUser     User          @relation("FriendRequestFromUser", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser       User          @relation("FriendRequestToUser", fields: [toUserId], references: [id], onDelete: Cascade)
   notification Notification? @relation("FriendRequestNotification")
 
   @@unique([fromUserId, toUserId])
@@ -74,36 +82,36 @@ model FriendRequest {
 }
 
 model FriendInvitation {
-  id          String   @id @default(cuid())
-  code        String   @unique
-  createdAt   DateTime @default(now())
+  id          String    @id @default(cuid())
+  code        String    @unique
+  createdAt   DateTime  @default(now())
   expiresAt   DateTime
   revokedAt   DateTime?
   createdById String
   usedById    String?
   usedAt      DateTime?
-  createdBy   User     @relation("FriendInvitation_CreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
-  usedBy      User?    @relation("FriendInvitation_UsedBy", fields: [usedById], references: [id])
+  createdBy   User      @relation("FriendInvitation_CreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  usedBy      User?     @relation("FriendInvitation_UsedBy", fields: [usedById], references: [id])
 
   @@index([code])
 }
 
 model Notification {
-  id                String             @id @default(cuid())
-  createdAt         DateTime           @default(now())
-  readAt            DateTime?
-  userId            String
-  type              String
-  status            String             @default("UNREAD")
-  messageKey        String
-  messageParams     String?
-  targetUrl         String?
-  metadata          String?
-  actions           String?
-  friendRequestId   String?            @unique
-  friendRequest     FriendRequest?     @relation("FriendRequestNotification", fields: [friendRequestId], references: [id], onDelete: Cascade)
-  sourceIdentifier  String?
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String        @id @default(cuid())
+  createdAt        DateTime      @default(now())
+  readAt           DateTime?
+  userId           String
+  type             String
+  status           String        @default("UNREAD")
+  messageKey       String
+  messageParams    String?
+  targetUrl        String?
+  metadata         String?
+  actions          String?
+  friendRequestId  String?       @unique
+  sourceIdentifier String?
+  friendRequest    FriendRequest? @relation("FriendRequestNotification", fields: [friendRequestId], references: [id], onDelete: Cascade)
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([userId, status])
@@ -123,15 +131,15 @@ model UserNotificationPreference {
 }
 
 model NotificationPreferenceAudit {
-  id             String   @id @default(cuid())
-  userId         String
-  type           String
-  channel        String
-  previousValue  Boolean
-  newValue       Boolean
-  source         String
-  createdAt      DateTime @default(now())
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  userId        String
+  type          String
+  channel       String
+  previousValue Boolean
+  newValue      Boolean
+  source        String
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([type])
@@ -145,7 +153,7 @@ model GiftGroup {
   name             String
   description      String?
   budgetVisibility String              @default("EVERYONE")
-  giftPlans        GiftPlan[]
+  pools            Pool[]
   activities       GroupActivity[]
   groupInvitations GroupInvitation[]
   reminders        GroupReminder[]
@@ -230,36 +238,187 @@ model GroupActivity {
   actor       User      @relation("GroupActivity_Actor", fields: [actorId], references: [id])
 }
 
-model GiftPlan {
-  id              String    @id @default(cuid())
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  status          String    @default("PLANNING")
-  recipientUserId String
-  birthdayDate    DateTime
-  lockedAt        DateTime?
-  lockedById      String?
-  budgetSnapshot  String?
-  giftGroupId     String
-  giftGroup       GiftGroup @relation(fields: [giftGroupId], references: [id], onDelete: Cascade)
-  lockedBy        User?     @relation("GiftPlan_LockedBy", fields: [lockedById], references: [id])
-  recipient       User      @relation("GiftPlan_Recipient", fields: [recipientUserId], references: [id])
+// -----------------------------------------------------------------------------
+// Pool — the core unit of group gift-giving
+//
+// A Pool is a scoped, time-bound collaboration around a specific gift for a
+// specific person. It can live inside a GiftGroup or stand alone (standalone
+// pools use inviteCode to bring contributors in).
+//
+// Status flow: OPEN → (VOTING) → DECIDED → PURCHASED → DELIVERED
+//                                                     ↘ CANCELLED (any time)
+//
+// Decision modes:
+//   ORGANIZER_PICKS — the organizer declares the winner from the ideas list
+//   VOTE            — contributors vote on ideas; organizer closes the vote
+// -----------------------------------------------------------------------------
+model Pool {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  title           String
+  // Valid values: BIRTHDAY | ANNIVERSARY | WEDDING | FAREWELL | GRADUATION | HOLIDAY | OTHER
+  occasionType    String   @default("BIRTHDAY")
+  eventDate       DateTime?
+
+  // Valid values: OPEN | VOTING | DECIDED | PURCHASED | DELIVERED | CANCELLED
+  status          String   @default("OPEN")
+  // Valid values: ORGANIZER_PICKS | VOTE
+  decisionMode    String   @default("ORGANIZER_PICKS")
+
+  // Recipient — either a platform user (hidden from them) or just a name
+  recipientUserId String?
+  recipientName   String?
+
+  // Group context — null means standalone pool
+  giftGroupId     String?
+
+  // Key roles — all role-holders are also PoolContributors
+  organizerId     String
+  purchaserId     String?
+  delivererId     String?
+
+  // Decided gift — set when status transitions to DECIDED
+  chosenIdeaId    String?  @unique
+  finalPriceCents Int?
+
+  // Invite code — for standalone pools or supplemental invites within a group
+  inviteCode      String?  @unique
+
+  // Relations
+  giftGroup     GiftGroup?  @relation(fields: [giftGroupId], references: [id], onDelete: SetNull)
+  organizer     User        @relation("Pool_Organizer", fields: [organizerId], references: [id])
+  purchaser     User?       @relation("Pool_Purchaser", fields: [purchaserId], references: [id])
+  deliverer     User?       @relation("Pool_Deliverer", fields: [delivererId], references: [id])
+  recipientUser User?       @relation("Pool_Recipient", fields: [recipientUserId], references: [id])
+  chosenIdea    GiftIdea?   @relation("Pool_ChosenIdea", fields: [chosenIdeaId], references: [id], onDelete: SetNull)
+
+  contributors  PoolContributor[]
+  ideas         GiftIdea[]        @relation("Pool_Ideas")
+  votes         IdeaVote[]
+  activities    PoolActivity[]
+  messages      PoolMessage[]
+
+  @@index([giftGroupId])
+  @@index([organizerId])
+  @@index([recipientUserId])
+  @@index([status])
 }
 
-model Address {
-  id        String   @id @default(cuid())
-  street    String
-  street2   String?
-  street3   String?
-  city      String
-  state     String
-  zip       String
-  country   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+// One record per contributor per pool.
+// contributionCents defaults from UsersInGiftGroups.contributionCents when
+// the pool is created within a group; can be overridden per pool.
+model PoolContributor {
+  id                String   @id @default(cuid())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  poolId            String
+  userId            String
+  contributionCents Int?     // null = not yet set
+  hasPaid           Boolean  @default(false)
+  joinedAt          DateTime @default(now())
+
+  pool              Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  user              User     @relation(fields: [userId], references: [id])
+
+  @@unique([poolId, userId])
+  @@index([poolId])
+  @@index([userId])
 }
+
+// A proposed gift within a pool.
+// Can be free-form or a smart link to a WishlistItem on the platform.
+// When wishlistItemId is set, the UI renders the item's name/image/url/price.
+model GiftIdea {
+  id                   String        @id @default(cuid())
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  poolId               String
+  proposedById         String
+
+  name                 String
+  description          String?
+  url                  String?
+  estimatedPriceCents  Int?
+
+  // Smart link — references a WishlistItem owned by the recipient
+  wishlistItemId       String?
+
+  pool                 Pool          @relation("Pool_Ideas", fields: [poolId], references: [id], onDelete: Cascade)
+  proposedBy           User          @relation(fields: [proposedById], references: [id])
+  wishlistItem         WishlistItem? @relation(fields: [wishlistItemId], references: [id], onDelete: SetNull)
+
+  // Back-references
+  chosenForPool        Pool?         @relation("Pool_ChosenIdea")
+  votes                IdeaVote[]
+  referencedInMessages PoolMessage[] @relation("PoolMessage_ReferencedIdea")
+
+  @@index([poolId])
+}
+
+// One vote per contributor per pool — voters pick a single idea.
+// Only active when pool.decisionMode = VOTE and pool.status = VOTING.
+model IdeaVote {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  poolId    String
+  ideaId    String
+  voterId   String
+
+  pool      Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  idea      GiftIdea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  voter     User     @relation(fields: [voterId], references: [id])
+
+  @@unique([poolId, voterId])
+  @@index([ideaId])
+}
+
+// Audit trail for pool-level actions.
+// actorId is nullable to support system-generated events.
+model PoolActivity {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  poolId    String
+  actorId   String?
+  type      String
+  payload   String?
+
+  pool      Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  actor     User?    @relation("PoolActivity_Actor", fields: [actorId], references: [id])
+
+  @@index([poolId, createdAt])
+}
+
+// Stub for future in-pool chat/discussion thread.
+// Schema is intentionally complete so the feature can be built without
+// a migration. No UI routes are implemented yet.
+model PoolMessage {
+  id               String    @id @default(cuid())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  poolId           String
+  authorId         String
+  body             String
+
+  // Optional: pin this message to a specific idea (e.g. "I'm proposing this")
+  referencedIdeaId String?
+
+  pool             Pool      @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  author           User      @relation(fields: [authorId], references: [id])
+  referencedIdea   GiftIdea? @relation("PoolMessage_ReferencedIdea", fields: [referencedIdeaId], references: [id], onDelete: SetNull)
+
+  @@index([poolId, createdAt])
+}
+
+// -----------------------------------------------------------------------------
+// Wishlist
+// -----------------------------------------------------------------------------
 
 model WishlistCategory {
   id        String         @id @default(cuid())
@@ -273,34 +432,35 @@ model WishlistCategory {
 }
 
 model WishlistItem {
-  id         String            @id @default(cuid())
-  ownerId    String
-  categoryId String?
-  sortOrder  Int
-  title      String
-  note       String?
-  url        String?
-  type       String
-  image      Bytes?
-  hasImage   Boolean  @default(false)
+  id          String            @id @default(cuid())
+  ownerId     String
+  categoryId  String?
+  sortOrder   Int
+  title       String
+  note        String?
+  url         String?
+  type        String
+  image       Bytes?
+  hasImage    Boolean           @default(false)
   imageSource String?
-  status     String            @default("ACTIVE")
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  owner      User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  category   WishlistCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  purchase   WishlistPurchase?
+  status      String            @default("ACTIVE")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  owner       User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  category    WishlistCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  purchase    WishlistPurchase?
+  giftIdeas   GiftIdea[]
 
   @@index([ownerId, categoryId, sortOrder])
 }
 
 model WishlistPurchase {
-  id              String   @id @default(cuid())
-  wishlistItemId  String   @unique
-  purchasedById   String
-  createdAt       DateTime @default(now())
-  wishlistItem    WishlistItem @relation(fields: [wishlistItemId], references: [id], onDelete: Cascade)
-  purchasedBy     User     @relation(fields: [purchasedById], references: [id], onDelete: Cascade)
+  id             String       @id @default(cuid())
+  wishlistItemId String       @unique
+  purchasedById  String
+  createdAt      DateTime     @default(now())
+  wishlistItem   WishlistItem @relation(fields: [wishlistItemId], references: [id], onDelete: Cascade)
+  purchasedBy    User         @relation(fields: [purchasedById], references: [id], onDelete: Cascade)
 
   @@index([purchasedById])
 }
@@ -313,6 +473,10 @@ model WishlistPublicShare {
   createdAt DateTime @default(now())
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 }
+
+// -----------------------------------------------------------------------------
+// Analytics
+// -----------------------------------------------------------------------------
 
 model AnalyticsEvent {
   id         String   @id @default(uuid())
@@ -329,6 +493,25 @@ model AnalyticsEvent {
   @@index([createdAt])
   @@index([name, createdAt])
   @@index([userId, createdAt])
+}
+
+// -----------------------------------------------------------------------------
+// Auth & identity
+// -----------------------------------------------------------------------------
+
+model Address {
+  id        String   @id @default(cuid())
+  street    String
+  street2   String?
+  street3   String?
+  city      String
+  state     String
+  zip       String
+  country   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UserImage {

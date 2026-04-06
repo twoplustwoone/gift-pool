@@ -1,0 +1,555 @@
+import { data } from 'react-router'
+import { nanoid } from 'nanoid'
+import { prisma } from '#app/utils/db.server.ts'
+import { logPoolActivity } from '#app/utils/pool-activity.server.ts'
+import {
+	POOL_ACTIVITY_TYPE,
+	POOL_STATUS,
+	DECISION_MODE,
+} from '#app/utils/pool-constants.ts'
+import { calculateContributions } from '#app/utils/pool-contributions.ts'
+import type { PoolStatus, DecisionMode, OccasionType } from '#app/utils/pool-constants.ts'
+
+// ─── Selects ──────────────────────────────────────────────────────────────────
+
+// Standard pool select used in most loaders. Keeps responses lean.
+export const poolSelect = {
+	id: true,
+	createdAt: true,
+	updatedAt: true,
+	title: true,
+	occasionType: true,
+	eventDate: true,
+	status: true,
+	decisionMode: true,
+	recipientUserId: true,
+	recipientName: true,
+	giftGroupId: true,
+	organizerId: true,
+	purchaserId: true,
+	delivererId: true,
+	chosenIdeaId: true,
+	finalPriceCents: true,
+	inviteCode: true,
+	organizer: { select: { id: true, username: true, name: true, image: { select: { id: true } } } },
+	purchaser: { select: { id: true, username: true, name: true, image: { select: { id: true } } } },
+	deliverer: { select: { id: true, username: true, name: true, image: { select: { id: true } } } },
+	recipientUser: { select: { id: true, username: true, name: true, image: { select: { id: true } } } },
+	contributors: {
+		select: {
+			userId: true,
+			contributionCents: true,
+			hasPaid: true,
+			joinedAt: true,
+			user: { select: { id: true, username: true, name: true, image: { select: { id: true } } } },
+		},
+	},
+	ideas: {
+		orderBy: { createdAt: 'asc' as const },
+		select: {
+			id: true,
+			name: true,
+			description: true,
+			url: true,
+			estimatedPriceCents: true,
+			wishlistItemId: true,
+			proposedById: true,
+			createdAt: true,
+			proposedBy: { select: { id: true, username: true, name: true } },
+			wishlistItem: { select: { id: true, title: true, url: true, hasImage: true } },
+			_count: { select: { votes: true } },
+		},
+	},
+	_count: { select: { contributors: true, ideas: true } },
+} as const
+
+// ─── Membership ───────────────────────────────────────────────────────────────
+
+export async function isUserInPool(
+	userId: string,
+	poolId: string,
+): Promise<boolean> {
+	const record = await prisma.poolContributor.findUnique({
+		where: { poolId_userId: { poolId, userId } },
+		select: { id: true },
+	})
+	return record !== null
+}
+
+export async function requireUserInPool(
+	userId: string,
+	poolId: string,
+): Promise<void> {
+	const ok = await isUserInPool(userId, poolId)
+	if (!ok) {
+		throw data({ error: 'Pool not found.' }, { status: 404 })
+	}
+}
+
+// ─── Create ───────────────────────────────────────────────────────────────────
+
+export type CreatePoolInput = {
+	title: string
+	occasionType?: OccasionType
+	eventDate?: Date | null
+	decisionMode?: DecisionMode
+	recipientUserId?: string | null
+	recipientName?: string | null
+	giftGroupId?: string | null
+	organizerId: string
+	// If the pool is in a group, pass in the group members to auto-add them
+	// with their group-level contribution defaults.
+	groupMemberDefaults?: Array<{ userId: string; contributionCents: number }>
+}
+
+export async function createPool(input: CreatePoolInput) {
+	const {
+		title,
+		occasionType = 'BIRTHDAY',
+		eventDate = null,
+		decisionMode = DECISION_MODE.ORGANIZER_PICKS,
+		recipientUserId = null,
+		recipientName = null,
+		giftGroupId = null,
+		organizerId,
+		groupMemberDefaults = [],
+	} = input
+
+	// Build the contributor list. The organizer is always first.
+	const contributorData = [
+		{ userId: organizerId, contributionCents: null },
+		...groupMemberDefaults
+			.filter(m => m.userId !== organizerId)
+			.map(m => ({
+				userId: m.userId,
+				contributionCents: m.contributionCents > 0 ? m.contributionCents : null,
+			})),
+	]
+
+	const pool = await prisma.pool.create({
+		data: {
+			title,
+			occasionType,
+			eventDate,
+			decisionMode,
+			recipientUserId,
+			recipientName,
+			giftGroupId,
+			organizerId,
+			contributors: { create: contributorData },
+		},
+		select: { id: true, title: true, organizerId: true },
+	})
+
+	await logPoolActivity(pool.id, POOL_ACTIVITY_TYPE.POOL_CREATED, {
+		actorId: organizerId,
+		payload: { title },
+	})
+
+	return pool
+}
+
+// ─── Update ───────────────────────────────────────────────────────────────────
+
+export type UpdatePoolInput = {
+	title?: string
+	occasionType?: OccasionType
+	eventDate?: Date | null
+	decisionMode?: DecisionMode
+	recipientName?: string | null
+}
+
+export async function updatePool(
+	poolId: string,
+	actorId: string,
+	data: UpdatePoolInput,
+) {
+	const pool = await prisma.pool.update({
+		where: { id: poolId },
+		data,
+		select: { id: true },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_UPDATED, {
+		actorId,
+		payload: data as Record<string, unknown>,
+	})
+
+	return pool
+}
+
+// ─── Contributors ─────────────────────────────────────────────────────────────
+
+export async function addContributor(
+	poolId: string,
+	userId: string,
+	contributionCents?: number | null,
+) {
+	const contributor = await prisma.poolContributor.create({
+		data: { poolId, userId, contributionCents: contributionCents ?? null },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.CONTRIBUTOR_JOINED, {
+		actorId: userId,
+		payload: { userId },
+	})
+
+	return contributor
+}
+
+export async function removeContributor(
+	poolId: string,
+	userId: string,
+	actorId: string,
+) {
+	await prisma.poolContributor.delete({
+		where: { poolId_userId: { poolId, userId } },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.CONTRIBUTOR_REMOVED, {
+		actorId,
+		payload: { userId },
+	})
+}
+
+export async function updateContribution(
+	poolId: string,
+	userId: string,
+	contributionCents: number | null,
+) {
+	const contributor = await prisma.poolContributor.update({
+		where: { poolId_userId: { poolId, userId } },
+		data: { contributionCents },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.CONTRIBUTOR_UPDATED, {
+		actorId: userId,
+		payload: { contributionCents },
+	})
+
+	return contributor
+}
+
+export async function markContributorPaid(
+	poolId: string,
+	userId: string,
+	hasPaid: boolean,
+) {
+	return prisma.poolContributor.update({
+		where: { poolId_userId: { poolId, userId } },
+		data: { hasPaid },
+	})
+}
+
+// ─── Invite code ──────────────────────────────────────────────────────────────
+
+export async function generatePoolInviteCode(poolId: string): Promise<string> {
+	const code = nanoid(10)
+	await prisma.pool.update({
+		where: { id: poolId },
+		data: { inviteCode: code },
+	})
+	return code
+}
+
+export async function joinPoolViaInvite(
+	code: string,
+	userId: string,
+): Promise<{ poolId: string }> {
+	const pool = await prisma.pool.findUnique({
+		where: { inviteCode: code },
+		select: { id: true, status: true, recipientUserId: true },
+	})
+
+	if (!pool) {
+		throw data({ error: 'Invite link not found or expired.' }, { status: 404 })
+	}
+
+	if (pool.status === POOL_STATUS.CANCELLED || pool.status === POOL_STATUS.DELIVERED) {
+		throw data({ error: 'This pool is no longer active.' }, { status: 410 })
+	}
+
+	// Never let the recipient join their own pool
+	if (pool.recipientUserId === userId) {
+		throw data({ error: 'You cannot join a pool that is for you.' }, { status: 403 })
+	}
+
+	const alreadyIn = await isUserInPool(userId, pool.id)
+	if (alreadyIn) {
+		return { poolId: pool.id }
+	}
+
+	await addContributor(pool.id, userId)
+	return { poolId: pool.id }
+}
+
+// ─── Ideas ────────────────────────────────────────────────────────────────────
+
+export type ProposeIdeaInput = {
+	poolId: string
+	proposedById: string
+	name: string
+	description?: string | null
+	url?: string | null
+	estimatedPriceCents?: number | null
+	wishlistItemId?: string | null
+}
+
+export async function proposeIdea(input: ProposeIdeaInput) {
+	const idea = await prisma.giftIdea.create({
+		data: {
+			poolId: input.poolId,
+			proposedById: input.proposedById,
+			name: input.name,
+			description: input.description ?? null,
+			url: input.url ?? null,
+			estimatedPriceCents: input.estimatedPriceCents ?? null,
+			wishlistItemId: input.wishlistItemId ?? null,
+		},
+		select: { id: true, name: true },
+	})
+
+	await logPoolActivity(input.poolId, POOL_ACTIVITY_TYPE.IDEA_PROPOSED, {
+		actorId: input.proposedById,
+		payload: { ideaId: idea.id, name: idea.name },
+	})
+
+	return idea
+}
+
+export async function deleteIdea(ideaId: string, actorId: string) {
+	const idea = await prisma.giftIdea.findUnique({
+		where: { id: ideaId },
+		select: { poolId: true, name: true },
+	})
+	if (!idea) return
+
+	await prisma.giftIdea.delete({ where: { id: ideaId } })
+
+	await logPoolActivity(idea.poolId, POOL_ACTIVITY_TYPE.IDEA_DELETED, {
+		actorId,
+		payload: { ideaId, name: idea.name },
+	})
+}
+
+// ─── Voting ───────────────────────────────────────────────────────────────────
+
+// Transition pool to VOTING status. Only valid from OPEN.
+export async function callVote(poolId: string, actorId: string) {
+	const pool = await prisma.pool.findUnique({
+		where: { id: poolId },
+		select: { status: true },
+	})
+
+	if (pool?.status !== POOL_STATUS.OPEN) {
+		throw data(
+			{ error: 'A vote can only be called when the pool is open.' },
+			{ status: 400 },
+		)
+	}
+
+	await prisma.pool.update({
+		where: { id: poolId },
+		data: { status: POOL_STATUS.VOTING },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.VOTE_CALLED, { actorId })
+}
+
+// Cast or change a vote. One vote per contributor per pool.
+export async function castVote(
+	poolId: string,
+	ideaId: string,
+	voterId: string,
+) {
+	// Upsert: replacing an existing vote is fine
+	await prisma.ideaVote.upsert({
+		where: { poolId_voterId: { poolId, voterId } },
+		create: { poolId, ideaId, voterId },
+		update: { ideaId },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.VOTE_CAST, {
+		actorId: voterId,
+		payload: { ideaId },
+	})
+}
+
+// Close the vote — returns to OPEN without choosing. The organizer then picks.
+export async function closeVote(poolId: string, actorId: string) {
+	await prisma.pool.update({
+		where: { id: poolId },
+		data: { status: POOL_STATUS.OPEN },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.VOTE_CLOSED, { actorId })
+}
+
+// ─── Decision ─────────────────────────────────────────────────────────────────
+
+// Choose an idea as the winner and move the pool to DECIDED.
+// finalPriceCents defaults to the idea's estimatedPriceCents if not provided.
+export async function chooseIdea(
+	poolId: string,
+	ideaId: string,
+	actorId: string,
+	finalPriceCents?: number | null,
+) {
+	const idea = await prisma.giftIdea.findUnique({
+		where: { id: ideaId },
+		select: { estimatedPriceCents: true, name: true },
+	})
+
+	if (!idea) {
+		throw data({ error: 'Idea not found.' }, { status: 404 })
+	}
+
+	const resolvedPrice = finalPriceCents ?? idea.estimatedPriceCents ?? null
+
+	await prisma.pool.update({
+		where: { id: poolId },
+		data: {
+			status: POOL_STATUS.DECIDED,
+			chosenIdeaId: ideaId,
+			finalPriceCents: resolvedPrice,
+		},
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.IDEA_CHOSEN, {
+		actorId,
+		payload: { ideaId, name: idea.name, finalPriceCents: resolvedPrice },
+	})
+}
+
+// Update the confirmed final price after the gift has been decided.
+export async function updateFinalPrice(
+	poolId: string,
+	finalPriceCents: number,
+	actorId: string,
+) {
+	await prisma.pool.update({
+		where: { id: poolId },
+		data: { finalPriceCents },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_UPDATED, {
+		actorId,
+		payload: { finalPriceCents },
+	})
+}
+
+// ─── Role assignment ──────────────────────────────────────────────────────────
+
+export async function assignPurchaser(
+	poolId: string,
+	userId: string,
+	actorId: string,
+) {
+	await prisma.pool.update({
+		where: { id: poolId },
+		data: { purchaserId: userId },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.PURCHASER_ASSIGNED, {
+		actorId,
+		payload: { userId },
+	})
+}
+
+export async function assignDeliverer(
+	poolId: string,
+	userId: string,
+	actorId: string,
+) {
+	await prisma.pool.update({
+		where: { id: poolId },
+		data: { delivererId: userId },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.DELIVERER_ASSIGNED, {
+		actorId,
+		payload: { userId },
+	})
+}
+
+// ─── Status transitions ───────────────────────────────────────────────────────
+
+export async function markPurchased(poolId: string, actorId: string) {
+	await prisma.pool.update({
+		where: { id: poolId },
+		data: { status: POOL_STATUS.PURCHASED },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.MARKED_PURCHASED, { actorId })
+}
+
+export async function markDelivered(poolId: string, actorId: string) {
+	await prisma.pool.update({
+		where: { id: poolId },
+		data: { status: POOL_STATUS.DELIVERED },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.MARKED_DELIVERED, { actorId })
+}
+
+export async function cancelPool(poolId: string, actorId: string) {
+	await prisma.pool.update({
+		where: { id: poolId },
+		data: { status: POOL_STATUS.CANCELLED },
+	})
+
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_CANCELLED, { actorId })
+}
+
+export async function deletePool(poolId: string, actorId: string) {
+	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_DELETED, { actorId })
+	await prisma.pool.delete({ where: { id: poolId } })
+}
+
+// ─── Contribution breakdown ───────────────────────────────────────────────────
+
+// Fetch contributors and run the calculation algorithm.
+// Returns null if the pool has no confirmed final price.
+export async function getContributionBreakdown(poolId: string) {
+	const pool = await prisma.pool.findUnique({
+		where: { id: poolId },
+		select: {
+			finalPriceCents: true,
+			purchaserId: true,
+			contributors: {
+				select: {
+					userId: true,
+					contributionCents: true,
+					hasPaid: true,
+					user: { select: { id: true, username: true, name: true } },
+				},
+			},
+		},
+	})
+
+	if (!pool || pool.finalPriceCents === null) return null
+
+	// Only contributors with a set budget participate in the calculation
+	const budgets = pool.contributors
+		.filter(c => c.contributionCents !== null && c.userId !== pool.purchaserId)
+		.map(c => ({ userId: c.userId, maxCents: c.contributionCents! }))
+
+	const result = calculateContributions(budgets, pool.finalPriceCents)
+
+	// Annotate with contributor details and payment status
+	const annotated = result.breakdown.map(b => {
+		const contributor = pool.contributors.find(c => c.userId === b.userId)!
+		return {
+			...b,
+			user: contributor.user,
+			hasPaid: contributor.hasPaid,
+		}
+	})
+
+	return {
+		...result,
+		breakdown: annotated,
+		finalPriceCents: pool.finalPriceCents,
+		purchaserId: pool.purchaserId,
+	}
+}
