@@ -13,8 +13,6 @@ import {
 const requireUserId = vi.fn();
 const requireUserIdInGroup = vi.fn();
 const deleteGiftGroup = vi.fn();
-const createGiftPlan = vi.fn();
-const lockGiftPlan = vi.fn();
 const leaveGroup = vi.fn();
 const createInviteLink = vi.fn();
 const destroyInviteLink = vi.fn();
@@ -34,10 +32,8 @@ vi.mock('#app/utils/auth.server.ts', () => ({
 }));
 
 vi.mock('#app/utils/groups.server.ts', () => ({
-  createGiftPlan: (...args: Array<unknown>) => createGiftPlan(...args),
   deleteGiftGroup: (...args: Array<unknown>) => deleteGiftGroup(...args),
   leaveGroup: (...args: Array<unknown>) => leaveGroup(...args),
-  lockGiftPlan: (...args: Array<unknown>) => lockGiftPlan(...args),
   requireUserIdInGroup: (...args: Array<unknown>) =>
     requireUserIdInGroup(...args),
 }));
@@ -99,8 +95,6 @@ beforeEach(() => {
   requireUserId.mockReset();
   requireUserIdInGroup.mockReset();
   deleteGiftGroup.mockReset();
-  createGiftPlan.mockReset();
-  lockGiftPlan.mockReset();
   leaveGroup.mockReset();
   createInviteLink.mockReset();
   destroyInviteLink.mockReset();
@@ -355,47 +349,5 @@ describe('groups detail route server module', () => {
     expect(deleteResult).toBeInstanceOf(Response);
     expect((deleteResult as Response).headers.get('Location')).toBe('/groups');
     expect((leaveResult as Response).headers.get('Location')).toBe('/groups');
-  });
-
-  it('creates and locks gift plans with success responses', async () => {
-    requireUserId.mockResolvedValue('viewer-1');
-
-    const planResult = await action(
-      toActionArgs({
-        context,
-        params: { giftGroupId: 'group-1' },
-        request: createFormRequest({
-          birthdayDate: '2026-04-01T00:00:00.000Z',
-          giftGroupId: 'group-1',
-          intent: 'plan-gift',
-          recipientUserId: 'friend-1',
-        }),
-      }),
-    );
-    const lockResult = await action(
-      toActionArgs({
-        context,
-        params: { giftGroupId: 'group-1' },
-        request: createFormRequest({
-          giftGroupId: 'group-1',
-          intent: 'lock-plan',
-          planId: 'plan-1',
-        }),
-      }),
-    );
-
-    expect(createGiftPlan).toHaveBeenCalledWith(
-      expect.any(Request),
-      'group-1',
-      'friend-1',
-      new Date('2026-04-01T00:00:00.000Z'),
-    );
-    expect(lockGiftPlan).toHaveBeenCalledWith(
-      expect.any(Request),
-      'group-1',
-      'plan-1',
-    );
-    expect(getRouteResultStatus(planResult)).toBe(200);
-    expect(getRouteResultStatus(lockResult)).toBe(200);
   });
 });
