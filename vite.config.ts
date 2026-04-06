@@ -14,11 +14,22 @@ export default defineConfig({
     // Pre-bundle Radix Popover and related deps to avoid
     // Vite's runtime re-optimization causing 504 (Outdated Optimize Dep)
     include: [
+      // All Radix UI packages used in the app — pre-bundled together so they
+      // all share the same Vite dep hash and the same React instance.
+      // Adding any new Radix import? Add it here too, or it will lazy-load
+      // separately and trigger "Cannot read properties of null (reading 'useMemo')".
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-label',
       '@radix-ui/react-popover',
       '@radix-ui/react-popper',
       '@radix-ui/react-portal',
       '@radix-ui/react-dismissable-layer',
       '@radix-ui/react-primitive',
+      '@radix-ui/react-select',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-tooltip',
       '@floating-ui/react-dom',
       '@floating-ui/dom',
     ],
