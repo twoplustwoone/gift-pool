@@ -3,11 +3,12 @@ import { HOME_COPY } from '#app/components/home/home-copy';
 import { HomeFeatures } from '#app/components/home/HomeFeatures';
 import { HomeFooterLite } from '#app/components/home/HomeFooterLite';
 import { HomeHero } from '#app/components/home/HomeHero';
-import { HomePanels } from '#app/components/home/HomePanels';
+import { HomeLoggedIn } from '#app/components/home/HomeLoggedIn';
 import { useHomeBackgroundPrefetch } from '#app/hooks/use-background-route-prefetch.ts';
 import { track } from '#app/utils/analytics.client.ts';
 import { getUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { ACTIVE_POOL_STATUSES } from '#app/utils/pool-constants.ts';
 import { useOptionalUser } from '#app/utils/user.ts';
 export const meta: MetaFunction = () => [
   {
@@ -25,6 +26,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
   let isLoggedIn = Boolean(userId);
   let wishlistCount = 0;
   let groupCount = 0;
+  let activePools: Array<{
+    id: string;
+    title: string;
+    status: string;
+    occasionType: string;
+    recipientName: string | null;
+    eventDate: string | null;
+    contributorCount: number;
+  }> = [];
+
   if (mock === 'empty') {
     isLoggedIn = true;
     wishlistCount = 0;
@@ -34,27 +45,48 @@ export async function loader({ request }: LoaderFunctionArgs) {
     wishlistCount = 2;
     groupCount = 1;
   } else if (userId) {
-    // real counts
-    const [wCount, gCount] = await Promise.all([
-      prisma.wishlistItem.count({
+    // real counts + active pools
+    const [wCount, gCount, pools] = await Promise.all([
+      prisma.wishlistItem.count({ where: { ownerId: userId } }),
+      prisma.usersInGiftGroups.count({ where: { userId } }),
+      prisma.pool.findMany({
         where: {
-          ownerId: userId,
+          contributors: { some: { userId } },
+          status: { in: ACTIVE_POOL_STATUSES },
         },
-      }),
-      prisma.usersInGiftGroups.count({
-        where: {
-          userId,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          occasionType: true,
+          recipientName: true,
+          eventDate: true,
+          recipientUser: { select: { name: true, username: true } },
+          _count: { select: { contributors: true } },
         },
+        orderBy: { updatedAt: 'desc' },
+        take: 6,
       }),
     ]);
     wishlistCount = wCount;
     groupCount = gCount;
+    activePools = pools.map(p => ({
+      id: p.id,
+      title: p.title,
+      status: p.status,
+      occasionType: p.occasionType,
+      recipientName:
+        p.recipientName ?? p.recipientUser?.name ?? p.recipientUser?.username ?? null,
+      eventDate: p.eventDate?.toISOString() ?? null,
+      contributorCount: p._count.contributors,
+    }));
   }
   return {
     isLoggedIn,
     wishlistCount,
     groupCount,
     mock,
+    activePools,
   };
 }
 const Index = () => {
@@ -68,6 +100,18 @@ const Index = () => {
     scopeKey: user?.id ?? null,
   });
 
+  // Logged-in users get a dashboard — not the marketing page
+  if (data.isLoggedIn) {
+    return (
+      <HomeLoggedIn
+        activePools={data.activePools}
+        wishlistCount={data.wishlistCount}
+        groupCount={data.groupCount}
+        mock={mock ?? data.mock}
+      />
+    );
+  }
+
   return (
     <main role="main">
       <HomeHero
@@ -75,12 +119,6 @@ const Index = () => {
         onSecondaryClick={() => track('home.cta.start_group')}
       />
       <HomeFeatures />
-      <HomePanels
-        isLoggedIn={data.isLoggedIn}
-        wishlistCount={data.wishlistCount}
-        groupCount={data.groupCount}
-        mock={mock ?? data.mock}
-      />
       <HomeFooterLite />
     </main>
   );
