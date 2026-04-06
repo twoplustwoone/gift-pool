@@ -90,8 +90,23 @@ test.describe('pool propose idea form', () => {
       await page.getByTestId('idea-price-input').fill('9.99');
       await page.getByRole('button', { name: 'Add idea' }).click();
 
+      await waitFor(
+        async () =>
+          prisma.giftIdea.findFirst({
+            where: { name: 'Travel Mug', poolId: pool.id },
+            select: { estimatedPriceCents: true },
+          }),
+        { timeout: 8000 },
+      );
+
       await page.reload();
       await expect(page.getByText('≈ $9.99')).toBeVisible();
+      await expect(
+        prisma.giftIdea.findFirstOrThrow({
+          where: { name: 'Travel Mug', poolId: pool.id },
+          select: { estimatedPriceCents: true },
+        }),
+      ).resolves.toEqual({ estimatedPriceCents: 999 });
     } finally {
       await prisma.pool.deleteMany({ where: { id: { in: createdPoolIds } } });
       await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });

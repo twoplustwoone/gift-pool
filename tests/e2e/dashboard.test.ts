@@ -196,10 +196,9 @@ test.describe('dashboard', () => {
       });
       await page.goto('/');
 
-      await expect(page.getByRole('link', { name: 'Start a pool' })).toHaveAttribute(
-        'href',
-        '/pools/new',
-      );
+      await expect(
+        page.getByTestId('panel-activity').getByRole('link', { name: 'Start a pool' }),
+      ).toHaveAttribute('href', '/pools/new');
     } finally {
       await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
     }
