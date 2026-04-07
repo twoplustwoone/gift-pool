@@ -250,28 +250,12 @@ export async function loadFriendWishlistPageData({
   sessionId?: string | null;
   includeAnalytics: boolean;
 }) {
-  const access = await loadFriendWishlistAccess({
-    viewerId,
-    username,
-  });
-
-  if ('redirectTo' in access) {
-    return access;
-  }
-
-  if (!access.canViewWishlist) {
-    return {
-      canViewWishlist: false,
-      user: access.user,
-      relationship: access.relationship,
-      analytics: {
-        requestId: null,
-        viewEventId: null,
-      },
-    } as const;
-  }
-
-  const user = await prisma.user.findFirst({
+  // Single query: fetch the user + all wishlist data together so we don't need
+  // a second round-trip once we confirm access. Previously this function called
+  // loadFriendWishlistAccess (1 user lookup + 1-3 relationship queries) and
+  // then did *another* prisma.user.findFirst for the wishlist items — 5 DB
+  // round-trips in the happy path. Now it's 2 (user+items, then relationship).
+  const wishlistOwner = await prisma.user.findFirst({
     select: {
       id: true,
       name: true,
@@ -313,18 +297,45 @@ export async function loadFriendWishlistPageData({
         },
       },
     },
-    where: {
-      id: access.user.id,
-    },
-  });
-  // Run cleanup after the critical query — don't block the response on it
-  void cleanupWishlistPurchasesForOwner(access.user.id);
-
-  invariantResponse(user, 'User not found', {
-    status: 404,
+    where: { username },
   });
 
-  const wishlistItems = mapWishlistItems(user.wishlistItems);
+  invariantResponse(wishlistOwner, 'User not found', { status: 404 });
+
+  if (wishlistOwner.id === viewerId) {
+    return { redirectTo: '/wishlist' } as const;
+  }
+
+  const relationshipDetails = await getRelationshipDetails(
+    viewerId,
+    wishlistOwner.id,
+  );
+  const relationship = buildRelationship(relationshipDetails);
+  const canViewWishlist = relationship.state === 'FRIENDS';
+
+  const userSummary = {
+    id: wishlistOwner.id,
+    name: wishlistOwner.name,
+    username: wishlistOwner.username,
+    image: wishlistOwner.image,
+  };
+
+  if (!canViewWishlist) {
+    return {
+      canViewWishlist: false,
+      user: userSummary,
+      relationship,
+      analytics: {
+        requestId: null,
+        viewEventId: null,
+      },
+    } as const;
+  }
+
+  // Run cleanup after the critical queries — don't block the response on it
+  void cleanupWishlistPurchasesForOwner(wishlistOwner.id);
+
+  const wishlistItems = mapWishlistItems(wishlistOwner.wishlistItems);
   const viewEvent = includeAnalytics
     ? await logEvent({
         name: 'wishlist_viewed',
@@ -333,7 +344,7 @@ export async function loadFriendWishlistPageData({
         requestId,
         sessionId,
         properties: {
-          wishlistOwnerId: user.id,
+          wishlistOwnerId: wishlistOwner.id,
           viewerId,
           itemCount: wishlistItems.length,
         },
@@ -343,10 +354,11 @@ export async function loadFriendWishlistPageData({
   return {
     canViewWishlist: true,
     user: {
-      ...user,
+      ...userSummary,
       wishlistItems,
+      wishlistCategories: wishlistOwner.wishlistCategories,
     },
-    relationship: access.relationship,
+    relationship,
     analytics: {
       requestId: includeAnalytics ? (requestId ?? null) : null,
       viewEventId: viewEvent?.eventId ?? null,
