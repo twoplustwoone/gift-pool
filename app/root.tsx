@@ -33,11 +33,11 @@ import { GeneralErrorBoundary } from './components/error-boundary.tsx';
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
 import { NotificationsProvider } from './components/notifications/notifications-context.tsx';
-import { EpicProgress } from './components/progress-bar.tsx';
 import { PwaInstallBanner } from './components/pwa-install-banner.tsx';
 import { useToast } from './components/toaster.tsx';
 import { href as iconsHref } from './components/ui/icon.tsx';
 import { EpicToaster } from './components/ui/sonner.tsx';
+import { FriendsRouteSkeleton } from './components/friends/friends-route-skeleton.tsx';
 import { WishlistRouteSkeleton } from './components/wishlist/wishlist-route-skeleton.tsx';
 import { usePwaInstallPrompt } from './hooks/use-pwa-install-prompt.ts';
 import nunitoStyleSheet from './styles/nunito-font.css?url';
@@ -380,6 +380,17 @@ const App = () => {
     navigation.state === 'loading' &&
     isRouteChangeNavigation &&
     isWishlistNavigationTarget;
+  const isFriendsNavigationTarget = targetLocation?.pathname === '/friends';
+  const isFriendsNavigationPending =
+    navigation.state === 'loading' &&
+    isRouteChangeNavigation &&
+    isFriendsNavigationTarget;
+  let routeContent = <Outlet />;
+  if (isWishlistNavigationPending) {
+    routeContent = <WishlistRouteSkeleton />;
+  } else if (isFriendsNavigationPending) {
+    routeContent = <FriendsRouteSkeleton />;
+  }
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
       <I18nProvider locale={data.requestInfo.locale}>
@@ -413,17 +424,12 @@ const App = () => {
               className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-background to-background-muted pb-bottom-nav sm:pb-0"
               data-testid="app-scroll-area"
             >
-              {isWishlistNavigationPending ? (
-                <WishlistRouteSkeleton />
-              ) : (
-                <Outlet />
-              )}
+              {routeContent}
             </div>
 
             <Footer />
           </div>
           <EpicToaster closeButton position="top-center" theme={theme} />
-          <EpicProgress />
         </NotificationsProvider>
       </I18nProvider>
     </Document>

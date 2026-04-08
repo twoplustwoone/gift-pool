@@ -6,7 +6,13 @@ import {
   shouldPauseConservativePrefetch,
 } from '#app/utils/route-prefetch.client.ts';
 
-const FRIEND_WISHLIST_PREFETCH_CONCURRENCY = 2;
+// Keep at 1 so background prefetches don't pile up on the SQLite connection
+// while the user is actively navigating. Raise to 2 once the app is on Postgres.
+const FRIEND_WISHLIST_PREFETCH_CONCURRENCY = 1;
+
+// Wait this long after the friends page mounts before starting to prefetch.
+// Gives the page render and any in-flight navigations time to settle first.
+const FRIEND_WISHLIST_PREFETCH_INITIAL_DELAY_MS = 2_000;
 
 export function useHomeBackgroundPrefetch({
   enabled,
@@ -73,8 +79,10 @@ export function useFriendWishlistPrefetch(usernames: string[]) {
 
   React.useEffect(() => {
     const controllers = activeControllersRef.current;
+    let disposed = false;
 
     const scheduleDrain = () => {
+      if (disposed) return;
       if (cancelIdleTaskRef.current) return;
 
       cancelIdleTaskRef.current = scheduleIdleTask(() => {
@@ -84,6 +92,7 @@ export function useFriendWishlistPrefetch(usernames: string[]) {
     };
 
     const drainQueue = () => {
+      if (disposed) return;
       if (shouldPauseConservativePrefetch()) return;
 
       while (
@@ -121,9 +130,16 @@ export function useFriendWishlistPrefetch(usernames: string[]) {
     document.addEventListener('visibilitychange', resumePrefetch);
     connection?.addEventListener?.('change', resumePrefetch);
 
-    scheduleDrain();
+    // Delay the first drain so the page render and any in-flight navigations
+    // can settle before we start hammering the DB with prefetch requests.
+    const initialDelayId = setTimeout(
+      () => scheduleDrain(),
+      FRIEND_WISHLIST_PREFETCH_INITIAL_DELAY_MS,
+    );
 
     return () => {
+      disposed = true;
+      clearTimeout(initialDelayId);
       cancelIdleTaskRef.current?.();
       cancelIdleTaskRef.current = null;
 

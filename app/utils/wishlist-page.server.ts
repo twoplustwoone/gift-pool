@@ -36,6 +36,66 @@ type FriendWishlistAccessResult =
       redirectTo: '/wishlist';
     };
 
+const friendWishlistOwnerSummarySelect = {
+  id: true,
+  name: true,
+  username: true,
+  image: {
+    select: {
+      id: true,
+    },
+  },
+} as const;
+
+const friendWishlistPageDetailsSelect = {
+  wishlistItems: {
+    select: {
+      id: true,
+      title: true,
+      ownerId: true,
+      type: true,
+      url: true,
+      note: true,
+      categoryId: true,
+      updatedAt: true,
+      sortOrder: true,
+      purchase: {
+        select: {
+          purchasedById: true,
+        },
+      },
+      hasImage: true,
+      imageSource: true,
+      status: true,
+    },
+  },
+  wishlistCategories: {
+    select: {
+      id: true,
+      name: true,
+      order: true,
+    },
+    orderBy: {
+      order: 'asc',
+    },
+  },
+} as const;
+
+async function loadFriendWishlistOwnerSummary(username: string) {
+  const wishlistOwner = await prisma.user.findFirst({
+    select: friendWishlistOwnerSummarySelect,
+    where: {
+      username,
+    },
+  });
+
+  invariantResponse(wishlistOwner, 'User not found', {
+    status: 404,
+  });
+
+  return wishlistOwner;
+}
+
 function mapWishlistItems(
   items: Array<{
     id: string;
@@ -87,25 +147,7 @@ export async function loadFriendWishlistAccess({
   viewerId: string;
   username: string;
 }): Promise<FriendWishlistAccessResult> {
-  const wishlistOwner = await prisma.user.findFirst({
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      image: {
-        select: {
-          id: true,
-        },
-      },
-    },
-    where: {
-      username,
-    },
-  });
-
-  invariantResponse(wishlistOwner, 'User not found', {
-    status: 404,
-  });
+  const wishlistOwner = await loadFriendWishlistOwnerSummary(username);
 
   if (wishlistOwner.id === viewerId) {
     return {
@@ -250,20 +292,31 @@ export async function loadFriendWishlistPageData({
   sessionId?: string | null;
   includeAnalytics: boolean;
 }) {
-  const access = await loadFriendWishlistAccess({
-    viewerId,
-    username,
-  });
+  const wishlistOwner = await loadFriendWishlistOwnerSummary(username);
 
-  if ('redirectTo' in access) {
-    return access;
+  if (wishlistOwner.id === viewerId) {
+    return { redirectTo: '/wishlist' } as const;
   }
 
-  if (!access.canViewWishlist) {
+  const relationshipDetails = await getRelationshipDetails(
+    viewerId,
+    wishlistOwner.id,
+  );
+  const relationship = buildRelationship(relationshipDetails);
+  const canViewWishlist = relationship.state === 'FRIENDS';
+
+  const userSummary = {
+    id: wishlistOwner.id,
+    name: wishlistOwner.name,
+    username: wishlistOwner.username,
+    image: wishlistOwner.image,
+  };
+
+  if (!canViewWishlist) {
     return {
       canViewWishlist: false,
-      user: access.user,
-      relationship: access.relationship,
+      user: userSummary,
+      relationship,
       analytics: {
         requestId: null,
         viewEventId: null,
@@ -271,60 +324,19 @@ export async function loadFriendWishlistPageData({
     } as const;
   }
 
-  const user = await prisma.user.findFirst({
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      wishlistItems: {
-        select: {
-          id: true,
-          title: true,
-          ownerId: true,
-          type: true,
-          url: true,
-          note: true,
-          categoryId: true,
-          updatedAt: true,
-          sortOrder: true,
-          purchase: {
-            select: {
-              purchasedById: true,
-            },
-          },
-          hasImage: true,
-          imageSource: true,
-          status: true,
-        },
-      },
-      wishlistCategories: {
-        select: {
-          id: true,
-          name: true,
-          order: true,
-        },
-        orderBy: {
-          order: 'asc',
-        },
-      },
-      image: {
-        select: {
-          id: true,
-        },
-      },
-    },
+  const wishlistDetails = await prisma.user.findFirst({
+    select: friendWishlistPageDetailsSelect,
     where: {
-      id: access.user.id,
+      id: wishlistOwner.id,
     },
   });
-  // Run cleanup after the critical query — don't block the response on it
-  void cleanupWishlistPurchasesForOwner(access.user.id);
 
-  invariantResponse(user, 'User not found', {
-    status: 404,
-  });
+  invariantResponse(wishlistDetails, 'User not found', { status: 404 });
 
-  const wishlistItems = mapWishlistItems(user.wishlistItems);
+  // Run cleanup after the critical queries — don't block the response on it
+  void cleanupWishlistPurchasesForOwner(wishlistOwner.id);
+
+  const wishlistItems = mapWishlistItems(wishlistDetails.wishlistItems);
   const viewEvent = includeAnalytics
     ? await logEvent({
         name: 'wishlist_viewed',
@@ -333,7 +345,7 @@ export async function loadFriendWishlistPageData({
         requestId,
         sessionId,
         properties: {
-          wishlistOwnerId: user.id,
+          wishlistOwnerId: wishlistOwner.id,
           viewerId,
           itemCount: wishlistItems.length,
         },
@@ -343,10 +355,11 @@ export async function loadFriendWishlistPageData({
   return {
     canViewWishlist: true,
     user: {
-      ...user,
+      ...userSummary,
       wishlistItems,
+      wishlistCategories: wishlistDetails.wishlistCategories,
     },
-    relationship: access.relationship,
+    relationship,
     analytics: {
       requestId: includeAnalytics ? (requestId ?? null) : null,
       viewEventId: viewEvent?.eventId ?? null,
