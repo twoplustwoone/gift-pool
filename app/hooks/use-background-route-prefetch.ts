@@ -79,8 +79,10 @@ export function useFriendWishlistPrefetch(usernames: string[]) {
 
   React.useEffect(() => {
     const controllers = activeControllersRef.current;
+    let disposed = false;
 
     const scheduleDrain = () => {
+      if (disposed) return;
       if (cancelIdleTaskRef.current) return;
 
       cancelIdleTaskRef.current = scheduleIdleTask(() => {
@@ -90,6 +92,7 @@ export function useFriendWishlistPrefetch(usernames: string[]) {
     };
 
     const drainQueue = () => {
+      if (disposed) return;
       if (shouldPauseConservativePrefetch()) return;
 
       while (
@@ -135,6 +138,7 @@ export function useFriendWishlistPrefetch(usernames: string[]) {
     );
 
     return () => {
+      disposed = true;
       clearTimeout(initialDelayId);
       cancelIdleTaskRef.current?.();
       cancelIdleTaskRef.current = null;
