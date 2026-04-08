@@ -380,12 +380,17 @@ const App = () => {
     navigation.state === 'loading' &&
     isRouteChangeNavigation &&
     isWishlistNavigationTarget;
-  const isFriendsNavigationTarget =
-    targetLocation != null && targetLocation.pathname === '/friends';
+  const isFriendsNavigationTarget = targetLocation?.pathname === '/friends';
   const isFriendsNavigationPending =
     navigation.state === 'loading' &&
     isRouteChangeNavigation &&
     isFriendsNavigationTarget;
+  let routeContent = <Outlet />;
+  if (isWishlistNavigationPending) {
+    routeContent = <WishlistRouteSkeleton />;
+  } else if (isFriendsNavigationPending) {
+    routeContent = <FriendsRouteSkeleton />;
+  }
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
       <I18nProvider locale={data.requestInfo.locale}>
@@ -419,13 +424,7 @@ const App = () => {
               className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-background to-background-muted pb-bottom-nav sm:pb-0"
               data-testid="app-scroll-area"
             >
-              {isWishlistNavigationPending ? (
-                <WishlistRouteSkeleton />
-              ) : isFriendsNavigationPending ? (
-                <FriendsRouteSkeleton />
-              ) : (
-                <Outlet />
-              )}
+              {routeContent}
             </div>
 
             <Footer />
