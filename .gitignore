@@ -32,3 +32,8 @@ storybook-static
 # IDE / AI tool local configs
 .codex/
 .cursor/
+
+# Performance captures (contain auth cookies + user data, never commit)
+*.har
+*profile.json.gz
+*profile.json
