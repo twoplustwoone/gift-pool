@@ -218,14 +218,6 @@ Only fill this in if Phase 1 + 2 + 3 Tier 1/2 don't solve the issue. Keep in min
 
 ---
 
-## Fix Log
-
-> Every fix lands here with a one-line description and a "before/after" note once verified.
-
-- _(none yet)_
-
----
-
 ## Findings Log
 
 > Append newest entries at the top. Include date, source (sentry/fly/code), and concrete numbers.
@@ -305,11 +297,28 @@ Only fill this in if Phase 1 + 2 + 3 Tier 1/2 don't solve the issue. Keep in min
 - **Before:** `/friends.data` wait 18.5 s, `/__manifest` wait up to 6.6 s, static JS wait 26 s, health check failures during repro. Prisma primary-key lookup observed at 1139 ms.
 - **After:** TBD once PR 1 ships and we get real traffic samples. Will re-capture a HAR on the same flow and compare.
 
+### PR 2 — Tier 2 nav flicker + Sentry sample-rate trim (2026-04-10)
+- **`app/root.tsx`** — gated the skeleton swap (`WishlistRouteSkeleton` / `FriendsRouteSkeleton`) behind `useSpinDelay({ delay: 400, minDuration: 300 })`. Fast navigations (now normal on the bigger machine) keep rendering `<Outlet />` and never flicker through a skeleton; only genuinely slow transitions fall back to skeletons, and when they do they stay visible long enough to not strobe. Also mounted the existing (but previously unused) `<EpicProgress />` top progress bar in the root layout so every navigation gets a non-flickery loading indicator.
+- **`app/components/nav/bottom/bottom-nav-link.tsx`** — optimistic active state. Pulls `useNavigation()` + `useLocation()` and, during a pending route change, treats the nav *target* as active and the currently-rendered route as inactive. Kills the "I clicked Wishlist but Friends still looks selected" illusion. Dropped the now-redundant `pendingClassName` and the `label…` suffix since the optimistic highlight already communicates intent.
+- **`app/utils/monitoring.client.tsx`** — dropped `tracesSampleRate` from `1.0` → `0.1`, removed `browserProfilingIntegration` (we weren't reading the profiles). 10% sampling is still plenty for a low-traffic app and cuts browser-side Sentry overhead by an order of magnitude.
+- **`server/utils/monitoring.ts`** — same treatment: `tracesSampleRate` / `tracesSampler` → `0.1`, removed `nodeProfilingIntegration` (and its import of `@sentry/profiling-node`). Node profiling on a shared CPU adds real overhead; we can turn it back on per-investigation if needed.
+- **Not touched this PR (deferred to PR 3):** root loader trim (`roles.permissions` nested select is still read by `userHasRole` / `userHasPermission` elsewhere — killing it at the root would break those call sites; needs a more careful refactor), `/__manifest` caching, and removing the unused `@opentelemetry/*` dependencies.
+- **Before:** skeleton flickered in cached-nav case; bottom nav stayed on the previously-active tab during a pending nav; Sentry sampled 100% of traces on both client and server plus ran both browser and node profilers.
+- **After:** TBD — will re-capture HAR on the same friends → wishlist flow and confirm subjective "frozen" feel is gone.
+
 ---
 
 ## Session Log
 
 > Short summary of what was accomplished in each session and what the next session should pick up.
+
+### 2026-04-10 Session 3 — PR 2 (Tier 2 code fixes)
+- Branched `perf/tier-2-nav-flicker-root-loader` off `perf/tier-1-machine-resize` (stacked PR).
+- Fixed the root-layout skeleton flicker by gating it behind `useSpinDelay`, and mounted the previously-unused `EpicProgress` top progress bar.
+- Fixed the "stuck on Friends" illusion by giving `BottomNavLink` an optimistic active state driven by `useNavigation()`.
+- Trimmed Sentry sample rates (1.0 → 0.1) on both client and server, and removed both profiling integrations to stop taxing the box.
+- **Dropped** the root-loader trim: `userHasRole` / `userHasPermission` (used by `user-dropdown.tsx` and `wishlist-item.tsx`) still read `user.roles[*].permissions[*]`, so pruning the select at root would break them. Needs a separate refactor → pushed to PR 3.
+- **Next session:** get PR 2 reviewed + merged, re-capture a HAR on prod to validate Tier 1+2 numbers, then scope PR 3 (root loader trim, `/__manifest` caching, drop unused `@opentelemetry/*` deps).
 
 ### 2026-04-10 Session 2 — Root cause identified
 - Received HAR + Firefox profile from the user (gitignored immediately).

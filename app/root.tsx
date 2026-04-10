@@ -26,6 +26,7 @@ import {
 } from 'react-router';
 import { HoneypotProvider } from 'remix-utils/honeypot/react';
 import { toast } from 'sonner';
+import { useSpinDelay } from 'spin-delay';
 import { z } from 'zod';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
@@ -33,6 +34,7 @@ import { GeneralErrorBoundary } from './components/error-boundary.tsx';
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
 import { NotificationsProvider } from './components/notifications/notifications-context.tsx';
+import { EpicProgress } from './components/progress-bar.tsx';
 import { PwaInstallBanner } from './components/pwa-install-banner.tsx';
 import { useToast } from './components/toaster.tsx';
 import { href as iconsHref } from './components/ui/icon.tsx';
@@ -376,20 +378,30 @@ const App = () => {
     targetLocation != null &&
     (targetLocation.pathname === '/wishlist' ||
       /^\/users\/[^/]+\/wishlist$/.test(targetLocation.pathname));
-  const isWishlistNavigationPending =
-    navigation.state === 'loading' &&
-    isRouteChangeNavigation &&
-    isWishlistNavigationTarget;
   const isFriendsNavigationTarget = targetLocation?.pathname === '/friends';
-  const isFriendsNavigationPending =
+  const hasSkeletonTarget =
+    isWishlistNavigationTarget || isFriendsNavigationTarget;
+  const isSkeletonNavigationPending =
     navigation.state === 'loading' &&
     isRouteChangeNavigation &&
-    isFriendsNavigationTarget;
+    hasSkeletonTarget;
+  // Gate the skeleton swap behind a small delay so fast navigations don't
+  // flicker through a skeleton. Use a SINGLE useSpinDelay for the overall
+  // "should a skeleton be visible" question; pick which skeleton off the
+  // current navigation target so that if the user redirects mid-flight
+  // (e.g. clicks Friends while a wishlist nav is still winding down) we
+  // always render the skeleton for the route they're actually going to.
+  const showSkeleton = useSpinDelay(isSkeletonNavigationPending, {
+    delay: 400,
+    minDuration: 300,
+  });
   let routeContent = <Outlet />;
-  if (isWishlistNavigationPending) {
-    routeContent = <WishlistRouteSkeleton />;
-  } else if (isFriendsNavigationPending) {
-    routeContent = <FriendsRouteSkeleton />;
+  if (showSkeleton) {
+    if (isWishlistNavigationTarget) {
+      routeContent = <WishlistRouteSkeleton />;
+    } else if (isFriendsNavigationTarget) {
+      routeContent = <FriendsRouteSkeleton />;
+    }
   }
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
@@ -429,6 +441,7 @@ const App = () => {
 
             <Footer />
           </div>
+          <EpicProgress />
           <EpicToaster closeButton position="top-center" theme={theme} />
         </NotificationsProvider>
       </I18nProvider>
