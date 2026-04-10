@@ -603,13 +603,25 @@ function WishlistNonOwnerTrigger({
       variant="default"
       padding="none"
       className={cn(
-        'group min-w-0 overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-shadow',
+        'group relative min-w-0 cursor-pointer overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-shadow',
         'hover:border-border hover:shadow-md',
+        'focus-within:border-border focus-within:shadow-md',
         isPurchasedBySomeoneElse ? 'opacity-90' : '',
         dragState === 'dragging-item' ? 'opacity-75' : '',
       )}
     >
-      <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+      <button
+        type="button"
+        aria-label={wishlistItem.title}
+        onClick={onOpen}
+        className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        data-claimable={allowClaims && !isClaimed ? 'true' : undefined}
+        data-testid="wishlist-item-row"
+        data-drag-state={dragState}
+        data-drop-target="false"
+      />
+
+      <div className="pointer-events-none relative flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
         <WishlistItemThumbnail
           displayImageSrc={displayImageSrc}
           hasImage={wishlistItem.hasImage ?? false}
@@ -617,16 +629,7 @@ function WishlistNonOwnerTrigger({
           onImageError={onImageError}
           title={wishlistItem.title}
         />
-        <button
-          type="button"
-          aria-label={wishlistItem.title}
-          className="flex min-w-0 flex-1 flex-col items-start gap-1 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          data-claimable={allowClaims && !isClaimed ? 'true' : undefined}
-          data-testid="wishlist-item-row"
-          data-drag-state={dragState}
-          data-drop-target="false"
-          onClick={onOpen}
-        >
+        <div className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left">
           <Text
             size="base"
             weight="medium"
@@ -648,18 +651,20 @@ function WishlistNonOwnerTrigger({
               <span className="truncate">{urlHost}</span>
             </span>
           ) : null}
-        </button>
-        <NonOwnerClaimSlot
-          allowClaims={allowClaims}
-          handlePurchaseToggle={handlePurchaseToggle}
-          isClaimInfoOpen={isClaimInfoOpen}
-          isClaimed={isClaimed}
-          isPurchasePending={isPurchasePending}
-          isPurchasedByMe={isPurchasedByMe}
-          isPurchasedBySomeoneElse={isPurchasedBySomeoneElse}
-          onClaimInfoOpenChange={onClaimInfoOpenChange}
-          purchaseButtonAriaLabel={purchaseButtonAriaLabel}
-        />
+        </div>
+        <div className="pointer-events-auto relative flex flex-shrink-0 items-center">
+          <NonOwnerClaimSlot
+            allowClaims={allowClaims}
+            handlePurchaseToggle={handlePurchaseToggle}
+            isClaimInfoOpen={isClaimInfoOpen}
+            isClaimed={isClaimed}
+            isPurchasePending={isPurchasePending}
+            isPurchasedByMe={isPurchasedByMe}
+            isPurchasedBySomeoneElse={isPurchasedBySomeoneElse}
+            onClaimInfoOpenChange={onClaimInfoOpenChange}
+            purchaseButtonAriaLabel={purchaseButtonAriaLabel}
+          />
+        </div>
       </div>
     </Card>
   );
@@ -740,14 +745,16 @@ type WishlistOwnerRowProps = Readonly<{
 
 // Single responsive row used for every active owner item.
 //
-// Previously there were two separate trigger components (Desktop + Mobile)
-// that BOTH rendered into the DOM and were hidden by Tailwind breakpoints.
-// Every item therefore cost two full interactive subtrees + duplicated
-// hover handlers, and hover fired on both the outer Card AND the inner
-// button (the "double hover" effect). This one row owns all of it:
-// a single hover state on the outer Card, a thumbnail slot that keeps
-// row heights uniform, and a flex layout that works identically on
-// mobile and desktop.
+// Layout uses the "absolute click-catcher" pattern: the whole Card surface
+// is clickable, but the 3-dot action menu can still intercept its own
+// clicks. A single hidden <button> is absolutely positioned to fill the
+// Card — that's what the click/focus/hover targets. The visible content
+// layer has `pointer-events-none` so taps pass through to the button,
+// except for the action menu slot which re-enables pointer events via
+// `pointer-events-auto`. This replaces the previous layout where only
+// the inner text column was clickable, leaving a dead strip above and
+// below the text that visually looked active because of the card's
+// hover ring.
 function WishlistOwnerRow({
   actionMenu,
   ariaLabel,
@@ -765,13 +772,23 @@ function WishlistOwnerRow({
       variant="default"
       padding="none"
       className={cn(
-        'group min-w-0 overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-shadow',
+        'group relative min-w-0 cursor-pointer overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-shadow',
         'hover:border-border hover:shadow-md',
+        'focus-within:border-border focus-within:shadow-md',
         dragState === 'dragging-item' ? 'opacity-75' : '',
         dragState === 'dragging-category' ? 'opacity-80' : '',
       )}
     >
-      <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        onClick={onOpen}
+        className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        data-testid="wishlist-item-row"
+        data-drag-state={dragState}
+        data-drop-target="false"
+      />
+      <div className="pointer-events-none relative flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
         <WishlistItemThumbnail
           displayImageSrc={displayImageSrc}
           hasImage={wishlistItem.hasImage ?? false}
@@ -779,15 +796,7 @@ function WishlistOwnerRow({
           onImageError={onImageError}
           title={wishlistItem.title}
         />
-        <button
-          type="button"
-          aria-label={ariaLabel}
-          className="flex min-w-0 flex-1 flex-col items-start gap-1 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          data-testid="wishlist-item-row"
-          data-drag-state={dragState}
-          data-drop-target="false"
-          onClick={onOpen}
-        >
+        <div className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left">
           <Text
             size="base"
             weight="medium"
@@ -809,9 +818,11 @@ function WishlistOwnerRow({
               <span className="truncate">{urlHost}</span>
             </span>
           ) : null}
-        </button>
+        </div>
         {actionMenu ? (
-          <div className="flex flex-shrink-0 items-center">{actionMenu}</div>
+          <div className="pointer-events-auto relative flex flex-shrink-0 items-center">
+            {actionMenu}
+          </div>
         ) : null}
       </div>
     </Card>

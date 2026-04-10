@@ -167,40 +167,48 @@ export const PastWishlistItemCard = ({
       initialMode="view"
       onStatusChange={onStatusChange}
       trigger={
+        // Past items share the active-row primitive but are visually
+        // de-emphasized so they never get confused with live wishlist items
+        // at a glance: a muted background (instead of solid card), a dashed
+        // border, grayscale thumbnail, and muted title text. Still fully
+        // clickable (the Card is the dialog trigger), still hover-responsive
+        // so the user knows they can open the editor.
         <Card
           variant="interactive"
           padding="none"
           className={cn(
-            'group min-w-0 cursor-pointer overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-shadow',
-            'hover:border-border hover:shadow-md',
+            'group min-w-0 cursor-pointer overflow-hidden rounded-xl border border-dashed border-border/60 bg-muted/30 shadow-none transition-shadow',
+            'hover:border-border hover:bg-muted/40 hover:shadow-sm',
           )}
         >
           <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
-            <WishlistItemThumbnail
-              displayImageSrc={displayImageSrc}
-              hasImage={item.hasImage ?? false}
-              imageErrored={imageErrored}
-              onImageError={() => setImageErrored(true)}
-              title={item.title}
-            />
+            <div className="flex-shrink-0 [&>img]:grayscale [&>div]:opacity-70">
+              <WishlistItemThumbnail
+                displayImageSrc={displayImageSrc}
+                hasImage={item.hasImage ?? false}
+                imageErrored={imageErrored}
+                onImageError={() => setImageErrored(true)}
+                title={item.title}
+              />
+            </div>
             <div className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left">
               <Text
                 size="base"
                 weight="medium"
-                className="line-clamp-2 min-w-0 max-w-full"
+                className="line-clamp-2 min-w-0 max-w-full text-muted-foreground"
               >
                 {item.title}
               </Text>
               {item.note ? (
                 <Text
                   size="xs"
-                  className="line-clamp-1 min-w-0 max-w-full text-muted-foreground"
+                  className="line-clamp-1 min-w-0 max-w-full text-muted-foreground/80"
                 >
                   {item.note}
                 </Text>
               ) : null}
               {urlHost ? (
-                <span className="mt-0.5 inline-flex max-w-full items-center gap-1 truncate rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                <span className="mt-0.5 inline-flex max-w-full items-center gap-1 truncate rounded-full bg-muted/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground/80">
                   <LuLink className="h-3 w-3 flex-shrink-0" aria-hidden />
                   <span className="truncate">{urlHost}</span>
                 </span>
@@ -214,7 +222,7 @@ export const PastWishlistItemCard = ({
              * the giver on past items would be a product decision we haven't
              * made yet.
              */}
-            <div className="flex flex-shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+            <div className="flex flex-shrink-0 items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground ring-1 ring-inset ring-border/60">
               <LuArchive className="h-3.5 w-3.5" aria-hidden />
               <span>{archivedLabel}</span>
             </div>
