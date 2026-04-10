@@ -51,14 +51,16 @@ export const BottomNavLink = ({
 
   // Only treat a nav as "in flight" if it's targeting a different route.
   // Form submissions / same-route revalidations should not re-skin the tabs.
-  const pendingToDifferentRoute =
+  const pendingTargetPath =
     navigation.state === 'loading' &&
     navigation.location != null &&
-    navigation.location.pathname !== location.pathname;
+    navigation.location.pathname !== location.pathname
+      ? navigation.location.pathname
+      : null;
 
   const isPendingTarget =
-    pendingToDifferentRoute &&
-    matchesPath(to, navigation.location!.pathname);
+    pendingTargetPath !== null && matchesPath(to, pendingTargetPath);
+  const pendingToDifferentRoute = pendingTargetPath !== null;
 
   return (
     <NavLink

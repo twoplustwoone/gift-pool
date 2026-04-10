@@ -378,30 +378,30 @@ const App = () => {
     targetLocation != null &&
     (targetLocation.pathname === '/wishlist' ||
       /^\/users\/[^/]+\/wishlist$/.test(targetLocation.pathname));
-  const isWishlistNavigationPending =
-    navigation.state === 'loading' &&
-    isRouteChangeNavigation &&
-    isWishlistNavigationTarget;
   const isFriendsNavigationTarget = targetLocation?.pathname === '/friends';
-  const isFriendsNavigationPending =
+  const hasSkeletonTarget =
+    isWishlistNavigationTarget || isFriendsNavigationTarget;
+  const isSkeletonNavigationPending =
     navigation.state === 'loading' &&
     isRouteChangeNavigation &&
-    isFriendsNavigationTarget;
-  // Only show skeletons when the nav is slow enough to notice. Fast
-  // transitions should just swap content to avoid a flicker of skeleton.
-  const showWishlistSkeleton = useSpinDelay(isWishlistNavigationPending, {
-    delay: 400,
-    minDuration: 300,
-  });
-  const showFriendsSkeleton = useSpinDelay(isFriendsNavigationPending, {
+    hasSkeletonTarget;
+  // Gate the skeleton swap behind a small delay so fast navigations don't
+  // flicker through a skeleton. Use a SINGLE useSpinDelay for the overall
+  // "should a skeleton be visible" question; pick which skeleton off the
+  // current navigation target so that if the user redirects mid-flight
+  // (e.g. clicks Friends while a wishlist nav is still winding down) we
+  // always render the skeleton for the route they're actually going to.
+  const showSkeleton = useSpinDelay(isSkeletonNavigationPending, {
     delay: 400,
     minDuration: 300,
   });
   let routeContent = <Outlet />;
-  if (showWishlistSkeleton) {
-    routeContent = <WishlistRouteSkeleton />;
-  } else if (showFriendsSkeleton) {
-    routeContent = <FriendsRouteSkeleton />;
+  if (showSkeleton) {
+    if (isWishlistNavigationTarget) {
+      routeContent = <WishlistRouteSkeleton />;
+    } else if (isFriendsNavigationTarget) {
+      routeContent = <FriendsRouteSkeleton />;
+    }
   }
   return (
     <Document nonce={nonce} theme={theme} env={data.ENV}>
