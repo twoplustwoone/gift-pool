@@ -4,7 +4,7 @@
 import { render, screen } from '@testing-library/react';
 import { Home } from 'lucide-react';
 import React from 'react';
-import type ReactRouter from 'react-router';
+import type * as ReactRouter from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const useNavigationMock = vi.fn();
