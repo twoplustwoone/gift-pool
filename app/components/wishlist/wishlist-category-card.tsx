@@ -14,7 +14,7 @@ import  { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
 
 import { Heading } from '../ui/heading';
 import { Icon } from '../ui/icon';
-import { Flex, Grid, Text } from '../ui-kit';
+import { Flex, Text } from '../ui-kit';
 import  { type WishlistCategory } from './wishlist-category-state';
 import { WishlistItem as WishlistItemComponent } from './wishlist-item';
 import  { type WishlistItem, toCategoryDropId, toItemDragId  } from './wishlist-item-state';
@@ -263,8 +263,14 @@ function CategoryItemsGrid({
   onStatusChange,
   optimisticCategories,
 }: CategoryItemsGridProps) {
+  // Single-column list of full-width rows. Previously this was a
+  // 1/2/3/4-column CSS grid, which forced every row to match the tallest
+  // card's height — image cards stretched text cards into a ragged layout
+  // with faked mask-image fades to hide the excess whitespace. Rows give
+  // us uniform height with no stretch, no wasted space, and identical
+  // layout on mobile and desktop.
   return (
-    <Grid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} gap={3}>
+    <div className="flex flex-col gap-2">
       {itemsForCategory.map((item) => (
         <WishlistItemComponent
           key={item.id}
@@ -272,13 +278,12 @@ function CategoryItemsGrid({
           isOwner={isOwner}
           categories={optimisticCategories}
           disableClaims={isPublicView}
-          layout="default"
           isReorderMode={false}
           dragState={dragState}
           onStatusChange={onStatusChange}
         />
       ))}
-    </Grid>
+    </div>
   );
 }
 

@@ -186,8 +186,17 @@ describe('PastWishlistItemCard', () => {
     expect(screen.getByText('My Past Item')).toBeInTheDocument();
   });
 
-  it('renders "Previously wanted" badge', () => {
-    const item = makeItem({ id: '1' });
+  it('renders a relative archived-time indicator on the row', () => {
+    // The old card had a generic "Previously wanted" badge that didn't tell
+    // you anything useful. The new row surfaces when the item moved to past
+    // items via the Intl.RelativeTimeFormat string produced by
+    // `formatRelativeTime` (e.g. "2 days ago"). Any non-empty relative label
+    // passes — we don't pin the exact wording here because the formatter
+    // uses the environment locale.
+    const item = makeItem({
+      id: '1',
+      updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    });
     const App = createRoutesStub([
       {
         path: '/',
@@ -202,6 +211,6 @@ describe('PastWishlistItemCard', () => {
       },
     ]);
     render(<App />);
-    expect(screen.getByText('Previously wanted')).toBeInTheDocument();
+    expect(screen.getByText(/ago/i)).toBeInTheDocument();
   });
 });

@@ -150,7 +150,12 @@ beforeEach(() => {
 });
 
 describe('wishlist item behavior', () => {
-  it('lets owners remove a broken image from the row fallback state', async () => {
+  it('swaps a broken image for a placeholder icon on the row', () => {
+    // Previously the row rendered an inline "Image failed to load" state
+    // with Retry + Remove buttons. In the unified row the thumbnail slot
+    // just swaps the <img> for a placeholder icon when it errors — image
+    // management (retry/remove) moved into the editor modal, which is
+    // covered by __wishlist-item-editor.test.tsx instead.
     render(
       <WishlistItem
         categories={[]}
@@ -176,26 +181,10 @@ describe('wishlist item behavior', () => {
       throw new Error('Expected wishlist image');
     }
     fireEvent.error(image);
-    expect(await screen.findByText('Image failed to load')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
-
-    const [formData, options] = imageFetcherState.submit.mock.calls[0] ?? [];
-    expect(options).toEqual({
-      action: '/wishlist',
-      encType: 'multipart/form-data',
-      method: 'post',
-    });
-    expect(formData).toBeInstanceOf(FormData);
-    expect(Array.from((formData as FormData).entries())).toEqual(
-      expect.arrayContaining([
-        ['id', 'item-1'],
-        ['imageAction', 'remove'],
-        ['title', 'Item one'],
-        ['type', 'text'],
-        ['note', 'A note'],
-      ]),
-    );
+    // The image should have been replaced by the placeholder — no more
+    // <img role="img" name="Item one"> in the DOM.
+    expect(screen.queryByRole('img', { name: 'Item one' })).toBeNull();
   });
 
   it('opens the archived item viewer instead of edit mode', async () => {

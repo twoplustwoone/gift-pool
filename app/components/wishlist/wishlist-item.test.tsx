@@ -217,7 +217,6 @@ describe('WishlistItem', () => {
       <WishlistItem
         isOwner
         categories={[]}
-        layout="reorder"
         isReorderMode
         wishlistItem={{
           id: 'item-1',
@@ -334,7 +333,7 @@ describe('WishlistItem', () => {
     expect(mockOpenEdit).not.toHaveBeenCalled();
   });
 
-  it('renders already claimed inside the row button for read-only claimed items', () => {
+  it('renders a "Claimed" badge in the right slot for read-only claimed items', () => {
     mockUser = { id: 'viewer-id', roles: [] };
 
     render(
@@ -356,6 +355,9 @@ describe('WishlistItem', () => {
       />,
     );
 
-    expect(getFirstWishlistItemRow()).toHaveTextContent(/already claimed/i);
+    // The new row renders the claim state in a right-slot pill instead of
+    // inside the row button itself, so assert on the Card ancestor rather
+    // than on the row button specifically.
+    expect(screen.getByText('Claimed')).toBeInTheDocument();
   });
 });
