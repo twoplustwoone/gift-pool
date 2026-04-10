@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { LuArchive, LuLink } from 'react-icons/lu';
+import { LuArchive } from 'react-icons/lu';
 
 import { Button } from '#app/components/ui/button';
 import { Card } from '#app/components/ui/card.tsx';
@@ -14,7 +14,7 @@ import { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
 import { Text } from '../ui-kit';
 import {
   WishlistItemThumbnail,
-  formatUrlHost,
+  WishlistItemUrlChip,
 } from './wishlist-item';
 import { type WishlistItem } from './wishlist-item-state';
 
@@ -145,7 +145,6 @@ export const PastWishlistItemCard = ({
   const displayImageSrc = item.hasImage
     ? `${getWishlistItemImgSrc(item.id)}?v=${item.updatedAt.getTime()}`
     : null;
-  const urlHost = item.url ? formatUrlHost(item.url) : null;
   const archivedLabel = formatRelativeTime(item.updatedAt, locale);
 
   return (
@@ -207,11 +206,8 @@ export const PastWishlistItemCard = ({
                   {item.note}
                 </Text>
               ) : null}
-              {urlHost ? (
-                <span className="mt-0.5 inline-flex max-w-full items-center gap-1 truncate rounded-full bg-muted/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground/80">
-                  <LuLink className="h-3 w-3 flex-shrink-0" aria-hidden />
-                  <span className="truncate">{urlHost}</span>
-                </span>
+              {item.url ? (
+                <WishlistItemUrlChip url={item.url} dimmed />
               ) : null}
             </div>
             {/*

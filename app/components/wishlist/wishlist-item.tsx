@@ -3,9 +3,9 @@ import * as React from 'react';
 import {
   LuArchive,
   LuChevronRight,
+  LuExternalLink,
   LuGift,
   LuImage,
-  LuLink,
   LuLock,
   LuPencil,
   LuTrash,
@@ -596,8 +596,6 @@ function WishlistNonOwnerTrigger({
   imageErrored: boolean;
   onImageError: (event?: React.SyntheticEvent) => void;
 }) {
-  const urlHost = wishlistItem.url ? formatUrlHost(wishlistItem.url) : null;
-
   return (
     <Card
       variant="default"
@@ -645,11 +643,8 @@ function WishlistNonOwnerTrigger({
               {wishlistItem.note}
             </Text>
           ) : null}
-          {urlHost ? (
-            <span className="mt-0.5 inline-flex max-w-full items-center gap-1 truncate rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              <LuLink className="h-3 w-3 flex-shrink-0" aria-hidden />
-              <span className="truncate">{urlHost}</span>
-            </span>
+          {wishlistItem.url ? (
+            <WishlistItemUrlChip url={wishlistItem.url} />
           ) : null}
         </div>
         <div className="pointer-events-auto relative flex flex-shrink-0 items-center">
@@ -670,15 +665,64 @@ function WishlistNonOwnerTrigger({
   );
 }
 
-// Extract the "display" hostname from a URL (e.g. "www.amazon.com" → "amazon.com").
-// Returns null for unparseable strings so the URL chip can be hidden.
-export function formatUrlHost(rawUrl: string): string | null {
+// Parse a user-supplied URL into a display host + safe href. Returns null if
+// the URL is unparseable or if it uses a non-http(s) protocol — we won't let
+// javascript:, data:, etc. become clickable on the item card.
+export function parseDisplayUrl(
+  rawUrl: string,
+): { host: string; href: string } | null {
   try {
     const parsed = new URL(rawUrl);
-    return parsed.hostname.replace(/^www\./, '');
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    return {
+      host: parsed.hostname.replace(/^www\./, ''),
+      href: parsed.toString(),
+    };
   } catch {
     return null;
   }
+}
+
+// Kept for back-compat with external callers (e.g. past-wishlist-items.tsx
+// used to import this by name). New code should use `parseDisplayUrl` and
+// read `.host` directly.
+export function formatUrlHost(rawUrl: string): string | null {
+  return parseDisplayUrl(rawUrl)?.host ?? null;
+}
+
+// Clickable URL chip. Sits inside the row's pointer-events-none content
+// layer but re-enables its own pointer events + stacks above the absolute
+// click-catcher button, so tapping it opens the external link in a new
+// tab WITHOUT opening the item editor modal. Stops event propagation as
+// a belt-and-braces guard against any enclosing click handlers.
+export function WishlistItemUrlChip({
+  url,
+  dimmed = false,
+}: {
+  url: string;
+  dimmed?: boolean;
+}) {
+  const parsed = parseDisplayUrl(url);
+  if (!parsed) return null;
+  return (
+    <a
+      href={parsed.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(event) => event.stopPropagation()}
+      className={cn(
+        'pointer-events-auto relative mt-0.5 inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors',
+        dimmed
+          ? 'bg-muted/70 text-muted-foreground/80 hover:bg-muted hover:text-foreground'
+          : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground',
+      )}
+    >
+      <LuExternalLink className="h-3 w-3 flex-shrink-0" aria-hidden />
+      <span className="truncate">{parsed.host}</span>
+    </a>
+  );
 }
 
 type WishlistItemThumbnailProps = Readonly<{
@@ -765,8 +809,6 @@ function WishlistOwnerRow({
   onOpen,
   wishlistItem,
 }: WishlistOwnerRowProps) {
-  const urlHost = wishlistItem.url ? formatUrlHost(wishlistItem.url) : null;
-
   return (
     <Card
       variant="default"
@@ -812,11 +854,8 @@ function WishlistOwnerRow({
               {wishlistItem.note}
             </Text>
           ) : null}
-          {urlHost ? (
-            <span className="mt-0.5 inline-flex max-w-full items-center gap-1 truncate rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              <LuLink className="h-3 w-3 flex-shrink-0" aria-hidden />
-              <span className="truncate">{urlHost}</span>
-            </span>
+          {wishlistItem.url ? (
+            <WishlistItemUrlChip url={wishlistItem.url} />
           ) : null}
         </div>
         {actionMenu ? (

@@ -10,6 +10,7 @@ import  { type useFetcher } from 'react-router';
 
 import { Button } from '#app/components/ui/button';
 import { Input } from '#app/components/ui/input';
+import { cn } from '#app/utils/misc.tsx';
 import  { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
 
 import { Heading } from '../ui/heading';
@@ -357,27 +358,42 @@ function WishlistCategoryBody({
   onStatusChange,
   optimisticCategories,
 }: WishlistCategoryBodyProps) {
-  if (isCollapsed && !isItemReorderMode) return null;
+  // Reorder mode always shows items regardless of the collapsed flag.
+  const isOpen = !isCollapsed || isItemReorderMode;
 
+  // Height animation without measuring content: outer grid container
+  // transitions `grid-template-rows` from 0fr → 1fr, inner `min-h-0 overflow-hidden`
+  // lets the row collapse all the way to zero. Guarded with `motion-safe:`
+  // so prefers-reduced-motion users still get an instant toggle.
   return (
-    <div className="border-t border-card-border p-3 sm:p-4">
-      {isItemReorderMode ? (
-        <CategoryReorderBody
-          canReorder={canReorder}
-          dragState={dragState}
-          itemIds={itemIds}
-          itemsForCategory={itemsForCategory}
-        />
-      ) : (
-        <CategoryItemsGrid
-          dragState={dragState}
-          isOwner={isOwner}
-          isPublicView={isPublicView}
-          itemsForCategory={itemsForCategory}
-          onStatusChange={onStatusChange}
-          optimisticCategories={optimisticCategories}
-        />
+    <div
+      aria-hidden={!isOpen}
+      className={cn(
+        'grid motion-safe:transition-[grid-template-rows] motion-safe:duration-200 motion-safe:ease-out',
+        isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
       )}
+    >
+      <div className="min-h-0 overflow-hidden">
+        <div className="border-t border-card-border p-3 sm:p-4">
+          {isItemReorderMode ? (
+            <CategoryReorderBody
+              canReorder={canReorder}
+              dragState={dragState}
+              itemIds={itemIds}
+              itemsForCategory={itemsForCategory}
+            />
+          ) : (
+            <CategoryItemsGrid
+              dragState={dragState}
+              isOwner={isOwner}
+              isPublicView={isPublicView}
+              itemsForCategory={itemsForCategory}
+              onStatusChange={onStatusChange}
+              optimisticCategories={optimisticCategories}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
