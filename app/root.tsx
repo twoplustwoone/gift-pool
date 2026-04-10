@@ -26,6 +26,7 @@ import {
 } from 'react-router';
 import { HoneypotProvider } from 'remix-utils/honeypot/react';
 import { toast } from 'sonner';
+import { useSpinDelay } from 'spin-delay';
 import { z } from 'zod';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
@@ -33,6 +34,7 @@ import { GeneralErrorBoundary } from './components/error-boundary.tsx';
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
 import { NotificationsProvider } from './components/notifications/notifications-context.tsx';
+import { EpicProgress } from './components/progress-bar.tsx';
 import { PwaInstallBanner } from './components/pwa-install-banner.tsx';
 import { useToast } from './components/toaster.tsx';
 import { href as iconsHref } from './components/ui/icon.tsx';
@@ -385,10 +387,20 @@ const App = () => {
     navigation.state === 'loading' &&
     isRouteChangeNavigation &&
     isFriendsNavigationTarget;
+  // Only show skeletons when the nav is slow enough to notice. Fast
+  // transitions should just swap content to avoid a flicker of skeleton.
+  const showWishlistSkeleton = useSpinDelay(isWishlistNavigationPending, {
+    delay: 400,
+    minDuration: 300,
+  });
+  const showFriendsSkeleton = useSpinDelay(isFriendsNavigationPending, {
+    delay: 400,
+    minDuration: 300,
+  });
   let routeContent = <Outlet />;
-  if (isWishlistNavigationPending) {
+  if (showWishlistSkeleton) {
     routeContent = <WishlistRouteSkeleton />;
-  } else if (isFriendsNavigationPending) {
+  } else if (showFriendsSkeleton) {
     routeContent = <FriendsRouteSkeleton />;
   }
   return (
@@ -429,6 +441,7 @@ const App = () => {
 
             <Footer />
           </div>
+          <EpicProgress />
           <EpicToaster closeButton position="top-center" theme={theme} />
         </NotificationsProvider>
       </I18nProvider>

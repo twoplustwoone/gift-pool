@@ -62,6 +62,10 @@ vi.mock('./components/notifications/notifications-context.tsx', () => ({
   ),
 }));
 
+vi.mock('./components/progress-bar.tsx', () => ({
+  EpicProgress: () => <div data-testid="epic-progress" />,
+}));
+
 vi.mock('./components/pwa-install-banner.tsx', () => ({
   PwaInstallBanner: () => <div>install banner</div>,
 }));
@@ -205,6 +209,10 @@ beforeEach(() => {
 
 describe('app/root.tsx', () => {
   it('renders the friends route skeleton during a pending friends navigation', () => {
+    // `useSpinDelay` intentionally returns true on SSR (there is no prior
+    // content to flash against, so showing the skeleton immediately is
+    // correct on the server). The client-side delay-gating is what prevents
+    // the flicker we're fixing — that path isn't exercised by SSR tests.
     const markup = renderToStaticMarkup(<AppWithProviders />);
 
     expect(markup).toContain('data-testid="friends-route-skeleton"');

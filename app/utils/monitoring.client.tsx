@@ -2,7 +2,6 @@ import {
   init as sentryInit,
   reactRouterTracingIntegration,
   replayIntegration,
-  browserProfilingIntegration,
 } from '@sentry/react-router';
 
 export function init() {
@@ -22,16 +21,12 @@ export function init() {
       }
       return event;
     },
-    integrations: [
-      reactRouterTracingIntegration(),
-      replayIntegration(),
-      browserProfilingIntegration(),
-    ],
+    integrations: [reactRouterTracingIntegration(), replayIntegration()],
 
-    // Set tracesSampleRate to 1.0 to capture 100%
-    // of transactions for performance monitoring.
-    // We recommend adjusting this value in production
-    tracesSampleRate: 1.0,
+    // Sample 10% of transactions in production. The previous 100% rate was
+    // creating measurable overhead on a small Fly machine while providing
+    // more data than we actually consume.
+    tracesSampleRate: 0.1,
 
     // Capture Replay for 10% of all sessions,
     // plus for 100% of sessions with an error
