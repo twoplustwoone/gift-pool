@@ -96,14 +96,18 @@ test('public link renders read-only wishlist with claimed state visible', async 
       page.getByRole('button', { name: /grab this gift/i }),
     ).toHaveCount(0);
 
-    const claimedCard = page.getByRole('button', { name: claimedItem.title });
-    await expect(claimedCard.getByText(/claimed/i).first()).toBeVisible();
-    await expect(
-      claimedCard.getByText(/already claimed/i).first(),
-    ).toBeVisible();
+    // Scope by the outer card testid — the row "button" is an empty
+    // absolute click-catcher (aria-label only), so getByText inside it
+    // can't find the claim pill.
+    const claimedCard = page
+      .getByTestId('wishlist-item-card')
+      .filter({ hasText: claimedItem.title });
+    await expect(claimedCard.getByText('Claimed').first()).toBeVisible();
 
-    const openCard = page.getByRole('button', { name: openItem.title });
-    await expect(openCard.getByText(/already claimed/i)).toHaveCount(0);
+    const openCard = page
+      .getByTestId('wishlist-item-card')
+      .filter({ hasText: openItem.title });
+    await expect(openCard.getByText('Claimed')).toHaveCount(0);
   } finally {
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   }

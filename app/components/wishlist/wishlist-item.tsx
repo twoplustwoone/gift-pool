@@ -597,71 +597,39 @@ function WishlistNonOwnerTrigger({
   onImageError: (event?: React.SyntheticEvent) => void;
 }) {
   return (
-    <Card
-      variant="default"
-      padding="none"
-      className={cn(
-        'group relative min-w-0 cursor-pointer overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-shadow',
-        'hover:border-border hover:shadow-md',
-        'focus-within:border-border focus-within:shadow-md',
+    <WishlistItemCardShell
+      ariaLabel={wishlistItem.title}
+      cardClassName={cn(
         isPurchasedBySomeoneElse ? 'opacity-90' : '',
         dragState === 'dragging-item' ? 'opacity-75' : '',
       )}
-    >
-      <button
-        type="button"
-        aria-label={wishlistItem.title}
-        onClick={onOpen}
-        className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        data-claimable={allowClaims && !isClaimed ? 'true' : undefined}
-        data-testid="wishlist-item-row"
-        data-drag-state={dragState}
-        data-drop-target="false"
-      />
-
-      <div className="pointer-events-none relative flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
-        <WishlistItemThumbnail
-          displayImageSrc={displayImageSrc}
-          hasImage={wishlistItem.hasImage ?? false}
-          imageErrored={imageErrored}
-          onImageError={onImageError}
-          title={wishlistItem.title}
+      dataAttrs={{
+        'data-claimable': allowClaims && !isClaimed ? 'true' : undefined,
+        'data-drag-state': dragState,
+        'data-drop-target': 'false',
+      }}
+      displayImageSrc={displayImageSrc}
+      hasImage={wishlistItem.hasImage ?? false}
+      imageErrored={imageErrored}
+      note={wishlistItem.note ?? null}
+      onImageError={onImageError}
+      onOpen={onOpen}
+      rightSlot={
+        <NonOwnerClaimSlot
+          allowClaims={allowClaims}
+          handlePurchaseToggle={handlePurchaseToggle}
+          isClaimInfoOpen={isClaimInfoOpen}
+          isClaimed={isClaimed}
+          isPurchasePending={isPurchasePending}
+          isPurchasedByMe={isPurchasedByMe}
+          isPurchasedBySomeoneElse={isPurchasedBySomeoneElse}
+          onClaimInfoOpenChange={onClaimInfoOpenChange}
+          purchaseButtonAriaLabel={purchaseButtonAriaLabel}
         />
-        <div className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left">
-          <Text
-            size="base"
-            weight="medium"
-            className="line-clamp-2 min-w-0 max-w-full"
-          >
-            {wishlistItem.title}
-          </Text>
-          {wishlistItem.note ? (
-            <Text
-              size="xs"
-              className="line-clamp-1 min-w-0 max-w-full text-muted-foreground"
-            >
-              {wishlistItem.note}
-            </Text>
-          ) : null}
-          {wishlistItem.url ? (
-            <WishlistItemUrlChip url={wishlistItem.url} />
-          ) : null}
-        </div>
-        <div className="pointer-events-auto relative flex flex-shrink-0 items-center">
-          <NonOwnerClaimSlot
-            allowClaims={allowClaims}
-            handlePurchaseToggle={handlePurchaseToggle}
-            isClaimInfoOpen={isClaimInfoOpen}
-            isClaimed={isClaimed}
-            isPurchasePending={isPurchasePending}
-            isPurchasedByMe={isPurchasedByMe}
-            isPurchasedBySomeoneElse={isPurchasedBySomeoneElse}
-            onClaimInfoOpenChange={onClaimInfoOpenChange}
-            purchaseButtonAriaLabel={purchaseButtonAriaLabel}
-          />
-        </div>
-      </div>
-    </Card>
+      }
+      title={wishlistItem.title}
+      url={wishlistItem.url ?? null}
+    />
   );
 }
 
@@ -776,6 +744,104 @@ export function WishlistItemThumbnail({
   );
 }
 
+type WishlistItemCardShellProps = Readonly<{
+  ariaLabel: string;
+  cardClassName?: string;
+  dataAttrs?: Record<string, string | undefined>;
+  displayImageSrc: string | null;
+  hasImage: boolean;
+  imageErrored: boolean;
+  note: string | null;
+  onImageError: (event?: React.SyntheticEvent) => void;
+  onOpen: () => void;
+  rightSlot?: React.ReactNode;
+  title: string;
+  url: string | null;
+}>;
+
+// Shared row primitive used by both owner and non-owner item cards.
+//
+// Layout uses the "absolute click-catcher" pattern: the whole Card surface
+// is clickable, but the right-slot (action menu / claim button) can still
+// intercept its own clicks. A single hidden <button> is absolutely
+// positioned to fill the Card — that's what the click/focus/hover targets.
+// The visible content layer has `pointer-events-none` so taps pass through
+// to the button, and the right slot re-enables pointer events via
+// `pointer-events-auto`.
+//
+// The outer Card carries `data-testid="wishlist-item-card"` so e2e tests
+// can scope selectors by item without having to click text that sits under
+// the pointer-events-none layer.
+function WishlistItemCardShell({
+  ariaLabel,
+  cardClassName,
+  dataAttrs,
+  displayImageSrc,
+  hasImage,
+  imageErrored,
+  note,
+  onImageError,
+  onOpen,
+  rightSlot,
+  title,
+  url,
+}: WishlistItemCardShellProps) {
+  return (
+    <Card
+      variant="default"
+      padding="none"
+      data-testid="wishlist-item-card"
+      className={cn(
+        'group relative min-w-0 cursor-pointer overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-shadow',
+        'hover:border-border hover:shadow-md',
+        'focus-within:border-border focus-within:shadow-md',
+        cardClassName,
+      )}
+    >
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        onClick={onOpen}
+        className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        data-testid="wishlist-item-row"
+        {...dataAttrs}
+      />
+      <div className="pointer-events-none relative flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+        <WishlistItemThumbnail
+          displayImageSrc={displayImageSrc}
+          hasImage={hasImage}
+          imageErrored={imageErrored}
+          onImageError={onImageError}
+          title={title}
+        />
+        <div className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left">
+          <Text
+            size="base"
+            weight="medium"
+            className="line-clamp-2 min-w-0 max-w-full"
+          >
+            {title}
+          </Text>
+          {note ? (
+            <Text
+              size="xs"
+              className="line-clamp-1 min-w-0 max-w-full text-muted-foreground"
+            >
+              {note}
+            </Text>
+          ) : null}
+          {url ? <WishlistItemUrlChip url={url} /> : null}
+        </div>
+        {rightSlot ? (
+          <div className="pointer-events-auto relative flex flex-shrink-0 items-center">
+            {rightSlot}
+          </div>
+        ) : null}
+      </div>
+    </Card>
+  );
+}
+
 type WishlistOwnerRowProps = Readonly<{
   actionMenu: React.ReactNode;
   ariaLabel: string;
@@ -787,18 +853,6 @@ type WishlistOwnerRowProps = Readonly<{
   wishlistItem: WishlistItemRecord;
 }>;
 
-// Single responsive row used for every active owner item.
-//
-// Layout uses the "absolute click-catcher" pattern: the whole Card surface
-// is clickable, but the 3-dot action menu can still intercept its own
-// clicks. A single hidden <button> is absolutely positioned to fill the
-// Card — that's what the click/focus/hover targets. The visible content
-// layer has `pointer-events-none` so taps pass through to the button,
-// except for the action menu slot which re-enables pointer events via
-// `pointer-events-auto`. This replaces the previous layout where only
-// the inner text column was clickable, leaving a dead strip above and
-// below the text that visually looked active because of the card's
-// hover ring.
 function WishlistOwnerRow({
   actionMenu,
   ariaLabel,
@@ -810,61 +864,26 @@ function WishlistOwnerRow({
   wishlistItem,
 }: WishlistOwnerRowProps) {
   return (
-    <Card
-      variant="default"
-      padding="none"
-      className={cn(
-        'group relative min-w-0 cursor-pointer overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-shadow',
-        'hover:border-border hover:shadow-md',
-        'focus-within:border-border focus-within:shadow-md',
+    <WishlistItemCardShell
+      ariaLabel={ariaLabel}
+      cardClassName={cn(
         dragState === 'dragging-item' ? 'opacity-75' : '',
         dragState === 'dragging-category' ? 'opacity-80' : '',
       )}
-    >
-      <button
-        type="button"
-        aria-label={ariaLabel}
-        onClick={onOpen}
-        className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        data-testid="wishlist-item-row"
-        data-drag-state={dragState}
-        data-drop-target="false"
-      />
-      <div className="pointer-events-none relative flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
-        <WishlistItemThumbnail
-          displayImageSrc={displayImageSrc}
-          hasImage={wishlistItem.hasImage ?? false}
-          imageErrored={imageErrored}
-          onImageError={onImageError}
-          title={wishlistItem.title}
-        />
-        <div className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left">
-          <Text
-            size="base"
-            weight="medium"
-            className="line-clamp-2 min-w-0 max-w-full"
-          >
-            {wishlistItem.title}
-          </Text>
-          {wishlistItem.note ? (
-            <Text
-              size="xs"
-              className="line-clamp-1 min-w-0 max-w-full text-muted-foreground"
-            >
-              {wishlistItem.note}
-            </Text>
-          ) : null}
-          {wishlistItem.url ? (
-            <WishlistItemUrlChip url={wishlistItem.url} />
-          ) : null}
-        </div>
-        {actionMenu ? (
-          <div className="pointer-events-auto relative flex flex-shrink-0 items-center">
-            {actionMenu}
-          </div>
-        ) : null}
-      </div>
-    </Card>
+      dataAttrs={{
+        'data-drag-state': dragState,
+        'data-drop-target': 'false',
+      }}
+      displayImageSrc={displayImageSrc}
+      hasImage={wishlistItem.hasImage ?? false}
+      imageErrored={imageErrored}
+      note={wishlistItem.note ?? null}
+      onImageError={onImageError}
+      onOpen={onOpen}
+      rightSlot={actionMenu}
+      title={wishlistItem.title}
+      url={wishlistItem.url ?? null}
+    />
   );
 }
 
