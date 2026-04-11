@@ -10,11 +10,12 @@ import  { type useFetcher } from 'react-router';
 
 import { Button } from '#app/components/ui/button';
 import { Input } from '#app/components/ui/input';
+import { cn } from '#app/utils/misc.tsx';
 import  { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
 
 import { Heading } from '../ui/heading';
 import { Icon } from '../ui/icon';
-import { Flex, Grid, Text } from '../ui-kit';
+import { Flex, Text } from '../ui-kit';
 import  { type WishlistCategory } from './wishlist-category-state';
 import { WishlistItem as WishlistItemComponent } from './wishlist-item';
 import  { type WishlistItem, toCategoryDropId, toItemDragId  } from './wishlist-item-state';
@@ -263,8 +264,14 @@ function CategoryItemsGrid({
   onStatusChange,
   optimisticCategories,
 }: CategoryItemsGridProps) {
+  // Single-column list of full-width rows. Previously this was a
+  // 1/2/3/4-column CSS grid, which forced every row to match the tallest
+  // card's height — image cards stretched text cards into a ragged layout
+  // with faked mask-image fades to hide the excess whitespace. Rows give
+  // us uniform height with no stretch, no wasted space, and identical
+  // layout on mobile and desktop.
   return (
-    <Grid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} gap={3}>
+    <div className="flex flex-col gap-2">
       {itemsForCategory.map((item) => (
         <WishlistItemComponent
           key={item.id}
@@ -272,13 +279,12 @@ function CategoryItemsGrid({
           isOwner={isOwner}
           categories={optimisticCategories}
           disableClaims={isPublicView}
-          layout="default"
           isReorderMode={false}
           dragState={dragState}
           onStatusChange={onStatusChange}
         />
       ))}
-    </Grid>
+    </div>
   );
 }
 
@@ -352,27 +358,42 @@ function WishlistCategoryBody({
   onStatusChange,
   optimisticCategories,
 }: WishlistCategoryBodyProps) {
-  if (isCollapsed && !isItemReorderMode) return null;
+  // Reorder mode always shows items regardless of the collapsed flag.
+  const isOpen = !isCollapsed || isItemReorderMode;
 
+  // Height animation without measuring content: outer grid container
+  // transitions `grid-template-rows` from 0fr → 1fr, inner `min-h-0 overflow-hidden`
+  // lets the row collapse all the way to zero. Guarded with `motion-safe:`
+  // so prefers-reduced-motion users still get an instant toggle.
   return (
-    <div className="border-t border-card-border p-3 sm:p-4">
-      {isItemReorderMode ? (
-        <CategoryReorderBody
-          canReorder={canReorder}
-          dragState={dragState}
-          itemIds={itemIds}
-          itemsForCategory={itemsForCategory}
-        />
-      ) : (
-        <CategoryItemsGrid
-          dragState={dragState}
-          isOwner={isOwner}
-          isPublicView={isPublicView}
-          itemsForCategory={itemsForCategory}
-          onStatusChange={onStatusChange}
-          optimisticCategories={optimisticCategories}
-        />
+    <div
+      aria-hidden={!isOpen}
+      className={cn(
+        'grid motion-safe:transition-[grid-template-rows] motion-safe:duration-200 motion-safe:ease-out',
+        isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
       )}
+    >
+      <div className="min-h-0 overflow-hidden">
+        <div className="border-t border-card-border p-3 sm:p-4">
+          {isItemReorderMode ? (
+            <CategoryReorderBody
+              canReorder={canReorder}
+              dragState={dragState}
+              itemIds={itemIds}
+              itemsForCategory={itemsForCategory}
+            />
+          ) : (
+            <CategoryItemsGrid
+              dragState={dragState}
+              isOwner={isOwner}
+              isPublicView={isPublicView}
+              itemsForCategory={itemsForCategory}
+              onStatusChange={onStatusChange}
+              optimisticCategories={optimisticCategories}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

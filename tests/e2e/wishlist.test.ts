@@ -242,11 +242,21 @@ test('users can create, edit, and delete categories; items follow correctly', as
   await expect(page.getByRole('dialog')).not.toBeVisible();
   await expect(page.getByText('Book One').first()).toBeVisible();
 
-  // Collapse then expand the Books category by clicking its header text
-  await page.getByText('Books').first().click();
-  await expect(page.getByText('Book One').first()).not.toBeVisible();
-  await page.getByText('Books').first().click();
-  await expect(page.getByText('Book One').first()).toBeVisible();
+  // Collapse then expand the Books category. We assert on the header
+  // button's `aria-expanded` state rather than `toBeVisible()` of the
+  // child text because the animated collapse keeps the content in the
+  // DOM (grid-rows 0fr) and Playwright's visibility check doesn't treat
+  // grid-rows clipping as "hidden" the way display:none would.
+  //
+  // Filter out the "Category actions for Books" dropdown trigger (which
+  // also matches /books/ and carries aria-expanded) by scoping to the
+  // header's (count-bearing) accessible name.
+  const booksHeader = page.getByRole('button', { name: /^Books\s*\(\d+\)/ });
+  await expect(booksHeader).toHaveAttribute('aria-expanded', 'true');
+  await booksHeader.click();
+  await expect(booksHeader).toHaveAttribute('aria-expanded', 'false');
+  await booksHeader.click();
+  await expect(booksHeader).toHaveAttribute('aria-expanded', 'true');
 
   // Rename Books -> Novels (inline header editor)
   await openCategoryActions(page, 'Books');
@@ -265,6 +275,14 @@ test('users can create, edit, and delete categories; items follow correctly', as
     .getByRole('button', { name: /delete category/i })
     .click();
   await expect(page.getByText('Novels')).toHaveCount(0);
+  // Close the Manage Categories dialog before interacting with the row —
+  // it doesn't auto-dismiss after a single delete and would otherwise
+  // intercept clicks on the row's action menu.
+  await page.keyboard.press('Escape');
+  await expect(
+    page.getByRole('dialog', { name: /manage categories/i }),
+  ).toHaveCount(0);
+
   // Verify the default category section now contains the item
   // eslint-disable-next-line playwright/no-raw-locators
   const bookOne = page
@@ -296,7 +314,7 @@ test('owners can delete wishlist items from row actions', async ({
   const itemTitle = `Deleteable Item ${Date.now()}`;
 
   await createWishlistItem({ page, title: itemTitle });
-  await expect(page.getByText(itemTitle)).toHaveCount(2);
+  await expect(page.getByText(itemTitle)).toHaveCount(1);
 
   const createdItem = await waitFor(
     async () => {
@@ -499,7 +517,13 @@ test('owners can clear a wishlist item description', async ({
   await expect(page.getByText('Clearable Note Item').first()).toBeVisible();
   await expect(page.getByText('Remove me').first()).toBeVisible();
 
-  await page.getByText('Clearable Note Item').first().click();
+  // Click the row by its aria-label — the row button is an absolute
+  // click-catcher that sits above the text span, so `getByText().click()`
+  // fails Playwright's actionability check. `exact: true` keeps us from
+  // matching the sibling "Item actions for Clearable Note Item" menu button.
+  await page
+    .getByRole('button', { name: 'Clearable Note Item', exact: true })
+    .click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('textbox', { name: /description/i }).fill('');
   await page.getByRole('button', { name: /^save$/i }).click();
@@ -522,7 +546,9 @@ test('owners can clear a wishlist item description', async ({
   await expect(page.getByText('Clearable Note Item').first()).toBeVisible();
   await expect(page.getByText('Remove me')).toHaveCount(0);
 
-  await page.getByText('Clearable Note Item').first().click();
+  await page
+    .getByRole('button', { name: 'Clearable Note Item', exact: true })
+    .click();
   await expect(page.getByRole('textbox', { name: /description/i })).toHaveValue(
     '',
   );

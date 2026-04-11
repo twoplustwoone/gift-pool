@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { LuArchive } from 'react-icons/lu';
 
 import { Button } from '#app/components/ui/button';
@@ -6,10 +7,16 @@ import { Heading } from '#app/components/ui/heading.tsx';
 import {
   WishlistItemEditor,
 } from '#app/routes/wishlist+/__wishlist-item-editor';
-import  { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
+import { formatRelativeTime, useTranslation } from '#app/utils/i18n.tsx';
+import { cn, getWishlistItemImgSrc } from '#app/utils/misc.tsx';
+import { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
 
-import { Grid, Text } from '../ui-kit';
-import  { type WishlistItem } from './wishlist-item-state';
+import { Text } from '../ui-kit';
+import {
+  WishlistItemThumbnail,
+  WishlistItemUrlChip,
+} from './wishlist-item';
+import { type WishlistItem } from './wishlist-item-state';
 
 type Category = { id: string; name: string; order: number };
 
@@ -81,7 +88,7 @@ export const PastWishlistItems = ({
           {items.length}
         </span>
       </div>
-      <div className="space-y-3 border-t border-card-border p-4">
+      <div className="flex flex-col gap-3 border-t border-card-border p-4">
         {showEducation ? (
           <PastEducationCallout
             onDismissEducation={onDismissEducation}
@@ -98,7 +105,7 @@ export const PastWishlistItems = ({
             </Text>
           </div>
         ) : (
-          <Grid columns={{ sm: 2, md: 3, lg: 4 }} gap={4}>
+          <div className="flex flex-col gap-2">
             {sortedItems.map((item) => (
               <PastWishlistItemCard
                 key={`${item.id}-${item.updatedAt.getTime()}`}
@@ -108,7 +115,7 @@ export const PastWishlistItems = ({
                 onStatusChange={onStatusChange}
               />
             ))}
-          </Grid>
+          </div>
         )}
       </div>
     </div>
@@ -129,6 +136,17 @@ export const PastWishlistItemCard = ({
     status: WishlistItemStatusValue,
   ) => boolean | void;
 }) => {
+  const { locale } = useTranslation();
+  // Past items don't need the owner-only image error/retry controls; if the
+  // image fails to load, the thumbnail swaps to a placeholder icon and that's
+  // the end of it. Keep the simple error state locally so we don't pull in
+  // the full image fetcher from wishlist-item.tsx.
+  const [imageErrored, setImageErrored] = React.useState(false);
+  const displayImageSrc = item.hasImage
+    ? `${getWishlistItemImgSrc(item.id)}?v=${item.updatedAt.getTime()}`
+    : null;
+  const archivedLabel = formatRelativeTime(item.updatedAt, locale);
+
   return (
     <WishlistItemEditor
       wishlistItem={{
@@ -148,42 +166,61 @@ export const PastWishlistItemCard = ({
       initialMode="view"
       onStatusChange={onStatusChange}
       trigger={
+        // Past items share the active-row primitive but are visually
+        // de-emphasized so they never get confused with live wishlist items
+        // at a glance: a muted background (instead of solid card), a dashed
+        // border, grayscale thumbnail, and muted title text. Still fully
+        // clickable (the Card is the dialog trigger), still hover-responsive
+        // so the user knows they can open the editor.
         <Card
           variant="interactive"
-          padding="md"
-          className="group h-full cursor-pointer"
+          padding="none"
+          className={cn(
+            'group min-w-0 cursor-pointer overflow-hidden rounded-xl border border-dashed border-border/60 bg-muted/30 shadow-none transition-shadow',
+            'hover:border-border hover:bg-muted/40 hover:shadow-sm',
+          )}
         >
-          <div className="flex h-full flex-col gap-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <Text
-                  size="base"
-                  weight="medium"
-                  className="block truncate"
-                  aria-label={item.title}
-                >
-                  {item.title}
-                </Text>
+          <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+            <div className="flex-shrink-0 [&>img]:grayscale [&>div]:opacity-70">
+              <WishlistItemThumbnail
+                displayImageSrc={displayImageSrc}
+                hasImage={item.hasImage ?? false}
+                imageErrored={imageErrored}
+                onImageError={() => setImageErrored(true)}
+                title={item.title}
+              />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left">
+              <Text
+                size="base"
+                weight="medium"
+                className="line-clamp-2 min-w-0 max-w-full text-muted-foreground"
+              >
+                {item.title}
+              </Text>
+              {item.note ? (
                 <Text
                   size="xs"
-                  className="line-clamp-2 text-muted-foreground"
-                  aria-label={item.note ?? 'No description'}
+                  className="line-clamp-1 min-w-0 max-w-full text-muted-foreground/80"
                 >
-                  {item.note ?? 'No description'}
+                  {item.note}
                 </Text>
-              </div>
-              <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-                Previously wanted
-              </span>
+              ) : null}
+              {item.url ? (
+                <WishlistItemUrlChip url={item.url} dimmed />
+              ) : null}
             </div>
-
-            <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground">
-              <span className="truncate">Saved for reference</span>
-              <div className="flex items-center gap-1 text-primary">
-                <LuArchive className="h-3.5 w-3.5" aria-hidden />
-                <span className="hidden sm:inline">View details</span>
-                <span className="sm:hidden">View</span>
-              </div>
+            {/*
+             * Right slot: neutral archived-time pill. Room for "Bought by X"
+             * or a giver attribution later, but intentionally not wired up —
+             * the own-wishlist loader doesn't select WishlistPurchase.purchasedBy
+             * because the gifting model is surprise-preserving. Revealing
+             * the giver on past items would be a product decision we haven't
+             * made yet.
+             */}
+            <div className="flex flex-shrink-0 items-center gap-1 rounded-full bg-background/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground ring-1 ring-inset ring-border/60">
+              <LuArchive className="h-3.5 w-3.5" aria-hidden />
+              <span>{archivedLabel}</span>
             </div>
           </div>
         </Card>

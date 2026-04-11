@@ -39,11 +39,12 @@ test('owners can archive and unarchive wishlist items', async ({
 
   await createWishlistItem({ page, title: 'Archivable Item' });
 
-  // Two triggers render (desktop + mobile)
-  await expect(page.getByText('Archivable Item')).toHaveCount(2);
+  // One row per item in the unified layout (used to be two — desktop + mobile).
+  await expect(page.getByText('Archivable Item')).toHaveCount(1);
 
-  // Open the item editor
-  await page.getByText('Archivable Item').first().click();
+  // Open the item editor — click the row button by aria-label so we're not
+  // clicking the text span (which sits under the pointer-events-none layer).
+  await page.getByRole('button', { name: 'Archivable Item', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
 
   // Archive the item
@@ -65,16 +66,18 @@ test('owners can archive and unarchive wishlist items', async ({
   ).toBeVisible();
   await expect(page.getByText('Archivable Item')).toHaveCount(1);
 
-  // Unarchive the item
+  // Unarchive the item — past items are still a Card-as-DialogTrigger, so
+  // clicking the text inside the card still works there.
   await page.getByText('Archivable Item').click();
   await page.getByRole('button', { name: /restore to wishlist/i }).click();
   if (await dialog.isVisible()) {
     await dialog.getByRole('button', { name: /^close$/i }).click();
   }
 
-  // Item returns to active list (two triggers again) and archived section disappears
+  // Item returns to the active list (one row, not two) and the archived
+  // section now renders the empty state.
   await page.getByRole('button', { name: /^Wishlist$/i, exact: true }).click();
-  await expect(page.getByText('Archivable Item')).toHaveCount(2);
+  await expect(page.getByText('Archivable Item')).toHaveCount(1);
 });
 
 test('archive status is optimistic before delayed server response', async ({
@@ -97,12 +100,17 @@ test('archive status is optimistic before delayed server response', async ({
   });
 
   try {
-    const itemRows = page
-      .getByTestId('wishlist-item-row')
+    // Scope by the outer card testid: the row button is empty (it's an
+    // absolute click-catcher), so filter({hasText}) has to look at the card
+    // element which wraps the visible content.
+    const itemCards = page
+      .getByTestId('wishlist-item-card')
       .filter({ hasText: 'Delayed status item' });
-    await expect(itemRows).toHaveCount(2);
+    await expect(itemCards).toHaveCount(1);
 
-    await page.getByText('Delayed status item').first().click();
+    await page
+      .getByRole('button', { name: 'Delayed status item', exact: true })
+      .click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
     const statusResponsePromise = page.waitForResponse(
@@ -112,7 +120,7 @@ test('archive status is optimistic before delayed server response', async ({
     );
 
     await page.getByRole('button', { name: /remove from wishlist/i }).click();
-    await expect(itemRows).toHaveCount(0);
+    await expect(itemCards).toHaveCount(0);
 
     const dialog = page.getByRole('dialog');
     if (await dialog.isVisible()) {
@@ -156,12 +164,14 @@ test('archive rollback restores item when status mutation fails', async ({
   });
 
   try {
-    const itemRows = page
-      .getByTestId('wishlist-item-row')
+    const itemCards = page
+      .getByTestId('wishlist-item-card')
       .filter({ hasText: 'Rollback status item' });
-    await expect(itemRows).toHaveCount(2);
+    await expect(itemCards).toHaveCount(1);
 
-    await page.getByText('Rollback status item').first().click();
+    await page
+      .getByRole('button', { name: 'Rollback status item', exact: true })
+      .click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
     const statusResponsePromise = page.waitForResponse(
@@ -171,10 +181,10 @@ test('archive rollback restores item when status mutation fails', async ({
     );
 
     await page.getByRole('button', { name: /remove from wishlist/i }).click();
-    await expect(itemRows).toHaveCount(0);
+    await expect(itemCards).toHaveCount(0);
 
     await statusResponsePromise;
-    await expect(itemRows).toHaveCount(2);
+    await expect(itemCards).toHaveCount(1);
   } finally {
     await page.unroute('**/wishlist/status*');
   }

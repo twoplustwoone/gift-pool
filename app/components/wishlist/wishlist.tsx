@@ -203,8 +203,14 @@ function buildWishlistCategories(
     ...optimisticCategories,
   ].filter((category) => {
     if (category.id !== null) return true;
-    if (isOwner) return true;
-    return hasDefaultItems;
+    // Always show the Default bucket when it has items — it's where the items
+    // live. For owners with no items in Default, only show it when there are
+    // NO custom categories either, so first-time users still have a landing
+    // spot to drop their first item. Otherwise the owner sees "Default (0)"
+    // as permanent visual noise.
+    if (hasDefaultItems) return true;
+    if (isOwner) return optimisticCategories.length === 0;
+    return false;
   });
 }
 

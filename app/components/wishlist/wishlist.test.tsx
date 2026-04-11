@@ -119,8 +119,9 @@ describe('Wishlist components', () => {
     render(<App />);
 
     await screen.findByText('My Wishlist');
-    // 2 items: one for the desktop view, one for the mobile view
-    expect(await screen.findAllByText('Item one')).toHaveLength(2);
+    // The unified row renders each item ONCE (the old split rendered
+    // desktop and mobile copies into the DOM simultaneously).
+    expect(await screen.findAllByText('Item one')).toHaveLength(1);
   });
 
   it('shows a share control for owners', async () => {
@@ -226,12 +227,11 @@ describe('Wishlist components', () => {
     expect(
       screen.queryByRole('button', { name: /grab this gift/i }),
     ).not.toBeInTheDocument();
-    const itemOneNode = await screen.findByText('Item one');
-    expect(itemOneNode.closest('button')).toHaveTextContent(/already claimed/i);
-    const itemTwoNode = await screen.findByText('Item two');
-    expect(
-      itemTwoNode.closest('div')?.textContent?.match(/claimed/i)?.length ?? 0,
-    ).toBe(0);
+    // Item one is claimed → the row's right slot renders a "Claimed" badge.
+    // Item two is not claimed → no claim text anywhere on its row.
+    await screen.findByText('Item one');
+    await screen.findByText('Item two');
+    expect(screen.getAllByText('Claimed')).toHaveLength(1);
   });
 
   it('shows empty message for others', async () => {
@@ -401,7 +401,12 @@ describe('Wishlist components', () => {
     expect(purchaseButton.tagName).toBe('BUTTON');
   });
 
-  it('shows purchase status for viewers', async () => {
+  it('shows claim state in the row right slot for viewers', async () => {
+    // The old footer-bar copy ("you're on gift duty" / "someone already
+    // grabbed this") is now only rendered inside the item-editor modal via
+    // WishlistNonOwnerExtras. The row itself communicates claim state via
+    // the right-slot pill/button: "Claimed" + toggle when I claimed it,
+    // or a non-interactive "Claimed" lock badge when someone else did.
     const PurchasedByViewer = createRoutesStub([
       {
         path: '/',
@@ -437,11 +442,11 @@ describe('Wishlist components', () => {
 
     render(<PurchasedByViewer />);
 
-    await screen.findByText(/you’re on gift duty/i);
-    const unmarkButton = screen.getByRole('button', {
+    // Claimed-by-me: the right-slot button shows "Claimed" (visible text on
+    // ≥sm) and remains interactive to let the user un-claim.
+    const unmarkButton = await screen.findByRole('button', {
       name: /someone else pick up this gift/i,
     });
-    expect(unmarkButton.tagName).toBe('BUTTON');
     expect(unmarkButton).toBeEnabled();
 
     const PurchasedByOther = createRoutesStub([
@@ -479,9 +484,12 @@ describe('Wishlist components', () => {
 
     render(<PurchasedByOther />);
 
-    await screen.findByText(/someone already grabbed this/i);
+    // Claimed-by-other: the right slot is a non-actionable badge
+    // ("Claimed") that opens an info bottom-sheet when tapped. There is no
+    // "I'll grab" button because that would let us double-claim.
+    expect(screen.getAllByText('Claimed').length).toBeGreaterThan(0);
     expect(
-      screen.queryByRole('button', { name: /grab this/i }),
+      screen.queryByRole('button', { name: /grab this gift/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -551,7 +559,7 @@ describe('Wishlist components', () => {
     await screen.findByRole('button', { name: /category actions for books/i });
     expect(
       screen.getAllByRole('button', { name: /item actions for item one/i }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
 
     const categoryRows = await screen.findAllByTestId('wishlist-category-row');
     expect(categoryRows[0]).toHaveAttribute('data-drag-state', 'idle');

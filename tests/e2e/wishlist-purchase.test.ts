@@ -95,13 +95,25 @@ test('friends can claim a gift and owner cannot see the claim', async ({
     );
     await page.reload();
     await dismissInstallPrompt(page);
-    await expect(page.getByText(/gift duty for this one/i)).toBeVisible();
+    // Claim state lives on the row's right-slot button — the button's
+    // aria-label flips to "Let someone else pick up this gift" and its
+    // visible text changes to "Claimed". The "gift duty for this one"
+    // copy now only renders inside the item-editor modal.
+    await expect(
+      page.getByRole('button', { name: /let someone else pick up this gift/i }),
+    ).toBeVisible();
 
     await page.context().clearCookies();
     await login({ id: viewer.id });
     await page.goto(`/users/${owner.username}/wishlist`);
     await dismissInstallPrompt(page);
-    await expect(page.getByText(/already grabbed this/i)).toBeVisible();
+    // Claimed-by-someone-else state: a non-interactive "Claimed" pill
+    // (scoped to the item's card so we don't match any other "Claimed"
+    // string on the page).
+    const claimedByOtherCard = page
+      .getByTestId('wishlist-item-card')
+      .filter({ hasText: wishlistItem.title });
+    await expect(claimedByOtherCard.getByText('Claimed').first()).toBeVisible();
     await expect(
       page.getByRole('button', { name: /grab this gift/i }),
     ).toHaveCount(0);
@@ -111,8 +123,17 @@ test('friends can claim a gift and owner cannot see the claim', async ({
     await page.goto('/wishlist');
     await dismissInstallPrompt(page);
     await expect(page.getByText(wishlistItem.title).first()).toBeVisible();
-    await expect(page.getByText(/gift duty/i)).toHaveCount(0);
-    await expect(page.getByText(/already grabbed this/i)).toHaveCount(0);
+    // Owner view never reveals claim state (surprise-preserving). Check
+    // neither the non-owner toggle button nor a "Claimed" badge render.
+    await expect(
+      page.getByRole('button', { name: /let someone else pick up/i }),
+    ).toHaveCount(0);
+    await expect(
+      page
+        .getByTestId('wishlist-item-card')
+        .filter({ hasText: wishlistItem.title })
+        .getByText('Claimed'),
+    ).toHaveCount(0);
   } finally {
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   }
@@ -184,7 +205,11 @@ test('claim updates optimistically while purchase request is delayed', async ({
     await page
       .getByRole('button', { name: "I'll grab this gift", exact: true })
       .click();
-    await expect(page.getByText(/gift duty for this one/i)).toBeVisible();
+    // Optimistic update: the toggle button label flips to "Let someone
+    // else..." the moment the click fires, before the server responds.
+    await expect(
+      page.getByRole('button', { name: /let someone else pick up this gift/i }),
+    ).toBeVisible();
 
     await purchaseResponsePromise;
     await waitFor(
@@ -273,13 +298,20 @@ test('claim rolls back when purchase mutation fails', async ({
     await page
       .getByRole('button', { name: "I'll grab this gift", exact: true })
       .click();
-    await expect(page.getByText(/gift duty for this one/i)).toBeVisible();
+    // Optimistic state: toggle label flips to "Let someone else..."
+    await expect(
+      page.getByRole('button', { name: /let someone else pick up this gift/i }),
+    ).toBeVisible();
 
     await purchaseResponsePromise;
+    // Rollback: "I'll grab this gift" returns and the claimed label
+    // disappears.
     await expect(
       page.getByRole('button', { name: "I'll grab this gift", exact: true }),
     ).toBeVisible();
-    await expect(page.getByText(/gift duty for this one/i)).toBeHidden();
+    await expect(
+      page.getByRole('button', { name: /let someone else pick up/i }),
+    ).toBeHidden();
     const purchase = await prisma.wishlistPurchase.findUnique({
       where: { wishlistItemId: wishlistItem.id },
     });
