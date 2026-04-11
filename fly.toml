@@ -1,7 +1,11 @@
 app = "gift-pool-c7cf"
 primary_region = "ord"
 kill_signal = "SIGINT"
-kill_timeout = 5
+# Give the Express server enough time to drain in-flight writes on deploy.
+# The previous 5s was tight enough that a request mid-transaction could be
+# clipped; 15s matches the default React Router stream timeout + a bit of
+# slack and still keeps deploys fast.
+kill_timeout = 15
 processes = [ ]
 
 [experimental]
