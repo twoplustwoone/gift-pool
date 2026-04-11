@@ -1,22 +1,15 @@
-import { invariantResponse } from '@epic-web/invariant';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
-import { type LoaderFunctionArgs, Outlet } from 'react-router';
-import { requireUserId } from '#app/utils/auth.server.ts';
-import { prisma } from '#app/utils/db.server.ts';
+import { Outlet } from 'react-router';
 
 export const handle: SEOHandle = {
   getSitemapEntries: () => null,
 };
 
-export async function loader({ request }: LoaderFunctionArgs) {
-  const userId = await requireUserId(request);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { username: true },
-  });
-  invariantResponse(user, 'User not found', { status: 404 });
-  return {};
-}
+// No loader here on purpose. Each child route does its own auth check so
+// that the `/settings/profile/notifications?token=...` magic-link flow can
+// reach the notifications page without being forced through `requireUserId`
+// first. Adding a loader at this level would shadow that unauthenticated
+// entry point (see Codex P1 on PR #352).
 
 const SettingsProfileLayout = () => {
   return (
