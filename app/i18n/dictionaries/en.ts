@@ -67,6 +67,22 @@ export const en = {
     accessRequiredWishlist:
       'You need to be friends with {{name}} to see their wishlist.',
     navigateAway: 'Go to friends',
+    gateNoneTitleProfile: "See {{name}}'s profile",
+    gateNoneTitleWishlist: "See {{name}}'s wishlist",
+    gateNoneDescriptionProfile:
+      'Send a friend request to view their profile and activity.',
+    gateNoneDescriptionWishlist:
+      'Send a friend request to view their full wishlist.',
+    gateOutgoingTitle: 'Waiting for {{name}} to accept',
+    gateOutgoingDescriptionProfile:
+      "Once {{name}} accepts, you'll see their profile here.",
+    gateOutgoingDescriptionWishlist:
+      "Once {{name}} accepts, you'll see their wishlist here.",
+    gateIncomingTitle: '{{name}} wants to be friends',
+    gateIncomingDescriptionProfile:
+      'Accept their request to view their profile and activity.',
+    gateIncomingDescriptionWishlist:
+      "Accept their request to view their wishlist.",
   },
   time: {
     justNow: 'just now',
