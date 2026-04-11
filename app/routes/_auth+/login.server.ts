@@ -2,7 +2,7 @@ import { invariant } from '@epic-web/invariant';
 import { redirect } from 'react-router';
 import { safeRedirect } from 'remix-utils/safe-redirect';
 import { twoFAVerificationType } from '#app/routes/settings+/profile.two-factor.tsx';
-import { logEvent } from '#app/utils/analytics.server.ts';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { getUserId, sessionKey } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { combineResponseInits } from '#app/utils/misc.tsx';
@@ -66,7 +66,7 @@ export async function handleNewSession(
       request.headers.get('cookie'),
     );
     authSession.set(sessionKey, session.id);
-    await logEvent({
+    queueLogEvent({
       name: 'user_logged_in',
       userId: session.userId,
       source: 'server',
@@ -125,7 +125,7 @@ export async function handleVerification({
       });
     }
     authSession.set(sessionKey, unverifiedSessionId);
-    await logEvent({
+    queueLogEvent({
       name: 'user_logged_in',
       userId: session.userId,
       source: 'server',

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
+import { captureException } from '@sentry/react-router';
 import {
   ANALYTIC_EVENT_SET,
   ANALYTIC_EVENT_NAMES,
@@ -105,6 +106,31 @@ export async function logEvent({
     }
     throw error;
   }
+}
+
+/**
+ * Fire `logEvent` without awaiting the DB write. Pre-generates `eventId`
+ * synchronously so action handlers and loaders can echo it back to the
+ * client immediately. Errors in the background write are sent to Sentry.
+ *
+ * Use this on hot paths (action/loader responses). Keep `logEvent` for
+ * callers that genuinely need the persisted row before returning — e.g.
+ * the `api.analytics` endpoint, which fans out from a `sendBeacon`.
+ */
+export function queueLogEvent(input: LogEventInput): { eventId: string } {
+  // Run validation synchronously so misuse surfaces as a fast throw in dev
+  // instead of a silent Sentry-only failure.
+  assertValidEventName(input.name);
+  if (USER_REQUIRED_EVENTS.has(input.name) && !input.userId) {
+    throw new Error(
+      `userId is required for analytics event "${input.name}"`,
+    );
+  }
+  const eventId = input.eventId ?? randomUUID();
+  void logEvent({ ...input, eventId }).catch((error: unknown) => {
+    captureException(error);
+  });
+  return { eventId };
 }
 
 export type AnalyticsCounts = {

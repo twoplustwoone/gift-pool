@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const userFindFirst = vi.fn();
 const getRelationshipDetails = vi.fn();
-const logEvent = vi.fn();
+const queueLogEvent = vi.fn();
 const cleanupWishlistPurchasesForOwner = vi.fn();
 
 vi.mock('./db.server.ts', () => ({
@@ -22,7 +22,7 @@ vi.mock('./friends.server.ts', () => ({
 }));
 
 vi.mock('./analytics.server.ts', () => ({
-  logEvent: (...args: Array<unknown>) => logEvent(...args),
+  queueLogEvent: (...args: Array<unknown>) => queueLogEvent(...args),
 }));
 
 vi.mock('./wishlist.server.ts', () => ({
@@ -91,7 +91,7 @@ function createWishlistDetails() {
 beforeEach(() => {
   userFindFirst.mockReset();
   getRelationshipDetails.mockReset();
-  logEvent.mockReset();
+  queueLogEvent.mockReset();
   cleanupWishlistPurchasesForOwner.mockReset();
 });
 
@@ -116,7 +116,7 @@ describe('loadFriendWishlistPageData', () => {
       where: { username: 'alex' },
     });
     expect(getRelationshipDetails).not.toHaveBeenCalled();
-    expect(logEvent).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
     expect(cleanupWishlistPurchasesForOwner).not.toHaveBeenCalled();
   });
 
@@ -153,7 +153,7 @@ describe('loadFriendWishlistPageData', () => {
         wishlistItems: expect.anything(),
       }),
     });
-    expect(logEvent).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
     expect(cleanupWishlistPurchasesForOwner).not.toHaveBeenCalled();
   });
 
@@ -243,7 +243,7 @@ describe('loadFriendWishlistPageData', () => {
       where: { id: 'owner-1' },
     });
     expect(cleanupWishlistPurchasesForOwner).toHaveBeenCalledWith('owner-1');
-    expect(logEvent).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
   });
 
   it('logs a server analytics event for friend views when enabled', async () => {
@@ -256,7 +256,7 @@ describe('loadFriendWishlistPageData', () => {
       outgoing: null,
       state: 'FRIENDS',
     });
-    logEvent.mockResolvedValueOnce({ eventId: 'event-1' });
+    queueLogEvent.mockReturnValueOnce({ eventId: 'event-1' });
 
     await expect(
       loadFriendWishlistPageData({
@@ -274,7 +274,7 @@ describe('loadFriendWishlistPageData', () => {
       canViewWishlist: true,
     });
 
-    expect(logEvent).toHaveBeenCalledWith({
+    expect(queueLogEvent).toHaveBeenCalledWith({
       name: 'wishlist_viewed',
       properties: {
         itemCount: 2,
