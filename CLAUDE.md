@@ -143,9 +143,28 @@ Uses Conform + Zod for validation with honeypot spam protection.
 ### Analytics
 
 - Client: `track(name, properties)` from `analytics.client.ts`
-- Server: `logEvent(name, requestId, sessionId)` from `analytics.server.ts`
+- Server: `queueLogEvent(...)` from `analytics.server.ts` is the default for action/loader hot paths — it pre-generates the `eventId` synchronously, fires `logEvent` without awaiting, and tails errors to `captureException`. Callers can echo the returned `eventId` back to the client immediately.
+- Use `logEvent` (awaited) only when you genuinely need the persisted row before returning — e.g. `api.analytics` fanning out from a `sendBeacon`.
+- On `eventId` conflict, server writes are canonical: `logEvent` upgrades a `source: 'client'` row in place when the incoming write is `source: 'server'`, so the richer server payload always wins the client-echo race. See `recoverFromEventIdConflict`.
 - Event names in `ANALYTIC_EVENT_NAMES` constant
 - Admin dashboard at `/admin/analytics`
+
+### Side effects off the action response
+
+Mutation handlers should return after committing the primary change; anything the user doesn't need to block on runs afterwards.
+
+- **Pattern**: pre-generate any IDs the client needs, fire the async work without awaiting, catch rejections into `Sentry.captureException`.
+- **Reference implementations**: `queueLogEvent` in `analytics.server.ts`, `fanoutNotification` in `friends.server.ts` (wraps `notifyUser` so in-app rows + Resend emails don't block friend-request actions).
+- The mutation is already committed by the time fanout runs, so a fanout failure must surface in Sentry — it must never convert a successful action into a 500.
+
+### Notification preferences
+
+Hot/cold path split — reads tolerate missing rows, writes don't.
+
+- **Cold path (settings loader)**: `app/routes/settings+/profile.notifications.tsx` calls `ensureNotificationPreferencesForUser` to materialize a row per `NOTIFICATION_TYPES`. This is the only place that upserts on read, and the e2e rollback tests rely on the rows existing afterwards.
+- **Hot path (friend-request fanout)**: `getNotificationPreferences` / `getNotificationPreferenceForChannels` fall back to `DEFAULT_NOTIFICATION_PREFERENCES` when rows are missing — no upsert in the fanout.
+- **Signup**: `auth.server.ts` seeds one row per type via nested-create so new users never hit the fallback.
+- `disableEmailForAll` collapses to one `findMany` + one transactional `updateMany` + audit `createMany` (not an O(N) loop).
 
 ## Environment Variables
 
