@@ -9,10 +9,7 @@ import {
   createPreferenceToken,
   getPreferenceManagementUrl,
 } from '#app/utils/notification-preference-token.server.ts';
-import {
-  ensureNotificationPreferencesForUser,
-  getNotificationPreferenceForChannels,
-} from '#app/utils/notification-preferences.server.ts';
+import { getNotificationPreferenceForChannels } from '#app/utils/notification-preferences.server.ts';
 import {
   NOTIFICATION_TYPES,
   type NotificationPayload,
@@ -59,7 +56,6 @@ async function notifyFriendRequestReceived(
   options: NotifyUserOptions<'FRIEND_REQUEST_RECEIVED'>,
 ) {
   const { userId, payload } = options;
-  await ensureNotificationPreferencesForUser(userId);
   const prefs = await getNotificationPreferenceForChannels(
     userId,
     NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
@@ -108,7 +104,6 @@ async function notifyFriendRequestAccepted(
   options: NotifyUserOptions<'FRIEND_REQUEST_ACCEPTED'>,
 ) {
   const { userId, payload } = options;
-  await ensureNotificationPreferencesForUser(userId);
   const prefs = await getNotificationPreferenceForChannels(
     userId,
     NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED,

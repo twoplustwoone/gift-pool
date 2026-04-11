@@ -1,7 +1,18 @@
+import { captureException } from '@sentry/react-router';
 import { prisma } from '#app/utils/db.server.ts';
 import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
 import { notifyUser } from '#app/utils/notification-service.server.tsx';
 import { type RelationshipState } from './friends.ts';
+
+// Fire the notification fanout (in-app row + optional email) without blocking
+// the mutation handler. The friend request itself is already committed before
+// this runs, so a failed notification should surface in Sentry rather than
+// turning a successful action into a 500.
+function fanoutNotification(promise: Promise<unknown>) {
+  promise.catch((error: unknown) => {
+    captureException(error);
+  });
+}
 
 export type FriendRequestStatus =
   | 'PENDING'
@@ -193,19 +204,21 @@ export async function sendFriendRequest(fromUserId: string, toUserId: string) {
     return { request: upserted, fromUser: actor };
   });
 
-  await notifyUser({
-    userId: toUserId,
-    type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
-    payload: {
-      friendRequestId: request.id,
-      actorUserId: fromUser.id,
-      actorDisplayName: fromUser.name ?? fromUser.username,
-      actorUsername: fromUser.username,
-      actorAvatarId: fromUser.image?.id ?? null,
-      recipientUserId: toUserId,
-    },
-    sourceIdentifier: `friend-request:${request.id}:received`,
-  });
+  fanoutNotification(
+    notifyUser({
+      userId: toUserId,
+      type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
+      payload: {
+        friendRequestId: request.id,
+        actorUserId: fromUser.id,
+        actorDisplayName: fromUser.name ?? fromUser.username,
+        actorUsername: fromUser.username,
+        actorAvatarId: fromUser.image?.id ?? null,
+        recipientUserId: toUserId,
+      },
+      sourceIdentifier: `friend-request:${request.id}:received`,
+    }),
+  );
 
   return request;
 }
@@ -278,19 +291,21 @@ export async function acceptFriendRequest(
   });
 
   if (actor) {
-    await notifyUser({
-      userId: request.fromUserId,
-      type: NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED,
-      payload: {
-        friendRequestId: request.id,
-        actorUserId: actor.id,
-        actorDisplayName: actor.name ?? actor.username,
-        actorUsername: actor.username,
-        actorAvatarId: actor.image?.id ?? null,
-        recipientUserId: request.fromUserId,
-      },
-      sourceIdentifier: `friend-request:${request.id}:accepted`,
-    });
+    fanoutNotification(
+      notifyUser({
+        userId: request.fromUserId,
+        type: NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED,
+        payload: {
+          friendRequestId: request.id,
+          actorUserId: actor.id,
+          actorDisplayName: actor.name ?? actor.username,
+          actorUsername: actor.username,
+          actorAvatarId: actor.image?.id ?? null,
+          recipientUserId: request.fromUserId,
+        },
+        sourceIdentifier: `friend-request:${request.id}:accepted`,
+      }),
+    );
   }
 
   return request;

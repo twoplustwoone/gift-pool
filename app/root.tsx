@@ -128,43 +128,47 @@ export async function loader({ request }: LoaderFunctionArgs) {
     desc: 'getUserId in root',
   });
   const locale = getLocaleFromRequest(request);
-  const user = userId
-    ? await time(
-      () =>
-        prisma.user.findUniqueOrThrow({
-          select: {
-            id: true,
-            name: true,
-            username: true,
-            image: {
+
+  // Four independent I/O operations — the user lookup, the session toast
+  // read, the unread notification count, and the honeypot props. Previously
+  // these ran sequentially, adding up to ~50-100ms on every `.data` request
+  // (every client-side nav). `findUnique` replaces `findUniqueOrThrow` so
+  // the "user was deleted under us" branch below still has a chance to fire
+  // instead of throwing straight to the error boundary.
+  const [user, toastResult, unreadCount, honeyProps] = await Promise.all([
+    userId
+      ? time(
+          () =>
+            prisma.user.findUnique({
               select: {
                 id: true,
-              },
-            },
-            roles: {
-              select: {
                 name: true,
-                permissions: {
+                username: true,
+                image: { select: { id: true } },
+                roles: {
                   select: {
-                    entity: true,
-                    action: true,
-                    access: true,
+                    name: true,
+                    permissions: {
+                      select: { entity: true, action: true, access: true },
+                    },
                   },
                 },
               },
-            },
-          },
-          where: {
-            id: userId,
-          },
-        }),
-      {
-        timings,
-        type: 'find user',
-        desc: 'find user in root',
-      },
-    )
-    : null;
+              where: { id: userId },
+            }),
+          { timings, type: 'find user', desc: 'find user in root' },
+        )
+      : Promise.resolve(null),
+    getToast(request),
+    userId
+      ? prisma.notification.count({
+          where: { userId, status: 'UNREAD' },
+        })
+      : Promise.resolve(0),
+    honeypot.getInputProps(),
+  ]);
+  const { toast, headers: toastHeaders } = toastResult;
+
   if (userId && !user) {
     console.info('something weird happened');
     // something weird happened... The user is authenticated but we can't find
@@ -174,16 +178,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
       redirectTo: '/',
     });
   }
-  const { toast, headers: toastHeaders } = await getToast(request);
-  const unreadCount = userId
-    ? await prisma.notification.count({
-      where: {
-        userId,
-        status: 'UNREAD',
-      },
-    })
-    : 0;
-  const honeyProps = await honeypot.getInputProps();
   return data(
     {
       user,

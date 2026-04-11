@@ -226,8 +226,6 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     });
   }
 
-  // Activity feed disabled; pagination param ignored for now
-  const activities: Array<any> = [];
   return {
     giftGroup: {
       ...giftGroup,
@@ -247,7 +245,6 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       ? getInviteLink(existingInvitation.code, request)
       : null,
     groupInvitationId: existingInvitation?.id,
-    activities,
   };
 }
 export async function action({ request }: ActionFunctionArgs) {
