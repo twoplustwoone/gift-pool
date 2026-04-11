@@ -13,6 +13,26 @@ function defaultForType(type: NotificationType) {
   return DEFAULT_NOTIFICATION_PREFERENCES[type];
 }
 
+// Shape used for `createMany` / nested `create` when bootstrapping a new user.
+// Kept as a plain data builder so callers can either pass it to signup's
+// nested-create or hand it to a standalone createMany.
+export function notificationPreferenceDefaultsFor(userId: string) {
+  const now = new Date();
+  return preferenceTypes.map((type) => ({
+    userId,
+    type,
+    inAppEnabled: defaultForType(type).inAppEnabled,
+    emailEnabled: defaultForType(type).emailEnabled,
+    createdAt: now,
+    updatedAt: now,
+  }));
+}
+
+// Legacy bootstrap: upserts one row per notification type. Still exported for
+// tests and for the settings route's "heal missing rows" paths, but it should
+// NOT be called on the hot read path — reads tolerate missing rows by falling
+// back to `DEFAULT_NOTIFICATION_PREFERENCES`, and new users get their rows
+// via `createMany` in the signup flow.
 export async function ensureNotificationPreferencesForUser(
   userId: string,
   tx = prisma,
@@ -42,9 +62,9 @@ export async function ensureNotificationPreferencesForUser(
 }
 
 export async function getNotificationPreferences(userId: string) {
-  await ensureNotificationPreferencesForUser(userId);
   const prefs = await prisma.userNotificationPreference.findMany({
     where: { userId },
+    select: { type: true, inAppEnabled: true, emailEnabled: true },
   });
   const map = new Map<
     NotificationType,
@@ -56,6 +76,13 @@ export async function getNotificationPreferences(userId: string) {
       emailEnabled: pref.emailEnabled,
     });
   }
+  // Fill in defaults for any type that doesn't yet have a row. This replaces
+  // the old "ensure upsert" pattern that ran N writes on every read.
+  for (const type of preferenceTypes) {
+    if (!map.has(type)) {
+      map.set(type, { ...defaultForType(type) });
+    }
+  }
   return map;
 }
 
@@ -63,7 +90,6 @@ export async function getNotificationPreferenceForChannels(
   userId: string,
   type: NotificationType,
 ) {
-  await ensureNotificationPreferencesForUser(userId);
   const pref = await prisma.userNotificationPreference.findUnique({
     where: { userId_type: { userId, type } },
     select: { inAppEnabled: true, emailEnabled: true },
@@ -82,36 +108,48 @@ export async function setNotificationPreference(
   enabled: boolean,
   source: string,
 ) {
-  await ensureNotificationPreferencesForUser(userId);
   const column =
     channel === NOTIFICATION_CHANNELS.EMAIL ? 'emailEnabled' : 'inAppEnabled';
   const existing = await prisma.userNotificationPreference.findUnique({
     where: { userId_type: { userId, type } },
     select: { inAppEnabled: true, emailEnabled: true },
   });
-  const previousValue = existing?.[column] ?? defaultForType(type)[column];
-  if (previousValue === enabled) {
-    return existing ?? { inAppEnabled: enabled, emailEnabled: enabled };
+  const defaults = defaultForType(type);
+  const previousValue = existing?.[column] ?? defaults[column];
+  if (existing && previousValue === enabled) {
+    return existing;
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const updated = await tx.userNotificationPreference.update({
+    const updated = await tx.userNotificationPreference.upsert({
       where: { userId_type: { userId, type } },
-      data: {
+      update: {
         [column]: enabled,
+      },
+      create: {
+        userId,
+        type,
+        inAppEnabled:
+          column === 'inAppEnabled' ? enabled : defaults.inAppEnabled,
+        emailEnabled:
+          column === 'emailEnabled' ? enabled : defaults.emailEnabled,
       },
     });
 
-    await tx.notificationPreferenceAudit.create({
-      data: {
-        userId,
-        type,
-        channel,
-        previousValue,
-        newValue: enabled,
-        source,
-      },
-    });
+    // Only emit an audit row when the flag actually moved. Upserting a fresh
+    // row with the default value (equal to `enabled`) is a no-op audit-wise.
+    if (previousValue !== enabled) {
+      await tx.notificationPreferenceAudit.create({
+        data: {
+          userId,
+          type,
+          channel,
+          previousValue,
+          newValue: enabled,
+          source,
+        },
+      });
+    }
 
     return updated;
   });
@@ -120,31 +158,31 @@ export async function setNotificationPreference(
 }
 
 export async function disableEmailForAll(userId: string, source: string) {
-  await ensureNotificationPreferencesForUser(userId);
-  const preferences = await prisma.userNotificationPreference.findMany({
-    where: { userId },
-    select: { type: true, emailEnabled: true },
+  // Previously this function iterated each preference row inside a transaction
+  // and issued one UPDATE + one INSERT per type. Even on 3 types that was 6
+  // round-trips. Now we do one findMany to capture the "which rows were
+  // actually ON" set (for audit), then a single updateMany + a single
+  // createMany inside one transaction.
+  const previouslyEnabled = await prisma.userNotificationPreference.findMany({
+    where: { userId, emailEnabled: true },
+    select: { type: true },
   });
+  if (previouslyEnabled.length === 0) return;
 
-  await prisma.$transaction(async (tx) => {
-    for (const pref of preferences) {
-      if (!pref.emailEnabled) continue;
-      await tx.userNotificationPreference.update({
-        where: { userId_type: { userId, type: pref.type } },
-        data: {
-          emailEnabled: false,
-        },
-      });
-      await tx.notificationPreferenceAudit.create({
-        data: {
-          userId,
-          type: pref.type,
-          channel: NOTIFICATION_CHANNELS.EMAIL,
-          previousValue: true,
-          newValue: false,
-          source,
-        },
-      });
-    }
-  });
+  await prisma.$transaction([
+    prisma.userNotificationPreference.updateMany({
+      where: { userId, emailEnabled: true },
+      data: { emailEnabled: false },
+    }),
+    prisma.notificationPreferenceAudit.createMany({
+      data: previouslyEnabled.map((pref) => ({
+        userId,
+        type: pref.type,
+        channel: NOTIFICATION_CHANNELS.EMAIL,
+        previousValue: true,
+        newValue: false,
+        source,
+      })),
+    }),
+  ]);
 }
