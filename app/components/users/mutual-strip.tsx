@@ -1,6 +1,5 @@
 import { LuUser, LuUsers } from 'react-icons/lu';
 import { Link } from 'react-router';
-import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Text } from '#app/components/ui-kit/text.tsx';
 
 type MutualGroup = { id: string; name: string };
@@ -71,12 +70,11 @@ export function MutualStrip({
                 key={friend.id}
                 to={`/users/${friend.username}`}
                 prefetch="intent"
-                className="inline-flex max-w-[14rem] items-center gap-1.5 truncate rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+                className="inline-flex max-w-[14rem] items-center gap-1.5 truncate rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
               >
-                <Avatar
-                  size={5}
-                  image={friend.image ? { id: friend.image.id, altText: null } : null}
-                  user={{ name: friend.name, username: friend.username }}
+                <LuUser
+                  className="h-3 w-3 flex-shrink-0"
+                  aria-hidden
                 />
                 <span className="truncate">
                   {friend.name ?? friend.username}

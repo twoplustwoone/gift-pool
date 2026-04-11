@@ -77,11 +77,13 @@ test('non-friends receive minimal profile data from the loader', async () => {
     id: targetUser.id,
     name: targetUser.name,
     username: targetUser.username,
+    image: null,
   });
   expect(data.relationship.state).toBe('NONE');
   expect(data.user).not.toHaveProperty('createdAt');
-  expect(data.user).not.toHaveProperty('image');
+  expect(data.user).not.toHaveProperty('birthday');
   expect(data).not.toHaveProperty('userJoinedDisplay');
+  expect(data).not.toHaveProperty('profileData');
 });
 
 test('friends can view the full profile details', async () => {
@@ -130,8 +132,13 @@ test('friends can view the full profile details', async () => {
   expect(data.user.id).toBe(targetUser.id);
   expect(data.user.username).toBe(targetUser.username);
   expect(data.user).toHaveProperty('createdAt');
+  expect(data.user).toHaveProperty('birthday');
   expect(data).toHaveProperty('userJoinedDisplay');
   expect(data.relationship.state).toBe('FRIENDS');
+  expect(data).toHaveProperty('profileData');
+  expect(data.profileData).toHaveProperty('mutualGroups');
+  expect(data.profileData).toHaveProperty('mutualFriends');
+  expect(data.profileData).toHaveProperty('wishlistPreview');
 });
 
 test('viewing your own profile redirects to /me', async () => {
