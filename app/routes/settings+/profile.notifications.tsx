@@ -14,6 +14,7 @@ import { cn } from '#app/utils/misc.tsx';
 import { verifyPreferenceToken } from '#app/utils/notification-preference-token.server.ts';
 import {
   disableEmailForAll,
+  ensureNotificationPreferencesForUser,
   getNotificationPreferences,
   setNotificationPreference,
 } from '#app/utils/notification-preferences.server.ts';
@@ -81,6 +82,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const canReadPreferences =
     (userId && userId === targetUserId) ||
     tokenPayload?.uid === targetUserId;
+  // Settings page is the only place users directly manage their preferences.
+  // Materialize rows here so downstream writes (`setNotificationPreference`,
+  // `disableEmailForAll`) always see persisted rows, and so UI optimistic
+  // rollback tests can assert against a stable DB state. This is a cold
+  // path — the hot notification fanout reads still tolerate missing rows
+  // via the in-memory defaults fallback.
+  if (canReadPreferences) {
+    await ensureNotificationPreferencesForUser(targetUserId);
+  }
   const preferencesMap = canReadPreferences
     ? await getNotificationPreferences(targetUserId)
     : null;
