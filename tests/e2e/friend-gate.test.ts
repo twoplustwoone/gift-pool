@@ -357,13 +357,23 @@ test('incoming friend request: gate shows accept/reject copy and Accept creates 
       }),
     ).toBeVisible();
 
+    // The Accept handler is optimistic — it flips the UI before awaiting the
+    // fetch — so we can't read the DB right after the UI transitions or we
+    // race the mutation. Wait for the actual `/accept` response to land
+    // before asserting server state.
+    const acceptResponse = page.waitForResponse(
+      (response) =>
+        /\/api\/friends\/requests\/.+\/accept/.test(response.url()) &&
+        response.request().method() === 'POST',
+    );
     await page
       .getByRole('button', {
         name: new RegExp(`Accept friend request from ${target.name}`, 'i'),
       })
       .click();
+    await acceptResponse;
 
-    // Optimistic state: the button flips to the `FRIENDS` variant.
+    // UI: button flips to the `FRIENDS` variant after reconciliation.
     await expect(
       page.getByRole('button', { name: /^friends$/i }).first(),
     ).toBeVisible();
@@ -397,14 +407,22 @@ test('incoming friend request: Reject cancels the pending request', async ({
     });
     await page.goto(`/users/${target.username}`);
 
+    // Same race concern as the Accept test — wait for the `/reject`
+    // response before touching the DB.
+    const rejectResponse = page.waitForResponse(
+      (response) =>
+        /\/api\/friends\/requests\/.+\/reject/.test(response.url()) &&
+        response.request().method() === 'POST',
+    );
     await page
       .getByRole('button', {
         name: new RegExp(`Reject friend request from ${target.name}`, 'i'),
       })
       .click();
+    await rejectResponse;
 
-    // Optimistic state: after reject the gate flips back to NONE, which
-    // shows the "Send friend request" / "Add Friend" variant again.
+    // UI: after reject the gate flips back to NONE, which shows the
+    // "Send friend request" / "Add Friend" variant again.
     await expect(
       page.getByRole('button', { name: /add friend/i }),
     ).toBeVisible({ timeout: 10_000 });
@@ -450,11 +468,19 @@ test('outgoing friend request: gate shows waiting copy and Cancel returns to NON
       }),
     ).toBeVisible();
 
+    // Cancel hits /api/friends/requests/:id/cancel. Wait for the response
+    // before reading the DB so we don't race the mutation.
+    const cancelResponse = page.waitForResponse(
+      (response) =>
+        /\/api\/friends\/requests\/.+\/cancel/.test(response.url()) &&
+        response.request().method() === 'POST',
+    );
     await page
       .getByRole('button', { name: /cancel request/i })
       .click();
+    await cancelResponse;
 
-    // Optimistic state: gate flips to the NONE branch.
+    // UI: gate flips to the NONE branch.
     await expect(
       page.getByRole('button', { name: /add friend/i }),
     ).toBeVisible({ timeout: 10_000 });
