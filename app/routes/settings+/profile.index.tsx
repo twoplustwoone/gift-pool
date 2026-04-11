@@ -393,6 +393,7 @@ function PrivacyCard() {
             <label
               key={option.value}
               htmlFor={id}
+              aria-label={option.label}
               className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 transition hover:border-border"
               data-selected={isSelected || undefined}
             >
@@ -410,14 +411,14 @@ function PrivacyCard() {
                 }}
                 className="mt-0.5 h-4 w-4 accent-primary"
               />
-              <div className="flex flex-col gap-0.5">
-                <Text size="sm" weight="medium" className="text-foreground">
+              <span className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium text-foreground">
                   {option.label}
-                </Text>
-                <Text size="xs" className="text-muted-foreground">
+                </span>
+                <span className="text-xs text-muted-foreground">
                   {option.description}
-                </Text>
-              </div>
+                </span>
+              </span>
             </label>
           );
         })}
@@ -618,7 +619,7 @@ async function profileUpdateAction({ userId, formData }: ProfileActionArgs) {
     data: {
       name: data.name,
       username: data.username,
-      bio: trimmedBio ? trimmedBio : null,
+      bio: trimmedBio || null,
       birthday: data.birthday ?? null,
     },
   });
