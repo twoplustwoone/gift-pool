@@ -83,5 +83,5 @@ export function verifyPreferenceToken(token: string) {
 }
 
 export function getPreferenceManagementUrl(token: string) {
-  return buildAppUrl(`/settings/notifications?token=${token}`);
+  return buildAppUrl(`/settings/profile/notifications?token=${token}`);
 }
