@@ -86,6 +86,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
                   name: true,
                   username: true,
                   birthday: true,
+                  birthdayVisibility: true,
                 },
               },
             },
@@ -112,6 +113,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
     for (const gm of m.giftGroup.groupMembers) {
       const u = gm.user;
       if (!u.birthday || u.id === userId) continue;
+      // Respect the owner's privacy choice — hide their upcoming birthday
+      // from the Home reminders panel when they've opted out. `FRIENDS` and
+      // `EVERYONE` both keep showing since anyone sharing a group with them
+      // is reading this panel.
+      if (u.birthdayVisibility === 'NOBODY') continue;
       const nextDate = nextBirthdayDate(u.birthday, now);
       const key = u.id;
       if (!birthdayMap.has(key)) {

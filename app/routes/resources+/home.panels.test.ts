@@ -171,6 +171,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
                   user: {
                     select: {
                       birthday: true,
+                      birthdayVisibility: true,
                       id: true,
                       name: true,
                       username: true,

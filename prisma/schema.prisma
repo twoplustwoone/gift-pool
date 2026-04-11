@@ -14,7 +14,12 @@ model User {
   name                         String?
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
+  bio                          String?
   birthday                     DateTime?
+  // String, not a true enum — SQLite doesn't support enums natively. Valid
+  // values are enforced at the app layer via `BirthdayVisibilitySchema`
+  // (see `app/utils/user-validation.ts`): 'FRIENDS' | 'EVERYONE' | 'NOBODY'.
+  birthdayVisibility           String                        @default("FRIENDS")
   address                      Address?
   connections                  Connection[]
   groupActivities              GroupActivity[]               @relation("GroupActivity_Actor")

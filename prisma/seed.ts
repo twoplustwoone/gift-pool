@@ -122,7 +122,9 @@ async function seed() {
 			image: { create: wadeImage },
 			password: { create: createPassword('maximumeffort') },
 			roles: { connect: [{ name: 'admin' }, { name: 'user' }] },
+			bio: 'Mercenary with a mouth. Accepting chimichangas and katana sharpeners.',
 			birthday: birthdayInDays(45, 34), // show up in Home? No — 45 days < 60, so yes
+			// birthdayVisibility defaults to FRIENDS
 			address: {
 				create: {
 					street: '1991 Chimichanga Lane',
@@ -147,6 +149,7 @@ async function seed() {
 			image: { create: userImages[0] },
 			password: { create: createPassword('marco') },
 			roles: { connect: { name: 'user' } },
+			bio: 'Third-wave coffee evangelist. Currently obsessed with cold brew.',
 			birthday: birthdayInDays(22, 31),
 		},
 	})
@@ -162,6 +165,8 @@ async function seed() {
 			image: { create: userImages[1] },
 			password: { create: createPassword('np') },
 			roles: { connect: { name: 'user' } },
+			// Exercises EVERYONE — her birthday is visible to anyone rendering her.
+			birthdayVisibility: 'EVERYONE',
 			birthday: birthdayInDays(37, 28),
 		},
 	})
@@ -177,6 +182,7 @@ async function seed() {
 			image: { create: userImages[2] },
 			password: { create: createPassword('alvaro') },
 			roles: { connect: { name: 'user' } },
+			bio: 'Vinyl collector, espresso tinkerer, occasional sourdough failure.',
 			birthday: birthdayInDays(54, 29),
 		},
 	})
@@ -210,6 +216,10 @@ async function seed() {
 			image: { create: userImages[4] },
 			password: { create: createPassword('hana') },
 			roles: { connect: { name: 'user' } },
+			bio: 'Bookworm, amateur potter, and permanent tea-forward.',
+			// Exercises NOBODY — her birthday should be hidden everywhere even
+			// though she has one in the DB and is a friend of Wade.
+			birthdayVisibility: 'NOBODY',
 			birthday: birthdayInDays(1, 27),
 		},
 	})

@@ -16,6 +16,7 @@ type ProfileHeaderUser = {
 
 type ProfileHeaderProps = Readonly<{
   user: ProfileHeaderUser;
+  bio?: string | null;
   birthdayLabel?: string | null;
   joinedDisplay?: string | null;
   actions?: React.ReactNode;
@@ -24,12 +25,14 @@ type ProfileHeaderProps = Readonly<{
 
 export function ProfileHeader({
   user,
+  bio,
   birthdayLabel,
   joinedDisplay,
   actions,
   className,
 }: ProfileHeaderProps) {
   const displayName = user.name ?? user.username;
+  const trimmedBio = bio?.trim();
 
   return (
     <section
@@ -58,6 +61,14 @@ export function ProfileHeader({
         <Text size="sm" className="text-muted-foreground">
           @{user.username}
         </Text>
+        {trimmedBio ? (
+          <Text
+            size="sm"
+            className="mt-2 max-w-md text-balance text-muted-foreground"
+          >
+            {trimmedBio}
+          </Text>
+        ) : null}
       </div>
 
       {birthdayLabel || joinedDisplay ? (

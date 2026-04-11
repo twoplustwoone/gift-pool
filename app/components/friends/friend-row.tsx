@@ -41,6 +41,10 @@ export type FriendRowEntry = {
     username: string;
     name: string | null;
     birthday: Date | string | null;
+    // String, not a true enum — see schema note. 'FRIENDS' | 'EVERYONE' |
+    // 'NOBODY'. Optional because some callers (legacy test fixtures) don't
+    // set it; defaults to showing the pill.
+    birthdayVisibility?: string;
     image: { id: string; altText: string | null } | null;
   };
   mutualGroups: Array<{ id: string; name: string }>;
@@ -56,7 +60,10 @@ export function FriendRow({
   onRemove: () => void;
 }>) {
   const { user, mutualGroups } = friend;
-  const upcoming = getUpcomingBirthday(user.birthday);
+  // Friend has explicitly hidden their birthday — don't compute the upcoming
+  // label at all so nothing shows up in the row slot.
+  const birthdayHidden = user.birthdayVisibility === 'NOBODY';
+  const upcoming = birthdayHidden ? null : getUpcomingBirthday(user.birthday);
   const birthdaySoon =
     upcoming && upcoming.daysUntil <= BIRTHDAY_VISIBILITY_DAYS
       ? upcoming

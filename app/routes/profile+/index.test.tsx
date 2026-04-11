@@ -11,7 +11,9 @@ type LoaderUser = {
   image: { id: string } | null;
   name: string | null;
   username: string;
+  bio: string | null;
   birthday: Date | null;
+  birthdayVisibility: string;
   createdAt: Date;
 };
 
@@ -34,7 +36,9 @@ const loaderDataSnapshot: {
     image: { id: 'image-1' },
     name: 'Taylor',
     username: 'taylor',
+    bio: null,
     birthday: null,
+    birthdayVisibility: 'FRIENDS',
     createdAt: new Date('2026-03-31T00:00:00.000Z'),
   },
   userJoinedDisplay: '3/31/2026',
@@ -86,7 +90,9 @@ beforeEach(() => {
     image: { id: 'image-1' },
     name: 'Taylor',
     username: 'taylor',
+    bio: null,
     birthday: null,
+    birthdayVisibility: 'FRIENDS',
     createdAt: new Date('2026-03-31T00:00:00.000Z'),
   };
   loaderDataSnapshot.userJoinedDisplay = '3/31/2026';
@@ -138,7 +144,9 @@ describe('app/routes/profile+/index.tsx', () => {
             image: null,
             name: 'Taylor',
             username: 'taylor',
+            bio: null,
             birthday: null,
+            birthdayVisibility: 'FRIENDS',
           },
           userJoinedDisplay: '3/31/2026',
           wishlistPreview: { items: [], totalCount: 0 },
@@ -150,7 +158,9 @@ describe('app/routes/profile+/index.tsx', () => {
             image: null,
             name: 'Taylor',
             username: 'taylor',
+            bio: null,
             birthday: null,
+            birthdayVisibility: 'FRIENDS',
           },
           userJoinedDisplay: '3/31/2026',
           wishlistPreview: { items: [], totalCount: 0 },
