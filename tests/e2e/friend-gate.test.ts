@@ -240,8 +240,13 @@ test('non-friend wishlist request is optimistic and rolls back on failure', asyn
     await expect(addButton).toBeVisible();
     await addButton.click();
 
+    // Optimistic PENDING_OUTGOING state: FriendActionButton now renders a
+    // single "Cancel request" button (the old "Request sent" disabled
+    // pseudo-button was removed). The assertion still verifies the same
+    // thing: that the optimistic state was applied before the server
+    // responded.
     await expect(
-      page.getByRole('button', { name: /request sent/i }),
+      page.getByRole('button', { name: /cancel request/i }),
     ).toBeVisible();
     await expect(page.getByRole('button', { name: /add friend/i })).toBeVisible(
       {

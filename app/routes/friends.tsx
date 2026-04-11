@@ -31,7 +31,6 @@ import { EmptyState } from '#app/components/ui/empty-state.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Skeleton } from '#app/components/ui/skeleton.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
-import { Text } from '#app/components/ui-kit/text.tsx';
 import { useFriendWishlistPrefetch } from '#app/hooks/use-background-route-prefetch.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { loadFriendsPageData } from '#app/utils/friends-page.server.ts';
