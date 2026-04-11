@@ -83,11 +83,11 @@ export function FriendRow({
   friend,
   displayName,
   onRemove,
-}: {
+}: Readonly<{
   friend: FriendRowEntry;
   displayName: string;
   onRemove: () => void;
-}) {
+}>) {
   const { user, mutualGroups } = friend;
   const upcoming = getUpcomingBirthday(user.birthday);
   const birthdaySoon =

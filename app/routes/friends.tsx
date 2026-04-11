@@ -1049,7 +1049,7 @@ function PendingRequestsCard({
   outgoingState,
   onIncomingTransition,
   onOutgoingTransition,
-}: {
+}: Readonly<{
   incomingState: IncomingEntry[];
   outgoingState: OutgoingEntry[];
   onIncomingTransition: (
@@ -1060,7 +1060,7 @@ function PendingRequestsCard({
     requestId: string,
     user: OutgoingEntry['toUser'],
   ) => (snapshot: RelationshipSnapshot) => void;
-}) {
+}>) {
   const total = incomingState.length + outgoingState.length;
   if (total === 0) return null;
 
@@ -1124,14 +1124,14 @@ function AddFriendDialog({
   q,
   setQ,
   onOutgoingCreated,
-}: {
+}: Readonly<{
   q: string;
   setQ: (next: string) => void;
   onOutgoingCreated: (
     requestId: string,
     user: FriendEntry['user'],
   ) => void;
-}) {
+}>) {
   const [open, setOpen] = useState(false);
   return (
     <>
