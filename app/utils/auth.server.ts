@@ -4,7 +4,23 @@ import { redirect } from 'react-router';
 import { safeRedirect } from 'remix-utils/safe-redirect';
 import { prisma } from './db.server.ts';
 import { combineHeaders } from './misc.tsx';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  NOTIFICATION_TYPES,
+} from './notification-registry.ts';
 import { authSessionStorage } from './session.server.ts';
+
+// Seed a row per notification type at user creation so we don't have to run
+// N upserts on the hot read/write path later. Reads still tolerate missing
+// rows (they fall back to defaults), so this is strictly an optimization for
+// the common case.
+const defaultNotificationPreferenceRows = Object.values(NOTIFICATION_TYPES).map(
+  (type) => ({
+    type,
+    inAppEnabled: DEFAULT_NOTIFICATION_PREFERENCES[type].inAppEnabled,
+    emailEnabled: DEFAULT_NOTIFICATION_PREFERENCES[type].emailEnabled,
+  }),
+);
 
 export const SESSION_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 30;
 export const getSessionExpirationDate = () =>
@@ -124,6 +140,9 @@ export async function signup({
             create: {
               hash: hashedPassword,
             },
+          },
+          notificationPreferences: {
+            create: defaultNotificationPreferenceRows,
           },
         },
       },

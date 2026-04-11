@@ -16,6 +16,7 @@ import {
 const getUserId = vi.fn();
 const requireUserId = vi.fn();
 const verifyPreferenceToken = vi.fn();
+const ensureNotificationPreferencesForUser = vi.fn();
 const getNotificationPreferences = vi.fn();
 const setNotificationPreference = vi.fn();
 const disableEmailForAll = vi.fn();
@@ -83,6 +84,8 @@ vi.mock('#app/utils/notification-preference-token.server.ts', () => ({
 
 vi.mock('#app/utils/notification-preferences.server.ts', () => ({
   disableEmailForAll: (...args: Array<unknown>) => disableEmailForAll(...args),
+  ensureNotificationPreferencesForUser: (...args: Array<unknown>) =>
+    ensureNotificationPreferencesForUser(...args),
   getNotificationPreferences: (...args: Array<unknown>) =>
     getNotificationPreferences(...args),
   setNotificationPreference: (...args: Array<unknown>) =>
@@ -125,6 +128,8 @@ beforeEach(() => {
   getUserId.mockReset();
   requireUserId.mockReset();
   verifyPreferenceToken.mockReset();
+  ensureNotificationPreferencesForUser.mockReset();
+  ensureNotificationPreferencesForUser.mockResolvedValue(undefined);
   getNotificationPreferences.mockReset();
   setNotificationPreference.mockReset();
   disableEmailForAll.mockReset();
