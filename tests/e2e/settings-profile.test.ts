@@ -62,29 +62,65 @@ test('Users can update their password', async ({ page, login }) => {
   ).toEqual({ id: user.id });
 });
 
-test('Users can update their profile photo', async ({ page, login }) => {
+test('Profile photo sheet opens inline from the avatar', async ({
+  page,
+  login,
+}) => {
+  await login();
+  await page.goto('/settings/profile');
+  await dismissInstallPrompt(page);
+
+  // Open the photo sheet from the avatar button in the Profile card.
+  await page.getByRole('button', { name: /change profile photo/i }).click();
+
+  const dialog = page.getByRole('dialog', { name: /profile photo/i });
+  await expect(dialog).toBeVisible();
+
+  // Save is disabled until a file is picked.
+  await expect(
+    dialog.getByRole('button', { name: /save photo/i }),
+  ).toBeDisabled();
+
+  // The file picker input is labeled and in the DOM so users can pick an
+  // image. We deliberately don't exercise the full upload round-trip here —
+  // the actual write is covered by the action-only resource route tests.
+  await expect(dialog.getByLabel(/change photo/i)).toBeAttached();
+
+  // Cancel closes the sheet.
+  await dialog.getByRole('button', { name: /cancel/i }).click();
+  await expect(dialog).not.toBeVisible();
+});
+
+test('Delete data dialog requires typing the username to enable the button', async ({
+  page,
+  login,
+}) => {
   const user = await login();
   await page.goto('/settings/profile');
   await dismissInstallPrompt(page);
 
-  const avatar = page.getByRole('img', { name: user.name ?? user.username });
-  const beforeSrc = await avatar.getAttribute('src');
+  await page.getByRole('button', { name: /delete all your data/i }).click();
 
-  await page.goto('/settings/profile/photo');
-  await dismissInstallPrompt(page);
+  const dialog = page.getByRole('dialog', { name: /delete your account/i });
+  await expect(dialog).toBeVisible();
 
-  await page
-    .getByLabel(/change photo/i)
-    .setInputFiles('./tests/fixtures/images/user/wade.png');
+  const confirmButton = dialog.getByRole('button', {
+    name: /delete my account/i,
+  });
+  await expect(confirmButton).toBeDisabled();
 
-  await page.getByRole('button', { name: /save/i }).click();
+  // Wrong value leaves button disabled.
+  const input = dialog.getByRole('textbox');
+  await input.fill('not-the-username');
+  await expect(confirmButton).toBeDisabled();
 
-  await expect(
-    page,
-    'Was not redirected after saving the profile photo',
-  ).toHaveURL(`/settings/profile`);
+  // Correct username enables it.
+  await input.fill(user.username);
+  await expect(confirmButton).toBeEnabled();
 
-  await expect(avatar).not.toHaveAttribute('src', beforeSrc ?? '');
+  // Don't actually submit — verifying the gate is enough. Cancel out.
+  await dialog.getByRole('button', { name: /cancel/i }).click();
+  await expect(dialog).not.toBeVisible();
 });
 
 test('Users can change their email address', async ({ page, login }) => {

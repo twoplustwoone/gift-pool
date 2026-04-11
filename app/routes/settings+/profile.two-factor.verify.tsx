@@ -19,7 +19,6 @@ import {
 } from 'react-router';
 import { z } from 'zod';
 import { ErrorList, OTPField } from '#app/components/forms.tsx';
-import { Icon } from '#app/components/ui/icon.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { isCodeValid } from '#app/routes/_auth+/verify.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
@@ -27,10 +26,9 @@ import { prisma } from '#app/utils/db.server.ts';
 import { getDomainUrl, useIsPending } from '#app/utils/misc.tsx';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import { getTOTPAuthUri } from '#app/utils/totp.server.ts';
-import { type BreadcrumbHandle } from './profile-breadcrumbs.tsx';
+import { SettingsSubpage } from './__settings-subpage.tsx';
 import { twoFAVerificationType } from './profile.two-factor.tsx';
-export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: <Icon name="check">Verify</Icon>,
+export const handle: SEOHandle = {
   getSitemapEntries: () => null,
 };
 const CancelSchema = z.object({
@@ -165,91 +163,72 @@ const TwoFactorRoute = () => {
     },
   });
   const lastSubmissionIntent = fields.intent.value;
+  const verifyStatus =
+    pendingIntent === 'verify'
+      ? ('pending' as const)
+      : lastSubmissionIntent === 'verify'
+        ? (form.status ?? 'idle')
+        : 'idle';
+  const cancelStatus =
+    pendingIntent === 'cancel'
+      ? ('pending' as const)
+      : lastSubmissionIntent === 'cancel'
+        ? (form.status ?? 'idle')
+        : 'idle';
   return (
-    <div>
+    <SettingsSubpage
+      title="Verify two-factor setup"
+      description="Scan the QR code with your authenticator app and enter the code it generates."
+    >
       <div className="flex flex-col items-center gap-4">
-        <img alt="qr code" src={data.qrCode} className="h-56 w-56" />
-        <p>Scan this QR code with your authenticator app.</p>
-        <p className="text-sm">
-          If you cannot scan the QR code, you can manually add this account to
-          your authenticator app using this code:
+        <img alt="qr code" src={data.qrCode} className="h-56 w-56 rounded-lg" />
+        <p className="text-sm text-muted-foreground">
+          Can't scan? Enter this code into your authenticator app instead:
         </p>
-        <div className="p-3">
-          <pre
-            className="whitespace-pre-wrap break-all text-sm"
-            aria-label="One-time Password URI"
-          >
-            {data.otpUri}
-          </pre>
-        </div>
-        <p className="text-sm">
-          Once you've added the account, enter the code from your authenticator
-          app below. Once you enable 2FA, you will need to enter a code from
-          your authenticator app every time you log in or perform important
-          actions. Do not lose access to your authenticator app, or you will
-          lose access to your account.
+        <pre
+          className="w-full overflow-x-auto rounded-lg bg-muted/60 px-3 py-2 text-xs"
+          aria-label="One-Time Password URI"
+        >
+          {data.otpUri}
+        </pre>
+        <p className="text-xs text-muted-foreground">
+          Once 2FA is on you'll need a code every time you sign in. Don't lose
+          access to your authenticator or you'll lose access to your account.
         </p>
-        <div className="flex w-full max-w-xs flex-col justify-center gap-4">
-          <Form method="POST" {...getFormProps(form)} className="flex-1">
-            <div className="flex items-center justify-center">
-              <OTPField
-                labelProps={{
-                  htmlFor: fields.code.id,
-                  children: 'Code',
-                }}
-                inputProps={{
-                  ...getInputProps(fields.code, {
-                    type: 'text',
-                  }),
-                  autoFocus: true,
-                  autoComplete: 'one-time-code',
-                }}
-                errors={fields.code.errors}
-              />
-            </div>
-
-            <div className="min-h-[32px] px-4 pb-3 pt-1">
-              <ErrorList id={form.errorId} errors={form.errors} />
-            </div>
-
-            <div className="flex justify-between gap-4">
-              <StatusButton
-                className="w-full"
-                status={
-                  pendingIntent === 'verify'
-                    ? 'pending'
-                    : lastSubmissionIntent === 'verify'
-                      ? (form.status ?? 'idle')
-                      : 'idle'
-                }
-                type="submit"
-                name="intent"
-                value="verify"
-              >
-                Submit
-              </StatusButton>
-              <StatusButton
-                className="w-full"
-                variant="secondary"
-                status={
-                  pendingIntent === 'cancel'
-                    ? 'pending'
-                    : lastSubmissionIntent === 'cancel'
-                      ? (form.status ?? 'idle')
-                      : 'idle'
-                }
-                type="submit"
-                name="intent"
-                value="cancel"
-                disabled={isPending}
-              >
-                Cancel
-              </StatusButton>
-            </div>
-          </Form>
-        </div>
+        <Form method="POST" {...getFormProps(form)} className="flex w-full max-w-xs flex-col gap-3">
+          <OTPField
+            labelProps={{ htmlFor: fields.code.id, children: 'Code' }}
+            inputProps={{
+              ...getInputProps(fields.code, { type: 'text' }),
+              autoFocus: true,
+              autoComplete: 'one-time-code',
+            }}
+            errors={fields.code.errors}
+          />
+          <ErrorList id={form.errorId} errors={form.errors} />
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <StatusButton
+              variant="outline"
+              status={cancelStatus}
+              type="submit"
+              name="intent"
+              value="cancel"
+              disabled={isPending}
+            >
+              Cancel
+            </StatusButton>
+            <StatusButton
+              status={verifyStatus}
+              type="submit"
+              name="intent"
+              value="verify"
+            >
+              Submit
+            </StatusButton>
+          </div>
+        </Form>
       </div>
-    </div>
+    </SettingsSubpage>
   );
 };
 export default TwoFactorRoute;

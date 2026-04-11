@@ -15,7 +15,6 @@ import {
 import { z } from 'zod';
 import { ErrorList, Field } from '#app/components/forms.tsx';
 import { Button } from '#app/components/ui/button.tsx';
-import { Icon } from '#app/components/ui/icon.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import {
   getPasswordHash,
@@ -26,9 +25,8 @@ import { prisma } from '#app/utils/db.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import { PasswordSchema } from '#app/utils/user-validation.ts';
-import { type BreadcrumbHandle } from './profile-breadcrumbs.tsx';
-export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: <Icon name="dots-horizontal">Password</Icon>,
+import { SettingsSubpage } from './__settings-subpage.tsx';
+export const handle: SEOHandle = {
   getSitemapEntries: () => null,
 };
 const ChangePasswordForm = z
@@ -145,56 +143,49 @@ const ChangePasswordRoute = () => {
     shouldRevalidate: 'onBlur',
   });
   return (
-    <Form method="POST" {...getFormProps(form)} className="mx-auto max-w-md">
-      <Field
-        labelProps={{
-          children: 'Current Password',
-        }}
-        inputProps={{
-          ...getInputProps(fields.currentPassword, {
-            type: 'password',
-          }),
-          autoComplete: 'current-password',
-        }}
-        errors={fields.currentPassword.errors}
-      />
-      <Field
-        labelProps={{
-          children: 'New Password',
-        }}
-        inputProps={{
-          ...getInputProps(fields.newPassword, {
-            type: 'password',
-          }),
-          autoComplete: 'new-password',
-        }}
-        errors={fields.newPassword.errors}
-      />
-      <Field
-        labelProps={{
-          children: 'Confirm New Password',
-        }}
-        inputProps={{
-          ...getInputProps(fields.confirmNewPassword, {
-            type: 'password',
-          }),
-          autoComplete: 'new-password',
-        }}
-        errors={fields.confirmNewPassword.errors}
-      />
-      <ErrorList id={form.errorId} errors={form.errors} />
-      <div className="grid w-full grid-cols-2 gap-6">
-        <Button variant="secondary" asChild>
-          <Link to="..">Cancel</Link>
-        </Button>
-        <StatusButton
-          type="submit"
-          status={isPending ? 'pending' : (form.status ?? 'idle')}
-        >
-          Change Password
-        </StatusButton>
-      </div>
-    </Form>
+    <SettingsSubpage
+      title="Change password"
+      description="Use a strong, unique password you don't use anywhere else."
+    >
+      <Form method="POST" {...getFormProps(form)} className="flex flex-col gap-4">
+        <Field
+          labelProps={{ children: 'Current password' }}
+          inputProps={{
+            ...getInputProps(fields.currentPassword, { type: 'password' }),
+            autoComplete: 'current-password',
+          }}
+          errors={fields.currentPassword.errors}
+        />
+        <Field
+          labelProps={{ children: 'New password' }}
+          inputProps={{
+            ...getInputProps(fields.newPassword, { type: 'password' }),
+            autoComplete: 'new-password',
+          }}
+          errors={fields.newPassword.errors}
+        />
+        <Field
+          labelProps={{ children: 'Confirm new password' }}
+          inputProps={{
+            ...getInputProps(fields.confirmNewPassword, { type: 'password' }),
+            autoComplete: 'new-password',
+          }}
+          errors={fields.confirmNewPassword.errors}
+        />
+        <ErrorList id={form.errorId} errors={form.errors} />
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" asChild>
+            <Link to="/settings/profile">Cancel</Link>
+          </Button>
+          <StatusButton
+            type="submit"
+            status={isPending ? 'pending' : (form.status ?? 'idle')}
+          >
+            Change password
+          </StatusButton>
+        </div>
+      </Form>
+    </SettingsSubpage>
   );
 };
 export default ChangePasswordRoute;

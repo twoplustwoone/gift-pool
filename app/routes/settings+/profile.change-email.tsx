@@ -14,7 +14,6 @@ import {
 } from 'react-router';
 import { z } from 'zod';
 import { ErrorList, Field } from '#app/components/forms.tsx';
-import { Icon } from '#app/components/ui/icon.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import {
   prepareVerification,
@@ -26,10 +25,9 @@ import { sendEmail } from '#app/utils/email.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { EmailSchema } from '#app/utils/user-validation.ts';
 import { verifySessionStorage } from '#app/utils/verification.server.ts';
-import { type BreadcrumbHandle } from './profile-breadcrumbs.tsx';
+import { SettingsSubpage } from './__settings-subpage.tsx';
 import { EmailChangeEmail } from './profile.change-email.server.tsx';
-export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: <Icon name="envelope-closed">Change Email</Icon>,
+export const handle: SEOHandle = {
   getSitemapEntries: () => null,
 };
 export const newEmailAddressSessionKey = 'new-email-address';
@@ -134,37 +132,27 @@ const ChangeEmailIndex = () => {
   });
   const isPending = useIsPending();
   return (
-    <div>
-      <h1 className="text-h1">Change Email</h1>
-      <p>You will receive an email at the new email address to confirm.</p>
-      <p>
-        An email notice will also be sent to your old address {data.user.email}.
-      </p>
-      <div className="mx-auto mt-5 max-w-sm">
-        <Form method="POST" {...getFormProps(form)}>
-          <Field
-            labelProps={{
-              children: 'New Email',
-            }}
-            inputProps={{
-              ...getInputProps(fields.email, {
-                type: 'email',
-              }),
-              autoComplete: 'email',
-            }}
-            errors={fields.email.errors}
-          />
-          <ErrorList id={form.errorId} errors={form.errors} />
-          <div>
-            <StatusButton
-              status={isPending ? 'pending' : (form.status ?? 'idle')}
-            >
-              Send Confirmation
-            </StatusButton>
-          </div>
-        </Form>
-      </div>
-    </div>
+    <SettingsSubpage
+      title="Change email"
+      description={`You will receive an email at the new address to confirm. An email notice will also be sent to ${data.user.email}.`}
+    >
+      <Form method="POST" {...getFormProps(form)} className="flex flex-col gap-4">
+        <Field
+          labelProps={{ children: 'New email' }}
+          inputProps={{
+            ...getInputProps(fields.email, { type: 'email' }),
+            autoComplete: 'email',
+          }}
+          errors={fields.email.errors}
+        />
+        <ErrorList id={form.errorId} errors={form.errors} />
+        <div className="flex justify-end">
+          <StatusButton status={isPending ? 'pending' : (form.status ?? 'idle')}>
+            Send confirmation
+          </StatusButton>
+        </div>
+      </Form>
+    </SettingsSubpage>
   );
 };
 export default ChangeEmailIndex;

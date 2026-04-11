@@ -108,7 +108,10 @@ vi.mock('#app/components/ui/checkbox.tsx', () => ({
   ),
 }));
 
-import NotificationsSettingsRoute, { action, loader } from './notifications.tsx';
+import NotificationsSettingsRoute, {
+  action,
+  loader,
+} from './profile.notifications.tsx';
 
 function renderRoute() {
   return render(
@@ -161,7 +164,7 @@ describe('settings notifications route module', () => {
         toLoaderArgs({
           context: {},
           params: {},
-          request: new Request('https://giftpool.app/settings/notifications'),
+          request: new Request('https://giftpool.app/settings/profile/notifications'),
         }),
       ),
     ).rejects.toMatchObject({
@@ -179,7 +182,7 @@ describe('settings notifications route module', () => {
       toLoaderArgs({
         context: {},
         params: {},
-        request: new Request('https://giftpool.app/settings/notifications'),
+        request: new Request('https://giftpool.app/settings/profile/notifications'),
       }),
     );
 
@@ -211,7 +214,7 @@ describe('settings notifications route module', () => {
         context: {},
         params: {},
         request: new Request(
-          'https://giftpool.app/settings/notifications?token=abc',
+          'https://giftpool.app/settings/profile/notifications?token=abc',
         ),
       }),
     );
@@ -238,7 +241,7 @@ describe('settings notifications route module', () => {
         toActionArgs({
           context: {},
           params: {},
-          request: new Request('https://giftpool.app/settings/notifications', {
+          request: new Request('https://giftpool.app/settings/profile/notifications', {
             body: new URLSearchParams({
               channel: 'EMAIL',
               enabled: 'false',
@@ -270,7 +273,7 @@ describe('settings notifications route module', () => {
         toActionArgs({
           context: {},
           params: {},
-          request: new Request('https://giftpool.app/settings/notifications', {
+          request: new Request('https://giftpool.app/settings/profile/notifications', {
             body: new URLSearchParams({
               intent: 'disable-email',
               requestId: 'disable-1',
@@ -296,7 +299,7 @@ describe('settings notifications route module', () => {
         toActionArgs({
           context: {},
           params: {},
-          request: new Request('https://giftpool.app/settings/notifications', {
+          request: new Request('https://giftpool.app/settings/profile/notifications', {
             body: new URLSearchParams({
               intent: 'unknown',
               requestId: 'invalid-1',
@@ -321,7 +324,7 @@ describe('settings notifications route module', () => {
           context: {},
           params: {},
           request: new Request(
-            'https://giftpool.app/settings/notifications',
+            'https://giftpool.app/settings/profile/notifications',
             {
               body: new URLSearchParams({
                 channel: 'EMAIL',
@@ -356,7 +359,7 @@ describe('settings notifications route component', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /sign in to update your preferences/i }),
-    ).toHaveAttribute('href', '/login?redirectTo=/settings/notifications');
+    ).toHaveAttribute('href', '/login?redirectTo=/settings/profile/notifications');
     expect(
       screen.getAllByRole('checkbox', { name: /enable email/i })[0],
     ).toBeDisabled();

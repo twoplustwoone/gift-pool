@@ -25,10 +25,10 @@ test('users can optimistically toggle notification channels while request is pen
   login,
 }) => {
   const user = await login();
-  await page.goto('/settings/notifications');
+  await page.goto('/settings/profile/notifications');
   await dismissInstallPrompt(page);
 
-  await page.route('**/settings/notifications*', async (route) => {
+  await page.route('**/settings/profile/notifications*', async (route) => {
     const request = route.request();
     if (request.method() !== 'POST') {
       await route.continue();
@@ -85,7 +85,7 @@ test('users can optimistically toggle notification channels while request is pen
   });
   await expect(finalToggle).not.toBeChecked({ timeout: 10000 });
 
-  await page.unroute('**/settings/notifications');
+  await page.unroute('**/settings/profile/notifications');
 });
 
 test('failed toggle requests rollback optimistic notification channel updates', async ({
@@ -93,10 +93,10 @@ test('failed toggle requests rollback optimistic notification channel updates', 
   login,
 }) => {
   const user = await login();
-  await page.goto('/settings/notifications');
+  await page.goto('/settings/profile/notifications');
   await dismissInstallPrompt(page);
 
-  await page.route('**/settings/notifications*', async (route) => {
+  await page.route('**/settings/profile/notifications*', async (route) => {
     const request = route.request();
     if (request.method() !== 'POST') {
       await route.continue();
@@ -128,7 +128,7 @@ test('failed toggle requests rollback optimistic notification channel updates', 
 
   const toggleResponse = page.waitForResponse((response) => {
     return (
-      response.url().includes('/settings/notifications') &&
+      response.url().includes('/settings/profile/notifications') &&
       response.request().method() === 'POST'
     );
   });
@@ -159,7 +159,7 @@ test('failed toggle requests rollback optimistic notification channel updates', 
     });
   expect(unchangedPreference?.emailEnabled).toBe(initiallyChecked);
 
-  await page.unroute('**/settings/notifications*');
+  await page.unroute('**/settings/profile/notifications*');
 });
 
 test('users can disable all email notifications at once', async ({
@@ -167,7 +167,7 @@ test('users can disable all email notifications at once', async ({
   login,
 }) => {
   const user = await login();
-  await page.goto('/settings/notifications');
+  await page.goto('/settings/profile/notifications');
   await dismissInstallPrompt(page);
 
   const friendActivityEmailToggles = page
