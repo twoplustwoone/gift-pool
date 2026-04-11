@@ -83,9 +83,9 @@ const TwoFactorRoute = () => {
               href="https://1password.com/"
             >
               1Password
-            </a>
-            , Authy, or Google Authenticator to scan the QR code on the next
-            step.
+            </a>{' '}
+            (or Authy, or Google Authenticator) to scan the QR code on the
+            next step.
           </p>
           <enable2FAFetcher.Form method="POST">
             <StatusButton
