@@ -261,6 +261,7 @@ function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
             }}
             textareaProps={{
               ...getInputProps(fields.bio, { type: 'text' }),
+              required: false,
               rows: 3,
               maxLength: BIO_MAX_LENGTH,
               placeholder: 'Short blurb your friends will see on your profile.',
@@ -272,7 +273,10 @@ function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
               htmlFor: fields.birthday.id,
               children: 'Birthday',
             }}
-            inputProps={getInputProps(fields.birthday, { type: 'date' })}
+            inputProps={{
+              ...getInputProps(fields.birthday, { type: 'date' }),
+              required: false,
+            }}
             errors={fields.birthday.errors}
           />
           <ErrorList errors={form.errors} id={form.errorId} />
