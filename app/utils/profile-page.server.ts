@@ -125,6 +125,7 @@ async function loadWishlistPreview(targetUserId: string, limit = 3) {
       where: {
         ownerId: targetUserId,
         status: 'ACTIVE',
+        purchase: null,
       },
     }),
   ]);

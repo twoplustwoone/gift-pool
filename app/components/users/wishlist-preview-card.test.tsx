@@ -55,7 +55,7 @@ describe('<WishlistPreviewCard />', () => {
     expect(screen.getByText('Cast iron skillet')).toBeInTheDocument();
     expect(screen.getByText('Vinyl record')).toBeInTheDocument();
     expect(
-      screen.getByRole('link', { name: /See.*full wishlist/ }),
+      screen.getByRole('link', { name: /see all/i }),
     ).toHaveAttribute('href', '/users/taylor/wishlist');
   });
 

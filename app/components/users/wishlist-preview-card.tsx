@@ -12,12 +12,12 @@ type PreviewItem = {
   updatedAt: Date | string;
 };
 
-type WishlistPreviewCardProps = {
+type WishlistPreviewCardProps = Readonly<{
   items: PreviewItem[];
   totalCount: number;
   fullListTo: string;
   ownerName: string;
-};
+}>;
 
 // Compact preview of up to N unpurchased items. Each row uses the same
 // thumbnail-or-gift-icon pattern as the main wishlist rows, so the visual
@@ -51,7 +51,6 @@ export function WishlistPreviewCard({
           to={fullListTo}
           prefetch="intent"
           className="inline-flex items-center gap-1 text-xs font-medium text-primary transition hover:underline"
-          aria-label={`See ${ownerName}'s full wishlist`}
         >
           See all
           <LuExternalLink className="h-3 w-3" aria-hidden />
@@ -78,10 +77,10 @@ export function WishlistPreviewCard({
 function WishlistPreviewRow({
   item,
   fullListTo,
-}: {
+}: Readonly<{
   item: PreviewItem;
   fullListTo: string;
-}) {
+}>) {
   const updatedAtMs =
     item.updatedAt instanceof Date
       ? item.updatedAt.getTime()

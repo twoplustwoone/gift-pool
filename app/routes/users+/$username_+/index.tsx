@@ -138,7 +138,7 @@ const ProfileRoute = () => {
   );
 };
 
-type FriendProfileViewProps = {
+type FriendProfileViewProps = Readonly<{
   user: {
     id: string;
     username: string;
@@ -149,7 +149,7 @@ type FriendProfileViewProps = {
   userJoinedDisplay: string;
   relationship: Relationship;
   profileData: ProfilePageData;
-};
+}>;
 
 function FriendProfileView({
   user,

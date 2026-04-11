@@ -14,13 +14,13 @@ type ProfileHeaderUser = {
   image: { id: string; altText?: string | null } | null;
 };
 
-type ProfileHeaderProps = {
+type ProfileHeaderProps = Readonly<{
   user: ProfileHeaderUser;
   birthdayLabel?: string | null;
   joinedDisplay?: string | null;
   actions?: React.ReactNode;
   className?: string;
-};
+}>;
 
 export function ProfileHeader({
   user,

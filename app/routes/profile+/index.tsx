@@ -116,7 +116,7 @@ const ProfileIndex = () => {
         }
       />
 
-      {!user.birthday ? (
+      {user.birthday ? null : (
         <div className="mx-auto w-full max-w-2xl rounded-xl border border-dashed border-border/70 bg-muted/30 px-4 py-3 text-center">
           <Text size="sm" className="text-muted-foreground">
             Add your birthday in{' '}
@@ -129,7 +129,7 @@ const ProfileIndex = () => {
             so friends know when to celebrate.
           </Text>
         </div>
-      ) : null}
+      )}
 
       <WishlistPreviewCard
         items={data.wishlistPreview.items}

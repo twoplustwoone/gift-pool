@@ -34,9 +34,6 @@ import {
 import { cn } from '#app/utils/misc.tsx';
 import { Text } from '../ui-kit/text.tsx';
 
-// Re-export so existing importers (e.g. tests) keep working.
-export { BIRTHDAY_VISIBILITY_DAYS };
-
 export type FriendRowEntry = {
   friendshipId: string;
   user: {

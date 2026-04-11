@@ -10,11 +10,11 @@ type MutualFriend = {
   image: { id: string } | null;
 };
 
-type MutualStripProps = {
+type MutualStripProps = Readonly<{
   groups: MutualGroup[];
   friends: MutualFriend[];
   maxVisible?: number;
-};
+}>;
 
 // Two row variants sharing the same chip pattern. Used by the profile page
 // to surface mutual groups and mutual friends in a compact strip. The strip
@@ -89,14 +89,14 @@ export function MutualStrip({
   );
 }
 
-type MutualRowProps<T> = {
+type MutualRowProps<T> = Readonly<{
   label: string;
   count: number;
   maxVisible: number;
   icon: React.ReactNode;
   items: T[];
   renderItems: (slice: T[]) => React.ReactNode;
-};
+}>;
 
 function MutualRow<T>({
   label,
