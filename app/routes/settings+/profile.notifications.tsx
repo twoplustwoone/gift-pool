@@ -80,7 +80,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
   const canReadPreferences =
     (userId && userId === targetUserId) ||
-    (tokenPayload && tokenPayload.uid === targetUserId);
+    tokenPayload?.uid === targetUserId;
   const preferencesMap = canReadPreferences
     ? await getNotificationPreferences(targetUserId)
     : null;
@@ -100,7 +100,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     isAuthenticated: Boolean(userId),
     viewerUserId: userId,
     targetUserId,
-    tokenValid: Boolean(tokenPayload && tokenPayload.uid === targetUserId),
+    tokenValid: tokenPayload?.uid === targetUserId,
     preferences: Array.from(preferences.entries()).map(([type, pref]) => ({
       type,
       inAppEnabled: pref.inAppEnabled,
@@ -111,10 +111,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const intent = formData.get('intent');
+  const requestIdValue = formData.get('requestId');
   const requestId =
-    typeof formData.get('requestId') === 'string'
-      ? String(formData.get('requestId'))
-      : null;
+    typeof requestIdValue === 'string' ? requestIdValue : null;
   const userId = await requireUserId(request);
   if (intent === 'toggle') {
     const type = formData.get('type');
@@ -364,7 +363,7 @@ const NotificationsSettingsRoute = () => {
         </p>
       </div>
 
-      {!data.isAuthenticated ? (
+      {data.isAuthenticated ? null : (
         <div className="rounded-md border border-dashed border-muted-foreground/50 bg-muted px-4 py-3 text-sm text-muted-foreground">
           <p>You are viewing notification preferences with a one-time link.</p>
           <p>
@@ -376,7 +375,7 @@ const NotificationsSettingsRoute = () => {
             </Link>
           </p>
         </div>
-      ) : null}
+      )}
 
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full text-sm">
@@ -521,20 +520,20 @@ function getChannelField(channel: NotificationChannel) {
 function getPreferenceKey(
   type: NotificationType,
   channel: NotificationChannel,
-) {
-  return `${type}:${channel}` as PreferenceKey;
+): PreferenceKey {
+  return `${type}:${channel}`;
 }
 function PreferenceCheckbox({
   checked,
   onChange,
   disabled,
   label,
-}: {
+}: Readonly<{
   checked: boolean;
   onChange: () => void;
   disabled?: boolean;
   label: string;
-}) {
+}>) {
   return (
     <label
       className={cn(

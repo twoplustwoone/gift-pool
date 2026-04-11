@@ -107,7 +107,10 @@ export async function action({ request }: ActionFunctionArgs) {
       return deleteDataAction({ request, userId, formData });
     }
     default: {
-      throw new Response(`Invalid intent "${intent}"`, { status: 400 });
+      throw new Response(
+        `Invalid intent "${typeof intent === 'string' ? intent : 'unknown'}"`,
+        { status: 400 },
+      );
     }
   }
 }
@@ -270,11 +273,7 @@ function AccountCard() {
           icon={data.isTwoFactorEnabled ? 'lock-closed' : 'lock-open-1'}
           label="Two-factor authentication"
           value={data.isTwoFactorEnabled ? 'Enabled' : 'Not enabled'}
-          accessibleName={
-            data.isTwoFactorEnabled
-              ? 'Manage two-factor authentication'
-              : 'Enable two-factor authentication'
-          }
+          accessibleName={data.isTwoFactorEnabled ? 'Disable 2FA' : 'Enable 2FA'}
         />
       </div>
     </Card>
@@ -333,6 +332,7 @@ function DangerZoneCard() {
   const otherSessionsCount = data.user._count.sessions - 1;
   const dc = useDoubleCheck();
   const fetcher = useFetcher<typeof signOutOfSessionsAction>();
+  const sessionsLabel = `Sign out of ${otherSessionsCount} other session${otherSessionsCount === 1 ? '' : 's'}`;
 
   return (
     <Card
@@ -360,9 +360,7 @@ function DangerZoneCard() {
               }
             >
               <Icon name="avatar">
-                {dc.doubleCheck
-                  ? 'Are you sure?'
-                  : `Sign out of ${otherSessionsCount} other session${otherSessionsCount === 1 ? '' : 's'}`}
+                {dc.doubleCheck ? 'Are you sure?' : sessionsLabel}
               </Icon>
             </StatusButton>
           </fetcher.Form>

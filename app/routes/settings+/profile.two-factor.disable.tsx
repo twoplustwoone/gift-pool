@@ -1,22 +1,23 @@
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import { type LoaderFunctionArgs, type ActionFunctionArgs, useFetcher  } from 'react-router';
-import { Icon } from '#app/components/ui/icon.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { requireRecentVerification } from '#app/routes/_auth+/verify.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { useDoubleCheck } from '#app/utils/misc.tsx';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
-import { type BreadcrumbHandle } from './profile-breadcrumbs.tsx';
+import { SettingsSubpage } from './__settings-subpage.tsx';
 import { twoFAVerificationType } from './profile.two-factor.tsx';
-export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: <Icon name="lock-open-1">Disable</Icon>,
+
+export const handle: SEOHandle = {
   getSitemapEntries: () => null,
 };
+
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireRecentVerification(request);
   return {};
 }
+
 export async function action({ request }: ActionFunctionArgs) {
   await requireRecentVerification(request);
   const userId = await requireUserId(request);
@@ -33,30 +34,37 @@ export async function action({ request }: ActionFunctionArgs) {
     description: 'Two factor authentication has been disabled.',
   });
 }
+
 const TwoFactorDisableRoute = () => {
   const disable2FAFetcher = useFetcher<typeof action>();
   const dc = useDoubleCheck();
   return (
-    <div className="mx-auto max-w-sm">
-      <disable2FAFetcher.Form method="POST">
-        <p>
-          Disabling two factor authentication is not recommended. However, if
-          you would like to do so, click here:
+    <SettingsSubpage
+      title="Disable two-factor authentication"
+      description="Turning off 2FA weakens your account security. Tap twice to confirm."
+      backTo="/settings/profile/two-factor"
+      backLabel="Back to two-factor"
+    >
+      <disable2FAFetcher.Form method="POST" className="flex flex-col gap-4">
+        <p className="text-sm text-muted-foreground">
+          You'll be able to sign in with just your password again. You can
+          re-enable 2FA at any time.
         </p>
-        <StatusButton
-          variant="destructive"
-          status={disable2FAFetcher.state === 'loading' ? 'pending' : 'idle'}
-          {...dc.getButtonProps({
-            className: 'mx-auto',
-            name: 'intent',
-            value: 'disable',
-            type: 'submit',
-          })}
-        >
-          {dc.doubleCheck ? 'Are you sure?' : 'Disable 2FA'}
-        </StatusButton>
+        <div>
+          <StatusButton
+            variant="destructive"
+            status={disable2FAFetcher.state === 'loading' ? 'pending' : 'idle'}
+            {...dc.getButtonProps({
+              name: 'intent',
+              value: 'disable',
+              type: 'submit',
+            })}
+          >
+            {dc.doubleCheck ? 'Are you sure?' : 'Disable 2FA'}
+          </StatusButton>
+        </div>
       </disable2FAFetcher.Form>
-    </div>
+    </SettingsSubpage>
   );
 };
 export default TwoFactorDisableRoute;

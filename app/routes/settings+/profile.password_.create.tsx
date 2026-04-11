@@ -14,15 +14,13 @@ import {
 } from 'react-router';
 import { ErrorList, Field } from '#app/components/forms.tsx';
 import { Button } from '#app/components/ui/button.tsx';
-import { Icon } from '#app/components/ui/icon.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { getPasswordHash, requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { PasswordAndConfirmPasswordSchema } from '#app/utils/user-validation.ts';
-import { type BreadcrumbHandle } from './profile-breadcrumbs.tsx';
-export const handle: BreadcrumbHandle & SEOHandle = {
-  breadcrumb: <Icon name="dots-horizontal">Password</Icon>,
+import { SettingsSubpage } from './__settings-subpage.tsx';
+export const handle: SEOHandle = {
   getSitemapEntries: () => null,
 };
 const CreatePasswordForm = PasswordAndConfirmPasswordSchema;
@@ -102,44 +100,41 @@ const CreatePasswordRoute = () => {
     shouldRevalidate: 'onBlur',
   });
   return (
-    <Form method="POST" {...getFormProps(form)} className="mx-auto max-w-md">
-      <Field
-        labelProps={{
-          children: 'New Password',
-        }}
-        inputProps={{
-          ...getInputProps(fields.password, {
-            type: 'password',
-          }),
-          autoComplete: 'new-password',
-        }}
-        errors={fields.password.errors}
-      />
-      <Field
-        labelProps={{
-          children: 'Confirm New Password',
-        }}
-        inputProps={{
-          ...getInputProps(fields.confirmPassword, {
-            type: 'password',
-          }),
-          autoComplete: 'new-password',
-        }}
-        errors={fields.confirmPassword.errors}
-      />
-      <ErrorList id={form.errorId} errors={form.errors} />
-      <div className="grid w-full grid-cols-2 gap-6">
-        <Button variant="secondary" asChild>
-          <Link to="..">Cancel</Link>
-        </Button>
-        <StatusButton
-          type="submit"
-          status={isPending ? 'pending' : (form.status ?? 'idle')}
-        >
-          Create Password
-        </StatusButton>
-      </div>
-    </Form>
+    <SettingsSubpage
+      title="Create password"
+      description="Set a password so you can sign in without a magic link."
+    >
+      <Form method="POST" {...getFormProps(form)} className="flex flex-col gap-4">
+        <Field
+          labelProps={{ children: 'New password' }}
+          inputProps={{
+            ...getInputProps(fields.password, { type: 'password' }),
+            autoComplete: 'new-password',
+          }}
+          errors={fields.password.errors}
+        />
+        <Field
+          labelProps={{ children: 'Confirm new password' }}
+          inputProps={{
+            ...getInputProps(fields.confirmPassword, { type: 'password' }),
+            autoComplete: 'new-password',
+          }}
+          errors={fields.confirmPassword.errors}
+        />
+        <ErrorList id={form.errorId} errors={form.errors} />
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" asChild>
+            <Link to="/settings/profile">Cancel</Link>
+          </Button>
+          <StatusButton
+            type="submit"
+            status={isPending ? 'pending' : (form.status ?? 'idle')}
+          >
+            Create password
+          </StatusButton>
+        </div>
+      </Form>
+    </SettingsSubpage>
   );
 };
 export default CreatePasswordRoute;
