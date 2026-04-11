@@ -17,6 +17,7 @@ export default [
       '**/*.db',
       'tsconfig*.json',
       '.storybook/**',
+      '.claude/**',
     ],
   }, // Base
   {

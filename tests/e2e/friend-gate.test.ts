@@ -37,7 +37,7 @@ test('profile page does not expose details to non-friends', async ({ page }) => 
 
     const gateHeading = page.getByRole('heading', {
       name: new RegExp(
-        `Add ${target.name ?? target.username} as a friend to continue`,
+        `See ${target.name ?? target.username}'s profile`,
         'i',
       ),
     });
@@ -101,7 +101,7 @@ test('non-friend profile prompts request and sends invite', async ({
     await page.goto(`/users/${target.username}`);
 
     const gateHeading = page.getByRole('heading', {
-      name: new RegExp(`Add ${target.name} as a friend to continue`, 'i'),
+      name: new RegExp(`See ${target.name}'s profile`, 'i'),
     });
     await expect(gateHeading).toBeVisible();
 
@@ -165,7 +165,7 @@ test('non-friend wishlist prompts request and sends invite', async ({
     await page.goto(`/users/${target.username}/wishlist`);
 
     const gateHeading = page.getByRole('heading', {
-      name: new RegExp(`Add ${target.name} as a friend to continue`, 'i'),
+      name: new RegExp(`See ${target.name}'s wishlist`, 'i'),
     });
     await expect(gateHeading).toBeVisible();
 

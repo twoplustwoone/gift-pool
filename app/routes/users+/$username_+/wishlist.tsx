@@ -11,7 +11,6 @@ import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { track } from '#app/utils/analytics.client.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { type RelationshipState } from '#app/utils/friends.ts';
-import { useTranslation } from '#app/utils/i18n.tsx';
 import {
   hasPrefetchCache,
   takePrefetchCache,
@@ -121,7 +120,6 @@ export async function clientLoader({
 
 const UserWishlist = () => {
   const data = useLoaderData<typeof loader>();
-  const { t } = useTranslation();
   const requestInfo = useRequestInfo();
   const trackedViewIdRef = useRef<string | null>(null);
   const viewableWishlist = data.canViewWishlist ? data.user : null;
@@ -160,16 +158,11 @@ const UserWishlist = () => {
     const userDisplayName = data.user.name ?? data.user.username;
     return (
       <FriendGateCard
-        title={t('friends.accessRequiredTitle', {
-          name: userDisplayName,
-        })}
-        description={t('friends.accessRequiredWishlist', {
-          name: userDisplayName,
-        })}
+        context="wishlist"
         relationship={data.relationship}
         targetUserId={data.user.id}
         targetUserName={userDisplayName}
-        returnLinkLabel={t('friends.navigateAway')}
+        targetUser={data.user}
         returnLinkTo="/friends"
       />
     );

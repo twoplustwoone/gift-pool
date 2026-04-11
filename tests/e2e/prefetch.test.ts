@@ -300,7 +300,7 @@ test('cached friend wishlist navigation revalidates access before using prefetch
     await expect(page).toHaveURL(`/users/${friend.username}/wishlist`);
     await expect(
       page.getByRole('heading', {
-        name: `Add ${friend.name} as a friend to continue`,
+        name: `See ${friend.name}'s wishlist`,
       }),
     ).toBeVisible();
     await expect(page.getByText('Should stay private')).toHaveCount(0);

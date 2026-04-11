@@ -26,6 +26,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx';
+import {
+  BIRTHDAY_VISIBILITY_DAYS,
+  formatBirthdayLabel,
+  getUpcomingBirthday,
+} from '#app/utils/birthday.ts';
 import { cn } from '#app/utils/misc.tsx';
 import { Text } from '../ui-kit/text.tsx';
 
@@ -40,44 +45,6 @@ export type FriendRowEntry = {
   };
   mutualGroups: Array<{ id: string; name: string }>;
 };
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-// Compute the next occurrence of this birthday's month/day in the future,
-// returning the full date and how many days from today it is. Returns null
-// when the friend hasn't set a birthday.
-function getUpcomingBirthday(birthday: Date | string | null) {
-  if (!birthday) return null;
-  const parsed = birthday instanceof Date ? birthday : new Date(birthday);
-  if (Number.isNaN(parsed.getTime())) return null;
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const candidate = new Date(
-    today.getFullYear(),
-    parsed.getMonth(),
-    parsed.getDate(),
-  );
-  if (candidate.getTime() < today.getTime()) {
-    candidate.setFullYear(candidate.getFullYear() + 1);
-  }
-  const daysUntil = Math.round(
-    (candidate.getTime() - today.getTime()) / MS_PER_DAY,
-  );
-  return { date: candidate, daysUntil };
-}
-
-function formatBirthdayLabel(date: Date, daysUntil: number) {
-  if (daysUntil === 0) return 'Today!';
-  if (daysUntil === 1) return 'Tomorrow';
-  return new Intl.DateTimeFormat('en', {
-    month: 'short',
-    day: 'numeric',
-  }).format(date);
-}
-
-// Days within which we surface a friend's birthday on the row right slot.
-// Matches the Home Upcoming Birthdays card window so the two views agree.
-export const BIRTHDAY_VISIBILITY_DAYS = 60;
 
 export function FriendRow({
   friend,
