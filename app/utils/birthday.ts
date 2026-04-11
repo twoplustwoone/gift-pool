@@ -14,6 +14,12 @@ export type UpcomingBirthday = {
 
 // Next occurrence of this birthday's month/day, and how far it is from today.
 // Returns null when the input is missing or unparseable.
+//
+// Reads month/day in UTC, not local time. Birthdays are stored as noon UTC
+// (see `BirthdaySchema`) so that the calendar date is invariant across
+// viewer timezones. Reading via `getUTCMonth` / `getUTCDate` closes the
+// loop: a user in LA who picks May 26 sees May 26 on every client, not the
+// shifted-by-one date that local-time getters would produce.
 export function getUpcomingBirthday(
   birthday: Date | string | null | undefined,
 ): UpcomingBirthday | null {
@@ -24,8 +30,8 @@ export function getUpcomingBirthday(
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const candidate = new Date(
     today.getFullYear(),
-    parsed.getMonth(),
-    parsed.getDate(),
+    parsed.getUTCMonth(),
+    parsed.getUTCDate(),
   );
   if (candidate.getTime() < today.getTime()) {
     candidate.setFullYear(candidate.getFullYear() + 1);
@@ -36,7 +42,9 @@ export function getUpcomingBirthday(
   return { date: candidate, daysUntil };
 }
 
-// Short human label — "Today!", "Tomorrow", or "Sep 12".
+// Short human label — "Today!", "Tomorrow", or "Sep 12". The Date passed
+// in is already the local-timezone candidate constructed by
+// `getUpcomingBirthday`, so local-time formatting is correct here.
 export function formatBirthdayLabel(date: Date, daysUntil: number) {
   if (daysUntil === 0) return 'Today!';
   if (daysUntil === 1) return 'Tomorrow';

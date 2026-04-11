@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 const getUserId = vi.fn();
 const findMany = vi.fn();
+const friendshipFindMany = vi.fn();
 
 vi.mock('#app/utils/auth.server', () => ({
   getUserId: (...args: Array<unknown>) => getUserId(...args),
@@ -14,6 +15,9 @@ vi.mock('#app/utils/db.server', () => ({
   prisma: {
     usersInGiftGroups: {
       findMany: (...args: Array<unknown>) => findMany(...args),
+    },
+    friendship: {
+      findMany: (...args: Array<unknown>) => friendshipFindMany(...args),
     },
   },
 }));
@@ -95,6 +99,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
             {
               user: {
                 birthday: localCalendarDate(1990, 3, 5),
+                birthdayVisibility: 'FRIENDS',
                 id: 'friend-near',
                 name: 'Alex',
                 username: 'alex',
@@ -103,6 +108,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
             {
               user: {
                 birthday: localCalendarDate(1992, 5, 20),
+                birthdayVisibility: 'FRIENDS',
                 id: 'friend-far',
                 name: 'Distant',
                 username: 'distant',
@@ -111,6 +117,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
             {
               user: {
                 birthday: localCalendarDate(1991, 3, 8),
+                birthdayVisibility: 'FRIENDS',
                 id: 'viewer-1',
                 name: 'Viewer',
                 username: 'viewer',
@@ -126,6 +133,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
             {
               user: {
                 birthday: localCalendarDate(1990, 3, 5),
+                birthdayVisibility: 'FRIENDS',
                 id: 'friend-near',
                 name: 'Alex',
                 username: 'alex',
@@ -134,6 +142,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
             {
               user: {
                 birthday: null,
+                birthdayVisibility: 'FRIENDS',
                 id: 'friend-none',
                 name: 'No Birthday',
                 username: 'nobday',
@@ -142,6 +151,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
             {
               user: {
                 birthday: localCalendarDate(1993, 3, 3),
+                birthdayVisibility: 'FRIENDS',
                 id: 'friend-soon',
                 name: null,
                 username: 'soon',
@@ -150,6 +160,15 @@ describe('app/routes/resources+/home.panels.tsx', () => {
           ],
         },
       },
+    ]);
+
+    // Viewer is friends with every candidate so FRIENDS visibility passes
+    // through. Separate tests exercise the friendship gate below.
+    friendshipFindMany.mockResolvedValue([
+      { userAId: 'viewer-1', userBId: 'friend-near' },
+      { userAId: 'viewer-1', userBId: 'friend-far' },
+      { userAId: 'viewer-1', userBId: 'friend-none' },
+      { userAId: 'viewer-1', userBId: 'friend-soon' },
     ]);
 
     vi.useFakeTimers();
@@ -210,6 +229,77 @@ describe('app/routes/resources+/home.panels.tsx', () => {
         ...expectedBirthdayOutput(3, 5),
         username: 'alex',
       });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('enforces birthdayVisibility: NOBODY hidden, FRIENDS needs friendship, EVERYONE always shown', async () => {
+    getUserId.mockResolvedValue('viewer-1');
+    findMany.mockResolvedValue([
+      {
+        giftGroup: {
+          id: 'group-1',
+          groupMembers: [
+            {
+              user: {
+                birthday: localCalendarDate(1990, 3, 1),
+                birthdayVisibility: 'NOBODY',
+                id: 'hidden',
+                name: 'Hidden',
+                username: 'hidden',
+              },
+            },
+            {
+              user: {
+                birthday: localCalendarDate(1990, 3, 2),
+                birthdayVisibility: 'FRIENDS',
+                id: 'friend-ok',
+                name: 'Friend OK',
+                username: 'friend_ok',
+              },
+            },
+            {
+              user: {
+                birthday: localCalendarDate(1990, 3, 3),
+                birthdayVisibility: 'FRIENDS',
+                id: 'stranger',
+                name: 'Group-mate Stranger',
+                username: 'stranger',
+              },
+            },
+            {
+              user: {
+                birthday: localCalendarDate(1990, 3, 4),
+                birthdayVisibility: 'EVERYONE',
+                id: 'public',
+                name: 'Public',
+                username: 'public',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+    // Viewer is friends with friend-ok, but NOT with stranger or public.
+    friendshipFindMany.mockResolvedValue([
+      { userAId: 'viewer-1', userBId: 'friend-ok' },
+    ]);
+
+    vi.useFakeTimers();
+    vi.setSystemTime(localCalendarDate(2026, 2, 31));
+
+    try {
+      const result = await loader({
+        context: {},
+        params: {},
+        request: new Request('https://giftpool.app/resources/home.panels'),
+      } as never);
+
+      const ids = result.birthdays.map((b) => b.id).sort();
+      expect(ids).toEqual(['friend-ok', 'public']);
+      expect(ids).not.toContain('hidden');
+      expect(ids).not.toContain('stranger');
     } finally {
       vi.useRealTimers();
     }

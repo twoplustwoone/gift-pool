@@ -8,10 +8,12 @@ function formatDateLabel(date: Date) {
   }).format(date);
 }
 
-// Find next birthday date (this year or next) from a month/day reference
+// Find next birthday date (this year or next) from a month/day reference.
+// Reads the stored birthday in UTC because `BirthdaySchema` writes noon UTC
+// — local-time getters would shift by a day for viewers west of UTC.
 function nextBirthdayDate(birthday: Date, now = new Date()) {
-  const bMonth = birthday.getMonth();
-  const bDate = birthday.getDate();
+  const bMonth = birthday.getUTCMonth();
+  const bDate = birthday.getUTCDate();
   const thisYear = new Date(now.getFullYear(), bMonth, bDate);
   if (thisYear >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
     return thisYear;
@@ -69,32 +71,47 @@ export async function loader({ request }: LoaderFunctionArgs) {
     };
   }
 
-  // Upcoming birthdays for users sharing at least one group with the current user
-  const memberships = await prisma.usersInGiftGroups.findMany({
-    where: {
-      userId,
-    },
-    select: {
-      giftGroup: {
-        select: {
-          id: true,
-          groupMembers: {
-            select: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  username: true,
-                  birthday: true,
-                  birthdayVisibility: true,
+  // Upcoming birthdays for users sharing at least one group with the current
+  // user. We also load the viewer's friendships so we can enforce
+  // `birthdayVisibility === 'FRIENDS'` — otherwise a group-mate who isn't
+  // actually friends with the viewer would leak through.
+  const [memberships, friendships] = await Promise.all([
+    prisma.usersInGiftGroups.findMany({
+      where: {
+        userId,
+      },
+      select: {
+        giftGroup: {
+          select: {
+            id: true,
+            groupMembers: {
+              select: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    username: true,
+                    birthday: true,
+                    birthdayVisibility: true,
+                  },
                 },
               },
             },
           },
         },
       },
-    },
-  });
+    }),
+    prisma.friendship.findMany({
+      where: {
+        OR: [{ userAId: userId }, { userBId: userId }],
+      },
+      select: { userAId: true, userBId: true },
+    }),
+  ]);
+  const friendIds = new Set<string>();
+  for (const f of friendships) {
+    friendIds.add(f.userAId === userId ? f.userBId : f.userAId);
+  }
   const now = new Date();
   const sixtyDays = 60 * 24 * 60 * 60 * 1000;
 
@@ -113,11 +130,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
     for (const gm of m.giftGroup.groupMembers) {
       const u = gm.user;
       if (!u.birthday || u.id === userId) continue;
-      // Respect the owner's privacy choice — hide their upcoming birthday
-      // from the Home reminders panel when they've opted out. `FRIENDS` and
-      // `EVERYONE` both keep showing since anyone sharing a group with them
-      // is reading this panel.
+      // Respect the owner's privacy choice. NOBODY → always hide.
+      // FRIENDS → only show if the viewer is an actual friend (shared
+      //   group alone isn't enough, since this panel iterates
+      //   group-mates not friendships).
+      // EVERYONE → always show.
       if (u.birthdayVisibility === 'NOBODY') continue;
+      if (u.birthdayVisibility === 'FRIENDS' && !friendIds.has(u.id)) {
+        continue;
+      }
       const nextDate = nextBirthdayDate(u.birthday, now);
       const key = u.id;
       if (!birthdayMap.has(key)) {

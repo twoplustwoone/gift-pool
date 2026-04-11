@@ -54,11 +54,18 @@ export type BirthdayVisibility = (typeof BIRTHDAY_VISIBILITY_VALUES)[number];
 export const BirthdayVisibilitySchema = z.enum(BIRTHDAY_VISIBILITY_VALUES);
 
 // Accepts YYYY-MM-DD from a native date input, or an empty string (meaning
-// "clear the field"). Transforms to a Date at midnight UTC or null.
+// "clear the field"). Transforms to a Date at NOON UTC or null.
+//
+// Noon UTC is the same calendar date in every timezone from UTC-11 to
+// UTC+11, which covers every populated timezone. Midnight UTC would shift
+// the date backwards for users west of UTC (e.g. LA picks 1992-05-26 but
+// local-time getters read May 25), so we intentionally sit at the middle
+// of the day instead. Readers use `getUTCMonth` / `getUTCDate` to stay
+// consistent with storage (see `getUpcomingBirthday`).
 export const BirthdaySchema = z
   .union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)])
   .transform((value) => {
     if (!value) return null;
-    const parsed = new Date(`${value}T00:00:00.000Z`);
+    const parsed = new Date(`${value}T12:00:00.000Z`);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   });
