@@ -16,6 +16,7 @@ const friendUserSelect = {
   id: true,
   username: true,
   name: true,
+  birthday: true,
   image: { select: { id: true, altText: true } },
 } as const;
 

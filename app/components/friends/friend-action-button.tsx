@@ -362,23 +362,24 @@ export const FriendActionButton = ({
           </Button>
         );
       case 'PENDING_OUTGOING':
+        // Drop the disabled "Request sent" pseudo-button — the row's
+        // location in the Pending requests section already conveys that
+        // status, so the pill is dead weight that fights with the real
+        // Cancel action for visual attention. Just keep the actionable
+        // Cancel button.
         return (
-          <div className={cn('flex items-center gap-2', className)}>
-            <Button size={buttonSize} variant="secondary" disabled>
-              {t('friends.requestSent')}
-            </Button>
-            <Button
-              size={buttonSize}
-              variant="ghost"
-              onClick={handleCancelRequestClick}
-              disabled={isPending('cancel') || !canCancelOutgoing}
-            >
-              {isPending('cancel') ? (
-                <LuLoader className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-              ) : null}
-              {t('friends.cancelRequest')}
-            </Button>
-          </div>
+          <Button
+            size={buttonSize}
+            variant="secondary"
+            className={cn('gap-2', className)}
+            onClick={handleCancelRequestClick}
+            disabled={isPending('cancel') || !canCancelOutgoing}
+          >
+            {isPending('cancel') ? (
+              <LuLoader className="h-4 w-4 animate-spin" aria-hidden />
+            ) : null}
+            {t('friends.cancelRequest')}
+          </Button>
         );
       case 'PENDING_INCOMING':
         return (

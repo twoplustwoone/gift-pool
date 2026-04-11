@@ -37,7 +37,6 @@ export const en = {
     add: 'Add Friend',
     accept: 'Accept',
     reject: 'Reject',
-    requestSent: 'Request sent',
     cancelRequest: 'Cancel request',
     friends: 'Friends',
     remove: 'Remove friend',
