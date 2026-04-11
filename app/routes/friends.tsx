@@ -16,11 +16,17 @@ import { Button } from '#app/components/ui/button.tsx';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '#app/components/ui/dialog.tsx';
+import {
+  MobileBottomSheet,
+  MobileBottomSheetContent,
+  MobileBottomSheetDescription,
+  MobileBottomSheetHeader,
+  MobileBottomSheetTitle,
+} from '#app/components/ui/mobile-bottom-sheet.tsx';
 import { EmptyState } from '#app/components/ui/empty-state.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Skeleton } from '#app/components/ui/skeleton.tsx';
@@ -539,40 +545,40 @@ function InviteLinkPanel({
   if (!inviteUrl) {
     return (
       <Button onClick={onCreate} className="w-full">
-        <LuLink className="mr-2" /> Create Friend Link
+        <LuLink className="mr-2 h-4 w-4" aria-hidden /> Create invite link
       </Button>
     );
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+    <div className="flex min-w-0 flex-col gap-2">
       <Input
         readOnly
         aria-label="Friend invite link"
         value={inviteUrl}
         onClick={(event) => event.currentTarget.select()}
-        className="truncate"
+        className="font-mono text-xs"
       />
-      <div className="flex w-full flex-wrap items-center gap-2">
+      <div className="flex w-full items-center gap-2">
         <Button
           size="sm"
-          variant="ghost"
+          variant="secondary"
           aria-label="Copy invite link"
           onClick={onCopy}
-          className="min-w-[120px] flex-1 sm:flex-none"
+          className="flex-1"
         >
-          <LuCopy />
+          <LuCopy className="mr-2 h-4 w-4" aria-hidden />
+          Copy link
         </Button>
         <Button
           size="sm"
-          variant="ghost"
+          variant="secondary"
+          aria-label="Show QR code"
           onClick={onOpenQr}
-          className="min-w-[120px] flex-1 sm:flex-none"
+          className="flex-1"
         >
-          <LuQrCode className="md:mr-2" />
-          <Text size="sm" className="hidden md:block">
-            Show QR
-          </Text>
+          <LuQrCode className="mr-2 h-4 w-4" aria-hidden />
+          Show QR
         </Button>
       </div>
     </div>
@@ -1109,8 +1115,11 @@ function PendingRequestsCard({
   );
 }
 
-// "Add friend" primary button + dialog wrapper. Replaces the always-expanded
-// AddFriendsPanel section that lived at the top of the page.
+// "Add friend" primary button + responsive sheet wrapper. Uses
+// MobileBottomSheet so the surface renders as a bottom sheet on mobile
+// (matching the wishlist editor pattern) and as a centered dialog on
+// desktop. Replaces the always-expanded AddFriendsPanel section that
+// lived at the top of the page.
 function AddFriendDialog({
   q,
   setQ,
@@ -1130,14 +1139,14 @@ function AddFriendDialog({
         <LuPlus className="mr-2 h-4 w-4" aria-hidden />
         Add friend
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Add friend</DialogTitle>
-            <DialogDescription>
+      <MobileBottomSheet open={open} onOpenChange={setOpen}>
+        <MobileBottomSheetContent className="sm:max-w-md">
+          <MobileBottomSheetHeader>
+            <MobileBottomSheetTitle>Add a friend</MobileBottomSheetTitle>
+            <MobileBottomSheetDescription>
               Search by username or share an invite link.
-            </DialogDescription>
-          </DialogHeader>
+            </MobileBottomSheetDescription>
+          </MobileBottomSheetHeader>
           <AddFriendsPanel
             query={q}
             onQueryChange={setQ}
@@ -1146,8 +1155,8 @@ function AddFriendDialog({
               setOpen(false);
             }}
           />
-        </DialogContent>
-      </Dialog>
+        </MobileBottomSheetContent>
+      </MobileBottomSheet>
     </>
   );
 }
@@ -1413,13 +1422,17 @@ function AddFriendsPanel({
   }, [createInvite]);
 
   return (
-    <div className="mt-4 grid gap-4 md:grid-cols-2">
-      <div>
-        <div className="mb-2 text-sm font-medium">Search by username</div>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-medium" htmlFor="friend-username-search">
+          Search by username
+        </label>
         <Input
+          id="friend-username-search"
           placeholder="e.g. alice"
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
+          autoFocus
         />
         <SearchResultsPanel
           query={query}
@@ -1430,8 +1443,26 @@ function AddFriendsPanel({
           onOutgoingCreated={onOutgoingCreated}
         />
       </div>
-      <div>
-        <div className="mb-2 text-sm font-medium">Invite via link</div>
+
+      {/* Divider with "or" label so the two add-friend modes feel
+       * deliberately separated rather than competing for the same row. */}
+      <div
+        className="relative flex items-center"
+        role="separator"
+        aria-orientation="horizontal"
+      >
+        <div className="flex-1 border-t border-border" />
+        <span className="px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          or
+        </span>
+        <div className="flex-1 border-t border-border" />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="text-sm font-medium">Invite via link</div>
+        <p className="text-xs text-muted-foreground">
+          Share this link or QR code with anyone you want to add.
+        </p>
         <InviteLinkPanel
           inviteUrl={inviteUrl}
           onCopy={handleCopyInviteLink}
@@ -1439,6 +1470,7 @@ function AddFriendsPanel({
           onOpenQr={handleOpenQr}
         />
       </div>
+
       <InviteQrDialog
         open={qrOpen}
         qrDataUrl={qrDataUrl}
