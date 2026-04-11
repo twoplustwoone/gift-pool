@@ -102,7 +102,27 @@ export async function logEvent({
       const existing = await prisma.analyticsEvent.findUnique({
         where: { eventId: resolvedEventId },
       });
-      if (existing) return existing;
+      if (existing) {
+        // Server writes always win. When `queueLogEvent` fires the server
+        // insert off the request path, a matching client echo (hitting
+        // `/api/analytics` with the same eventId) can land first. In that
+        // case the row exists with `source: 'client'` and a partial
+        // payload — we upgrade it in place so the richer server-side
+        // properties are preserved.
+        if (source === 'server' && existing.source !== 'server') {
+          return await prisma.analyticsEvent.update({
+            where: { eventId: resolvedEventId },
+            data: {
+              source: 'server',
+              userId: userId ?? existing.userId,
+              requestId: requestId ?? existing.requestId,
+              sessionId: sessionId ?? existing.sessionId,
+              properties: serializedProperties ?? existing.properties,
+            },
+          });
+        }
+        return existing;
+      }
     }
     throw error;
   }
