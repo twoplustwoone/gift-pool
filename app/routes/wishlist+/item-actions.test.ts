@@ -13,14 +13,14 @@ import {
 } from '#tests/route-module-test-utils.ts';
 import { getSessionCookieHeader } from '#tests/utils.ts';
 
-const logEvent = vi.fn();
+const queueLogEvent = vi.fn();
 const requireUserWithPermission = vi.fn();
 const getRequestContext = vi.fn();
 const createToastHeaders = vi.fn();
 const redirectWithToast = vi.fn();
 
 vi.mock('#app/utils/analytics.server.ts', () => ({
-  logEvent: (...args: Array<unknown>) => logEvent(...args),
+  queueLogEvent: (...args: Array<unknown>) => queueLogEvent(...args),
 }));
 
 vi.mock('#app/utils/permissions.server.ts', () => ({
@@ -101,13 +101,13 @@ function createDeleteRequest({
 }
 
 beforeEach(() => {
-  logEvent.mockReset();
+  queueLogEvent.mockReset();
   requireUserWithPermission.mockReset();
   getRequestContext.mockReset();
   createToastHeaders.mockReset();
   redirectWithToast.mockReset();
 
-  logEvent.mockResolvedValue({ eventId: 'event-1' });
+  queueLogEvent.mockReturnValue({ eventId: 'event-1' });
   getRequestContext.mockResolvedValue({
     requestId: 'request-1',
     sessionId: 'session-1',
@@ -155,7 +155,7 @@ test('deletes an owned wishlist item and returns request, toast, and analytics d
     expect.any(Request),
     'delete:wishlistItem:own',
   );
-  expect(logEvent).toHaveBeenCalledWith(
+  expect(queueLogEvent).toHaveBeenCalledWith(
     expect.objectContaining({
       name: 'wishlist_item_archived',
       properties: expect.objectContaining({

@@ -4,14 +4,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const userFindFirst = vi.fn();
+const wishlistPublicShareFindUnique = vi.fn();
 const getRelationshipDetails = vi.fn();
-const logEvent = vi.fn();
+const queueLogEvent = vi.fn();
 const cleanupWishlistPurchasesForOwner = vi.fn();
 
 vi.mock('./db.server.ts', () => ({
   prisma: {
     user: {
       findFirst: (...args: Array<unknown>) => userFindFirst(...args),
+    },
+    wishlistPublicShare: {
+      findUnique: (...args: Array<unknown>) =>
+        wishlistPublicShareFindUnique(...args),
     },
   },
 }));
@@ -22,7 +27,7 @@ vi.mock('./friends.server.ts', () => ({
 }));
 
 vi.mock('./analytics.server.ts', () => ({
-  logEvent: (...args: Array<unknown>) => logEvent(...args),
+  queueLogEvent: (...args: Array<unknown>) => queueLogEvent(...args),
 }));
 
 vi.mock('./wishlist.server.ts', () => ({
@@ -30,7 +35,10 @@ vi.mock('./wishlist.server.ts', () => ({
     cleanupWishlistPurchasesForOwner(...args),
 }));
 
-import { loadFriendWishlistPageData } from './wishlist-page.server.ts';
+import {
+  loadFriendWishlistPageData,
+  loadOwnWishlistPageData,
+} from './wishlist-page.server.ts';
 
 function createOwnerSummary(overrides?: Partial<{
   id: string;
@@ -90,8 +98,10 @@ function createWishlistDetails() {
 
 beforeEach(() => {
   userFindFirst.mockReset();
+  wishlistPublicShareFindUnique.mockReset();
+  wishlistPublicShareFindUnique.mockResolvedValue(null);
   getRelationshipDetails.mockReset();
-  logEvent.mockReset();
+  queueLogEvent.mockReset();
   cleanupWishlistPurchasesForOwner.mockReset();
 });
 
@@ -116,7 +126,7 @@ describe('loadFriendWishlistPageData', () => {
       where: { username: 'alex' },
     });
     expect(getRelationshipDetails).not.toHaveBeenCalled();
-    expect(logEvent).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
     expect(cleanupWishlistPurchasesForOwner).not.toHaveBeenCalled();
   });
 
@@ -153,7 +163,7 @@ describe('loadFriendWishlistPageData', () => {
         wishlistItems: expect.anything(),
       }),
     });
-    expect(logEvent).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
     expect(cleanupWishlistPurchasesForOwner).not.toHaveBeenCalled();
   });
 
@@ -243,7 +253,7 @@ describe('loadFriendWishlistPageData', () => {
       where: { id: 'owner-1' },
     });
     expect(cleanupWishlistPurchasesForOwner).toHaveBeenCalledWith('owner-1');
-    expect(logEvent).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
   });
 
   it('logs a server analytics event for friend views when enabled', async () => {
@@ -256,7 +266,7 @@ describe('loadFriendWishlistPageData', () => {
       outgoing: null,
       state: 'FRIENDS',
     });
-    logEvent.mockResolvedValueOnce({ eventId: 'event-1' });
+    queueLogEvent.mockReturnValueOnce({ eventId: 'event-1' });
 
     await expect(
       loadFriendWishlistPageData({
@@ -274,7 +284,7 @@ describe('loadFriendWishlistPageData', () => {
       canViewWishlist: true,
     });
 
-    expect(logEvent).toHaveBeenCalledWith({
+    expect(queueLogEvent).toHaveBeenCalledWith({
       name: 'wishlist_viewed',
       properties: {
         itemCount: 2,
@@ -286,5 +296,81 @@ describe('loadFriendWishlistPageData', () => {
       source: 'server',
       userId: 'viewer-1',
     });
+  });
+});
+
+describe('loadOwnWishlistPageData', () => {
+  function createOwnUserRow() {
+    return {
+      id: 'owner-1',
+      image: { id: 'image-1' },
+      name: 'Alex',
+      username: 'alex',
+      wishlistCategories: [
+        { id: 'category-1', name: 'Books', order: 0 },
+      ],
+      wishlistItems: [
+        {
+          categoryId: 'category-1',
+          hasImage: false,
+          id: 'item-1',
+          imageSource: null,
+          note: null,
+          ownerId: 'owner-1',
+          sortOrder: 0,
+          status: 'ACTIVE',
+          title: 'Nintendo Switch',
+          type: 'text',
+          updatedAt: new Date('2026-03-01T00:00:00.000Z'),
+          url: null,
+        },
+      ],
+    };
+  }
+
+  it('schedules a wishlist_viewed event and returns its eventId for own views', async () => {
+    userFindFirst.mockResolvedValueOnce(createOwnUserRow());
+    queueLogEvent.mockReturnValueOnce({ eventId: 'queued-own-1' });
+
+    const result = await loadOwnWishlistPageData({
+      includeAnalytics: true,
+      origin: 'https://giftpool.app',
+      requestId: 'req-own',
+      sessionId: 'session-own',
+      userId: 'owner-1',
+    });
+
+    expect(result.analytics).toEqual({
+      requestId: 'req-own',
+      viewEventId: 'queued-own-1',
+    });
+    expect(result.publicShare).toBeNull();
+    expect(result.origin).toBe('https://giftpool.app');
+    expect(queueLogEvent).toHaveBeenCalledWith({
+      name: 'wishlist_viewed',
+      userId: 'owner-1',
+      source: 'server',
+      requestId: 'req-own',
+      sessionId: 'session-own',
+      properties: {
+        wishlistOwnerId: 'owner-1',
+        itemCount: 1,
+      },
+    });
+    expect(cleanupWishlistPurchasesForOwner).toHaveBeenCalledWith('owner-1');
+  });
+
+  it('skips the analytics event when includeAnalytics is false', async () => {
+    userFindFirst.mockResolvedValueOnce(createOwnUserRow());
+
+    const result = await loadOwnWishlistPageData({
+      includeAnalytics: false,
+      origin: 'https://giftpool.app',
+      userId: 'owner-1',
+    });
+
+    expect(queueLogEvent).not.toHaveBeenCalled();
+    expect(result.analytics.viewEventId).toBeNull();
+    expect(result.analytics.requestId).toBeNull();
   });
 });

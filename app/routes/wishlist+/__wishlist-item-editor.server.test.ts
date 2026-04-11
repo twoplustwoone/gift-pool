@@ -14,12 +14,12 @@ import {
 } from '#tests/route-module-test-utils.ts';
 import { getSessionCookieHeader } from '#tests/utils.ts';
 
-const logEvent = vi.fn();
+const queueLogEvent = vi.fn();
 const processImageFromFile = vi.fn();
 const processImageFromUrl = vi.fn();
 
 vi.mock('#app/utils/analytics.server.ts', () => ({
-  logEvent: (...args: Array<unknown>) => logEvent(...args),
+  queueLogEvent: (...args: Array<unknown>) => queueLogEvent(...args),
 }));
 
 vi.mock('#app/utils/wishlist-images.server.ts', () => ({
@@ -81,7 +81,7 @@ function createEditorRequest({
 }
 
 beforeEach(() => {
-  logEvent.mockReset();
+  queueLogEvent.mockReset();
   processImageFromFile.mockReset();
   processImageFromUrl.mockReset();
 });
@@ -105,7 +105,7 @@ describe('app/routes/wishlist+/__wishlist-item-editor.server.tsx', () => {
         type: 'text',
       },
     });
-    logEvent.mockResolvedValue({ eventId: 'analytics-1' });
+    queueLogEvent.mockReturnValue({ eventId: 'analytics-1' });
 
     const formData = new FormData();
     formData.set('intent', 'save-add-another');
@@ -159,7 +159,7 @@ describe('app/routes/wishlist+/__wishlist-item-editor.server.tsx', () => {
         REQUEST_ID_HEADER,
       ),
     ).toBe('request-1');
-    expect(logEvent).toHaveBeenCalledWith({
+    expect(queueLogEvent).toHaveBeenCalledWith({
       eventId: 'client-analytics-1',
       name: 'wishlist_item_added',
       properties: {
@@ -253,7 +253,7 @@ describe('app/routes/wishlist+/__wishlist-item-editor.server.tsx', () => {
       },
       toast: null,
     });
-    expect(logEvent).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
 
     await expect(
       prisma.wishlistItem.findUnique({
@@ -313,6 +313,6 @@ describe('app/routes/wishlist+/__wishlist-item-editor.server.tsx', () => {
       },
       requestId: 'request-3',
     });
-    expect(logEvent).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
   });
 });

@@ -2,7 +2,7 @@ import { parseWithZod } from '@conform-to/zod';
 import { createId as cuid } from '@paralleldrive/cuid2';
 import { data as rrData, type ActionFunctionArgs } from 'react-router';
 import { z } from 'zod';
-import { logEvent } from '#app/utils/analytics.server.ts';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getErrorMessage } from '#app/utils/misc.tsx';
@@ -433,7 +433,7 @@ export async function action({ request }: ActionFunctionArgs) {
       });
   let analyticsEventId: string | null = null;
   if (!existingItem && !imageError) {
-    const event = await logEvent({
+    const event = queueLogEvent({
       name: 'wishlist_item_added',
       userId,
       source: 'server',

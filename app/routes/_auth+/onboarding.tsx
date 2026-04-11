@@ -22,7 +22,7 @@ import { z } from 'zod';
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
-import { logEvent } from '#app/utils/analytics.server.ts';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import {
   requireAnonymous,
   sessionKey,
@@ -138,7 +138,7 @@ export async function action({ request }: ActionFunctionArgs) {
     'set-cookie',
     await verifySessionStorage.destroySession(verifySession),
   );
-  await logEvent({
+  queueLogEvent({
     name: 'user_registered',
     userId: session.userId,
     source: 'server',

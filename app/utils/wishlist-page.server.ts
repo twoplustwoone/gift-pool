@@ -1,6 +1,6 @@
 import { invariantResponse } from '@epic-web/invariant';
 import { type WishlistUser } from '#app/components/wishlist';
-import { logEvent } from './analytics.server.ts';
+import { queueLogEvent } from './analytics.server.ts';
 import { prisma } from './db.server.ts';
 import { getRelationshipDetails } from './friends.server.ts';
 import { cleanupWishlistPurchasesForOwner } from './wishlist.server.ts';
@@ -237,7 +237,7 @@ export async function loadOwnWishlistPageData({
 
   const wishlistItems = mapWishlistItems(user.wishlistItems);
   const viewEvent = includeAnalytics
-    ? await logEvent({
+    ? queueLogEvent({
         name: 'wishlist_viewed',
         userId,
         source: 'server',
@@ -338,7 +338,7 @@ export async function loadFriendWishlistPageData({
 
   const wishlistItems = mapWishlistItems(wishlistDetails.wishlistItems);
   const viewEvent = includeAnalytics
-    ? await logEvent({
+    ? queueLogEvent({
         name: 'wishlist_viewed',
         userId: viewerId,
         source: 'server',

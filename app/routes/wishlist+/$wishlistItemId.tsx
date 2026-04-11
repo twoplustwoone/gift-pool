@@ -2,7 +2,7 @@ import { parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
 import { data, type ActionFunctionArgs } from 'react-router';
 import { z } from 'zod';
-import { logEvent } from '#app/utils/analytics.server.ts';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { combineHeaders } from '#app/utils/misc.tsx';
@@ -69,7 +69,7 @@ export async function action({ request }: ActionFunctionArgs) {
       id: wishlistItem.id,
     },
   });
-  const event = await logEvent({
+  const event = queueLogEvent({
     name: 'wishlist_item_archived',
     userId,
     source: 'server',
