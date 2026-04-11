@@ -34,8 +34,10 @@ describe('app/routes/resources+/healthcheck.tsx', () => {
   });
 
   it('returns OK when the db ping and self HEAD succeed', async () => {
-    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = vi.fn<typeof fetch>(
+      async () => new Response(null, { status: 200 }),
+    );
+    globalThis.fetch = fetchMock;
 
     const response = await loader(
       makeArgs('https://giftpool.app/resources/healthcheck', {
@@ -56,8 +58,10 @@ describe('app/routes/resources+/healthcheck.tsx', () => {
   });
 
   it('prefers X-Forwarded-Host over host for the self-probe URL', async () => {
-    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const fetchMock = vi.fn<typeof fetch>(
+      async () => new Response(null, { status: 200 }),
+    );
+    globalThis.fetch = fetchMock;
 
     await loader(
       makeArgs('http://127.0.0.1:8080/resources/healthcheck', {
