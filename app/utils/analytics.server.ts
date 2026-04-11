@@ -49,6 +49,46 @@ function isUniqueEventIdError(error: unknown) {
   );
 }
 
+type RecoverFromConflictArgs = {
+  resolvedEventId: string;
+  source: AnalyticEventSource;
+  userId?: string | null;
+  requestId?: string | null;
+  sessionId?: string | null;
+  serializedProperties: string | null;
+};
+
+// Recover from a P2002 unique-violation on `eventId`. If a row already
+// exists, prefer the server payload: when the current write is
+// `source: 'server'` and the existing row is `source: 'client'`, upgrade
+// it in place so richer properties from the loader/action win the race
+// against the client echo fired via `/api/analytics`. Otherwise, return
+// the existing row unchanged (normal dedup).
+async function recoverFromEventIdConflict({
+  resolvedEventId,
+  source,
+  userId,
+  requestId,
+  sessionId,
+  serializedProperties,
+}: RecoverFromConflictArgs) {
+  const existing = await prisma.analyticsEvent.findUnique({
+    where: { eventId: resolvedEventId },
+  });
+  if (!existing) return null;
+  if (source !== 'server' || existing.source === 'server') return existing;
+  return prisma.analyticsEvent.update({
+    where: { eventId: resolvedEventId },
+    data: {
+      source: 'server',
+      userId: userId ?? existing.userId,
+      requestId: requestId ?? existing.requestId,
+      sessionId: sessionId ?? existing.sessionId,
+      properties: serializedProperties ?? existing.properties,
+    },
+  });
+}
+
 export async function logEvent({
   name,
   userId,
@@ -98,32 +138,16 @@ export async function logEvent({
       },
     });
   } catch (error) {
-    if (isUniqueEventIdError(error)) {
-      const existing = await prisma.analyticsEvent.findUnique({
-        where: { eventId: resolvedEventId },
-      });
-      if (existing) {
-        // Server writes always win. When `queueLogEvent` fires the server
-        // insert off the request path, a matching client echo (hitting
-        // `/api/analytics` with the same eventId) can land first. In that
-        // case the row exists with `source: 'client'` and a partial
-        // payload — we upgrade it in place so the richer server-side
-        // properties are preserved.
-        if (source === 'server' && existing.source !== 'server') {
-          return await prisma.analyticsEvent.update({
-            where: { eventId: resolvedEventId },
-            data: {
-              source: 'server',
-              userId: userId ?? existing.userId,
-              requestId: requestId ?? existing.requestId,
-              sessionId: sessionId ?? existing.sessionId,
-              properties: serializedProperties ?? existing.properties,
-            },
-          });
-        }
-        return existing;
-      }
-    }
+    if (!isUniqueEventIdError(error)) throw error;
+    const recovered = await recoverFromEventIdConflict({
+      resolvedEventId,
+      source,
+      userId,
+      requestId,
+      sessionId,
+      serializedProperties,
+    });
+    if (recovered) return recovered;
     throw error;
   }
 }
