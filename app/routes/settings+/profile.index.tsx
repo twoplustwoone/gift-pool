@@ -17,7 +17,7 @@ import {
   type LoaderFunctionArgs,
 } from 'react-router';
 import { z } from 'zod';
-import { ErrorList, Field } from '#app/components/forms.tsx';
+import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
@@ -29,7 +29,16 @@ import { prisma } from '#app/utils/db.server.ts';
 import { useDoubleCheck } from '#app/utils/misc.tsx';
 import { authSessionStorage } from '#app/utils/session.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
-import { NameSchema, UsernameSchema } from '#app/utils/user-validation.ts';
+import {
+  BIO_MAX_LENGTH,
+  BIRTHDAY_VISIBILITY_VALUES,
+  BioSchema,
+  BirthdaySchema,
+  BirthdayVisibilitySchema,
+  NameSchema,
+  UsernameSchema,
+  type BirthdayVisibility,
+} from '#app/utils/user-validation.ts';
 import { DangerZoneDeleteDialog } from './__danger-zone-delete-dialog.tsx';
 import { ProfilePhotoSheet } from './__profile-photo-sheet.tsx';
 import { twoFAVerificationType } from './profile.two-factor.tsx';
@@ -41,6 +50,12 @@ export const handle: SEOHandle = {
 const ProfileFormSchema = z.object({
   name: NameSchema.optional(),
   username: UsernameSchema,
+  bio: BioSchema.optional(),
+  birthday: BirthdaySchema.optional(),
+});
+
+const PrivacyFormSchema = z.object({
+  birthdayVisibility: BirthdayVisibilitySchema,
 });
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -52,6 +67,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
       name: true,
       username: true,
       email: true,
+      bio: true,
+      birthday: true,
+      birthdayVisibility: true,
       image: { select: { id: true } },
       _count: {
         select: {
@@ -89,6 +107,7 @@ type ProfileActionArgs = {
 };
 
 const profileUpdateActionIntent = 'update-profile';
+const privacyUpdateActionIntent = 'update-privacy';
 const signOutOfSessionsActionIntent = 'sign-out-of-sessions';
 const deleteDataActionIntent = 'delete-data';
 
@@ -99,6 +118,9 @@ export async function action({ request }: ActionFunctionArgs) {
   switch (intent) {
     case profileUpdateActionIntent: {
       return profileUpdateAction({ request, userId, formData });
+    }
+    case privacyUpdateActionIntent: {
+      return privacyUpdateAction({ request, userId, formData });
     }
     case signOutOfSessionsActionIntent: {
       return signOutOfSessionsAction({ request, userId, formData });
@@ -137,6 +159,7 @@ const SettingsProfileHub = () => {
 
       <ProfileCard onOpenPhoto={() => setPhotoOpen(true)} />
       <AccountCard />
+      <PrivacyCard />
       <PreferencesCard />
       <DataCard />
       <DangerZoneCard />
@@ -155,6 +178,13 @@ export default SettingsProfileHub;
 
 // ─── Profile card ──────────────────────────────────────────────────────────
 
+function toDateInputValue(value: Date | string | null | undefined) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
 function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof profileUpdateAction>();
@@ -168,6 +198,8 @@ function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
     defaultValue: {
       username: data.user.username,
       name: data.user.name,
+      bio: data.user.bio ?? '',
+      birthday: toDateInputValue(data.user.birthday),
     },
   });
 
@@ -222,6 +254,31 @@ function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
               errors={fields.name.errors}
             />
           </div>
+          <TextareaField
+            labelProps={{
+              htmlFor: fields.bio.id,
+              children: `Bio (up to ${BIO_MAX_LENGTH} characters)`,
+            }}
+            textareaProps={{
+              ...getInputProps(fields.bio, { type: 'text' }),
+              required: false,
+              rows: 3,
+              maxLength: BIO_MAX_LENGTH,
+              placeholder: 'Short blurb your friends will see on your profile.',
+            }}
+            errors={fields.bio.errors}
+          />
+          <Field
+            labelProps={{
+              htmlFor: fields.birthday.id,
+              children: 'Birthday',
+            }}
+            inputProps={{
+              ...getInputProps(fields.birthday, { type: 'date' }),
+              required: false,
+            }}
+            errors={fields.birthday.errors}
+          />
           <ErrorList errors={form.errors} id={form.errorId} />
           <div className="flex justify-end">
             <StatusButton
@@ -276,6 +333,96 @@ function AccountCard() {
           accessibleName={data.isTwoFactorEnabled ? 'Disable 2FA' : 'Enable 2FA'}
         />
       </div>
+    </Card>
+  );
+}
+
+// ─── Privacy card ──────────────────────────────────────────────────────────
+
+const PRIVACY_OPTIONS: ReadonlyArray<{
+  value: BirthdayVisibility;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: 'FRIENDS',
+    label: 'Friends only',
+    description: 'Only people you’re friends with on GiftPool can see it.',
+  },
+  {
+    value: 'EVERYONE',
+    label: 'Everyone',
+    description: 'Visible to anyone who lands on your profile.',
+  },
+  {
+    value: 'NOBODY',
+    label: 'Nobody',
+    description: 'Keep it private — nobody sees it on your profile.',
+  },
+];
+
+function PrivacyCard() {
+  const data = useLoaderData<typeof loader>();
+  const fetcher = useFetcher<typeof privacyUpdateAction>();
+  const currentValue =
+    (data.user.birthdayVisibility as BirthdayVisibility | undefined) ??
+    'FRIENDS';
+  // Optimistic reflection: while the fetcher is in-flight we show the
+  // pending value from its formData instead of waiting for the revalidation.
+  const pendingValue = fetcher.formData?.get('birthdayVisibility');
+  const selected =
+    typeof pendingValue === 'string' &&
+    (BIRTHDAY_VISIBILITY_VALUES as readonly string[]).includes(pendingValue)
+      ? (pendingValue as BirthdayVisibility)
+      : currentValue;
+
+  return (
+    <Card padding="lg" className="flex flex-col gap-5">
+      <SectionHeading
+        title="Privacy"
+        description="Control who can see personal details on your profile."
+      />
+      <fieldset className="flex flex-col gap-3">
+        <legend className="text-sm font-medium text-foreground">
+          Birthday visibility
+        </legend>
+        {PRIVACY_OPTIONS.map((option) => {
+          const id = `birthday-visibility-${option.value}`;
+          const isSelected = selected === option.value;
+          return (
+            <label
+              key={option.value}
+              htmlFor={id}
+              aria-label={option.label}
+              className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 transition hover:border-border"
+              data-selected={isSelected || undefined}
+            >
+              <input
+                id={id}
+                type="radio"
+                name="birthdayVisibility"
+                value={option.value}
+                checked={isSelected}
+                onChange={(event) => {
+                  const formData = new FormData();
+                  formData.set('intent', privacyUpdateActionIntent);
+                  formData.set('birthdayVisibility', event.currentTarget.value);
+                  void fetcher.submit(formData, { method: 'POST' });
+                }}
+                className="mt-0.5 h-4 w-4 accent-primary"
+              />
+              <span className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium text-foreground">
+                  {option.label}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {option.description}
+                </span>
+              </span>
+            </label>
+          );
+        })}
+      </fieldset>
     </Card>
   );
 }
@@ -465,13 +612,32 @@ async function profileUpdateAction({ userId, formData }: ProfileActionArgs) {
     );
   }
   const data = submission.value;
+  const trimmedBio = data.bio?.trim();
   await prisma.user.update({
     select: { username: true },
     where: { id: userId },
     data: {
       name: data.name,
       username: data.username,
+      bio: trimmedBio || null,
+      birthday: data.birthday ?? null,
     },
+  });
+  return { result: submission.reply() };
+}
+
+async function privacyUpdateAction({ userId, formData }: ProfileActionArgs) {
+  const submission = parseWithZod(formData, { schema: PrivacyFormSchema });
+  if (submission.status !== 'success') {
+    return rrData(
+      { result: submission.reply() },
+      { status: submission.status === 'error' ? 400 : 200 },
+    );
+  }
+  await prisma.user.update({
+    select: { id: true },
+    where: { id: userId },
+    data: { birthdayVisibility: submission.value.birthdayVisibility },
   });
   return { result: submission.reply() };
 }

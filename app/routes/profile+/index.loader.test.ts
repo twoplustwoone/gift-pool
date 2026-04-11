@@ -35,7 +35,9 @@ describe('app/routes/profile+/index.tsx loader', () => {
       image: { id: 'image-1' },
       name: 'Taylor',
       username: 'taylor',
+      bio: null,
       birthday: null,
+      birthdayVisibility: 'FRIENDS',
     });
     findMany.mockResolvedValue([
       {
@@ -56,7 +58,9 @@ describe('app/routes/profile+/index.tsx loader', () => {
 
     expect(findFirst).toHaveBeenCalledWith({
       select: {
+        bio: true,
         birthday: true,
+        birthdayVisibility: true,
         createdAt: true,
         id: true,
         image: { select: { id: true } },
@@ -73,7 +77,9 @@ describe('app/routes/profile+/index.tsx loader', () => {
         image: { id: 'image-1' },
         name: 'Taylor',
         username: 'taylor',
+        bio: null,
         birthday: null,
+        birthdayVisibility: 'FRIENDS',
       },
       userJoinedDisplay: new Date(
         '2024-05-12T00:00:00.000Z',

@@ -70,4 +70,25 @@ describe('<ProfileHeader />', () => {
       screen.getByRole('button', { name: 'Custom action' }),
     ).toBeInTheDocument();
   });
+
+  it('renders the bio paragraph under the handle when provided', () => {
+    renderHeader({ bio: 'Coffee nerd, vinyl collector.' });
+    expect(
+      screen.getByText('Coffee nerd, vinyl collector.'),
+    ).toBeInTheDocument();
+  });
+
+  it('omits the bio paragraph when bio is null, undefined, or whitespace only', () => {
+    const { rerender } = renderHeader({ bio: null });
+    expect(
+      screen.queryByText('Coffee nerd, vinyl collector.'),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter>
+        <ProfileHeader user={baseUser} bio="   " />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText('   ')).not.toBeInTheDocument();
+  });
 });

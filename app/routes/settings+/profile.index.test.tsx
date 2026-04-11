@@ -11,6 +11,9 @@ type LoaderUser = {
   name: string | null;
   username: string;
   email: string;
+  bio: string | null;
+  birthday: Date | null;
+  birthdayVisibility: string;
   image: { id: string } | null;
   _count: { sessions: number };
 };
@@ -25,6 +28,9 @@ const loaderDataSnapshot: {
     name: 'Wade Wilson',
     username: 'wade',
     email: 'wade@example.com',
+    bio: 'Mercenary with a mouth.',
+    birthday: new Date('1992-05-26T00:00:00.000Z'),
+    birthdayVisibility: 'FRIENDS',
     image: { id: 'image-1' },
     _count: { sessions: 3 },
   },
@@ -97,6 +103,9 @@ describe('<SettingsProfileHub />', () => {
       screen.getByRole('heading', { level: 2, name: 'Account' }),
     ).toBeInTheDocument();
     expect(
+      screen.getByRole('heading', { level: 2, name: 'Privacy' }),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole('heading', { level: 2, name: 'Preferences' }),
     ).toBeInTheDocument();
     expect(
@@ -105,6 +114,45 @@ describe('<SettingsProfileHub />', () => {
     expect(
       screen.getByRole('heading', { level: 2, name: 'Danger zone' }),
     ).toBeInTheDocument();
+  });
+
+  it('populates the bio and birthday fields from loader data', () => {
+    const { container } = renderHub();
+    const bio = container.querySelector(
+      'textarea[name="bio"]',
+    ) as HTMLTextAreaElement;
+    const birthday = container.querySelector(
+      'input[name="birthday"]',
+    ) as HTMLInputElement;
+    expect(bio.value).toBe('Mercenary with a mouth.');
+    expect(birthday.value).toBe('1992-05-26');
+    expect(birthday.type).toBe('date');
+  });
+
+  it('renders all three birthday visibility options with FRIENDS selected by default', () => {
+    const { container } = renderHub();
+    const radios = container.querySelectorAll<HTMLInputElement>(
+      'input[name="birthdayVisibility"]',
+    );
+    expect(radios).toHaveLength(3);
+    const byValue = new Map<string, HTMLInputElement>();
+    radios.forEach((r) => byValue.set(r.value, r));
+    expect(byValue.get('FRIENDS')?.checked).toBe(true);
+    expect(byValue.get('EVERYONE')?.checked).toBe(false);
+    expect(byValue.get('NOBODY')?.checked).toBe(false);
+  });
+
+  it('reflects a non-default birthdayVisibility from loader data', () => {
+    loaderDataSnapshot.user.birthdayVisibility = 'NOBODY';
+    const { container } = renderHub();
+    const radios = container.querySelectorAll<HTMLInputElement>(
+      'input[name="birthdayVisibility"]',
+    );
+    const byValue = new Map<string, HTMLInputElement>();
+    radios.forEach((r) => byValue.set(r.value, r));
+    expect(byValue.get('NOBODY')?.checked).toBe(true);
+    expect(byValue.get('FRIENDS')?.checked).toBe(false);
+    loaderDataSnapshot.user.birthdayVisibility = 'FRIENDS';
   });
 
   it('populates the username + name form from loader data', () => {

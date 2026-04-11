@@ -83,7 +83,9 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       name: true,
       username: true,
       createdAt: true,
+      bio: true,
       birthday: true,
+      birthdayVisibility: true,
       image: {
         select: {
           id: true,
@@ -143,7 +145,9 @@ type FriendProfileViewProps = Readonly<{
     id: string;
     username: string;
     name: string | null;
+    bio: string | null;
     birthday: Date | string | null;
+    birthdayVisibility: string;
     image: { id: string } | null;
   };
   userJoinedDisplay: string;
@@ -158,7 +162,11 @@ function FriendProfileView({
   profileData,
 }: FriendProfileViewProps) {
   const userDisplayName = user.name ?? user.username;
-  const upcoming = getUpcomingBirthday(user.birthday);
+  // Viewer is already a confirmed friend to reach this view, so we only
+  // need to suppress the pill when the owner has opted into NOBODY. EVERYONE
+  // and FRIENDS both end up rendering it.
+  const birthdayHidden = user.birthdayVisibility === 'NOBODY';
+  const upcoming = birthdayHidden ? null : getUpcomingBirthday(user.birthday);
   const birthdayLabel =
     upcoming && upcoming.daysUntil <= BIRTHDAY_VISIBILITY_DAYS
       ? formatBirthdayLabel(upcoming.date, upcoming.daysUntil)
@@ -168,6 +176,7 @@ function FriendProfileView({
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:py-14">
       <ProfileHeader
         user={user}
+        bio={user.bio}
         birthdayLabel={birthdayLabel}
         joinedDisplay={userJoinedDisplay}
         actions={

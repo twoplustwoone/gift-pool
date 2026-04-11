@@ -245,6 +245,7 @@ type FriendUser = {
   name: string | null;
   username: string;
   birthday: Date | null;
+  birthdayVisibility: string;
 };
 
 function createUser(id: string, username: string, name = username): FriendUser {
@@ -254,6 +255,7 @@ function createUser(id: string, username: string, name = username): FriendUser {
     name,
     username,
     birthday: null,
+    birthdayVisibility: 'FRIENDS',
   };
 }
 

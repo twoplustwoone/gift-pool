@@ -28,7 +28,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
       name: true,
       username: true,
       createdAt: true,
+      bio: true,
       birthday: true,
+      birthdayVisibility: true,
       image: {
         select: {
           id: true,
@@ -93,6 +95,7 @@ const ProfileIndex = () => {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:py-14">
       <ProfileHeader
         user={user}
+        bio={user.bio}
         birthdayLabel={birthdayLabel}
         joinedDisplay={data.userJoinedDisplay}
         actions={
