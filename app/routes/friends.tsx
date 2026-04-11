@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  LuCopy,
-  LuHeart,
-  LuLink,
-  LuQrCode,
-  LuTrash,
-  LuUser,
-} from 'react-icons/lu';
+import { LuCopy, LuLink, LuPlus, LuQrCode } from 'react-icons/lu';
 import { Link, Outlet, useLoaderData, useSearchParams,
   type ClientLoaderFunctionArgs,
   type LoaderFunctionArgs,
@@ -16,14 +9,14 @@ import {
   FriendActionButton,
   type RelationshipSnapshot,
 } from '#app/components/friends/friend-action-button.tsx';
-import { FriendSummary } from '#app/components/friends/friend-summary.tsx';
+import { FriendRow as FriendRowCard } from '#app/components/friends/friend-row.tsx';
 import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
-import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -91,61 +84,6 @@ type FriendRequestRowProps = Readonly<{
   selectMode: boolean;
   user: RequestListEntryUser;
 }>;
-type IncomingRequestSectionProps = Readonly<{
-  incoming: IncomingEntry[];
-  isSelectMode: boolean;
-  onStateChange: (
-    requestId: string,
-    user: IncomingEntry['fromUser'],
-  ) => (snapshot: RelationshipSnapshot) => void;
-  onToggleMode: () => void;
-  onToggleSelected: (requestId: string, selected: boolean) => void;
-  selectedIncoming: Set<string>;
-  t: TranslateFn;
-}>;
-type OutgoingRequestSectionProps = Readonly<{
-  isSelectMode: boolean;
-  onStateChange: (
-    requestId: string,
-    user: OutgoingEntry['toUser'],
-  ) => (snapshot: RelationshipSnapshot) => void;
-  onToggleMode: () => void;
-  onToggleSelected: (requestId: string, selected: boolean) => void;
-  outgoing: OutgoingEntry[];
-  selectedOutgoing: Set<string>;
-  t: TranslateFn;
-}>;
-type RequestSelectionBarProps = Readonly<{
-  onAccept: () => void;
-  onCancel: () => void;
-  onDecline: () => void;
-  selectedIncoming: Set<string>;
-  selectedOutgoing: Set<string>;
-}>;
-type FriendRowActionsProps = Readonly<{
-  displayName: string;
-  friend: FriendEntry;
-  onRemove: (friend: FriendEntry) => Promise<void>;
-  t: TranslateFn;
-}>;
-type FriendRowProps = Readonly<{
-  friend: FriendEntry;
-  mutuals: Record<
-    string,
-    {
-      groups: Array<{
-        id: string;
-        name: string;
-      }>;
-      more: number;
-    }
-  >;
-  onClose: () => void;
-  onOpen: () => void;
-  onRemove: (friend: FriendEntry) => Promise<void>;
-  open: boolean;
-  t: TranslateFn;
-}>;
 type SearchResultRowProps = Readonly<{
   onOutgoingCreated?: (
     requestId: string,
@@ -178,37 +116,6 @@ type InviteQrDialogProps = Readonly<{
   qrDataUrl: string | null;
 }>;
 type FriendsTab = 'add' | 'requests' | 'friends';
-type FriendsMobileHeaderProps = Readonly<{
-  activeTab: FriendsTab;
-  friendsFilter: string;
-  onFriendsFilterChange: (value: string) => void;
-  onTabChange: (value: FriendsTab) => void;
-}>;
-type FriendsRequestsPanelProps = Readonly<{
-  acceptSelectedIncoming: () => Promise<void>;
-  anySelected: boolean;
-  cancelSelectedOutgoing: () => Promise<void>;
-  declineSelectedIncoming: () => Promise<void>;
-  incomingSelectMode: boolean;
-  incomingState: IncomingEntry[];
-  onHandleIncomingSelection: (requestId: string, selected: boolean) => void;
-  onHandleOutgoingSelection: (requestId: string, selected: boolean) => void;
-  onHandleIncomingTransition: (
-    requestId: string,
-    user: IncomingEntry['fromUser'],
-  ) => (snapshot: RelationshipSnapshot) => void;
-  onHandleOutgoingTransition: (
-    requestId: string,
-    user: OutgoingEntry['toUser'],
-  ) => (snapshot: RelationshipSnapshot) => void;
-  onToggleIncomingSelectMode: () => void;
-  onToggleOutgoingSelectMode: () => void;
-  outgoingSelectMode: boolean;
-  outgoingState: OutgoingEntry[];
-  selectedIncoming: Set<string>;
-  selectedOutgoing: Set<string>;
-  t: TranslateFn;
-}>;
 type FriendsListSectionProps = Readonly<{
   activeTab: FriendsTab;
   filteredFriends: FriendEntry[];
@@ -248,6 +155,9 @@ export function buildFriendEntry(
     friendshipId: friendshipId ?? requestId,
     createdAt: new Date(),
     user,
+    // Optimistic entries (just-accepted friend requests) start without
+    // mutual-groups data. The next loader run will fill them in.
+    mutualGroups: [],
   };
 }
 
@@ -374,6 +284,53 @@ export function filterFriends(
   });
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const BIRTHDAY_SORT_WINDOW_DAYS = 60;
+
+// Days from `today` until this friend's next birthday (clamped to a year).
+// Returns Infinity for friends without a birthday — they sort to the bottom.
+function daysUntilNextBirthday(birthday: Date | string | null, today: Date) {
+  if (!birthday) return Number.POSITIVE_INFINITY;
+  const parsed = birthday instanceof Date ? birthday : new Date(birthday);
+  if (Number.isNaN(parsed.getTime())) return Number.POSITIVE_INFINITY;
+  const candidate = new Date(
+    today.getFullYear(),
+    parsed.getMonth(),
+    parsed.getDate(),
+  );
+  if (candidate.getTime() < today.getTime()) {
+    candidate.setFullYear(candidate.getFullYear() + 1);
+  }
+  return Math.round((candidate.getTime() - today.getTime()) / MS_PER_DAY);
+}
+
+// Sort friends so the people you most need to think about gifting come
+// first: anyone whose birthday is within the next 60 days, ordered by
+// soonest first; everyone else falls back to alphabetical by display
+// name. Stable enough to look ordered, useful enough that the list
+// surfaces something actionable above the fold.
+export function sortFriendsByUpcomingBirthday(
+  friends: FriendEntry[],
+  now: Date = new Date(),
+): FriendEntry[] {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const withMeta = friends.map((friend, index) => ({
+    friend,
+    days: daysUntilNextBirthday(friend.user.birthday, today),
+    name: (friend.user.name ?? friend.user.username).toLowerCase(),
+    index,
+  }));
+  withMeta.sort((a, b) => {
+    const aSoon = a.days <= BIRTHDAY_SORT_WINDOW_DAYS;
+    const bSoon = b.days <= BIRTHDAY_SORT_WINDOW_DAYS;
+    if (aSoon && bSoon) return a.days - b.days || a.name.localeCompare(b.name);
+    if (aSoon) return -1;
+    if (bSoon) return 1;
+    return a.name.localeCompare(b.name);
+  });
+  return withMeta.map((entry) => entry.friend);
+}
+
 export function toggleSelection(set: Set<string>, id: string, selected: boolean) {
   const next = new Set(set);
   if (selected) next.add(id);
@@ -481,233 +438,6 @@ function FriendRequestRow({
         />
       )}
     </li>
-  );
-}
-
-function IncomingRequestSection({
-  incoming,
-  isSelectMode,
-  onStateChange,
-  onToggleMode,
-  onToggleSelected,
-  selectedIncoming,
-  t,
-}: IncomingRequestSectionProps) {
-  if (incoming.length === 0) return null;
-
-  return (
-    <section id="incoming-requests">
-      <h2 className="text-lg font-semibold">{t('friends.incomingRequests')}</h2>
-      <div className="mt-2 flex items-center justify-between">
-        <div className="text-xs text-muted-foreground">
-          {isSelectMode
-            ? `${selectedIncoming.size} selected`
-            : `${incoming.length} pending`}
-        </div>
-        <Button size="sm" variant="ghost" onClick={onToggleMode}>
-          {isSelectMode ? 'Done' : 'Select'}
-        </Button>
-      </div>
-      <ul className="mt-3 space-y-3">
-        {incoming.map((request) => {
-          const user = request.fromUser;
-          const selected = selectedIncoming.has(request.id);
-          return (
-            <FriendRequestRow
-              key={request.id}
-              user={user}
-              requestId={request.id}
-              selected={selected}
-              selectMode={isSelectMode}
-              onToggleSelected={onToggleSelected}
-              relationship={{
-                state: 'PENDING_INCOMING',
-                friendshipId: null,
-                incomingRequestId: request.id,
-                outgoingRequestId: null,
-              }}
-              onStateChange={onStateChange(request.id, user)}
-            />
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
-
-function OutgoingRequestSection({
-  isSelectMode,
-  onStateChange,
-  onToggleMode,
-  onToggleSelected,
-  outgoing,
-  selectedOutgoing,
-  t,
-}: OutgoingRequestSectionProps) {
-  if (outgoing.length === 0) return null;
-
-  return (
-    <section id="outgoing-requests">
-      <h2 className="text-lg font-semibold">{t('friends.outgoingRequests')}</h2>
-      <div className="mt-2 flex items-center justify-between">
-        <div className="text-xs text-muted-foreground">
-          {isSelectMode
-            ? `${selectedOutgoing.size} selected`
-            : `${outgoing.length} pending`}
-        </div>
-        <Button size="sm" variant="ghost" onClick={onToggleMode}>
-          {isSelectMode ? 'Done' : 'Select'}
-        </Button>
-      </div>
-      <ul className="mt-3 space-y-3">
-        {outgoing.map((request) => {
-          const user = request.toUser;
-          const selected = selectedOutgoing.has(request.id);
-          return (
-            <FriendRequestRow
-              key={request.id}
-              user={user}
-              requestId={request.id}
-              selected={selected}
-              selectMode={isSelectMode}
-              onToggleSelected={onToggleSelected}
-              relationship={{
-                state: 'PENDING_OUTGOING',
-                friendshipId: null,
-                incomingRequestId: null,
-                outgoingRequestId: request.id,
-              }}
-              onStateChange={onStateChange(request.id, user)}
-            />
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
-
-function RequestSelectionBar({
-  onAccept,
-  onCancel,
-  onDecline,
-  selectedIncoming,
-  selectedOutgoing,
-}: RequestSelectionBarProps) {
-  const totalSelected = selectedIncoming.size + selectedOutgoing.size;
-  if (totalSelected === 0) return null;
-
-  return (
-    <div className="sticky bottom-0 z-10 mt-4 rounded-t-xl border border-border bg-card p-3 shadow-lg">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-muted-foreground">{totalSelected} selected</div>
-        <div className="flex flex-wrap items-center gap-2">
-          {selectedIncoming.size > 0 ? (
-            <>
-              <Button size="sm" onClick={onAccept}>
-                Accept ({selectedIncoming.size})
-              </Button>
-              <Button size="sm" variant="secondary" onClick={onDecline}>
-                Decline ({selectedIncoming.size})
-              </Button>
-            </>
-          ) : null}
-          {selectedOutgoing.size > 0 ? (
-            <Button size="sm" variant="secondary" onClick={onCancel}>
-              Cancel ({selectedOutgoing.size})
-            </Button>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FriendRowActions({
-  displayName,
-  friend,
-  onRemove,
-  t,
-}: FriendRowActionsProps) {
-  const user = friend.user;
-
-  return (
-    <div className="flex items-center gap-2">
-      <Button
-        asChild
-        size="sm"
-        variant="default"
-        aria-label={t('friends.viewWishlist')}
-      >
-        <Link to={`/users/${user.username}/wishlist`}>
-          <LuHeart />
-          <span className="ml-2 hidden sm:inline">{t('friends.viewWishlist')}</span>
-        </Link>
-      </Button>
-      <Button
-        asChild
-        size="sm"
-        variant="secondary"
-        aria-label={t('friends.viewProfile')}
-      >
-        <Link to={`/users/${user.username}`}>
-          <LuUser />
-          <span className="ml-2 hidden sm:inline">{t('friends.viewProfile')}</span>
-        </Link>
-      </Button>
-      <ConfirmDialog
-        title={t('friends.removeConfirmTitle')}
-        description={
-          <p className="text-sm text-muted-foreground">
-            {t('friends.removeConfirmDescription', {
-              name: displayName,
-            })}
-          </p>
-        }
-        confirmText={t('friends.removeConfirmConfirm')}
-        onConfirm={() => onRemove(friend)}
-      >
-        <Button size="sm" variant="destructive" aria-label={t('friends.remove')}>
-          <LuTrash />
-          <span className="ml-2 hidden sm:inline">{t('friends.remove')}</span>
-        </Button>
-      </ConfirmDialog>
-    </div>
-  );
-}
-
-function FriendRow({
-  friend,
-  mutuals,
-  onClose,
-  onOpen,
-  onRemove,
-  open,
-  t,
-}: FriendRowProps) {
-  const user = friend.user;
-  const displayName = user.name ?? user.username;
-  const chips = getMutualGroupChips(mutuals, user.id);
-
-  return (
-    <SwipeableFriendRow
-      open={open}
-      onOpen={onOpen}
-      onClose={onClose}
-      rightActions={null}
-    >
-      <FriendSummary
-        user={user}
-        displayName={displayName}
-        mutualGroups={chips.mutualGroups}
-        extraGroupCount={chips.extraGroupCount}
-      />
-      <FriendRowActions
-        displayName={displayName}
-        friend={friend}
-        onRemove={onRemove}
-        t={t}
-      />
-    </SwipeableFriendRow>
   );
 }
 
@@ -1027,7 +757,7 @@ function useFriendsSearchParams() {
 
 function useFriendsRouteState({
   data,
-  setUnreadCount,
+  setUnreadCount: _setUnreadCount,
 }: UseFriendsRouteStateOptions) {
   const [friendsState, setFriendsState] = useState<FriendEntry[]>(data.friends);
   const [incomingState, setIncomingState] = useState<IncomingEntry[]>(
@@ -1035,74 +765,6 @@ function useFriendsRouteState({
   );
   const [outgoingState, setOutgoingState] = useState<OutgoingEntry[]>(
     data.outgoing,
-  );
-  const [incomingSelectMode, setIncomingSelectMode] = useState(false);
-  const [outgoingSelectMode, setOutgoingSelectMode] = useState(false);
-  const [selectedIncoming, setSelectedIncoming] = useState<Set<string>>(
-    new Set(),
-  );
-  const [selectedOutgoing, setSelectedOutgoing] = useState<Set<string>>(
-    new Set(),
-  );
-  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
-  const [mutuals] = useState<
-    Record<
-      string,
-      {
-        groups: Array<{
-          id: string;
-          name: string;
-        }>;
-        more: number;
-      }
-    >
-  >({});
-
-  const anySelected =
-    (incomingSelectMode && selectedIncoming.size > 0) ||
-    (outgoingSelectMode && selectedOutgoing.size > 0);
-
-  const resetSelection = useCallback(() => {
-    setIncomingSelectMode(false);
-    setOutgoingSelectMode(false);
-    setSelectedIncoming(new Set());
-    setSelectedOutgoing(new Set());
-  }, []);
-
-  const batchAccept = useCallback(
-    async (ids: string[]) => {
-      await runOptimisticRequestBatch(
-        ids,
-        'accept',
-        incomingState,
-        setIncomingState,
-        setUnreadCount,
-      );
-    },
-    [incomingState, setUnreadCount],
-  );
-  const batchDecline = useCallback(
-    async (ids: string[]) => {
-      await runOptimisticRequestBatch(
-        ids,
-        'reject',
-        incomingState,
-        setIncomingState,
-        setUnreadCount,
-      );
-    },
-    [incomingState, setUnreadCount],
-  );
-  const batchCancel = useCallback(
-    async (ids: string[]) => {
-      await runOptimisticRequestBatch(
-        ids,
-        'cancel',
-        outgoingState,
-        setOutgoingState,
-      );
-    },
-    [outgoingState],
   );
 
   useEffect(() => {
@@ -1123,7 +785,9 @@ function useFriendsRouteState({
     (requestId: string, user: IncomingEntry['fromUser']) =>
       (snapshot: RelationshipSnapshot) => {
         if (snapshot.state === 'FRIENDS') {
-          addFriendEntry(buildFriendEntry(requestId, user, snapshot.friendshipId));
+          addFriendEntry(
+            buildFriendEntry(requestId, user, snapshot.friendshipId),
+          );
         }
         setIncomingState((prev) =>
           applyIncomingRelationshipTransition(prev, requestId, snapshot),
@@ -1135,7 +799,9 @@ function useFriendsRouteState({
     (requestId: string, user: OutgoingEntry['toUser']) =>
       (snapshot: RelationshipSnapshot) => {
         if (snapshot.state === 'FRIENDS') {
-          addFriendEntry(buildFriendEntry(requestId, user, snapshot.friendshipId));
+          addFriendEntry(
+            buildFriendEntry(requestId, user, snapshot.friendshipId),
+          );
         }
         setOutgoingState((prev) =>
           applyOutgoingRelationshipTransition(prev, requestId, snapshot),
@@ -1160,156 +826,15 @@ function useFriendsRouteState({
       );
   }, [addFriendEntry]);
 
-  const toggleIncomingSelectMode = useCallback(() => {
-    setIncomingSelectMode((value) => !value);
-    setSelectedIncoming(new Set());
-  }, []);
-  const toggleOutgoingSelectMode = useCallback(() => {
-    setOutgoingSelectMode((value) => !value);
-    setSelectedOutgoing(new Set());
-  }, []);
-  const handleIncomingSelection = useCallback(
-    (requestId: string, selected: boolean) => {
-      setSelectedIncoming((prev) => toggleSelection(prev, requestId, selected));
-    },
-    [],
-  );
-  const handleOutgoingSelection = useCallback(
-    (requestId: string, selected: boolean) => {
-      setSelectedOutgoing((prev) => toggleSelection(prev, requestId, selected));
-    },
-    [],
-  );
-  const acceptSelectedIncoming = useCallback(async () => {
-    await batchAccept(Array.from(selectedIncoming));
-    resetSelection();
-  }, [batchAccept, resetSelection, selectedIncoming]);
-  const declineSelectedIncoming = useCallback(async () => {
-    await batchDecline(Array.from(selectedIncoming));
-    resetSelection();
-  }, [batchDecline, resetSelection, selectedIncoming]);
-  const cancelSelectedOutgoing = useCallback(async () => {
-    await batchCancel(Array.from(selectedOutgoing));
-    resetSelection();
-  }, [batchCancel, resetSelection, selectedOutgoing]);
-
   return {
-    acceptSelectedIncoming,
-    addFriendEntry,
-    anySelected,
-    cancelSelectedOutgoing,
-    declineSelectedIncoming,
     friendsState,
-    handleIncomingSelection,
     handleIncomingTransition,
-    handleOutgoingSelection,
     handleOutgoingTransition,
-    incomingSelectMode,
     incomingState,
-    mutuals,
-    openSwipeId,
-    outgoingSelectMode,
     outgoingState,
-    selectedIncoming,
-    selectedOutgoing,
     setFriendsState,
-    setOpenSwipeId,
     setOutgoingState,
-    toggleIncomingSelectMode,
-    toggleOutgoingSelectMode,
   };
-}
-
-function FriendsMobileHeader({
-  activeTab,
-  friendsFilter,
-  onFriendsFilterChange,
-  onTabChange,
-}: FriendsMobileHeaderProps) {
-  return (
-    <div className="sticky top-0 z-10 -mx-4 mb-4 border-b border-border bg-background/80 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:hidden">
-      <div className="mx-auto max-w-3xl">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-center">
-          <SegmentedTabs value={activeTab} onChange={onTabChange} />
-          {activeTab === 'friends' ? (
-            <div className="sm:col-span-2">
-              <Input
-                value={friendsFilter}
-                onChange={(event) => onFriendsFilterChange(event.currentTarget.value)}
-                placeholder="Search friends"
-                aria-label="Search"
-              />
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FriendsRequestsPanel({
-  acceptSelectedIncoming,
-  anySelected,
-  cancelSelectedOutgoing,
-  declineSelectedIncoming,
-  incomingSelectMode,
-  incomingState,
-  onHandleIncomingSelection,
-  onHandleOutgoingSelection,
-  onHandleIncomingTransition,
-  onHandleOutgoingTransition,
-  onToggleIncomingSelectMode,
-  onToggleOutgoingSelectMode,
-  outgoingSelectMode,
-  outgoingState,
-  selectedIncoming,
-  selectedOutgoing,
-  t,
-}: FriendsRequestsPanelProps) {
-  return (
-    <>
-      {incomingState.length > 0 ? (
-        <IncomingRequestSection
-          incoming={incomingState}
-          isSelectMode={incomingSelectMode}
-          onStateChange={onHandleIncomingTransition}
-          onToggleMode={onToggleIncomingSelectMode}
-          onToggleSelected={onHandleIncomingSelection}
-          selectedIncoming={selectedIncoming}
-          t={t}
-        />
-      ) : null}
-
-      {outgoingState.length > 0 ? (
-        <OutgoingRequestSection
-          isSelectMode={outgoingSelectMode}
-          onStateChange={onHandleOutgoingTransition}
-          onToggleMode={onToggleOutgoingSelectMode}
-          onToggleSelected={onHandleOutgoingSelection}
-          outgoing={outgoingState}
-          selectedOutgoing={selectedOutgoing}
-          t={t}
-        />
-      ) : null}
-
-      {anySelected ? (
-        <RequestSelectionBar
-          onAccept={acceptSelectedIncoming}
-          onCancel={cancelSelectedOutgoing}
-          onDecline={declineSelectedIncoming}
-          selectedIncoming={selectedIncoming}
-          selectedOutgoing={selectedOutgoing}
-        />
-      ) : null}
-
-      {incomingState.length === 0 && outgoingState.length === 0 ? (
-        <EmptyState
-          title="No requests"
-          description="You don't have any incoming or outgoing requests."
-        />
-      ) : null}
-    </>
-  );
 }
 
 function FriendsListSection({
@@ -1510,42 +1035,145 @@ function useInviteLinkController() {
     qrOpen,
   };
 }
+// Combined incoming + outgoing pending requests in a single card. Replaces
+// the previous IncomingRequestSection + OutgoingRequestSection split which
+// each had its own multi-select mode and dedicated header.
+function PendingRequestsCard({
+  incomingState,
+  outgoingState,
+  onIncomingTransition,
+  onOutgoingTransition,
+}: {
+  incomingState: IncomingEntry[];
+  outgoingState: OutgoingEntry[];
+  onIncomingTransition: (
+    requestId: string,
+    user: IncomingEntry['fromUser'],
+  ) => (snapshot: RelationshipSnapshot) => void;
+  onOutgoingTransition: (
+    requestId: string,
+    user: OutgoingEntry['toUser'],
+  ) => (snapshot: RelationshipSnapshot) => void;
+}) {
+  const total = incomingState.length + outgoingState.length;
+  if (total === 0) return null;
+
+  return (
+    <section
+      id="pending-requests"
+      className="rounded-xl border border-border bg-card p-4 shadow-sm"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-base font-semibold">Pending requests</h2>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+          {total}
+        </span>
+      </div>
+      <ul className="mt-3 space-y-2">
+        {incomingState.map((request) => (
+          <FriendRequestRow
+            key={request.id}
+            requestId={request.id}
+            user={request.fromUser}
+            relationship={{
+              state: 'PENDING_INCOMING',
+              friendshipId: null,
+              incomingRequestId: request.id,
+              outgoingRequestId: null,
+            }}
+            selected={false}
+            selectMode={false}
+            onToggleSelected={() => {}}
+            onStateChange={onIncomingTransition(request.id, request.fromUser)}
+          />
+        ))}
+        {outgoingState.map((request) => (
+          <FriendRequestRow
+            key={request.id}
+            requestId={request.id}
+            user={request.toUser}
+            relationship={{
+              state: 'PENDING_OUTGOING',
+              friendshipId: null,
+              incomingRequestId: null,
+              outgoingRequestId: request.id,
+            }}
+            selected={false}
+            selectMode={false}
+            onToggleSelected={() => {}}
+            onStateChange={onOutgoingTransition(request.id, request.toUser)}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// "Add friend" primary button + dialog wrapper. Replaces the always-expanded
+// AddFriendsPanel section that lived at the top of the page.
+function AddFriendDialog({
+  q,
+  setQ,
+  onOutgoingCreated,
+}: {
+  q: string;
+  setQ: (next: string) => void;
+  onOutgoingCreated: (
+    requestId: string,
+    user: FriendEntry['user'],
+  ) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>
+        <LuPlus className="mr-2 h-4 w-4" aria-hidden />
+        Add friend
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add friend</DialogTitle>
+            <DialogDescription>
+              Search by username or share an invite link.
+            </DialogDescription>
+          </DialogHeader>
+          <AddFriendsPanel
+            query={q}
+            onQueryChange={setQ}
+            onOutgoingCreated={(requestId, user) => {
+              onOutgoingCreated(requestId, user);
+              setOpen(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 const FriendsRoute = () => {
   const data = useLoaderData<typeof loader>();
   const { t } = useTranslation();
   const { setUnreadCount } = useNotificationsStore();
   useFriendWishlistPrefetch(data.friends.map((friend) => friend.user.username));
-  const { activeTab, handleTabChange, q, setQ } = useFriendsSearchParams();
+  const { q, setQ } = useFriendsSearchParams();
   const [friendsFilter, setFriendsFilter] = useState('');
   const {
-    acceptSelectedIncoming,
-    anySelected,
-    cancelSelectedOutgoing,
-    declineSelectedIncoming,
     friendsState,
-    handleIncomingSelection,
     handleIncomingTransition,
-    handleOutgoingSelection,
     handleOutgoingTransition,
-    incomingSelectMode,
     incomingState,
-    mutuals,
-    openSwipeId,
-    outgoingSelectMode,
     outgoingState,
-    selectedIncoming,
-    selectedOutgoing,
     setFriendsState,
-    setOpenSwipeId,
     setOutgoingState,
-    toggleIncomingSelectMode,
-    toggleOutgoingSelectMode,
   }: FriendsRouteState = useFriendsRouteState({
     data,
     setUnreadCount,
   });
   const filteredFriends = useMemo(
-    () => filterFriends(friendsState, friendsFilter),
+    () =>
+      sortFriendsByUpcomingBirthday(filterFriends(friendsState, friendsFilter)),
     [friendsFilter, friendsState],
   );
   const handleRemoveFriend = useCallback(
@@ -1580,21 +1208,19 @@ const FriendsRoute = () => {
     [setFriendsState, t],
   );
   const renderFriendRow = useCallback(
-    (friend: FriendEntry) => (
-      <FriendRow
-        key={friend.friendshipId}
-        friend={friend}
-        mutuals={mutuals}
-        onClose={() =>
-          setOpenSwipeId((id) => (id === friend.friendshipId ? null : id))
-        }
-        onOpen={() => setOpenSwipeId(friend.friendshipId)}
-        onRemove={handleRemoveFriend}
-        open={openSwipeId === friend.friendshipId}
-        t={t}
-      />
-    ),
-    [handleRemoveFriend, mutuals, openSwipeId, setOpenSwipeId, t],
+    (friend: FriendEntry) => {
+      const displayName = friend.user.name ?? friend.user.username;
+      return (
+        <li key={friend.friendshipId}>
+          <FriendRowCard
+            friend={friend}
+            displayName={displayName}
+            onRemove={() => handleRemoveFriend(friend)}
+          />
+        </li>
+      );
+    },
+    [handleRemoveFriend],
   );
   const handleOutgoingCreated = useCallback(
     (requestId: string, user: FriendEntry['user']) => {
@@ -1610,62 +1236,34 @@ const FriendsRoute = () => {
 
   return (
     <div className="container py-6 sm:py-8">
-      <FriendsMobileHeader
-        activeTab={activeTab}
-        friendsFilter={friendsFilter}
-        onFriendsFilterChange={setFriendsFilter}
-        onTabChange={handleTabChange}
-      />
+      <header className="mb-6 flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Friends</h1>
+        <AddFriendDialog
+          q={q}
+          setQ={setQ}
+          onOutgoingCreated={handleOutgoingCreated}
+        />
+      </header>
 
       <Stack gap={4}>
-        {/* Add panel: visible on mobile when tab=add; always visible on desktop */}
-        <section
-          className={cn(
-            'rounded-xl border border-border bg-card p-4 shadow-sm',
-            activeTab !== 'add' ? 'hidden sm:block' : undefined,
-          )}
-        >
-          <h2 className="text-lg font-semibold">Add friends</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Search by username or share an invite link.
-          </p>
-          <AddFriendsPanel
-            query={q}
-            onQueryChange={setQ}
-            onOutgoingCreated={handleOutgoingCreated}
-          />
-        </section>
+        <PendingRequestsCard
+          incomingState={incomingState}
+          outgoingState={outgoingState}
+          onIncomingTransition={handleIncomingTransition}
+          onOutgoingTransition={handleOutgoingTransition}
+        />
 
-        {/* Requests: visible on mobile when tab=requests; always visible on desktop */}
-        <div
-          className={cn(
-            activeTab !== 'requests' ? 'hidden sm:block' : undefined,
-          )}
-        >
-          <FriendsRequestsPanel
-            acceptSelectedIncoming={acceptSelectedIncoming}
-            anySelected={anySelected}
-            cancelSelectedOutgoing={cancelSelectedOutgoing}
-            declineSelectedIncoming={declineSelectedIncoming}
-            incomingSelectMode={incomingSelectMode}
-            incomingState={incomingState}
-            onHandleIncomingSelection={handleIncomingSelection}
-            onHandleOutgoingSelection={handleOutgoingSelection}
-            onHandleIncomingTransition={handleIncomingTransition}
-            onHandleOutgoingTransition={handleOutgoingTransition}
-            onToggleIncomingSelectMode={toggleIncomingSelectMode}
-            onToggleOutgoingSelectMode={toggleOutgoingSelectMode}
-            outgoingSelectMode={outgoingSelectMode}
-            outgoingState={outgoingState}
-            selectedIncoming={selectedIncoming}
-            selectedOutgoing={selectedOutgoing}
-            t={t}
+        {friendsState.length > 8 ? (
+          <Input
+            value={friendsFilter}
+            onChange={(event) => setFriendsFilter(event.currentTarget.value)}
+            placeholder="Search friends"
+            aria-label="Search friends"
           />
-        </div>
+        ) : null}
 
-        {/* Friends: visible on mobile when tab=friends; always visible on desktop */}
         <FriendsListSection
-          activeTab={activeTab}
+          activeTab="friends"
           filteredFriends={filteredFriends}
           friendsState={friendsState}
           onRenderFriendRow={renderFriendRow}
@@ -1678,49 +1276,6 @@ const FriendsRoute = () => {
   );
 };
 export default FriendsRoute;
-function SegmentedTabs({
-  value,
-  onChange,
-}: {
-  value: 'add' | 'requests' | 'friends';
-  onChange: (v: 'add' | 'requests' | 'friends') => void;
-}) {
-  const items: Array<{
-    key: 'add' | 'requests' | 'friends';
-    label: string;
-  }> = [
-    {
-      key: 'add',
-      label: 'Add',
-    },
-    {
-      key: 'requests',
-      label: 'Requests',
-    },
-    {
-      key: 'friends',
-      label: 'Friends',
-    },
-  ];
-  return (
-    <div className="grid grid-cols-3 rounded-full bg-muted p-1">
-      {items.map((it) => (
-        <button
-          key={it.key}
-          type="button"
-          onClick={() => onChange(it.key)}
-          className={cn(
-            'rounded-full px-4 py-1.5 text-center text-sm font-medium text-muted-foreground transition',
-            value === it.key && 'bg-background text-foreground shadow',
-          )}
-          aria-current={value === it.key ? 'page' : undefined}
-        >
-          {it.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 function VirtualizedFriendsList({
   items,
   rowHeight = 72,
@@ -1815,62 +1370,6 @@ function VirtualizedFriendsList({
     </div>
   );
 }
-function SwipeableFriendRow({
-  children,
-  rightActions,
-  open,
-  onOpen,
-  onClose,
-}: {
-  children: React.ReactNode;
-  rightActions: React.ReactNode;
-  open: boolean;
-  onOpen: () => void;
-  onClose: () => void;
-}) {
-  const startX = useRef<number | null>(null);
-  const deltaX = useRef(0);
-  const threshold = 48;
-  return (
-    <div className="relative" data-testid="friend-row">
-      {/* Actions behind */}
-      <div className="absolute inset-y-0 right-0 flex items-stretch">
-        {rightActions}
-      </div>
-      {/* Foreground content */}
-      <div
-        className={cn(
-          'relative rounded-xl border border-border bg-card p-4 shadow-sm transition-transform',
-        )}
-        style={{
-          transform: `translateX(${open ? -140 : 0}px)`,
-        }}
-        onTouchStart={(e) => {
-          const touch = e.touches?.[0];
-          if (!touch) return;
-          startX.current = touch.clientX;
-          deltaX.current = 0;
-        }}
-        onTouchMove={(e) => {
-          if (startX.current == null) return;
-          const touch = e.touches?.[0];
-          if (!touch) return;
-          deltaX.current = touch.clientX - startX.current;
-        }}
-        onTouchEnd={() => {
-          if (deltaX.current < -threshold) onOpen();
-          else if (deltaX.current > threshold) onClose();
-          startX.current = null;
-          deltaX.current = 0;
-        }}
-      >
-        <div className="pointer-events-auto flex items-center gap-4">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
 function AddFriendsPanel({
   onOutgoingCreated,
   query: controlledQuery,
@@ -1878,15 +1377,7 @@ function AddFriendsPanel({
 }: {
   onOutgoingCreated?: (
     requestId: string,
-    user: {
-      id: string;
-      username: string;
-      name: string | null;
-      image: {
-        id: string;
-        altText: string | null;
-      } | null;
-    },
+    user: FriendEntry['user'],
   ) => void;
   query?: string;
   onQueryChange?: (q: string) => void;

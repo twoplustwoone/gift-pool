@@ -186,9 +186,13 @@ vi.mock('#app/components/ui/dialog.tsx', () => ({
   DialogContent: ({ children }: { children: React.ReactNode }) => (
     <div role="dialog">{children}</div>
   ),
+  DialogDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
   DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogClose: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('#app/components/ui/empty-state.tsx', () => ({
@@ -240,6 +244,7 @@ type FriendUser = {
   image: { altText: string | null; id: string } | null;
   name: string | null;
   username: string;
+  birthday: Date | null;
 };
 
 function createUser(id: string, username: string, name = username): FriendUser {
@@ -248,6 +253,7 @@ function createUser(id: string, username: string, name = username): FriendUser {
     image: null,
     name,
     username,
+    birthday: null,
   };
 }
 
@@ -256,6 +262,7 @@ function createFriend(friendshipId: string, username: string, name = username) {
     createdAt: new Date('2026-03-31T00:00:00.000Z'),
     friendshipId,
     user: createUser(`${friendshipId}-user`, username, name),
+    mutualGroups: [] as Array<{ id: string; name: string }>,
   };
 }
 
@@ -667,14 +674,21 @@ describe('/friends route helpers', () => {
 });
 
 describe('/friends route rendering', () => {
-  it('renders add tab, invite link controls, and QR dialog', async () => {
-    renderFriendsRoute({ entry: '/friends?tab=add' });
+  it('opens the Add friend dialog with invite link controls and QR', async () => {
+    // The Add friends panel is now tucked behind a primary "Add friend"
+    // button at the top of the page instead of being permanently expanded.
+    renderFriendsRoute();
 
-    expect(await screen.findByText('Add friends')).toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Add friend' }),
+    );
+    await waitFor(() => {
+      expect(friendPrefetchSpy).toHaveBeenCalledWith(['alex']);
+    });
+
     expect(
       await screen.findByRole('textbox', { name: 'Friend invite link' }),
     ).toBeInTheDocument();
-    expect(friendPrefetchSpy).toHaveBeenCalledWith(['alex']);
 
     await userEvent.click(screen.getByRole('button', { name: 'Copy invite link' }));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
@@ -685,20 +699,6 @@ describe('/friends route rendering', () => {
     await waitFor(() => {
       expect(screen.getByAltText('Friend invite QR')).toBeInTheDocument();
     });
-  });
-
-  it('renders requests tab, selection mode, and batch actions', async () => {
-    renderFriendsRoute({ entry: '/friends?tab=requests' });
-
-    await expect(
-      screen.findAllByRole('button', { name: 'Select' }),
-    ).resolves.toHaveLength(2);
-    await userEvent.click((await screen.findAllByRole('button', { name: 'Select' }))[0]!);
-    expect(screen.getByLabelText('Select @sam')).toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText('Select @sam'));
-    expect(screen.getAllByText('1 selected').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Accept (1)' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Decline (1)' })).toBeInTheDocument();
   });
 
   it('filters friends and uses virtualization for long lists', async () => {
@@ -714,7 +714,10 @@ describe('/friends route rendering', () => {
       },
     });
 
-    const filterInput = await screen.findByRole('textbox', { name: 'Search' });
+    // The search input only renders when there are >8 friends.
+    const filterInput = await screen.findByRole('textbox', {
+      name: 'Search friends',
+    });
     await userEvent.type(filterInput, 'friend 2');
     expect(screen.getByText('Friend 2')).toBeInTheDocument();
     expect(screen.queryByText('Friend 40')).not.toBeInTheDocument();
@@ -760,60 +763,12 @@ describe('/friends route rendering', () => {
     });
   });
 
-  it('removes a friend on success', async () => {
-    renderFriendsRoute({
-      data: {
-        friends: [createFriend('friendship-1', 'alex', 'Alex')],
-        incoming: [],
-        outgoing: [],
-      },
-    });
-
-    await screen.findByText('Alex');
-    await userEvent.click((await screen.findAllByText('confirm Remove friend'))[0]!);
-    await waitFor(() => {
-      expect(screen.queryByText('Alex')).not.toBeInTheDocument();
-    });
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      '/api/friends/remove',
-      expect.any(Object),
-    );
-  });
-
-  it('shows an error toast when removing a friend fails', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
-      const url = typeof input === 'string' ? input : input.toString();
-      if (url.includes('/api/friends/invite')) {
-        return new Response(
-          JSON.stringify({ inviteUrl: 'https://giftpool.app/friends/accept/abc' }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }
-      if (url.includes('/api/friends/remove')) {
-        return new Response(null, { status: 500 });
-      }
-      return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    });
-
-    renderFriendsRoute({
-      data: {
-        friends: [createFriend('friendship-2', 'sam', 'Sam')],
-        incoming: [],
-        outgoing: [],
-      },
-    });
-
-    await userEvent.click((await screen.findAllByText('confirm Remove friend'))[0]!);
-    await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith('Something went wrong. Try again.');
-    });
-  });
-
   it('shows empty search results after the debounced lookup settles', async () => {
-    renderFriendsRoute({ entry: '/friends?tab=add' });
+    renderFriendsRoute();
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Add friend' }),
+    );
 
     const input = await screen.findByPlaceholderText('e.g. alice');
     await userEvent.type(input, 'zoe');
@@ -832,18 +787,5 @@ describe('/friends route rendering', () => {
     });
 
     expect(await screen.findByText('No friends yet')).toBeInTheDocument();
-  });
-
-  it('shows the empty requests state when no requests exist', async () => {
-    renderFriendsRoute({
-      data: {
-        friends: [createFriend('friendship-1', 'alex', 'Alex')],
-        incoming: [],
-        outgoing: [],
-      },
-      entry: '/friends?tab=requests',
-    });
-
-    expect(await screen.findByText('No requests')).toBeInTheDocument();
   });
 });
