@@ -52,6 +52,10 @@ vi.mock('./components/nav/bottom/bottom-nav.tsx', () => ({
   BottomNav: () => <div>bottom nav</div>,
 }));
 
+vi.mock('./components/site-footer.tsx', () => ({
+  SiteFooter: () => <div>site footer</div>,
+}));
+
 vi.mock('./components/nav/top-bar.tsx', () => ({
   TopBar: () => <div>top bar</div>,
 }));

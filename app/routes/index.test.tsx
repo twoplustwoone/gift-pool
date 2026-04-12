@@ -353,9 +353,6 @@ describe('app/routes/index.tsx', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(HOME_COPY.hero.visualAlt)).toBeInTheDocument();
     expect(screen.getByText(HOME_COPY.features[0].title)).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: HOME_COPY.footer.about }),
-    ).toHaveAttribute('href', '/about');
 
     await userEvent.click(
       screen.getByRole('link', { name: HOME_COPY.hero.primaryCta }),

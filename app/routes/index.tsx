@@ -1,7 +1,6 @@
 import { type LoaderFunctionArgs, type MetaFunction, useLoaderData, useSearchParams  } from 'react-router';
 import { HOME_COPY } from '#app/components/home/home-copy';
 import { HomeFeatures } from '#app/components/home/HomeFeatures';
-import { HomeFooterLite } from '#app/components/home/HomeFooterLite';
 import { HomeHero } from '#app/components/home/HomeHero';
 import { HomeLoggedIn } from '#app/components/home/HomeLoggedIn';
 import { useHomeBackgroundPrefetch } from '#app/hooks/use-background-route-prefetch.ts';
@@ -119,7 +118,6 @@ const Index = () => {
         onSecondaryClick={() => track('home.cta.start_group')}
       />
       <HomeFeatures />
-      <HomeFooterLite />
     </main>
   );
 };

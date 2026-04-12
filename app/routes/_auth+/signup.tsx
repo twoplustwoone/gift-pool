@@ -10,7 +10,10 @@ import {
   data,
   redirect,
   type ActionFunctionArgs,
-  type MetaFunction, Form, useActionData 
+  type MetaFunction,
+  Form,
+  Link,
+  useActionData,
 } from 'react-router';
 import { HoneypotInputs } from 'remix-utils/honeypot/react';
 import { z } from 'zod';
@@ -150,6 +153,17 @@ const SignupRoute = () => {
           >
             Submit
           </StatusButton>
+          <p className="mt-4 text-center text-body-xs text-muted-foreground">
+            By signing up, you agree to our{' '}
+            <Link to="/tos" className="underline hover:text-foreground">
+              Terms of Service
+            </Link>{' '}
+            and{' '}
+            <Link to="/privacy" className="underline hover:text-foreground">
+              Privacy Policy
+            </Link>
+            .
+          </p>
         </Form>
       </div>
     </div>
