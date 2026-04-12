@@ -21,7 +21,7 @@ const TermsOfServiceRoute = () => {
             <a href="/privacy" className="underline hover:text-foreground">
               Privacy Policy
             </a>
-            . If you do not agree, please do not use the service.
+            {'. '}If you do not agree, please do not use the service.
           </p>
         </section>
 
@@ -143,8 +143,7 @@ const TermsOfServiceRoute = () => {
             our{' '}
             <a href="/support" className="underline hover:text-foreground">
               support page
-            </a>
-            .
+            </a>{'.'}
           </p>
         </section>
       </div>

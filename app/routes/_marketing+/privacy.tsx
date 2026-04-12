@@ -191,8 +191,7 @@ const PrivacyRoute = () => {
             handled, please reach out through our{' '}
             <a href="/support" className="underline hover:text-foreground">
               support page
-            </a>
-            .
+            </a>{'.'}
           </p>
         </section>
       </div>
