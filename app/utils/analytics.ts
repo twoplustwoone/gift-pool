@@ -16,6 +16,10 @@ export const ANALYTIC_EVENT_NAMES = [
   'friend_request_sent',
   'friend_request_accepted',
   'wishlist_purchase_recorded',
+  // Phase 2 — admin actions
+  'admin_role_granted',
+  'admin_role_revoked',
+  'admin_sessions_revoked',
 ] as const;
 
 export type AnalyticEventName = (typeof ANALYTIC_EVENT_NAMES)[number];
@@ -40,4 +44,8 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   'friend_request_sent',
   'friend_request_accepted',
   'wishlist_purchase_recorded',
+  // Admin actions: the acting admin is always a known user.
+  'admin_role_granted',
+  'admin_role_revoked',
+  'admin_sessions_revoked',
 ]);

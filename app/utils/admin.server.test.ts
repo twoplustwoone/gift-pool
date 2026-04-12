@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  AdminRoleError,
   expireGroupBans,
+  getAdminUserDetail,
   getCleanupPreviewCounts,
   getDiskUsageCounts,
   getOverviewCounts,
@@ -10,6 +12,9 @@ import {
   purgeExpiredSessions,
   purgeExpiredVerifications,
   purgeStaleFriendRequests,
+  revokeAllSessionsForUser,
+  searchAdminUsers,
+  toggleAdminRole,
 } from '#app/utils/admin.server.ts';
 import { lruCache } from '#app/utils/cache.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
@@ -481,5 +486,264 @@ describe('getDiskUsageCounts', () => {
     expect(disk.wishlistItemTotal).toBe(2);
     expect(disk.wishlistItemsWithImage).toBe(1);
     expect(disk.wishlistImageBytes).toBe(1024);
+  });
+});
+
+// ===========================================================================
+// Phase 2 — users surface
+// ===========================================================================
+
+describe('searchAdminUsers', () => {
+  it('returns an empty array for queries shorter than 2 chars', async () => {
+    await prisma.user.create({ data: createUser() });
+    expect(await searchAdminUsers({ query: '' })).toEqual([]);
+    expect(await searchAdminUsers({ query: 'a' })).toEqual([]);
+  });
+
+  it('filters on email, username, and name', async () => {
+    const alice = await prisma.user.create({
+      data: {
+        email: 'alice.smith@example.com',
+        username: 'alicesmith',
+        name: 'Alice Smith',
+      },
+      select: { id: true },
+    });
+    const bob = await prisma.user.create({
+      data: {
+        email: 'bob.jones@example.com',
+        username: 'bobjones',
+        name: 'Bob Jones',
+      },
+      select: { id: true },
+    });
+
+    const byEmail = await searchAdminUsers({ query: 'alice.smith@' });
+    expect(byEmail.map((u) => u.id)).toEqual([alice.id]);
+
+    const byUsername = await searchAdminUsers({ query: 'bobjones' });
+    expect(byUsername.map((u) => u.id)).toEqual([bob.id]);
+
+    const byName = await searchAdminUsers({ query: 'Alice' });
+    expect(byName.map((u) => u.id)).toEqual([alice.id]);
+  });
+
+  it('includes role badges and relation counts', async () => {
+    await prisma.role.upsert({
+      where: { name: 'admin' },
+      update: {},
+      create: { name: 'admin', description: 'Admin role' },
+    });
+    const user = await prisma.user.create({
+      data: { ...createUser(), roles: { connect: { name: 'admin' } } },
+      select: { id: true },
+    });
+    await prisma.wishlistItem.create({
+      data: { ownerId: user.id, title: 'x', sortOrder: 0, type: 'text' },
+    });
+
+    const results = await searchAdminUsers({ query: 'example' });
+    const row = results.find((r) => r.id === user.id);
+    expect(row?.roleNames).toContain('admin');
+    expect(row?.wishlistItemCount).toBe(1);
+  });
+});
+
+describe('getAdminUserDetail', () => {
+  it('returns null for an unknown id', async () => {
+    expect(await getAdminUserDetail('nope')).toBeNull();
+  });
+
+  it('returns identity + pool rollups + recent events in one call', async () => {
+    await prisma.role.upsert({
+      where: { name: 'admin' },
+      update: {},
+      create: { name: 'admin', description: 'Admin role' },
+    });
+    const target = await prisma.user.create({
+      data: { ...createUser(), roles: { connect: { name: 'admin' } } },
+      select: { id: true },
+    });
+    // Create some contribution rows with a paid/unpaid mix.
+    const pool = await prisma.pool.create({
+      data: {
+        title: 'Birthday bash',
+        organizerId: target.id,
+        contributors: {
+          create: [
+            { userId: target.id, hasPaid: true },
+          ],
+        },
+      },
+    });
+    expect(pool.id).toBeDefined();
+
+    const detail = await getAdminUserDetail(target.id);
+    expect(detail).not.toBeNull();
+    expect(detail?.roles.some((r) => r.name === 'admin')).toBe(true);
+    expect(detail?.counts.poolsOrganized).toBe(1);
+    expect(detail?.counts.poolContributions).toBe(1);
+    expect(detail?.poolContributorStats.paid).toBe(1);
+    expect(detail?.poolContributorStats.unpaid).toBe(0);
+  });
+});
+
+describe('toggleAdminRole', () => {
+  async function seedWithAdmin() {
+    await prisma.role.upsert({
+      where: { name: 'admin' },
+      update: {},
+      create: { name: 'admin', description: 'Admin role' },
+    });
+    const admin = await prisma.user.create({
+      data: { ...createUser(), roles: { connect: { name: 'admin' } } },
+      select: { id: true },
+    });
+    return admin;
+  }
+
+  it('grants admin to a plain user', async () => {
+    const admin = await seedWithAdmin();
+    const target = await prisma.user.create({
+      data: createUser(),
+      select: { id: true },
+    });
+
+    await toggleAdminRole({
+      targetUserId: target.id,
+      actingUserId: admin.id,
+      intent: 'grant',
+    });
+
+    const refreshed = await prisma.user.findUniqueOrThrow({
+      where: { id: target.id },
+      select: { roles: { select: { name: true } } },
+    });
+    expect(refreshed.roles.map((r) => r.name)).toContain('admin');
+  });
+
+  it('revokes admin when more than one admin remains', async () => {
+    const admin = await seedWithAdmin();
+    const other = await prisma.user.create({
+      data: { ...createUser(), roles: { connect: { name: 'admin' } } },
+      select: { id: true },
+    });
+
+    await toggleAdminRole({
+      targetUserId: other.id,
+      actingUserId: admin.id,
+      intent: 'revoke',
+    });
+
+    const refreshed = await prisma.user.findUniqueOrThrow({
+      where: { id: other.id },
+      select: { roles: { select: { name: true } } },
+    });
+    expect(refreshed.roles.map((r) => r.name)).not.toContain('admin');
+  });
+
+  it('rejects self-demotion', async () => {
+    const admin = await seedWithAdmin();
+    await expect(
+      toggleAdminRole({
+        targetUserId: admin.id,
+        actingUserId: admin.id,
+        intent: 'revoke',
+      }),
+    ).rejects.toMatchObject({
+      code: 'CANNOT_DEMOTE_SELF',
+    });
+  });
+
+  it('rejects revoking the last admin', async () => {
+    const admin = await seedWithAdmin();
+    const actor = await prisma.user.create({
+      data: createUser(),
+      select: { id: true },
+    });
+
+    // Actor tries to revoke the only admin (not themselves).
+    let thrown: unknown = null;
+    try {
+      await toggleAdminRole({
+        targetUserId: admin.id,
+        actingUserId: actor.id,
+        intent: 'revoke',
+      });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(AdminRoleError);
+    expect((thrown as AdminRoleError).code).toBe('LAST_ADMIN');
+
+    // Admin role is still attached.
+    const refreshed = await prisma.user.findUniqueOrThrow({
+      where: { id: admin.id },
+      select: { roles: { select: { name: true } } },
+    });
+    expect(refreshed.roles.map((r) => r.name)).toContain('admin');
+  });
+
+  it('throws USER_NOT_FOUND for unknown targets', async () => {
+    const admin = await seedWithAdmin();
+    await expect(
+      toggleAdminRole({
+        targetUserId: 'nope',
+        actingUserId: admin.id,
+        intent: 'grant',
+      }),
+    ).rejects.toMatchObject({ code: 'USER_NOT_FOUND' });
+  });
+});
+
+describe('revokeAllSessionsForUser', () => {
+  it('deletes every session and every verification row for the user', async () => {
+    const admin = await prisma.user.create({
+      data: createUser(),
+      select: { id: true },
+    });
+    const target = await prisma.user.create({
+      data: createUser(),
+      select: { id: true, email: true },
+    });
+
+    await prisma.session.createMany({
+      data: [
+        {
+          userId: target.id,
+          expirationDate: new Date(Date.now() + 1000 * 60 * 60),
+        },
+        {
+          userId: target.id,
+          expirationDate: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        },
+      ],
+    });
+    await prisma.verification.create({
+      data: {
+        type: 'reset-password',
+        target: target.email,
+        secret: 'abc',
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 600,
+        charSet: '0123456789',
+        expiresAt: new Date(Date.now() + 1000 * 60 * 10),
+      },
+    });
+
+    const result = await revokeAllSessionsForUser({
+      targetUserId: target.id,
+      actingUserId: admin.id,
+    });
+
+    expect(result.sessionsDeleted).toBe(2);
+    expect(result.verificationsDeleted).toBe(1);
+    expect(
+      await prisma.session.count({ where: { userId: target.id } }),
+    ).toBe(0);
+    expect(
+      await prisma.verification.count({ where: { target: target.email } }),
+    ).toBe(0);
   });
 });
