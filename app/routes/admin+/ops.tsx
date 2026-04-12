@@ -6,6 +6,7 @@ import {
   redirect,
   useActionData,
   useLoaderData,
+  useSearchParams,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from 'react-router';
@@ -189,10 +190,13 @@ const OpsRoute = () => {
       ? actionData.message
       : null;
 
-  const url =
-    typeof window !== 'undefined' ? new URL(window.location.href) : null;
-  const justIntent = url?.searchParams.get('just') as Intent | null;
-  const justCount = Number(url?.searchParams.get('n') ?? 0);
+  const [searchParams] = useSearchParams();
+  const justIntentParam = searchParams.get('just');
+  const justIntent =
+    justIntentParam && INTENTS.has(justIntentParam)
+      ? (justIntentParam as Intent)
+      : null;
+  const justCount = Number(searchParams.get('n') ?? 0);
 
   return (
     <div className="space-y-6">
@@ -209,7 +213,7 @@ const OpsRoute = () => {
           {actionError}
         </div>
       ) : null}
-      {justIntent && INTENTS.has(justIntent) ? (
+      {justIntent ? (
         <div className="rounded-md border border-emerald-400/50 bg-emerald-50/60 p-3 text-sm text-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200">
           {INTENT_LABEL[justIntent]}: {justCount}{' '}
           {justCount === 1 ? 'row' : 'rows'}{' '}
@@ -336,6 +340,15 @@ const CleanupJobCard = ({
   const total = primary + secondary;
   const isEmpty = total === 0;
 
+  let buttonLabel: string;
+  if (isEmpty) {
+    buttonLabel = 'Nothing to do';
+  } else if (dc.doubleCheck) {
+    buttonLabel = 'Click again to confirm';
+  } else {
+    buttonLabel = `${job.verb} ${total.toLocaleString()}`;
+  }
+
   return (
     <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -364,11 +377,7 @@ const CleanupJobCard = ({
           disabled={isEmpty}
           {...dc.getButtonProps({ type: 'submit' })}
         >
-          {isEmpty
-            ? 'Nothing to do'
-            : dc.doubleCheck
-              ? 'Click again to confirm'
-              : `${job.verb} ${total.toLocaleString()}`}
+          {buttonLabel}
         </Button>
       </Form>
     </div>

@@ -89,11 +89,11 @@ async function main() {
   );
 }
 
-main()
-  .catch((error) => {
-    console.error('Migration failed:', error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+try {
+  await main();
+} catch (error) {
+  console.error('Migration failed:', error);
+  process.exitCode = 1;
+} finally {
+  await prisma.$disconnect();
+}

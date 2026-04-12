@@ -15,12 +15,12 @@ export const SummaryCard = ({
   accent?: string;
   tone?: 'default' | 'warn' | 'danger';
 }) => {
-  const toneClass =
-    tone === 'danger'
-      ? 'border-destructive/40 bg-destructive/5'
-      : tone === 'warn'
-        ? 'border-amber-400/40 bg-amber-50/60 dark:bg-amber-950/20'
-        : 'border-border/60 bg-gradient-to-br from-card to-card/70';
+  const TONE_CLASSES: Record<'default' | 'warn' | 'danger', string> = {
+    danger: 'border-destructive/40 bg-destructive/5',
+    warn: 'border-amber-400/40 bg-amber-50/60 dark:bg-amber-950/20',
+    default: 'border-border/60 bg-gradient-to-br from-card to-card/70',
+  };
+  const toneClass = TONE_CLASSES[tone];
 
   return (
     <Card

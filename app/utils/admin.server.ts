@@ -253,12 +253,14 @@ export async function getStuckPools(limit = 10): Promise<StuckPool[]> {
 
       return pools.map((pool) => {
         const status = pool.status as PoolStatus;
-        const reason: StuckPool['reason'] =
-          status === POOL_STATUS.OPEN
-            ? 'open_overdue'
-            : status === POOL_STATUS.VOTING
-              ? 'voting_stalled'
-              : 'decided_stalled';
+        let reason: StuckPool['reason'];
+        if (status === POOL_STATUS.OPEN) {
+          reason = 'open_overdue';
+        } else if (status === POOL_STATUS.VOTING) {
+          reason = 'voting_stalled';
+        } else {
+          reason = 'decided_stalled';
+        }
         return {
           id: pool.id,
           title: pool.title,
