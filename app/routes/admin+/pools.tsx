@@ -3,7 +3,6 @@ import {
   NavLink,
   type LoaderFunctionArgs,
   useLoaderData,
-  useSearchParams,
 } from 'react-router';
 import { EmptyRow, SectionCard } from '#app/components/admin-ui.tsx';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
@@ -32,7 +31,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   await requireUserWithRole(request, 'admin');
   const url = new URL(request.url);
   const statusParam = url.searchParams.get('status') ?? 'stuck';
-  const page = Math.max(1, Number(url.searchParams.get('page') ?? 1));
+  const rawPage = Number.parseInt(url.searchParams.get('page') ?? '1', 10);
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
   const offset = (page - 1) * PAGE_SIZE;
 
   const stuckOnly = statusParam === 'stuck';
@@ -62,8 +62,18 @@ const formatRelative = (date: Date | string) => {
 const PoolsRoute = () => {
   const { pools, total, statusParam, page, pageSize } =
     useLoaderData<typeof loader>();
-  const [searchParams] = useSearchParams();
   const totalPages = Math.ceil(total / pageSize);
+
+  let sectionTitle: string;
+  if (statusParam === 'stuck') {
+    sectionTitle = `Stuck pools (${total})`;
+  } else {
+    const statusLabel =
+      statusParam === 'all'
+        ? 'all'
+        : (POOL_STATUS_LABELS[statusParam as PoolStatus] ?? statusParam);
+    sectionTitle = `Pools — ${statusLabel} (${total})`;
+  }
 
   return (
     <div className="space-y-6">
@@ -94,13 +104,7 @@ const PoolsRoute = () => {
       </div>
 
       {/* --- pool table --- */}
-      <SectionCard
-        title={
-          statusParam === 'stuck'
-            ? `Stuck pools (${total})`
-            : `Pools — ${statusParam === 'all' ? 'all' : POOL_STATUS_LABELS[statusParam as PoolStatus] ?? statusParam} (${total})`
-        }
-      >
+      <SectionCard title={sectionTitle}>
         {pools.length === 0 ? (
           <EmptyRow>
             {statusParam === 'stuck'

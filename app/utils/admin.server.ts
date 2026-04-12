@@ -615,8 +615,48 @@ export async function listAdminPools({
   offset?: number;
 }): Promise<{ pools: AdminPoolListItem[]; total: number }> {
   if (stuckOnly) {
-    const pools = await getStuckPools(limit);
-    return { pools, total: pools.length };
+    const now = new Date();
+    const stuckVotingCutoff = new Date(
+      now.getTime() - STUCK_VOTING_DAYS * DAY_MS,
+    );
+    const stuckDecidedCutoff = new Date(
+      now.getTime() - STUCK_DECIDED_DAYS * DAY_MS,
+    );
+    const stuckWhere = {
+      OR: [
+        { status: POOL_STATUS.OPEN, eventDate: { lt: now } },
+        {
+          status: POOL_STATUS.VOTING,
+          updatedAt: { lt: stuckVotingCutoff },
+          votes: { none: {} },
+        },
+        { status: POOL_STATUS.DECIDED, updatedAt: { lt: stuckDecidedCutoff } },
+      ],
+    };
+    const [rows, total] = await Promise.all([
+      prisma.pool.findMany({
+        where: stuckWhere,
+        orderBy: { updatedAt: 'asc' },
+        take: limit,
+        skip: offset,
+        select: adminPoolListSelect,
+      }),
+      prisma.pool.count({ where: stuckWhere }),
+    ]);
+    return {
+      pools: rows.map((p) => ({
+        id: p.id,
+        title: p.title,
+        status: p.status as PoolStatus,
+        occasionType: p.occasionType,
+        eventDate: p.eventDate,
+        updatedAt: p.updatedAt,
+        inviteCode: p.inviteCode,
+        organizer: p.organizer,
+        contributorCount: p._count.contributors,
+      })),
+      total,
+    };
   }
 
   const where = status && status !== 'all' ? { status } : {};

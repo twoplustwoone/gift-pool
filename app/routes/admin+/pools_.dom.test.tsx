@@ -10,7 +10,7 @@ const loaderDataSnapshot = {
   pool: {
     id: 'pool-1',
     title: "Marco's Birthday",
-    status: 'OPEN' as const,
+    status: 'OPEN' as string,
     occasionType: 'BIRTHDAY',
     eventDate: '2026-05-15T00:00:00.000Z',
     decisionMode: 'ORGANIZER_PICKS',

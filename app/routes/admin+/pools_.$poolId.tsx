@@ -6,7 +6,7 @@ import {
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from 'react-router';
-import { EmptyRow, SectionCard } from '#app/components/admin-ui.tsx';
+import { DLRow, EmptyRow, SectionCard } from '#app/components/admin-ui.tsx';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
@@ -18,7 +18,6 @@ import {
   POOL_ACTIVITY_TYPE,
   POOL_STATUS_LABELS,
   OCCASION_TYPE_LABELS,
-  type PoolStatus,
 } from '#app/utils/pool-constants.ts';
 import { cancelPool } from '#app/utils/pool.server.ts';
 
@@ -68,8 +67,10 @@ const formatDate = (date: Date | string) =>
 const formatDateTime = (date: Date | string) =>
   new Date(date).toLocaleString();
 
-const formatCents = (cents: number | null) =>
-  cents != null ? `$${(cents / 100).toFixed(2)}` : '—';
+const formatCents = (cents: number | null) => {
+  if (cents == null) return '—';
+  return `$${(cents / 100).toFixed(2)}`;
+};
 
 const PoolDetailRoute = () => {
   const { pool } = useLoaderData<typeof loader>();
@@ -225,7 +226,7 @@ const PoolDetailRoute = () => {
                   </div>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span>{formatCents(idea.estimatedPriceCents)}</span>
-                    <span>{idea.voteCount} vote{idea.voteCount !== 1 ? 's' : ''}</span>
+                    <span>{idea.voteCount} {idea.voteCount === 1 ? 'vote' : 'votes'}</span>
                   </div>
                 </li>
               ))}
@@ -258,7 +259,7 @@ const PoolDetailRoute = () => {
             <p className="text-sm text-muted-foreground">
               This pool is{' '}
               <strong>
-                {POOL_STATUS_LABELS[pool.status as PoolStatus]}
+                {POOL_STATUS_LABELS[pool.status]}
               </strong>{' '}
               — no admin actions available.
             </p>
@@ -306,23 +307,6 @@ const PoolDetailRoute = () => {
     </div>
   );
 };
-
-const DLRow = ({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: React.ReactNode;
-  mono?: boolean;
-}) => (
-  <>
-    <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-      {label}
-    </dt>
-    <dd className={mono ? 'font-mono text-xs' : 'text-sm'}>{value}</dd>
-  </>
-);
 
 export default PoolDetailRoute;
 
