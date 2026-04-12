@@ -1,5 +1,6 @@
 import { data } from 'react-router'
 import { nanoid } from 'nanoid'
+import { queueLogEvent } from '#app/utils/analytics.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { logPoolActivity } from '#app/utils/pool-activity.server.ts'
 import {
@@ -146,6 +147,19 @@ export async function createPool(input: CreatePoolInput) {
 		payload: { title },
 	})
 
+	queueLogEvent({
+		name: 'pool_created',
+		userId: organizerId,
+		source: 'server',
+		properties: {
+			poolId: pool.id,
+			occasionType,
+			decisionMode,
+			contributorCount: contributorData.length,
+			hasGroup: giftGroupId != null,
+		},
+	})
+
 	return pool
 }
 
@@ -192,6 +206,13 @@ export async function addContributor(
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.CONTRIBUTOR_JOINED, {
 		actorId: userId,
 		payload: { userId },
+	})
+
+	queueLogEvent({
+		name: 'pool_contributor_joined',
+		userId,
+		source: 'server',
+		properties: { poolId },
 	})
 
 	return contributor
@@ -360,6 +381,13 @@ export async function callVote(poolId: string, actorId: string) {
 	})
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.VOTE_CALLED, { actorId })
+
+	queueLogEvent({
+		name: 'pool_vote_called',
+		userId: actorId,
+		source: 'server',
+		properties: { poolId },
+	})
 }
 
 // Cast or change a vote. One vote per contributor per pool.
@@ -387,6 +415,13 @@ export async function castVote(
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.VOTE_CAST, {
 		actorId: voterId,
 		payload: { ideaId },
+	})
+
+	queueLogEvent({
+		name: 'pool_vote_cast',
+		userId: voterId,
+		source: 'server',
+		properties: { poolId, ideaId },
 	})
 }
 
@@ -445,6 +480,13 @@ export async function chooseIdea(
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.IDEA_CHOSEN, {
 		actorId,
 		payload: { ideaId, name: idea.name, finalPriceCents: resolvedPrice },
+	})
+
+	queueLogEvent({
+		name: 'pool_decided',
+		userId: actorId,
+		source: 'server',
+		properties: { poolId, ideaId, finalPriceCents: resolvedPrice },
 	})
 }
 
@@ -508,6 +550,13 @@ export async function markPurchased(poolId: string, actorId: string) {
 	})
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.MARKED_PURCHASED, { actorId })
+
+	queueLogEvent({
+		name: 'pool_purchased',
+		userId: actorId,
+		source: 'server',
+		properties: { poolId },
+	})
 }
 
 export async function markDelivered(poolId: string, actorId: string) {
@@ -517,6 +566,13 @@ export async function markDelivered(poolId: string, actorId: string) {
 	})
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.MARKED_DELIVERED, { actorId })
+
+	queueLogEvent({
+		name: 'pool_delivered',
+		userId: actorId,
+		source: 'server',
+		properties: { poolId },
+	})
 }
 
 export async function cancelPool(poolId: string, actorId: string) {
@@ -526,6 +582,13 @@ export async function cancelPool(poolId: string, actorId: string) {
 	})
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_CANCELLED, { actorId })
+
+	queueLogEvent({
+		name: 'pool_cancelled',
+		userId: actorId,
+		source: 'server',
+		properties: { poolId },
+	})
 }
 
 export async function deletePool(poolId: string, actorId: string) {

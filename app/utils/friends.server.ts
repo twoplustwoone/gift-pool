@@ -1,4 +1,5 @@
 import { captureException } from '@sentry/react-router';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
 import { notifyUser } from '#app/utils/notification-service.server.tsx';
@@ -220,6 +221,14 @@ export async function sendFriendRequest(fromUserId: string, toUserId: string) {
     }),
   );
 
+  // Fired after the transaction closes (see plan §1.10.3).
+  queueLogEvent({
+    name: 'friend_request_sent',
+    userId: fromUserId,
+    source: 'server',
+    properties: { friendRequestId: request.id, toUserId },
+  });
+
   return request;
 }
 
@@ -307,6 +316,17 @@ export async function acceptFriendRequest(
       }),
     );
   }
+
+  // Fired after the transaction closes (see plan §1.10.3).
+  queueLogEvent({
+    name: 'friend_request_accepted',
+    userId: actingUserId,
+    source: 'server',
+    properties: {
+      friendRequestId: request.id,
+      fromUserId: request.fromUserId,
+    },
+  });
 
   return request;
 }

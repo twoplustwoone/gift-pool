@@ -100,7 +100,7 @@ const CacheAdminRoute = () => {
     Promise.resolve(submit(form)).catch(() => {});
   }, 400);
   return (
-    <div className="container">
+    <div className="space-y-4">
       <h1 className="text-h1">Cache Admin</h1>
       <Spacer size="2xs" />
       <Form
