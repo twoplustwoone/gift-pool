@@ -31,15 +31,16 @@ import { z } from 'zod';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx';
+import { FriendsRouteSkeleton } from './components/friends/friends-route-skeleton.tsx';
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
 import { NotificationsProvider } from './components/notifications/notifications-context.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
 import { PwaInstallBanner } from './components/pwa-install-banner.tsx';
+import { SiteFooter } from './components/site-footer.tsx';
 import { useToast } from './components/toaster.tsx';
 import { href as iconsHref } from './components/ui/icon.tsx';
 import { EpicToaster } from './components/ui/sonner.tsx';
-import { FriendsRouteSkeleton } from './components/friends/friends-route-skeleton.tsx';
 import { WishlistRouteSkeleton } from './components/wishlist/wishlist-route-skeleton.tsx';
 import { usePwaInstallPrompt } from './hooks/use-pwa-install-prompt.ts';
 import nunitoStyleSheet from './styles/nunito-font.css?url';
@@ -430,7 +431,10 @@ const App = () => {
               className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-background to-background-muted pb-bottom-nav sm:pb-0"
               data-testid="app-scroll-area"
             >
-              {routeContent}
+              <div className="flex min-h-full flex-col">
+                <div className="flex-1">{routeContent}</div>
+                <SiteFooter />
+              </div>
             </div>
 
             <Footer />
