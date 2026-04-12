@@ -6,7 +6,7 @@ import {
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from 'react-router';
-import { EmptyRow, SectionCard } from '#app/components/admin-ui.tsx';
+import { DLRow, EmptyRow, SectionCard } from '#app/components/admin-ui.tsx';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
@@ -384,23 +384,6 @@ const AdminUserDetailRoute = () => {
 // ---------------------------------------------------------------------------
 // Small building blocks
 // ---------------------------------------------------------------------------
-
-const DLRow = ({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: React.ReactNode;
-  mono?: boolean;
-}) => (
-  <>
-    <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-      {label}
-    </dt>
-    <dd className={mono ? 'font-mono text-xs' : 'text-sm'}>{value}</dd>
-  </>
-);
 
 const ActionBanner = ({ data }: { data: ActionResult }) => (
   <div

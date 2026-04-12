@@ -79,3 +79,20 @@ export const EmptyRow = ({ children }: { children: ReactNode }) => (
     {children}
   </div>
 );
+
+export const DLRow = ({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: ReactNode;
+  mono?: boolean;
+}) => (
+  <>
+    <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      {label}
+    </dt>
+    <dd className={mono ? 'font-mono text-xs' : 'text-sm'}>{value}</dd>
+  </>
+);

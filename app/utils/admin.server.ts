@@ -194,8 +194,10 @@ export type StuckPool = {
   id: string;
   title: string;
   status: PoolStatus;
+  occasionType: string;
   eventDate: Date | null;
   updatedAt: Date;
+  inviteCode: string | null;
   reason: 'open_overdue' | 'voting_stalled' | 'decided_stalled';
   organizer: {
     id: string;
@@ -243,8 +245,10 @@ export async function getStuckPools(limit = 10): Promise<StuckPool[]> {
           id: true,
           title: true,
           status: true,
+          occasionType: true,
           eventDate: true,
           updatedAt: true,
+          inviteCode: true,
           organizer: {
             select: { id: true, username: true, name: true },
           },
@@ -266,8 +270,10 @@ export async function getStuckPools(limit = 10): Promise<StuckPool[]> {
           id: pool.id,
           title: pool.title,
           status,
+          occasionType: pool.occasionType,
           eventDate: pool.eventDate,
           updatedAt: pool.updatedAt,
+          inviteCode: pool.inviteCode,
           reason,
           organizer: pool.organizer,
           contributorCount: pool._count.contributors,
@@ -567,6 +573,254 @@ export async function expireGroupBans(): Promise<{ updated: number }> {
   });
   invalidateCleanupPreviewCache();
   return { updated: count };
+}
+
+// ===========================================================================
+// Phase 3 — Pools surface
+// ===========================================================================
+
+export const adminPoolListSelect = {
+  id: true,
+  title: true,
+  status: true,
+  occasionType: true,
+  eventDate: true,
+  updatedAt: true,
+  inviteCode: true,
+  organizer: { select: { id: true, username: true, name: true } },
+  _count: { select: { contributors: true } },
+} as const;
+
+export type AdminPoolListItem = {
+  id: string;
+  title: string;
+  status: PoolStatus;
+  occasionType: string;
+  eventDate: Date | null;
+  updatedAt: Date;
+  inviteCode: string | null;
+  organizer: { id: string; username: string; name: string | null };
+  contributorCount: number;
+};
+
+export async function listAdminPools({
+  status,
+  stuckOnly,
+  limit = 25,
+  offset = 0,
+}: {
+  status?: PoolStatus | 'all';
+  stuckOnly?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<{ pools: AdminPoolListItem[]; total: number }> {
+  if (stuckOnly) {
+    const now = new Date();
+    const stuckVotingCutoff = new Date(
+      now.getTime() - STUCK_VOTING_DAYS * DAY_MS,
+    );
+    const stuckDecidedCutoff = new Date(
+      now.getTime() - STUCK_DECIDED_DAYS * DAY_MS,
+    );
+    const stuckWhere = {
+      OR: [
+        { status: POOL_STATUS.OPEN, eventDate: { lt: now } },
+        {
+          status: POOL_STATUS.VOTING,
+          updatedAt: { lt: stuckVotingCutoff },
+          votes: { none: {} },
+        },
+        { status: POOL_STATUS.DECIDED, updatedAt: { lt: stuckDecidedCutoff } },
+      ],
+    };
+    const [rows, total] = await Promise.all([
+      prisma.pool.findMany({
+        where: stuckWhere,
+        orderBy: { updatedAt: 'asc' },
+        take: limit,
+        skip: offset,
+        select: adminPoolListSelect,
+      }),
+      prisma.pool.count({ where: stuckWhere }),
+    ]);
+    return {
+      pools: rows.map((p) => ({
+        id: p.id,
+        title: p.title,
+        status: p.status as PoolStatus,
+        occasionType: p.occasionType,
+        eventDate: p.eventDate,
+        updatedAt: p.updatedAt,
+        inviteCode: p.inviteCode,
+        organizer: p.organizer,
+        contributorCount: p._count.contributors,
+      })),
+      total,
+    };
+  }
+
+  const where = status && status !== 'all' ? { status } : {};
+
+  const [rows, total] = await Promise.all([
+    prisma.pool.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+      take: limit,
+      skip: offset,
+      select: adminPoolListSelect,
+    }),
+    prisma.pool.count({ where }),
+  ]);
+
+  return {
+    pools: rows.map((p) => ({
+      id: p.id,
+      title: p.title,
+      status: p.status as PoolStatus,
+      occasionType: p.occasionType,
+      eventDate: p.eventDate,
+      updatedAt: p.updatedAt,
+      inviteCode: p.inviteCode,
+      organizer: p.organizer,
+      contributorCount: p._count.contributors,
+    })),
+    total,
+  };
+}
+
+export type AdminPoolDetail = {
+  id: string;
+  title: string;
+  status: PoolStatus;
+  occasionType: string;
+  eventDate: Date | null;
+  decisionMode: string;
+  inviteCode: string | null;
+  finalPriceCents: number | null;
+  chosenIdeaId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  organizer: { id: string; username: string; name: string | null };
+  purchaser: { id: string; username: string; name: string | null } | null;
+  deliverer: { id: string; username: string; name: string | null } | null;
+  recipientUser: { id: string; username: string; name: string | null } | null;
+  recipientName: string | null;
+  contributors: Array<{
+    userId: string;
+    username: string;
+    name: string | null;
+    contributionCents: number | null;
+    hasPaid: boolean;
+  }>;
+  ideas: Array<{
+    id: string;
+    name: string;
+    estimatedPriceCents: number | null;
+    proposedBy: { username: string };
+    voteCount: number;
+  }>;
+  activities: Array<{
+    id: string;
+    type: string;
+    actorId: string | null;
+    payload: string | null;
+    createdAt: Date;
+  }>;
+};
+
+export async function getAdminPoolDetail(
+  poolId: string,
+): Promise<AdminPoolDetail | null> {
+  const [pool, activities] = await Promise.all([
+    prisma.pool.findUnique({
+      where: { id: poolId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        occasionType: true,
+        eventDate: true,
+        decisionMode: true,
+        inviteCode: true,
+        finalPriceCents: true,
+        chosenIdeaId: true,
+        createdAt: true,
+        updatedAt: true,
+        recipientName: true,
+        organizer: { select: { id: true, username: true, name: true } },
+        purchaser: { select: { id: true, username: true, name: true } },
+        deliverer: { select: { id: true, username: true, name: true } },
+        recipientUser: { select: { id: true, username: true, name: true } },
+        contributors: {
+          select: {
+            userId: true,
+            contributionCents: true,
+            hasPaid: true,
+            user: { select: { username: true, name: true } },
+          },
+          orderBy: { joinedAt: 'asc' },
+        },
+        ideas: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            estimatedPriceCents: true,
+            proposedBy: { select: { username: true } },
+            _count: { select: { votes: true } },
+          },
+        },
+      },
+    }),
+    prisma.poolActivity.findMany({
+      where: { poolId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        type: true,
+        actorId: true,
+        payload: true,
+        createdAt: true,
+      },
+    }),
+  ]);
+
+  if (!pool) return null;
+
+  return {
+    id: pool.id,
+    title: pool.title,
+    status: pool.status as PoolStatus,
+    occasionType: pool.occasionType,
+    eventDate: pool.eventDate,
+    decisionMode: pool.decisionMode,
+    inviteCode: pool.inviteCode,
+    finalPriceCents: pool.finalPriceCents,
+    chosenIdeaId: pool.chosenIdeaId,
+    createdAt: pool.createdAt,
+    updatedAt: pool.updatedAt,
+    organizer: pool.organizer,
+    purchaser: pool.purchaser,
+    deliverer: pool.deliverer,
+    recipientUser: pool.recipientUser,
+    recipientName: pool.recipientName,
+    contributors: pool.contributors.map((c) => ({
+      userId: c.userId,
+      username: c.user.username,
+      name: c.user.name,
+      contributionCents: c.contributionCents,
+      hasPaid: c.hasPaid,
+    })),
+    ideas: pool.ideas.map((i) => ({
+      id: i.id,
+      name: i.name,
+      estimatedPriceCents: i.estimatedPriceCents,
+      proposedBy: i.proposedBy,
+      voteCount: i._count.votes,
+    })),
+    activities,
+  };
 }
 
 // ===========================================================================
