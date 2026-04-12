@@ -177,6 +177,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       user: {
         ...user,
         id: 'public-view',
+        image: null, // don't expose image IDs to unauthenticated visitors
         wishlistItems,
       },
     },
