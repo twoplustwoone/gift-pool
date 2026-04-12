@@ -274,12 +274,13 @@ describe('cleanup preview + purges', () => {
     ]);
     await prisma.friendRequest.createMany({
       data: [
-        // stale PENDING
+        // stale PENDING — both createdAt AND updatedAt past the cutoff
         {
           fromUserId: a.id,
           toUserId: b.id,
           status: 'PENDING',
           createdAt: daysAgo(45),
+          updatedAt: daysAgo(45),
         },
         // fresh PENDING — must survive
         {
@@ -287,6 +288,7 @@ describe('cleanup preview + purges', () => {
           toUserId: d.id,
           status: 'PENDING',
           createdAt: daysAgo(5),
+          updatedAt: daysAgo(5),
         },
         // stale REJECTED
         {
@@ -294,6 +296,7 @@ describe('cleanup preview + purges', () => {
           toUserId: f.id,
           status: 'REJECTED',
           createdAt: daysAgo(120),
+          updatedAt: daysAgo(120),
         },
       ],
     });
@@ -309,6 +312,34 @@ describe('cleanup preview + purges', () => {
       select: { status: true },
     });
     expect(remaining).toEqual([{ status: 'PENDING' }]);
+  });
+
+  it('stale friend requests: preserves rows that were re-opened recently even if createdAt is old', async () => {
+    // Regression: sendFriendRequest upserts existing rows and flips
+    // status back to PENDING. A row that was first created 100 days ago
+    // but reopened TODAY has a stale createdAt but a fresh updatedAt.
+    // The purge must key on updatedAt, not createdAt.
+    const [a, b] = await Promise.all([
+      prisma.user.create({ data: createUser() }),
+      prisma.user.create({ data: createUser() }),
+    ]);
+    await prisma.friendRequest.create({
+      data: {
+        fromUserId: a.id,
+        toUserId: b.id,
+        status: 'PENDING',
+        createdAt: daysAgo(100),
+        // updatedAt defaults to now() via @updatedAt
+      },
+    });
+
+    const preview = await getCleanupPreviewCounts();
+    expect(preview.stalePendingFriendRequests).toBe(0);
+
+    const result = await purgeStaleFriendRequests();
+    expect(result.deleted).toBe(0);
+
+    expect(await prisma.friendRequest.count()).toBe(1);
   });
 
   it('dead group invitations: only deletes unused revoked/expired rows', async () => {

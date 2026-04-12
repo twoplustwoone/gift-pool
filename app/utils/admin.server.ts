@@ -114,10 +114,13 @@ export async function getOverviewCounts(): Promise<OverviewCounts> {
         prisma.wishlistItem.count({ where: { status: 'ARCHIVED' } }),
         prisma.wishlistPurchase.count(),
         prisma.friendship.count(),
+        // `updatedAt`, not `createdAt`: sendFriendRequest upserts an
+        // existing row and flips status back to PENDING, so an old row
+        // can become newly active today. Staleness tracks inactivity.
         prisma.friendRequest.count({
           where: {
             status: 'PENDING',
-            createdAt: { lt: pendingFriendRequestCutoff },
+            updatedAt: { lt: pendingFriendRequestCutoff },
           },
         }),
         prisma.notification.count({
@@ -314,16 +317,20 @@ export async function getCleanupPreviewCounts(): Promise<CleanupPreviewCounts> {
         prisma.session.count({
           where: { expirationDate: { lt: now } },
         }),
+        // `updatedAt`, not `createdAt`: sendFriendRequest upserts
+        // existing rows and flips status back to PENDING, so a
+        // newly-active row could have a stale createdAt. Staleness
+        // means "no activity in N days", not "row is N days old".
         prisma.friendRequest.count({
           where: {
             status: 'PENDING',
-            createdAt: { lt: staleFriendReqCutoff },
+            updatedAt: { lt: staleFriendReqCutoff },
           },
         }),
         prisma.friendRequest.count({
           where: {
             status: 'REJECTED',
-            createdAt: { lt: rejectedRetentionCutoff },
+            updatedAt: { lt: rejectedRetentionCutoff },
           },
         }),
         prisma.groupInvitation.count({
@@ -512,17 +519,22 @@ export async function purgeExpiredSessions(): Promise<{ deleted: number }> {
 }
 
 export async function purgeStaleFriendRequests(): Promise<{ deleted: number }> {
-  // Delete PENDING older than 30d + REJECTED older than 90d in one shot.
+  // Delete PENDING > 30d + REJECTED > 90d in one shot, keyed on
+  // `updatedAt` rather than `createdAt`. sendFriendRequest upserts
+  // existing rows via Prisma and flips status back to PENDING — that
+  // bumps updatedAt but preserves createdAt. A `createdAt < 30d` filter
+  // would wrongly purge rows that were reopened today but first
+  // created a long time ago. Staleness tracks inactivity.
   const { count } = await prisma.friendRequest.deleteMany({
     where: {
       OR: [
         {
           status: 'PENDING',
-          createdAt: { lt: daysAgo(STALE_FRIEND_REQUEST_DAYS) },
+          updatedAt: { lt: daysAgo(STALE_FRIEND_REQUEST_DAYS) },
         },
         {
           status: 'REJECTED',
-          createdAt: { lt: daysAgo(REJECTED_FRIEND_REQUEST_RETENTION_DAYS) },
+          updatedAt: { lt: daysAgo(REJECTED_FRIEND_REQUEST_RETENTION_DAYS) },
         },
       ],
     },
