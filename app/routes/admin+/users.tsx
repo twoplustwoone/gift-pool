@@ -30,6 +30,21 @@ const UsersRoute = () => {
     Promise.resolve(submit(form)).catch(() => {});
   }, 300);
 
+  const pluralSuffix = results.length === 1 ? '' : 's';
+  const resultDescription =
+    query && results.length > 0
+      ? `${results.length} user${pluralSuffix}`
+      : undefined;
+
+  let resultContent: React.ReactNode;
+  if (query.length < 2) {
+    resultContent = <EmptyRow>Enter a query to search.</EmptyRow>;
+  } else if (results.length === 0) {
+    resultContent = (
+      <EmptyRow>No users match &ldquo;{query}&rdquo;.</EmptyRow>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -60,17 +75,9 @@ const UsersRoute = () => {
 
       <SectionCard
         title={query ? `Results for "${query}"` : 'Type at least 2 characters'}
-        description={
-          query && results.length > 0
-            ? `${results.length} user${results.length === 1 ? '' : 's'}`
-            : undefined
-        }
+        description={resultDescription}
       >
-        {query.length < 2 ? (
-          <EmptyRow>Enter a query to search.</EmptyRow>
-        ) : results.length === 0 ? (
-          <EmptyRow>No users match &ldquo;{query}&rdquo;.</EmptyRow>
-        ) : (
+        {resultContent ?? (
           <div className="overflow-hidden rounded-md border border-border/50">
             <table className="min-w-full divide-y divide-border/60">
               <thead className="bg-muted/40">

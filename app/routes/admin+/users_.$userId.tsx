@@ -1,5 +1,4 @@
 import { invariantResponse } from '@epic-web/invariant';
-import { useState } from 'react';
 import {
   Link,
   useFetcher,
@@ -46,7 +45,8 @@ export async function action({
   });
 
   const formData = await request.formData();
-  const intent = formData.get('intent');
+  const rawIntent = formData.get('intent');
+  const intent = typeof rawIntent === 'string' ? rawIntent : '';
 
   try {
     if (intent === 'toggle_admin') {
@@ -83,15 +83,17 @@ export async function action({
       };
     }
 
-    return { ok: false, message: `Unknown intent: ${String(intent)}` };
+    return { ok: false, message: `Unknown intent: ${intent}` };
   } catch (err) {
     if (err instanceof AdminRoleError) {
-      const message =
-        err.code === 'CANNOT_DEMOTE_SELF'
-          ? 'You cannot revoke your own admin role.'
-          : err.code === 'LAST_ADMIN'
-            ? 'Cannot revoke the last admin. Grant admin to another user first.'
-            : 'User not found.';
+      let message: string;
+      if (err.code === 'CANNOT_DEMOTE_SELF') {
+        message = 'You cannot revoke your own admin role.';
+      } else if (err.code === 'LAST_ADMIN') {
+        message = 'Cannot revoke the last admin. Grant admin to another user first.';
+      } else {
+        message = 'User not found.';
+      }
       return { ok: false, message };
     }
     throw err;
@@ -326,7 +328,7 @@ const AdminUserDetailRoute = () => {
                 {user.notificationPreferences.map((pref) => (
                   <tr key={pref.type}>
                     <td className="px-4 py-2 font-medium">
-                      {pref.type.replace(/_/g, ' ').toLowerCase()}
+                      {pref.type.replaceAll('_', ' ').toLowerCase()}
                     </td>
                     <td className="px-4 py-2 text-center">
                       {pref.inAppEnabled ? '✓' : '✗'}
@@ -421,7 +423,6 @@ const RoleToggleButton = ({
   username: string;
   onConfirm: (target: 'grant' | 'revoke') => void;
 }) => {
-  const [, setDialogSentinel] = useState(0);
   if (isAdmin) {
     return (
       <ConfirmDialog
@@ -435,7 +436,6 @@ const RoleToggleButton = ({
         confirmText="Revoke admin"
         requireText={username}
         onConfirm={() => {
-          setDialogSentinel((n) => n + 1);
           onConfirm('revoke');
         }}
       >
@@ -457,7 +457,6 @@ const RoleToggleButton = ({
       confirmText="Grant admin"
       requireText={username}
       onConfirm={() => {
-        setDialogSentinel((n) => n + 1);
         onConfirm('grant');
       }}
     >
@@ -476,6 +475,16 @@ const SessionRevokeButton = ({
   onConfirm: () => void;
 }) => {
   const dc = useDoubleCheck();
+
+  let buttonLabel: string;
+  if (disabled) {
+    buttonLabel = 'No active sessions';
+  } else if (dc.doubleCheck) {
+    buttonLabel = 'Click again to revoke';
+  } else {
+    buttonLabel = 'Sign out all sessions';
+  }
+
   return (
     <Button
       type="button"
@@ -484,8 +493,6 @@ const SessionRevokeButton = ({
       disabled={disabled}
       {...dc.getButtonProps({
         onClick: (e) => {
-          // useDoubleCheck's onClick runs before our handler; only fire
-          // the real submit on the second click.
           if (dc.doubleCheck) {
             onConfirm();
           } else {
@@ -494,11 +501,7 @@ const SessionRevokeButton = ({
         },
       })}
     >
-      {disabled
-        ? 'No active sessions'
-        : dc.doubleCheck
-          ? 'Click again to revoke'
-          : 'Sign out all sessions'}
+      {buttonLabel}
     </Button>
   );
 };
