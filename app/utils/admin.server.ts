@@ -1,3 +1,4 @@
+import { queueLogEvent } from './analytics.server.ts';
 import { cachified, lruCache } from './cache.server.ts';
 import { prisma } from './db.server.ts';
 import { POOL_STATUS, type PoolStatus } from './pool-constants.ts';
@@ -566,4 +567,351 @@ export async function expireGroupBans(): Promise<{ updated: number }> {
   });
   invalidateCleanupPreviewCache();
   return { updated: count };
+}
+
+// ===========================================================================
+// Phase 2 — Users surface
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// searchAdminUsers — admin version of /api/users/search. Unlike the public
+// search, this one includes email, creator timestamps, and role badges.
+// Not cached — search is URL-driven and users expect fresh results.
+// ---------------------------------------------------------------------------
+
+export type AdminUserSearchResult = {
+  id: string;
+  email: string;
+  username: string;
+  name: string | null;
+  createdAt: Date;
+  image: { id: string } | null;
+  roleNames: Array<string>;
+  wishlistItemCount: number;
+  friendshipCount: number;
+};
+
+export async function searchAdminUsers({
+  query,
+  limit = 25,
+}: {
+  query: string;
+  limit?: number;
+}): Promise<AdminUserSearchResult[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+
+  const users = await prisma.user.findMany({
+    where: {
+      OR: [
+        { email: { contains: trimmed } },
+        { username: { contains: trimmed } },
+        { name: { contains: trimmed } },
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    select: {
+      id: true,
+      email: true,
+      username: true,
+      name: true,
+      createdAt: true,
+      image: { select: { id: true } },
+      roles: { select: { name: true } },
+      _count: {
+        select: {
+          wishlistItems: true,
+          friendshipsA: true,
+          friendshipsB: true,
+        },
+      },
+    },
+  });
+
+  return users.map((user) => ({
+    id: user.id,
+    email: user.email,
+    username: user.username,
+    name: user.name,
+    createdAt: user.createdAt,
+    image: user.image,
+    roleNames: user.roles.map((r) => r.name),
+    wishlistItemCount: user._count.wishlistItems,
+    friendshipCount: user._count.friendshipsA + user._count.friendshipsB,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// getAdminUserDetail — THREE parallel queries instead of one monster
+// findUnique. A single nested query with every relation hydrates hundreds of
+// KB of unrelated rows for an active user; the split below is tighter and
+// measurably faster at scale.
+//   1. Identity: profile, roles, sessions, notif prefs, _count rollups
+//   2. Pool contributor paid/unpaid split via groupBy
+//   3. Recent 20 analytics events for this user
+// Returns null if the user doesn't exist — caller handles 404.
+// ---------------------------------------------------------------------------
+
+export type AdminUserDetail = {
+  id: string;
+  email: string;
+  username: string;
+  name: string | null;
+  bio: string | null;
+  birthday: Date | null;
+  createdAt: Date;
+  image: { id: string } | null;
+  roles: Array<{ name: string }>;
+  sessions: Array<{ id: string; createdAt: Date; expirationDate: Date }>;
+  notificationPreferences: Array<{
+    type: string;
+    inAppEnabled: boolean;
+    emailEnabled: boolean;
+  }>;
+  counts: {
+    wishlistItems: number;
+    friendships: number;
+    poolsOrganized: number;
+    poolsAsPurchaser: number;
+    poolsAsDeliverer: number;
+    poolsAsRecipient: number;
+    poolContributions: number;
+    unreadNotifications: number;
+  };
+  poolContributorStats: {
+    paid: number;
+    unpaid: number;
+  };
+  recentEvents: Array<{
+    id: string;
+    name: string;
+    createdAt: Date;
+    source: string;
+    properties: string | null;
+  }>;
+};
+
+export async function getAdminUserDetail(
+  userId: string,
+): Promise<AdminUserDetail | null> {
+  const [identity, contributorGroups, recentEvents] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        name: true,
+        bio: true,
+        birthday: true,
+        createdAt: true,
+        image: { select: { id: true } },
+        roles: { select: { name: true }, orderBy: { name: 'asc' } },
+        sessions: {
+          select: { id: true, createdAt: true, expirationDate: true },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        },
+        notificationPreferences: {
+          select: { type: true, inAppEnabled: true, emailEnabled: true },
+          orderBy: { type: 'asc' },
+        },
+        _count: {
+          select: {
+            wishlistItems: true,
+            friendshipsA: true,
+            friendshipsB: true,
+            poolsOrganized: true,
+            poolsAsPurchaser: true,
+            poolsAsDeliverer: true,
+            poolsAsRecipient: true,
+            poolContributions: true,
+            notifications: { where: { status: 'UNREAD' } },
+          },
+        },
+      },
+    }),
+    prisma.poolContributor.groupBy({
+      by: ['hasPaid'],
+      where: { userId },
+      _count: { _all: true },
+    }),
+    prisma.analyticsEvent.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        source: true,
+        properties: true,
+      },
+    }),
+  ]);
+
+  if (!identity) return null;
+
+  const paid =
+    contributorGroups.find((g) => g.hasPaid === true)?._count._all ?? 0;
+  const unpaid =
+    contributorGroups.find((g) => g.hasPaid === false)?._count._all ?? 0;
+
+  return {
+    id: identity.id,
+    email: identity.email,
+    username: identity.username,
+    name: identity.name,
+    bio: identity.bio,
+    birthday: identity.birthday,
+    createdAt: identity.createdAt,
+    image: identity.image,
+    roles: identity.roles,
+    sessions: identity.sessions,
+    notificationPreferences: identity.notificationPreferences,
+    counts: {
+      wishlistItems: identity._count.wishlistItems,
+      friendships:
+        identity._count.friendshipsA + identity._count.friendshipsB,
+      poolsOrganized: identity._count.poolsOrganized,
+      poolsAsPurchaser: identity._count.poolsAsPurchaser,
+      poolsAsDeliverer: identity._count.poolsAsDeliverer,
+      poolsAsRecipient: identity._count.poolsAsRecipient,
+      poolContributions: identity._count.poolContributions,
+      unreadNotifications: identity._count.notifications,
+    },
+    poolContributorStats: { paid, unpaid },
+    recentEvents,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// toggleAdminRole — grant or revoke the admin role on a target user.
+// Guards:
+//   1. Self-demotion is forbidden (throws CANNOT_DEMOTE_SELF).
+//   2. Last-admin guard is transactional: counting then disconnecting across
+//      two Prisma calls races. Two concurrent revokes could both see
+//      count >= 2 and both succeed, leaving zero admins. We wrap the check
+//      AND the mutation in a single $transaction, and count admins EXCLUDING
+//      the target (id: { not: targetUserId }) — that's the invariant we
+//      actually want.
+// Emits admin_role_granted / admin_role_revoked AFTER the transaction
+// closes (plan §1.10.3) so a SQLITE_BUSY-on-write inside the txn can't
+// collide with the parent's lock.
+// ---------------------------------------------------------------------------
+
+export class AdminRoleError extends Error {
+  code: 'CANNOT_DEMOTE_SELF' | 'LAST_ADMIN' | 'USER_NOT_FOUND';
+  constructor(
+    code: 'CANNOT_DEMOTE_SELF' | 'LAST_ADMIN' | 'USER_NOT_FOUND',
+    message: string,
+  ) {
+    super(message);
+    this.code = code;
+  }
+}
+
+export async function toggleAdminRole({
+  targetUserId,
+  actingUserId,
+  intent,
+}: {
+  targetUserId: string;
+  actingUserId: string;
+  intent: 'grant' | 'revoke';
+}): Promise<void> {
+  if (intent === 'revoke' && targetUserId === actingUserId) {
+    throw new AdminRoleError(
+      'CANNOT_DEMOTE_SELF',
+      'You cannot revoke your own admin role.',
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const target = await tx.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true },
+    });
+    if (!target) {
+      throw new AdminRoleError('USER_NOT_FOUND', 'User not found.');
+    }
+
+    if (intent === 'revoke') {
+      // Count admins OTHER than the target. If that's 0, this revoke would
+      // leave zero admins in the system.
+      const remaining = await tx.user.count({
+        where: {
+          roles: { some: { name: 'admin' } },
+          id: { not: targetUserId },
+        },
+      });
+      if (remaining < 1) {
+        throw new AdminRoleError(
+          'LAST_ADMIN',
+          'Cannot revoke the last admin.',
+        );
+      }
+    }
+
+    await tx.user.update({
+      where: { id: targetUserId },
+      data: {
+        roles: {
+          [intent === 'grant' ? 'connect' : 'disconnect']: { name: 'admin' },
+        },
+      },
+    });
+  });
+
+  queueLogEvent({
+    name: intent === 'grant' ? 'admin_role_granted' : 'admin_role_revoked',
+    userId: actingUserId,
+    source: 'server',
+    properties: { targetUserId },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// revokeAllSessionsForUser — kick a user out of every active session. Also
+// purges outstanding Verification rows keyed on that user's email (password
+// reset, email change, 2fa setup) — otherwise the user can re-auth within
+// the 10-minute OTP window.
+// ---------------------------------------------------------------------------
+
+export async function revokeAllSessionsForUser({
+  targetUserId,
+  actingUserId,
+}: {
+  targetUserId: string;
+  actingUserId: string;
+}): Promise<{ sessionsDeleted: number; verificationsDeleted: number }> {
+  const user = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { email: true },
+  });
+  if (!user) {
+    throw new AdminRoleError('USER_NOT_FOUND', 'User not found.');
+  }
+
+  const [sessions, verifications] = await Promise.all([
+    prisma.session.deleteMany({ where: { userId: targetUserId } }),
+    prisma.verification.deleteMany({ where: { target: user.email } }),
+  ]);
+
+  queueLogEvent({
+    name: 'admin_sessions_revoked',
+    userId: actingUserId,
+    source: 'server',
+    properties: {
+      targetUserId,
+      sessionsDeleted: sessions.count,
+      verificationsDeleted: verifications.count,
+    },
+  });
+
+  return {
+    sessionsDeleted: sessions.count,
+    verificationsDeleted: verifications.count,
+  };
 }
