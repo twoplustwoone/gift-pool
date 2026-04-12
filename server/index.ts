@@ -105,8 +105,6 @@ app.use(
     referrerPolicy: { policy: 'same-origin' },
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
-      // NOTE: Remove reportOnly when you're ready to enforce this CSP
-      reportOnly: true,
       directives: {
         'connect-src': [
           MODE === 'development' ? 'ws:' : null,
