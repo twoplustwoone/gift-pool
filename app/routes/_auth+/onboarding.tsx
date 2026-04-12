@@ -12,9 +12,10 @@ import {
   type ActionFunctionArgs,
   type MetaFunction,
   Form,
+  Link,
   useActionData,
   useLoaderData,
-  useSearchParams
+  useSearchParams,
 } from 'react-router';
 import { HoneypotInputs } from 'remix-utils/honeypot/react';
 import { safeRedirect } from 'remix-utils/safe-redirect';
@@ -260,8 +261,26 @@ const OnboardingRoute = () => {
           <CheckboxField
             labelProps={{
               htmlFor: fields.agreeToTermsOfServiceAndPrivacyPolicy.id,
-              children:
-                'Do you agree to our Terms of Service and Privacy Policy?',
+              children: (
+                <>
+                  I agree to the{' '}
+                  <Link
+                    to="/tos"
+                    target="_blank"
+                    className="underline hover:text-foreground"
+                  >
+                    Terms of Service
+                  </Link>{' '}
+                  and{' '}
+                  <Link
+                    to="/privacy"
+                    target="_blank"
+                    className="underline hover:text-foreground"
+                  >
+                    Privacy Policy
+                  </Link>
+                </>
+              ),
             }}
             buttonProps={getInputProps(
               fields.agreeToTermsOfServiceAndPrivacyPolicy,
