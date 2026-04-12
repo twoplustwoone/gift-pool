@@ -65,7 +65,7 @@ app/
 │   └── wishlist/       # Wishlist components
 ├── routes/             # File-based routing (react-router flat-routes)
 │   ├── _auth+/         # Auth flows (login, signup, verify, reset)
-│   ├── _marketing+/    # Public pages (about, privacy, tos)
+│   ├── _marketing+/    # Public pages (about, support, privacy, tos)
 │   ├── admin+/         # Admin dashboard
 │   ├── groups+/        # Group management
 │   ├── wishlist+/      # Wishlist CRUD
