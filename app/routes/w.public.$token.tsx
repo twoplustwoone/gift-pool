@@ -32,11 +32,11 @@ const PUBLIC_VIEW_RATE_LIMIT = {
   maxRequests: 40,
 };
 function getClientIdentifier(request: Request) {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) return forwarded.split(',')[0]?.trim() ?? 'unknown';
-  const realIp = request.headers.get('x-real-ip');
-  if (realIp) return realIp;
-  return request.headers.get('cf-connecting-ip') ?? 'unknown';
+  return (
+    request.headers.get('fly-client-ip') ??
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    'unknown'
+  );
 }
 function enforceRateLimit(request: Request) {
   const key = getClientIdentifier(request);
