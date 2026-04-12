@@ -105,6 +105,12 @@ app.use(
     referrerPolicy: { policy: 'same-origin' },
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
+      // TODO: switch to enforcement once React Router v7 adds nonce support for
+      // its streaming continuation scripts (the <script> tags sent after </html>
+      // that populate the ReadableStream). Those scripts have no nonce today, so
+      // strict-dynamic blocks them and React never hydrates. Track upstream:
+      // https://github.com/remix-run/react-router/issues/
+      reportOnly: true,
       directives: {
         'connect-src': [
           MODE === 'development' ? 'ws:' : null,
