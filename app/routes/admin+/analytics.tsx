@@ -1,38 +1,42 @@
 import { type LoaderFunctionArgs, useLoaderData } from 'react-router';
+import {
+  EmptyRow,
+  SectionCard,
+  SummaryCard,
+} from '#app/components/admin-ui.tsx';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import {
   type AnalyticsCounts,
   getAnalyticsCounts,
 } from '#app/utils/analytics.server.ts';
+import {
+  type FunnelStep,
+  type NotificationOptOutRow,
+  type RetentionCohort,
+  getActivationFunnel,
+  getNotificationOptOutMatrix,
+  getWeeklyRetention,
+} from '#app/utils/admin.server.ts';
+import { cn } from '#app/utils/misc.tsx';
 import { requireUserWithRole } from '#app/utils/permissions.server.ts';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireUserWithRole(request, 'admin');
-  const analytics = await getAnalyticsCounts();
-  return {
-    analytics,
-  };
+
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const [analytics, funnel, retention, optOutMatrix] = await Promise.all([
+    getAnalyticsCounts(),
+    getActivationFunnel({ cohortStart: thirtyDaysAgo, cohortEnd: now }),
+    getWeeklyRetention(8),
+    getNotificationOptOutMatrix(),
+  ]);
+
+  return { analytics, funnel, retention, optOutMatrix };
 }
-const SummaryCard = ({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: string;
-}) => (
-  <Card className="flex flex-col gap-2 border-border/60 bg-gradient-to-br from-card to-card/70 p-4 shadow-sm">
-    <span className="text-sm font-medium text-muted-foreground">{label}</span>
-    <span className="text-3xl font-semibold tracking-tight">{value}</span>
-    {accent ? (
-      <span className="text-xs font-medium uppercase text-muted-foreground">
-        {accent}
-      </span>
-    ) : null}
-  </Card>
-);
+
 const LineChart = ({
   data,
   height = 200,
@@ -99,15 +103,13 @@ const LineChart = ({
     </div>
   );
 };
+
 const EventTable = ({
   title,
   rows,
 }: {
   title: string;
-  rows: Array<{
-    name: string;
-    count: number;
-  }>;
+  rows: Array<{ name: string; count: number }>;
 }) => (
   <Card className="border-border/70 bg-card p-4 shadow-sm">
     <div className="mb-3 flex items-center justify-between">
@@ -141,27 +143,32 @@ const EventTable = ({
     </div>
   </Card>
 );
+
 const AnalyticsRoute = () => {
-  const { analytics } = useLoaderData<typeof loader>();
+  const { analytics, funnel, retention, optOutMatrix } =
+    useLoaderData<typeof loader>();
   return (
     <div className="space-y-8">
       <div className="space-y-1">
         <h1 className="text-h1">Analytics</h1>
         <p className="text-muted-foreground">
-          Internal usage metrics sourced from in-app events.
+          Usage metrics, activation funnel, retention, and notification
+          opt-outs.
         </p>
       </div>
 
+      {/* --- DAU/WAU/MAU --- */}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
           label="Total users"
-          value={analytics.totalUsers.toLocaleString()}
+          value={analytics.totalUsers}
         />
-        <SummaryCard label="DAU (24h)" value={analytics.dau.toLocaleString()} />
-        <SummaryCard label="WAU (7d)" value={analytics.wau.toLocaleString()} />
-        <SummaryCard label="MAU (30d)" value={analytics.mau.toLocaleString()} />
+        <SummaryCard label="DAU (24h)" value={analytics.dau} />
+        <SummaryCard label="WAU (7d)" value={analytics.wau} />
+        <SummaryCard label="MAU (30d)" value={analytics.mau} />
       </section>
 
+      {/* --- daily active line chart --- */}
       <Card className="space-y-3 border-border/70 bg-card p-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
@@ -175,6 +182,39 @@ const AnalyticsRoute = () => {
         <LineChart data={analytics.dailyActive} />
       </Card>
 
+      {/* --- activation funnel --- */}
+      <SectionCard
+        title="Activation funnel"
+        description="Last 30-day cohort. Steps: signup → wishlist → friend → pool contribution → delivered gift."
+      >
+        <FunnelViz steps={funnel} />
+      </SectionCard>
+
+      {/* --- retention cohort grid --- */}
+      <SectionCard
+        title="Weekly retention"
+        description="Cohort by signup week. Retention = user has a Session.createdAt in that week."
+      >
+        {retention.length === 0 ? (
+          <EmptyRow>Not enough data for retention yet.</EmptyRow>
+        ) : (
+          <RetentionGrid cohorts={retention} />
+        )}
+      </SectionCard>
+
+      {/* --- notification opt-outs --- */}
+      <SectionCard
+        title="Notification opt-outs"
+        description="Per-type in-app + email opt-out percentages across all users."
+      >
+        {optOutMatrix.length === 0 ? (
+          <EmptyRow>No notification preferences recorded yet.</EmptyRow>
+        ) : (
+          <OptOutTable rows={optOutMatrix} />
+        )}
+      </SectionCard>
+
+      {/* --- event tables (existing) --- */}
       <section className="grid gap-4 lg:grid-cols-2">
         <EventTable
           title="Events (last 7 days)"
@@ -188,7 +228,133 @@ const AnalyticsRoute = () => {
     </div>
   );
 };
+
+// ---------------------------------------------------------------------------
+// Funnel visualization — horizontal bar chart
+// ---------------------------------------------------------------------------
+
+const FunnelViz = ({ steps }: { steps: FunnelStep[] }) => {
+  if (steps.length === 0 || steps[0]?.count === 0) {
+    return <EmptyRow>No users in this cohort yet.</EmptyRow>;
+  }
+  return (
+    <div className="space-y-2">
+      {steps.map((step) => (
+        <div key={step.step} className="flex items-center gap-3">
+          <div className="w-48 shrink-0 text-sm">{step.step}</div>
+          <div className="relative h-7 flex-1 overflow-hidden rounded-md bg-muted/40">
+            <div
+              className="absolute inset-y-0 left-0 rounded-md bg-primary/20"
+              style={{ width: `${step.percent}%` }}
+            />
+            <span className="absolute inset-0 flex items-center px-2 text-xs font-semibold tabular-nums">
+              {step.count.toLocaleString()} ({step.percent}%)
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Retention heatmap grid
+// ---------------------------------------------------------------------------
+
+const RetentionGrid = ({ cohorts }: { cohorts: RetentionCohort[] }) => (
+  <div className="overflow-x-auto">
+    <table className="min-w-full text-xs">
+      <thead>
+        <tr>
+          <th className="px-2 py-1 text-left font-medium text-muted-foreground">
+            Cohort
+          </th>
+          <th className="px-2 py-1 text-center font-medium text-muted-foreground">
+            Size
+          </th>
+          {cohorts[0]?.weeks.map((week) => (
+            <th
+              key={`w${week.weekOffset}`}
+              className="px-2 py-1 text-center font-medium text-muted-foreground"
+            >
+              W{week.weekOffset}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {cohorts.map((cohort) => (
+          <tr key={cohort.cohortWeek}>
+            <td className="px-2 py-1 font-mono">{cohort.cohortWeek}</td>
+            <td className="px-2 py-1 text-center tabular-nums">
+              {cohort.cohortSize}
+            </td>
+            {cohort.weeks.map((week) => (
+              <td
+                key={week.weekOffset}
+                className={cn(
+                  'px-2 py-1 text-center tabular-nums',
+                  week.retainedPercent > 0 && 'font-semibold',
+                )}
+                style={{
+                  backgroundColor: `hsl(var(--primary) / ${Math.min(week.retainedPercent / 100, 1) * 0.4})`,
+                }}
+              >
+                {week.retainedPercent}%
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
+// Opt-out table
+// ---------------------------------------------------------------------------
+
+const OptOutTable = ({ rows }: { rows: NotificationOptOutRow[] }) => (
+  <div className="overflow-hidden rounded-md border border-border/50">
+    <table className="min-w-full divide-y divide-border/60 text-sm">
+      <thead className="bg-muted/40">
+        <tr>
+          <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Notification type
+          </th>
+          <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            In-app opt-out
+          </th>
+          <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Email opt-out
+          </th>
+          <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Users
+          </th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border/60">
+        {rows.map((row) => (
+          <tr key={row.type}>
+            <td className="px-4 py-2 font-medium">
+              {row.type.replaceAll('_', ' ').toLowerCase()}
+            </td>
+            <td className="px-4 py-2 text-center tabular-nums">
+              {row.inAppOptOutPercent}%
+            </td>
+            <td className="px-4 py-2 text-center tabular-nums">
+              {row.emailOptOutPercent}%
+            </td>
+            <td className="px-4 py-2 text-right tabular-nums">{row.total}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
 export default AnalyticsRoute;
+
 export const ErrorBoundary = () => {
   return <GeneralErrorBoundary />;
 };

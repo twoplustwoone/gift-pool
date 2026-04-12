@@ -1,5 +1,5 @@
 import { queueLogEvent } from './analytics.server.ts';
-import { cachified, lruCache } from './cache.server.ts';
+import { cache, cachified, lruCache } from './cache.server.ts';
 import { prisma } from './db.server.ts';
 import { POOL_STATUS, type PoolStatus } from './pool-constants.ts';
 
@@ -1168,4 +1168,276 @@ export async function revokeAllSessionsForUser({
     sessionsDeleted: sessions.count,
     verificationsDeleted: verifications.count,
   };
+}
+
+// ===========================================================================
+// Phase 4 — Analytics aggregates
+// ===========================================================================
+
+const ONE_HOUR = 60 * 60 * 1000;
+
+// ---------------------------------------------------------------------------
+// Activation funnel — built from domain tables, no dependency on events.
+// Cached 1h in the SQLite-backed cache (cross-instance coherent via LiteFS).
+// ---------------------------------------------------------------------------
+
+export type FunnelStep = {
+  step: string;
+  count: number;
+  percent: number;
+};
+
+export async function getActivationFunnel({
+  cohortStart,
+  cohortEnd,
+}: {
+  cohortStart: Date;
+  cohortEnd: Date;
+}): Promise<FunnelStep[]> {
+  const key = `admin:funnel:v1:${cohortStart.toISOString().slice(0, 10)}:${cohortEnd.toISOString().slice(0, 10)}`;
+  return cachified({
+    key,
+    cache,
+    ttl: ONE_HOUR,
+    getFreshValue: async () => {
+      const cohortUsers = await prisma.user.findMany({
+        where: { createdAt: { gte: cohortStart, lte: cohortEnd } },
+        select: { id: true },
+      });
+
+      const userIds = cohortUsers.map((u) => u.id);
+      const total = userIds.length;
+      if (total === 0) {
+        return [
+          { step: 'Signed up', count: 0, percent: 100 },
+          { step: 'Added first wishlist item', count: 0, percent: 0 },
+          { step: 'Made first friend', count: 0, percent: 0 },
+          { step: 'Contributed to a pool', count: 0, percent: 0 },
+          { step: 'Received a delivered gift', count: 0, percent: 0 },
+        ];
+      }
+
+      const [withWishlist, withFriend, withContribution, withDelivered] =
+        await Promise.all([
+          prisma.wishlistItem.findMany({
+            where: { ownerId: { in: userIds } },
+            select: { ownerId: true },
+            distinct: ['ownerId'],
+          }),
+          prisma.friendship.findMany({
+            where: {
+              OR: [
+                { userAId: { in: userIds } },
+                { userBId: { in: userIds } },
+              ],
+            },
+            select: { userAId: true, userBId: true },
+          }),
+          prisma.poolContributor.findMany({
+            where: { userId: { in: userIds } },
+            select: { userId: true },
+            distinct: ['userId'],
+          }),
+          prisma.pool.findMany({
+            where: {
+              recipientUserId: { in: userIds },
+              status: POOL_STATUS.DELIVERED,
+            },
+            select: { recipientUserId: true },
+            distinct: ['recipientUserId'],
+          }),
+        ]);
+
+      const friendUserIds = new Set<string>();
+      for (const f of withFriend) {
+        if (userIds.includes(f.userAId)) friendUserIds.add(f.userAId);
+        if (userIds.includes(f.userBId)) friendUserIds.add(f.userBId);
+      }
+
+      const pct = (n: number) => Math.round((n / total) * 100);
+
+      const wishlistCount = withWishlist.length;
+      const friendCount = friendUserIds.size;
+      const contribCount = withContribution.length;
+      const deliveredCount = withDelivered.length;
+
+      return [
+        { step: 'Signed up', count: total, percent: 100 },
+        {
+          step: 'Added first wishlist item',
+          count: wishlistCount,
+          percent: pct(wishlistCount),
+        },
+        {
+          step: 'Made first friend',
+          count: friendCount,
+          percent: pct(friendCount),
+        },
+        {
+          step: 'Contributed to a pool',
+          count: contribCount,
+          percent: pct(contribCount),
+        },
+        {
+          step: 'Received a delivered gift',
+          count: deliveredCount,
+          percent: pct(deliveredCount),
+        },
+      ];
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Weekly retention cohort grid — uses Session.createdAt as the retention
+// signal. Works against today's data without depending on analytics events.
+// Cached 1h in SQLite cache.
+// ---------------------------------------------------------------------------
+
+export type RetentionCohort = {
+  cohortWeek: string;
+  cohortSize: number;
+  weeks: Array<{
+    weekOffset: number;
+    retainedUsers: number;
+    retainedPercent: number;
+  }>;
+};
+
+export async function getWeeklyRetention(
+  weeks = 8,
+): Promise<RetentionCohort[]> {
+  const key = `admin:retention:v1:${weeks}`;
+  return cachified({
+    key,
+    cache,
+    ttl: ONE_HOUR,
+    getFreshValue: async () => {
+      const rows = await prisma.$queryRaw<
+        Array<{
+          cohort_week: string;
+          cohort_size: bigint;
+          week_offset: bigint;
+          retained: bigint;
+        }>
+      >`
+        WITH cohorts AS (
+          SELECT
+            id AS user_id,
+            strftime('%Y-W%W', createdAt / 1000, 'unixepoch') AS cohort_week
+          FROM User
+          WHERE createdAt >= ${Date.now() - weeks * 7 * DAY_MS}
+        ),
+        cohort_sizes AS (
+          SELECT cohort_week, COUNT(*) AS cohort_size
+          FROM cohorts
+          GROUP BY cohort_week
+        ),
+        sessions_by_week AS (
+          SELECT
+            c.user_id,
+            c.cohort_week,
+            CAST((s.createdAt - c_user.createdAt) / ${7 * DAY_MS} AS INTEGER) AS week_offset
+          FROM cohorts c
+          JOIN Session s ON s.userId = c.user_id
+          JOIN User c_user ON c_user.id = c.user_id
+          WHERE s.createdAt >= c_user.createdAt
+        )
+        SELECT
+          cs.cohort_week,
+          cs.cohort_size,
+          sw.week_offset,
+          COUNT(DISTINCT sw.user_id) AS retained
+        FROM cohort_sizes cs
+        LEFT JOIN sessions_by_week sw ON sw.cohort_week = cs.cohort_week
+        WHERE sw.week_offset IS NOT NULL AND sw.week_offset >= 0 AND sw.week_offset < ${weeks}
+        GROUP BY cs.cohort_week, cs.cohort_size, sw.week_offset
+        ORDER BY cs.cohort_week, sw.week_offset
+      `;
+
+      const cohortMap = new Map<
+        string,
+        { cohortSize: number; weeks: Map<number, number> }
+      >();
+
+      for (const row of rows) {
+        const key = row.cohort_week;
+        if (!cohortMap.has(key)) {
+          cohortMap.set(key, {
+            cohortSize: Number(row.cohort_size),
+            weeks: new Map(),
+          });
+        }
+        cohortMap
+          .get(key)!
+          .weeks.set(Number(row.week_offset), Number(row.retained));
+      }
+
+      const result: RetentionCohort[] = [];
+      for (const [cohortWeek, data] of cohortMap) {
+        result.push({
+          cohortWeek,
+          cohortSize: data.cohortSize,
+          weeks: Array.from({ length: weeks }, (_, i) => {
+            const retained = data.weeks.get(i) ?? 0;
+            return {
+              weekOffset: i,
+              retainedUsers: retained,
+              retainedPercent:
+                data.cohortSize > 0
+                  ? Math.round((retained / data.cohortSize) * 100)
+                  : 0,
+            };
+          }),
+        });
+      }
+
+      return result;
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Notification opt-out matrix — how many users have opted out per type/channel.
+// Not cached (fast single query, always fresh).
+// ---------------------------------------------------------------------------
+
+export type NotificationOptOutRow = {
+  type: string;
+  inAppOptOutPercent: number;
+  emailOptOutPercent: number;
+  total: number;
+};
+
+export async function getNotificationOptOutMatrix(): Promise<
+  NotificationOptOutRow[]
+> {
+  const rows = await prisma.$queryRaw<
+    Array<{
+      type: string;
+      inApp_off: bigint | null;
+      email_off: bigint | null;
+      total: bigint;
+    }>
+  >`
+    SELECT
+      type,
+      SUM(CASE WHEN inAppEnabled = 0 THEN 1 ELSE 0 END) AS inApp_off,
+      SUM(CASE WHEN emailEnabled = 0 THEN 1 ELSE 0 END) AS email_off,
+      COUNT(*) AS total
+    FROM UserNotificationPreference
+    GROUP BY type
+  `;
+
+  return rows.map((row) => {
+    const total = Number(row.total);
+    const inAppOff = Number(row.inApp_off ?? 0);
+    const emailOff = Number(row.email_off ?? 0);
+    return {
+      type: row.type,
+      inAppOptOutPercent: total > 0 ? Math.round((inAppOff / total) * 100) : 0,
+      emailOptOutPercent: total > 0 ? Math.round((emailOff / total) * 100) : 0,
+      total,
+    };
+  });
 }
