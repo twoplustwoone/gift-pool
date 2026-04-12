@@ -1,6 +1,7 @@
 import { parseWithZod } from '@conform-to/zod';
 import { data, type ActionFunctionArgs } from 'react-router';
 import { z } from 'zod';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { usersShareWishlistAccess } from '#app/utils/wishlist.server.ts';
@@ -134,6 +135,15 @@ export async function action({ request }: ActionFunctionArgs) {
       },
       update: {
         purchasedById: userId,
+      },
+    });
+    queueLogEvent({
+      name: 'wishlist_purchase_recorded',
+      userId,
+      source: 'server',
+      properties: {
+        wishlistItemId,
+        ownerId: wishlistItem.ownerId,
       },
     });
     return {

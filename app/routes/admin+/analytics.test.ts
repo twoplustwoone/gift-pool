@@ -1,4 +1,4 @@
-import { describe, expect, it, afterEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { loader } from '#app/routes/admin+/analytics.tsx';
 import { logEvent } from '#app/utils/analytics.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
@@ -17,16 +17,8 @@ const buildRequest = (cookie?: string) =>
     headers: cookie ? { cookie } : undefined,
   });
 
-const originalEmails = process.env.ANALYTICS_ADMIN_EMAILS;
-const originalIds = process.env.ANALYTICS_ADMIN_USER_IDS;
-
-afterEach(() => {
-  process.env.ANALYTICS_ADMIN_EMAILS = originalEmails;
-  process.env.ANALYTICS_ADMIN_USER_IDS = originalIds;
-});
-
 describe('/admin/analytics loader', () => {
-  it('rejects users outside the allowlist', async () => {
+  it('rejects users without the admin role', async () => {
     const user = await prisma.user.create({ data: createUser() });
     const session = await prisma.session.create({
       data: {
@@ -47,11 +39,19 @@ describe('/admin/analytics loader', () => {
     ).rejects.toMatchObject({ init: { status: 403 } });
   });
 
-  it('returns analytics metrics for allowlisted admins', async () => {
-    const adminData = createUser();
-    const admin = await prisma.user.create({ data: adminData });
+  it('returns analytics metrics for users with the admin role', async () => {
+    await prisma.role.upsert({
+      where: { name: 'admin' },
+      update: {},
+      create: { name: 'admin', description: 'Admin role' },
+    });
+    const admin = await prisma.user.create({
+      data: {
+        ...createUser(),
+        roles: { connect: { name: 'admin' } },
+      },
+    });
     const otherUser = await prisma.user.create({ data: createUser() });
-    process.env.ANALYTICS_ADMIN_EMAILS = admin.email;
 
     const session = await prisma.session.create({
       data: {

@@ -1,60 +1,14 @@
-import { invariantResponse } from '@epic-web/invariant';
-import { data, type LoaderFunctionArgs, useLoaderData  } from 'react-router';
+import { type LoaderFunctionArgs, useLoaderData } from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import {
   type AnalyticsCounts,
   getAnalyticsCounts,
 } from '#app/utils/analytics.server.ts';
-import { requireUserId } from '#app/utils/auth.server.ts';
-import { prisma } from '#app/utils/db.server.ts';
-function parseAllowlist(value?: string | null) {
-  return (value ?? '')
-    .split(',')
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean);
-}
-async function requireAnalyticsAdmin(request: Request) {
-  const userId = await requireUserId(request);
-  const allowlistedIds = parseAllowlist(process.env.ANALYTICS_ADMIN_USER_IDS);
-  const allowlistedEmails = parseAllowlist(process.env.ANALYTICS_ADMIN_EMAILS);
-  const user = await prisma.user.findUnique({
-    select: {
-      id: true,
-      email: true,
-      roles: {
-        select: {
-          name: true,
-        },
-      },
-    },
-    where: {
-      id: userId,
-    },
-  });
-  invariantResponse(user, 'User not found', {
-    status: 404,
-  });
-  const isAllowed =
-    allowlistedIds.includes(user.id) ||
-    (user.email
-      ? allowlistedEmails.includes(user.email.toLowerCase())
-      : false) ||
-    user.roles.some((role) => role.name === 'admin');
-  if (!isAllowed) {
-    throw data(
-      {
-        error: 'Unauthorized',
-      },
-      {
-        status: 403,
-      },
-    );
-  }
-  return user.id;
-}
+import { requireUserWithRole } from '#app/utils/permissions.server.ts';
+
 export async function loader({ request }: LoaderFunctionArgs) {
-  await requireAnalyticsAdmin(request);
+  await requireUserWithRole(request, 'admin');
   const analytics = await getAnalyticsCounts();
   return {
     analytics,
@@ -190,7 +144,7 @@ const EventTable = ({
 const AnalyticsRoute = () => {
   const { analytics } = useLoaderData<typeof loader>();
   return (
-    <div className="container space-y-8 py-8">
+    <div className="space-y-8">
       <div className="space-y-1">
         <h1 className="text-h1">Analytics</h1>
         <p className="text-muted-foreground">
