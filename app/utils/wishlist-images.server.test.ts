@@ -132,4 +132,23 @@ describe('wishlist-images.server.ts', () => {
       'Content-Type': 'image/webp',
     });
   });
+
+  it('blocks link-local, 0.0.0.0/8, and CGNAT addresses', async () => {
+    // 169.254.0.0/16 — link-local, includes AWS IMDSv1 (169.254.169.254)
+    await expect(
+      processImageFromUrl('http://169.254.169.254/latest/meta-data'),
+    ).rejects.toThrow('Blocked private address');
+
+    // 0.0.0.0/8
+    await expect(
+      processImageFromUrl('http://0.0.0.1/secret'),
+    ).rejects.toThrow('Blocked private address');
+
+    // 100.64.0.0/10 — CGNAT (RFC 6598)
+    await expect(
+      processImageFromUrl('http://100.64.0.1/internal'),
+    ).rejects.toThrow('Blocked private address');
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
