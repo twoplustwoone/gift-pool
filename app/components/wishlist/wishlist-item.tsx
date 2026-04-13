@@ -767,7 +767,8 @@ export function WishlistItemThumbnail({
     );
   }
 
-  const PlaceholderIcon = hasImage && imageErrored ? LuImage : isListLink ? LuLayoutList : LuGift;
+  let PlaceholderIcon = isListLink ? LuLayoutList : LuGift;
+  if (hasImage && imageErrored) PlaceholderIcon = LuImage;
 
   return (
     <div

@@ -110,6 +110,76 @@ export const WishlistItemSchema = z
     }
   });
 
+type WishlistItemType = 'text' | 'link' | 'wishlist';
+
+function EditorTypeSelector({
+  isListLinkType,
+  resetImageChanges,
+  setItemType,
+}: {
+  isListLinkType: boolean;
+  resetImageChanges: () => void;
+  setItemType: React.Dispatch<React.SetStateAction<WishlistItemType>>;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-sm font-medium">What are you adding?</span>
+      <div className="flex rounded-lg bg-muted p-1">
+        <button
+          type="button"
+          onClick={() => setItemType('text')}
+          className={cn(
+            'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all',
+            isListLinkType
+              ? 'text-muted-foreground hover:text-foreground'
+              : 'bg-background text-foreground shadow-sm',
+          )}
+        >
+          <LuGift className="h-3.5 w-3.5" aria-hidden />
+          Gift idea
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setItemType('wishlist');
+            resetImageChanges();
+          }}
+          className={cn(
+            'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all',
+            isListLinkType
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          <LuListChecks className="h-3.5 w-3.5" aria-hidden />
+          List link
+        </button>
+      </div>
+      {isListLinkType ? (
+        <p className="text-xs text-muted-foreground">
+          Links to an external collection (Amazon wishlist, Steam list, etc.). Friends can browse
+          it — list links can&apos;t be claimed.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function getEditorFieldConfig(isListLink: boolean) {
+  return {
+    titleLabel: isListLink ? 'List name' : 'Title',
+    titlePlaceholder: isListLink ? 'My Amazon Wishlist' : 'Title for your item',
+    urlLabel: isListLink ? 'List URL' : 'Link',
+    urlPlaceholder: isListLink
+      ? 'https://www.amazon.com/hz/wishlist/…'
+      : 'https://amazon.com/',
+    noteLabel: isListLink ? 'Note for friends' : 'Note',
+    notePlaceholder: isListLink
+      ? 'e.g. Anything in the kitchen section works for me'
+      : 'Any details to help friends pick the right one',
+  };
+}
+
 const getSafePreviewSrc = (value: string | null) => {
   if (!value) return null;
   if (value.startsWith('/')) return value;
@@ -1045,7 +1115,7 @@ function EditorFormSection({
   isImageLoading: boolean;
   isPending: boolean;
   isListLinkType: boolean;
-  itemType: 'text' | 'link' | 'wishlist';
+  itemType: WishlistItemType;
   mode: EditorMode;
   prepareImageActionForSave: () => void;
   previewSrc: string | null;
@@ -1061,11 +1131,12 @@ function EditorFormSection({
   setImageUrlValue: React.Dispatch<React.SetStateAction<string>>;
   setImageWarning: React.Dispatch<React.SetStateAction<string | null>>;
   setIsImageLoading: React.Dispatch<React.SetStateAction<boolean>>;
-  setItemType: React.Dispatch<React.SetStateAction<'text' | 'link' | 'wishlist'>>;
+  setItemType: React.Dispatch<React.SetStateAction<WishlistItemType>>;
   showImageError: boolean;
   wishlistItem?: EditorProps['wishlistItem'];
 }>) {
   const { onSubmit: conformOnSubmit, ...conformFormProps } = getFormProps(form);
+  const fieldConfig = getEditorFieldConfig(isListLinkType);
   return (
     <Form
       method="POST"
@@ -1088,47 +1159,16 @@ function EditorFormSection({
       {wishlistItem?.id ? (
         <input type="hidden" name="id" value={wishlistItem.id} />
       ) : null}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">What are you adding?</span>
-        <div className="flex rounded-lg bg-muted p-1">
-          <button
-            type="button"
-            onClick={() => setItemType('text')}
-            className={cn(
-              'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all',
-              !isListLinkType
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <LuGift className="h-3.5 w-3.5" aria-hidden />
-            Gift idea
-          </button>
-          <button
-            type="button"
-            onClick={() => setItemType('wishlist')}
-            className={cn(
-              'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all',
-              isListLinkType
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <LuListChecks className="h-3.5 w-3.5" aria-hidden />
-            List link
-          </button>
-        </div>
-        {isListLinkType ? (
-          <p className="text-xs text-muted-foreground">
-            Links to an external collection (Amazon wishlist, Steam list, etc.). Friends can browse it — list links can&apos;t be claimed.
-          </p>
-        ) : null}
-      </div>
+      <EditorTypeSelector
+        isListLinkType={isListLinkType}
+        resetImageChanges={resetImageChanges}
+        setItemType={setItemType}
+      />
       <Field
         className="w-full"
-        labelProps={{ children: isListLinkType ? 'List name' : 'Title' }}
+        labelProps={{ children: fieldConfig.titleLabel }}
         inputProps={{
-          placeholder: isListLinkType ? 'My Amazon Wishlist' : 'Title for your item',
+          placeholder: fieldConfig.titlePlaceholder,
           autoFocus: true,
           ...getInputProps(fields.title, {
             type: 'text',
@@ -1139,11 +1179,9 @@ function EditorFormSection({
       />
       <Field
         className="w-full"
-        labelProps={{ children: isListLinkType ? 'List URL' : 'Link' }}
+        labelProps={{ children: fieldConfig.urlLabel }}
         inputProps={{
-          placeholder: isListLinkType
-            ? 'https://www.amazon.com/hz/wishlist/…'
-            : 'https://amazon.com/',
+          placeholder: fieldConfig.urlPlaceholder,
           ...getInputProps(fields.url, {
             type: 'url',
             ariaAttributes: true,
@@ -1154,11 +1192,9 @@ function EditorFormSection({
       />
       <TextareaField
         className="w-full"
-        labelProps={{ children: isListLinkType ? 'Note for friends' : 'Description' }}
+        labelProps={{ children: fieldConfig.noteLabel }}
         textareaProps={{
-          placeholder: isListLinkType
-            ? 'e.g. Anything in the kitchen section works for me'
-            : 'Describe the item...',
+          placeholder: fieldConfig.notePlaceholder,
           rows: 3,
           ...getInputProps(fields.note, {
             type: 'text',
@@ -1641,8 +1677,8 @@ export const WishlistItemEditor = React.forwardRef<
 
     const formId = React.useId();
     const isDesktop = useIsDesktop();
-    const [itemType, setItemType] = React.useState<'text' | 'link' | 'wishlist'>(
-      (wishlistItem?.type as 'text' | 'link' | 'wishlist' | undefined) ?? 'text',
+    const [itemType, setItemType] = React.useState<WishlistItemType>(
+      (wishlistItem?.type as WishlistItemType | undefined) ?? 'text',
     );
     const isListLinkType = itemType === 'wishlist';
     const [form, fields] = useForm<z.input<typeof WishlistItemSchema>>({
