@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -23,6 +23,10 @@ beforeAll(() => {
 vi.mock('#app/components/toaster.tsx', () => ({
   useToast: () => {},
 }));
+
+// Capture the real URL class before any beforeEach can stub it. Tests that
+// need looksLikeWishlistUrl to work (which uses new URL()) must restore this.
+const NativeURL = URL;
 
 vi.mock('react-router', async () => {
   const actual = await vi.importActual('react-router');
@@ -125,6 +129,146 @@ describe('WishlistItemEditor status section', () => {
     expect(
       screen.getByText('Restoring will add this item back to your wishlist.'),
     ).toBeInTheDocument();
+  });
+});
+
+describe('WishlistItemEditor — Phase 2: list link behaviour', () => {
+  beforeEach(() => {
+    // Restore the real URL constructor so looksLikeWishlistUrl (which calls
+    // new URL()) works correctly inside these tests. The outer beforeEach
+    // replaces URL with a plain object that has no constructor.
+    vi.stubGlobal('URL', NativeURL);
+  });
+
+  it('hides the image section when type is switched to list link', async () => {
+    const user = userEvent.setup();
+    render(
+      <WishlistItemEditor
+        wishlistItem={{ ...baseItem, status: 'ACTIVE' }}
+        canEdit
+        initialMode="edit"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+
+    // Image section visible initially (gift idea)
+    expect(screen.getByLabelText('Image')).toBeInTheDocument();
+
+    // Switch to List link
+    await user.click(screen.getByRole('button', { name: /list link/i }));
+
+    // Image section container should have the Tailwind 'hidden' class
+    // (jsdom doesn't compute CSS so we check the class directly)
+    const imageSection = screen.getByLabelText('Image').closest('.space-y-3');
+    expect(imageSection).toHaveClass('hidden');
+  });
+
+  it('shows "Description" label in gift-idea mode', async () => {
+    const user = userEvent.setup();
+    render(
+      <WishlistItemEditor
+        wishlistItem={{ ...baseItem, type: 'text', status: 'ACTIVE' }}
+        canEdit
+        initialMode="edit"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+
+    expect(screen.getByRole('textbox', { name: /description/i })).toBeInTheDocument();
+  });
+
+  it('shows "Note for friends" label in list-link mode', async () => {
+    const user = userEvent.setup();
+    render(
+      <WishlistItemEditor
+        wishlistItem={{ ...baseItem, type: 'wishlist', status: 'ACTIVE', url: 'https://www.amazon.com/hz/wishlist/ls/abc' }}
+        canEdit
+        initialMode="edit"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+
+    expect(screen.getByRole('textbox', { name: /note for friends/i })).toBeInTheDocument();
+  });
+
+  it('shows the list-link suggestion when a wishlist URL is entered', async () => {
+    const user = userEvent.setup();
+    render(
+      <WishlistItemEditor
+        wishlistItem={{ ...baseItem, type: 'text', status: 'ACTIVE' }}
+        canEdit
+        initialMode="edit"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+
+    const urlInput = screen.getByRole('textbox', { name: /link/i });
+    await user.clear(urlInput);
+    await user.type(urlInput, 'https://www.amazon.com/hz/wishlist/ls/ABC123');
+
+    expect(
+      screen.getByText(/looks like an external wishlist/i),
+    ).toBeInTheDocument();
+  });
+
+  it('dismisses the suggestion when the X button is clicked', async () => {
+    const user = userEvent.setup();
+    render(
+      <WishlistItemEditor
+        wishlistItem={{ ...baseItem, type: 'text', status: 'ACTIVE' }}
+        canEdit
+        initialMode="edit"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+
+    const urlInput = screen.getByRole('textbox', { name: /link/i });
+    await user.clear(urlInput);
+    await user.type(urlInput, 'https://www.amazon.com/hz/wishlist/ls/ABC123');
+
+    await user.click(screen.getByRole('button', { name: /dismiss suggestion/i }));
+
+    expect(
+      screen.queryByText(/looks like an external wishlist/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('switches to list link when the suggestion is accepted', async () => {
+    const user = userEvent.setup();
+    render(
+      <WishlistItemEditor
+        wishlistItem={{ ...baseItem, type: 'text', status: 'ACTIVE' }}
+        canEdit
+        initialMode="edit"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+
+    const urlInput = screen.getByRole('textbox', { name: /link/i });
+    await user.clear(urlInput);
+    await user.type(urlInput, 'https://www.amazon.com/hz/wishlist/ls/ABC123');
+
+    // Click the "List link" button inside the suggestion banner (not the segment control)
+    const suggestionBanner = screen.getByText(/looks like an external wishlist/i).closest('div');
+    await user.click(within(suggestionBanner!).getByRole('button', { name: /list link/i }));
+
+    // After accepting, the suggestion should disappear and label should flip
+    expect(
+      screen.queryByText(/looks like an external wishlist/i),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /note for friends/i })).toBeInTheDocument();
   });
 });
 
