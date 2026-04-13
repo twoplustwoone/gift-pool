@@ -5,7 +5,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { WishlistItem } from './wishlist-item';
+import { WishlistItem, parseDisplayUrl } from './wishlist-item';
 
 const mockOpenView = vi.fn();
 const mockOpenEdit = vi.fn();
@@ -359,5 +359,230 @@ describe('WishlistItem', () => {
     // inside the row button itself, so assert on the Card ancestor rather
     // than on the row button specifically.
     expect(screen.getByText('Claimed')).toBeInTheDocument();
+  });
+});
+
+describe('parseDisplayUrl', () => {
+  it('returns host and href for a valid https URL', () => {
+    const result = parseDisplayUrl('https://www.amazon.com/hz/wishlist/ls/abc');
+    expect(result).toEqual({
+      host: 'amazon.com',
+      href: 'https://www.amazon.com/hz/wishlist/ls/abc',
+    });
+  });
+
+  it('returns null for a javascript: URL', () => {
+    expect(parseDisplayUrl('javascript:alert(1)')).toBeNull();
+  });
+
+  it('returns null for a data: URL', () => {
+    expect(parseDisplayUrl('data:text/html,<script>alert(1)</script>')).toBeNull();
+  });
+
+  it('returns null for a malformed string', () => {
+    expect(parseDisplayUrl('not a url at all')).toBeNull();
+  });
+
+  it('strips www from the host', () => {
+    const result = parseDisplayUrl('https://www.example.com/path');
+    expect(result?.host).toBe('example.com');
+  });
+});
+
+describe('WishlistItem — list link type', () => {
+  beforeEach(() => {
+    mockUser = { id: 'friend-id', roles: [] };
+  });
+
+  it('renders a "List link" badge for wishlist-type items', () => {
+    render(
+      <WishlistItem
+        categories={[]}
+        wishlistItem={{
+          id: 'item-1',
+          title: 'My Amazon Wishlist',
+          note: null,
+          url: 'https://www.amazon.com/hz/wishlist/ls/abc',
+          type: 'wishlist',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('List link')).toBeInTheDocument();
+  });
+
+  it('does not render a "List link" badge for gift-idea items', () => {
+    render(
+      <WishlistItem
+        categories={[]}
+        wishlistItem={{
+          id: 'item-1',
+          title: 'A Gift Idea',
+          note: null,
+          url: null,
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    expect(screen.queryByText('List link')).not.toBeInTheDocument();
+  });
+
+  it('renders a Visit link for non-owners viewing a list link with a valid URL', () => {
+    render(
+      <WishlistItem
+        categories={[]}
+        disableClaims
+        wishlistItem={{
+          id: 'item-1',
+          title: 'My Amazon Wishlist',
+          note: null,
+          url: 'https://www.amazon.com/hz/wishlist/ls/abc',
+          type: 'wishlist',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    const visitLink = screen.getByRole('link', { name: /visit/i });
+    expect(visitLink).toBeInTheDocument();
+    expect(visitLink).toHaveAttribute(
+      'href',
+      'https://www.amazon.com/hz/wishlist/ls/abc',
+    );
+    expect(visitLink).toHaveAttribute('target', '_blank');
+    expect(visitLink).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('does not render a Visit link when the stored URL has a non-http(s) scheme', () => {
+    render(
+      <WishlistItem
+        categories={[]}
+        disableClaims
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Suspicious List',
+          note: null,
+          url: 'javascript:alert(1)',
+          type: 'wishlist',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole('link', { name: /visit/i })).not.toBeInTheDocument();
+  });
+
+  it('does not render a Visit link when the list link has no URL', () => {
+    render(
+      <WishlistItem
+        categories={[]}
+        disableClaims
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Unnamed List',
+          note: null,
+          url: null,
+          type: 'wishlist',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole('link', { name: /visit/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('WishlistItem — owner ⋮ menu type-change', () => {
+  beforeEach(() => {
+    mockOpenView.mockClear();
+    mockOpenEdit.mockClear();
+    mockUser = { id: 'owner-id', roles: [] };
+  });
+
+  it('opens the editor when "Mark as list link" is clicked and the item has no URL', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <WishlistItem
+        isOwner
+        categories={[]}
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Gift with no URL',
+          note: null,
+          url: null,
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    const actionsButton = screen.getAllByRole('button', {
+      name: /item actions for gift with no url/i,
+    })[0];
+    if (!actionsButton) throw new Error('Expected actions button');
+
+    await user.click(actionsButton);
+    await user.click(
+      await screen.findByRole('menuitem', { name: /mark as list link/i }),
+    );
+
+    expect(mockOpenEdit).toHaveBeenCalledOnce();
+  });
+
+  it('does not open the editor when "Mark as list link" is clicked and the item already has a URL', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <WishlistItem
+        isOwner
+        categories={[]}
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Gift with URL',
+          note: null,
+          url: 'https://www.amazon.com/dp/B001',
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+        }}
+      />,
+    );
+
+    const actionsButton = screen.getAllByRole('button', {
+      name: /item actions for gift with url/i,
+    })[0];
+    if (!actionsButton) throw new Error('Expected actions button');
+
+    await user.click(actionsButton);
+    await user.click(
+      await screen.findByRole('menuitem', { name: /mark as list link/i }),
+    );
+
+    // When a URL is already set the quick-convert path is taken, not the editor
+    expect(mockOpenEdit).not.toHaveBeenCalled();
   });
 });

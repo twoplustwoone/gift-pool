@@ -315,4 +315,32 @@ describe('app/routes/wishlist+/__wishlist-item-editor.server.tsx', () => {
     });
     expect(queueLogEvent).not.toHaveBeenCalled();
   });
+
+  it('returns a result key (not a spread) when list-link URL validation fails', async () => {
+    const { cookie } = await createOwnerWithSession();
+
+    const formData = new FormData();
+    formData.set('intent', 'save');
+    formData.set('title', 'My Amazon Wishlist');
+    formData.set('type', 'wishlist');
+    // Intentionally omit url — server validation should reject this
+    formData.set('clientMutationId', 'client-val-1');
+    formData.set('imageAction', 'none');
+
+    const response = await action(
+      toActionArgs({
+        context,
+        params: {},
+        request: createEditorRequest({ cookie, formData, requestId: 'request-4' }),
+      }),
+    );
+
+    expect(getRouteResultStatus(response)).toBe(400);
+    const data = await getRouteResultData<Record<string, unknown>>(response);
+    // The error payload must be nested under `result`, not spread at the top
+    // level — useForm's lastResult expects `actionData.result`.
+    expect(data).toHaveProperty('result');
+    expect(data).not.toHaveProperty('status'); // would be present if spread
+    expect((data.result as any)?.error?.url).toBeDefined();
+  });
 });
