@@ -45,8 +45,8 @@ export const WishlistHeader = ({
   onStartCategoryReorder: () => void;
   onCategoryMutationResult: (result: CategoryMutationResult) => void;
 }) => (
-  <div className="w-full border-b bg-surface">
-    <div className="mx-auto flex min-h-11 w-full max-w-6xl items-center justify-between gap-3 px-3 py-3 sm:px-6">
+  <div className="w-full border-b bg-surface shadow">
+    <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <WishlistAvatar isOwner={isOwner} user={user} />
         <div className="flex min-w-0 items-center gap-2">
