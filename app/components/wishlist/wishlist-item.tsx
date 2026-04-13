@@ -477,10 +477,11 @@ function NonOwnerClaimSlot({
 }) {
   // List link — show "Visit list" external link instead of claim affordance.
   if (!allowClaims && isListLink) {
-    if (itemUrl) {
+    const safeUrl = itemUrl ? parseDisplayUrl(itemUrl) : null;
+    if (safeUrl) {
       return (
         <a
-          href={itemUrl}
+          href={safeUrl.href}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(event) => event.stopPropagation()}
@@ -1141,7 +1142,15 @@ export const WishlistItem = ({
         Edit item
       </WishlistRowActionsItem>
       <WishlistRowActionsItem
-        onSelect={() => handleTypeChange(isListLink ? 'text' : 'wishlist')}
+        onSelect={() => {
+          if (!isListLink && !wishlistItem.url) {
+            // No URL on this item — open the editor so the user can add one
+            // before converting (a URL is required for list links).
+            editorRef.current?.openEdit();
+          } else {
+            handleTypeChange(isListLink ? 'text' : 'wishlist');
+          }
+        }}
       >
         <LuLayoutList className="h-4 w-4 text-muted-foreground" aria-hidden />
         {isListLink ? 'Mark as gift idea' : 'Mark as list link'}
