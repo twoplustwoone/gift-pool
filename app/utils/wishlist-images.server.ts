@@ -33,6 +33,9 @@ function isPrivateIPv4(address: string) {
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 192 && b === 168) return true;
   if (a === 127) return true;
+  if (a === 169 && b === 254) return true; // link-local (AWS IMDSv1 uses 169.254.169.254)
+  if (a === 0) return true; // 0.0.0.0/8
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT (RFC 6598)
   return false;
 }
 

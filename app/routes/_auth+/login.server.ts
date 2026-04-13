@@ -171,6 +171,6 @@ export async function shouldRequestTwoFA(request: Request) {
   });
   if (!userHasTwoFA) return false;
   const verifiedTime = authSession.get(verifiedTimeKey) ?? new Date(0);
-  const twoHours = 1000 * 60 * 2;
-  return Date.now() - verifiedTime > twoHours;
+  const TWO_HOURS_MS = 1000 * 60 * 60 * 2;
+  return Date.now() - verifiedTime > TWO_HOURS_MS;
 }

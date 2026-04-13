@@ -1,6 +1,7 @@
 import { invariantResponse } from '@epic-web/invariant';
 import sharp from 'sharp';
 import { type LoaderFunctionArgs } from 'react-router';
+import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 
 const ALLOWED_IMAGE_SIZES = new Set([32, 48, 64, 96, 128, 256, 512]);
@@ -21,6 +22,7 @@ function parseRequestedSize(request: Request) {
 }
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
+  await requireUserId(request);
   invariantResponse(params.imageId, 'Image ID is required', { status: 400 });
   const requestedSize = parseRequestedSize(request);
 
@@ -39,7 +41,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
         'Content-Type': image.contentType,
         'Content-Length': String(image.blob.byteLength),
         'Content-Disposition': `inline; filename="${params.imageId}"`,
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Cache-Control': 'private, max-age=31536000, immutable',
       },
     });
   }
@@ -58,7 +60,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       'Content-Type': 'image/webp',
       'Content-Length': String(resizedImage.byteLength),
       'Content-Disposition': `inline; filename="${params.imageId}-${requestedSize}.webp"`,
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Cache-Control': 'private, max-age=31536000, immutable',
     },
   });
 }

@@ -105,7 +105,11 @@ app.use(
     referrerPolicy: { policy: 'same-origin' },
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
-      // NOTE: Remove reportOnly when you're ready to enforce this CSP
+      // Kept in report-only mode: React Router v7 emits inline <script> tags
+      // after </html> to drive the deferred ReadableStream (streamController).
+      // Those scripts carry no nonce, so strict-dynamic blocks them when
+      // enforced — React never hydrates. Switch to enforcement once upstream
+      // adds nonce propagation for streaming continuation scripts.
       reportOnly: true,
       directives: {
         'connect-src': [

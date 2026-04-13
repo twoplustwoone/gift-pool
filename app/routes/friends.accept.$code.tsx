@@ -26,10 +26,6 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   if (!code) return redirect('/friends');
   const userId = await requireUserId(request);
   const invitation = await requireFriendInvitationNotExpired(code);
-  console.info({
-    invitation,
-    userId,
-  });
   if (invitation.createdBy.id === userId) {
     return redirect('/friends');
   }
