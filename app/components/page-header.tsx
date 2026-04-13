@@ -40,30 +40,30 @@ const PageHeader = (props: PageHeaderProps) => {
             {props.children}
           </>
         ) : (
-          <div className="flex w-full flex-col gap-2">
-            <Link
-              to={props.back.href}
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <LuChevronLeft className="h-4 w-4" />
-              {props.back.label}
-            </Link>
-            <Flex justify="between" align="center" gap={2}>
-              <Flex gap={2} align="center">
-                {props.icon}
-                <div>
-                  <Text size="xl" weight="bold">
-                    {props.title}
-                  </Text>
-                  {props.subtitle ? (
-                    <Text size="sm" className="text-muted-foreground">
-                      {props.subtitle}
-                    </Text>
-                  ) : null}
+          <div className="flex w-full items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Link
+                to={props.back.href}
+                aria-label={`Back to ${props.back.label}`}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                <LuChevronLeft className="h-5 w-5" />
+              </Link>
+              <div className="flex shrink-0 items-center">{props.icon}</div>
+              <div className="min-w-0">
+                <div className="truncate text-xl font-bold leading-tight">
+                  {props.title}
                 </div>
-              </Flex>
-              {props.children}
-            </Flex>
+                {props.subtitle ? (
+                  <div className="truncate text-sm leading-tight text-muted-foreground">
+                    {props.subtitle}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            {props.children ? (
+              <div className="shrink-0">{props.children}</div>
+            ) : null}
           </div>
         )}
       </div>
