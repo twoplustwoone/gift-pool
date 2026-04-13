@@ -173,10 +173,10 @@ function getEditorFieldConfig(isListLink: boolean) {
     urlPlaceholder: isListLink
       ? 'https://www.amazon.com/hz/wishlist/…'
       : 'https://amazon.com/',
-    noteLabel: isListLink ? 'Note for friends' : 'Note',
+    noteLabel: isListLink ? 'Note for friends' : 'Description',
     notePlaceholder: isListLink
       ? 'e.g. Anything in the kitchen section works for me'
-      : 'Any details to help friends pick the right one',
+      : 'Describe the item...',
   };
 }
 
