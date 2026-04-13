@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { LuGift, LuPlus } from 'react-icons/lu'
 import { Link, type LoaderFunctionArgs, useLoaderData } from 'react-router'
 import { PageHeader } from '#app/components/page-header.tsx'
@@ -5,6 +6,7 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
 import { Flex, Stack, Text } from '#app/components/ui-kit'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { formatAbsoluteDate } from '#app/utils/dates.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	POOL_STATUS,
@@ -86,11 +88,7 @@ const PoolCard = ({ pool }: { pool: Pool }) => {
 						</Text>
 						{pool.eventDate && (
 							<Text size="xs" className="text-muted-foreground">
-								{new Date(pool.eventDate).toLocaleDateString('en-US', {
-									month: 'long',
-									day: 'numeric',
-									year: 'numeric',
-								})}
+								{formatAbsoluteDate(pool.eventDate)}
 							</Text>
 						)}
 						<Flex gap={2} align="center" className="mt-1">
@@ -130,6 +128,8 @@ const PoolCard = ({ pool }: { pool: Pool }) => {
 
 const PoolsIndex = () => {
 	const { active, completed } = useLoaderData<typeof loader>()
+	const [tab, setTab] = useState<'active' | 'past'>('active')
+	const hasAny = active.length > 0 || completed.length > 0
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -150,7 +150,7 @@ const PoolsIndex = () => {
 
 			{/* Content */}
 			<div className="mx-auto w-full max-w-6xl min-h-0 flex-1 px-4 py-8 sm:px-6">
-				{active.length === 0 && completed.length === 0 ? (
+				{!hasAny ? (
 					<div className="mx-auto max-w-lg">
 						<Card padding="lg" className="rounded-2xl text-center">
 							<LuGift className="mx-auto mb-3 text-muted-foreground" size={32} />
@@ -171,30 +171,68 @@ const PoolsIndex = () => {
 						</Card>
 					</div>
 				) : (
-					<Stack gap={8}>
-						{active.length > 0 && (
-							<Stack gap={3}>
-								<Text weight="semibold" className="text-muted-foreground uppercase tracking-wide text-xs">
-									Active
-								</Text>
+					<Stack gap={5}>
+						{/* Tab bar */}
+						<div className="flex gap-1 rounded-lg bg-muted p-1 w-fit">
+							<button
+								type="button"
+								onClick={() => setTab('active')}
+								className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+									tab === 'active'
+										? 'bg-background text-foreground shadow-sm'
+										: 'text-muted-foreground hover:text-foreground'
+								}`}
+							>
+								Active
+								{active.length > 0 && (
+									<span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${
+										tab === 'active' ? 'bg-primary/10 text-primary' : 'bg-muted-foreground/20 text-muted-foreground'
+									}`}>
+										{active.length}
+									</span>
+								)}
+							</button>
+							<button
+								type="button"
+								onClick={() => setTab('past')}
+								className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+									tab === 'past'
+										? 'bg-background text-foreground shadow-sm'
+										: 'text-muted-foreground hover:text-foreground'
+								}`}
+							>
+								Past
+								{completed.length > 0 && (
+									<span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${
+										tab === 'past' ? 'bg-primary/10 text-primary' : 'bg-muted-foreground/20 text-muted-foreground'
+									}`}>
+										{completed.length}
+									</span>
+								)}
+							</button>
+						</div>
+
+						{/* Tab content */}
+						{tab === 'active' ? (
+							active.length > 0 ? (
 								<Stack gap={3}>
 									{active.map(p => (
 										<PoolCard key={p.id} pool={p} />
 									))}
 								</Stack>
-							</Stack>
-						)}
-						{completed.length > 0 && (
-							<Stack gap={3}>
-								<Text weight="semibold" className="text-muted-foreground uppercase tracking-wide text-xs">
-									Completed
-								</Text>
+							) : (
+								<p className="text-sm text-muted-foreground">No active pools.</p>
+							)
+						) : (
+							completed.length > 0 ? (
 								<Stack gap={3}>
 									{completed.map(p => (
 										<PoolCard key={p.id} pool={p} />
 									))}
 								</Stack>
-							</Stack>
+							) : (
+								<p className="text-sm text-muted-foreground">No past pools.</p>
+							)
 						)}
 					</Stack>
 				)}

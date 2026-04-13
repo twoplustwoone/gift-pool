@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest';
+import { formatAbsoluteDate } from '#app/utils/dates.ts';
 
 const requireUserId = vi.fn();
 const findFirst = vi.fn();
@@ -81,9 +82,7 @@ describe('app/routes/profile+/index.tsx loader', () => {
         birthday: null,
         birthdayVisibility: 'FRIENDS',
       },
-      userJoinedDisplay: new Date(
-        '2024-05-12T00:00:00.000Z',
-      ).toLocaleDateString(),
+      userJoinedDisplay: formatAbsoluteDate(new Date('2024-05-12T00:00:00.000Z')),
       wishlistPreview: {
         items: [
           {

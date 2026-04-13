@@ -18,6 +18,7 @@ import {
   formatBirthdayLabel,
   getUpcomingBirthday,
 } from '#app/utils/birthday.ts';
+import { formatAbsoluteDate } from '#app/utils/dates.ts';
 import { prisma } from '#app/utils/db.server.ts';
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -73,7 +74,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   return {
     user,
-    userJoinedDisplay: user.createdAt.toLocaleDateString(),
+    userJoinedDisplay: formatAbsoluteDate(user.createdAt),
     wishlistPreview: {
       items: wishlistItems,
       totalCount: wishlistTotalCount,

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -188,8 +188,11 @@ describe('app/routes/pools+/index.tsx', () => {
       ],
     });
 
-    expect(screen.getByText('Active')).toBeInTheDocument();
-    expect(screen.getByText('Completed')).toBeInTheDocument();
+    // Tab bar renders with both tabs
+    expect(screen.getByRole('button', { name: /^Active/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Past/ })).toBeInTheDocument();
+
+    // Active tab is selected by default — shows active pool
     expect(
       screen.getByRole('link', { name: /Alex Birthday Pool/i }),
     ).toHaveAttribute('href', '/pools/pool-open');
@@ -198,6 +201,9 @@ describe('app/routes/pools+/index.tsx', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(expectedEventDate)).toBeInTheDocument();
     expect(screen.getByText('Open')).toBeInTheDocument();
+
+    // Switch to Past tab — shows completed pool
+    fireEvent.click(screen.getByRole('button', { name: /^Past/ }));
     expect(screen.getByText('Delivered')).toBeInTheDocument();
     expect(screen.getByText('Family')).toBeInTheDocument();
   });
