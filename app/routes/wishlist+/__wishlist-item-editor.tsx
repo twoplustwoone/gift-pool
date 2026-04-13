@@ -116,11 +116,11 @@ function EditorTypeSelector({
   isListLinkType,
   resetImageChanges,
   setItemType,
-}: {
+}: Readonly<{
   isListLinkType: boolean;
   resetImageChanges: () => void;
   setItemType: React.Dispatch<React.SetStateAction<WishlistItemType>>;
-}) {
+}>) {
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-sm font-medium">What are you adding?</span>
