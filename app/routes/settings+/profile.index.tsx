@@ -219,6 +219,7 @@ function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
         >
           <Avatar
             size="l"
+            className="max-h-40 max-w-40 sm:max-h-52 sm:max-w-52"
             image={
               data.user.image
                 ? { id: data.user.image.id, altText: null }
@@ -394,7 +395,7 @@ function PrivacyCard() {
               key={option.value}
               htmlFor={id}
               aria-label={option.label}
-              className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 transition hover:border-border"
+              className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 transition hover:border-border"
               data-selected={isSelected || undefined}
             >
               <input
@@ -409,7 +410,7 @@ function PrivacyCard() {
                   formData.set('birthdayVisibility', event.currentTarget.value);
                   void fetcher.submit(formData, { method: 'POST' });
                 }}
-                className="mt-0.5 h-4 w-4 accent-primary"
+                className="h-4 w-4 shrink-0 accent-primary"
               />
               <span className="flex flex-col gap-0.5">
                 <span className="text-sm font-medium text-foreground">

@@ -150,7 +150,7 @@ const AnalyticsRoute = () => {
   return (
     <div className="space-y-8">
       <div className="space-y-1">
-        <h1 className="text-h1">Analytics</h1>
+        <h1 className="text-xl font-semibold">Analytics</h1>
         <p className="text-muted-foreground">
           Usage metrics, activation funnel, retention, and notification
           opt-outs.

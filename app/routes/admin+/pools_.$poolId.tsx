@@ -89,7 +89,7 @@ const PoolDetailRoute = () => {
           >
             ← Back to pools
           </Link>
-          <h1 className="text-h1">{pool.title}</h1>
+          <h1 className="text-xl font-semibold">{pool.title}</h1>
           <p className="text-muted-foreground">
             {POOL_STATUS_LABELS[pool.status]} ·{' '}
             {OCCASION_TYPE_LABELS[pool.occasionType as keyof typeof OCCASION_TYPE_LABELS] ?? pool.occasionType}

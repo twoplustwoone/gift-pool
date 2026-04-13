@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { LuGift, LuPlus } from 'react-icons/lu'
 import { Link, type LoaderFunctionArgs, useLoaderData } from 'react-router'
 import { PageHeader } from '#app/components/page-header.tsx'
@@ -5,7 +7,9 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
 import { Flex, Stack, Text } from '#app/components/ui-kit'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { formatAbsoluteDate } from '#app/utils/dates.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { cn } from '#app/utils/misc.tsx'
 import {
 	POOL_STATUS,
 	POOL_STATUS_LABELS,
@@ -86,11 +90,7 @@ const PoolCard = ({ pool }: { pool: Pool }) => {
 						</Text>
 						{pool.eventDate && (
 							<Text size="xs" className="text-muted-foreground">
-								{new Date(pool.eventDate).toLocaleDateString('en-US', {
-									month: 'long',
-									day: 'numeric',
-									year: 'numeric',
-								})}
+								{formatAbsoluteDate(pool.eventDate)}
 							</Text>
 						)}
 						<Flex gap={2} align="center" className="mt-1">
@@ -128,8 +128,67 @@ const PoolCard = ({ pool }: { pool: Pool }) => {
 	)
 }
 
+function TabBadge({ count, isSelected }: { count: number; isSelected: boolean }) {
+	if (count === 0) return null
+	return (
+		<span className={cn(
+			'ml-1.5 rounded-full px-1.5 py-0.5 text-xs',
+			isSelected ? 'bg-primary/10 text-primary' : 'bg-muted-foreground/20 text-muted-foreground',
+		)}>
+			{count}
+		</span>
+	)
+}
+
+function TabButton({
+	id,
+	isSelected,
+	onClick,
+	children,
+}: {
+	id: string
+	isSelected: boolean
+	onClick: () => void
+	children: ReactNode
+}) {
+	return (
+		<button
+			type="button"
+			role="tab"
+			aria-selected={isSelected}
+			aria-controls="pools-tabpanel"
+			id={id}
+			onClick={onClick}
+			className={cn(
+				'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+				isSelected
+					? 'bg-background text-foreground shadow-sm'
+					: 'text-muted-foreground hover:text-foreground',
+			)}
+		>
+			{children}
+		</button>
+	)
+}
+
+function PoolList({ pools, emptyMessage }: { pools: Pool[]; emptyMessage: string }) {
+	if (pools.length === 0) {
+		return <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+	}
+	return (
+		<Stack gap={3}>
+			{pools.map(p => (
+				<PoolCard key={p.id} pool={p} />
+			))}
+		</Stack>
+	)
+}
+
 const PoolsIndex = () => {
 	const { active, completed } = useLoaderData<typeof loader>()
+	const [tab, setTab] = useState<'active' | 'past'>('active')
+	const hasAny = active.length > 0 || completed.length > 0
+	const panelLabelId = tab === 'active' ? 'tab-active' : 'tab-past'
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -150,7 +209,7 @@ const PoolsIndex = () => {
 
 			{/* Content */}
 			<div className="mx-auto w-full max-w-6xl min-h-0 flex-1 px-4 py-8 sm:px-6">
-				{active.length === 0 && completed.length === 0 ? (
+				{!hasAny ? (
 					<div className="mx-auto max-w-lg">
 						<Card padding="lg" className="rounded-2xl text-center">
 							<LuGift className="mx-auto mb-3 text-muted-foreground" size={32} />
@@ -171,31 +230,31 @@ const PoolsIndex = () => {
 						</Card>
 					</div>
 				) : (
-					<Stack gap={8}>
-						{active.length > 0 && (
-							<Stack gap={3}>
-								<Text weight="semibold" className="text-muted-foreground uppercase tracking-wide text-xs">
-									Active
-								</Text>
-								<Stack gap={3}>
-									{active.map(p => (
-										<PoolCard key={p.id} pool={p} />
-									))}
-								</Stack>
-							</Stack>
-						)}
-						{completed.length > 0 && (
-							<Stack gap={3}>
-								<Text weight="semibold" className="text-muted-foreground uppercase tracking-wide text-xs">
-									Completed
-								</Text>
-								<Stack gap={3}>
-									{completed.map(p => (
-										<PoolCard key={p.id} pool={p} />
-									))}
-								</Stack>
-							</Stack>
-						)}
+					<Stack gap={5}>
+						{/* Tab bar */}
+						<div role="tablist" aria-label="Pool filter" className="flex gap-1 rounded-lg bg-muted p-1 w-fit">
+							<TabButton id="tab-active" isSelected={tab === 'active'} onClick={() => setTab('active')}>
+								Active
+								<TabBadge count={active.length} isSelected={tab === 'active'} />
+							</TabButton>
+							<TabButton id="tab-past" isSelected={tab === 'past'} onClick={() => setTab('past')}>
+								Past
+								<TabBadge count={completed.length} isSelected={tab === 'past'} />
+							</TabButton>
+						</div>
+
+						{/* Tab content */}
+						<div
+							id="pools-tabpanel"
+							role="tabpanel"
+							aria-labelledby={panelLabelId}
+						>
+							{tab === 'active' ? (
+								<PoolList pools={active} emptyMessage="No active pools." />
+							) : (
+								<PoolList pools={completed} emptyMessage="No past pools." />
+							)}
+						</div>
 					</Stack>
 				)}
 			</div>

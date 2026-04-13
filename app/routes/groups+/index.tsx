@@ -70,6 +70,7 @@ const GroupsIndex = () => {
   const { groups } = useLoaderData<typeof loader>();
   const EmptyState = (
     <Card padding="lg" className="rounded-2xl text-center">
+      <LuUsers className="mx-auto mb-3 text-muted-foreground" size={32} aria-hidden="true" />
       <div className="text-lg font-semibold">
         You don’t have any groups yet.
       </div>
