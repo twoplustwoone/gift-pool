@@ -189,8 +189,8 @@ describe('app/routes/pools+/index.tsx', () => {
     });
 
     // Tab bar renders with both tabs
-    expect(screen.getByRole('button', { name: /^Active/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Past/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Active/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^Past/ })).toBeInTheDocument();
 
     // Active tab is selected by default — shows active pool
     expect(
@@ -203,7 +203,7 @@ describe('app/routes/pools+/index.tsx', () => {
     expect(screen.getByText('Open')).toBeInTheDocument();
 
     // Switch to Past tab — shows completed pool
-    fireEvent.click(screen.getByRole('button', { name: /^Past/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /^Past/ }));
     expect(screen.getByText('Delivered')).toBeInTheDocument();
     expect(screen.getByText('Family')).toBeInTheDocument();
   });
