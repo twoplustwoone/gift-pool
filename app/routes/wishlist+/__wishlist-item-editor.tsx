@@ -202,6 +202,57 @@ function EditorTypeSelector({
   );
 }
 
+function UrlFieldWithSuggestion({
+  errors,
+  inputProps,
+  labelText,
+  onAcceptSuggestion,
+  onDismissSuggestion,
+  showSuggestion,
+}: Readonly<{
+  errors: string[] | undefined;
+  inputProps: React.ComponentProps<'input'>;
+  labelText: string;
+  onAcceptSuggestion: () => void;
+  onDismissSuggestion: () => void;
+  showSuggestion: boolean;
+}>) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Field
+        className="w-full"
+        labelProps={{ children: labelText }}
+        inputProps={inputProps}
+        errors={errors}
+      />
+      {showSuggestion ? (
+        <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+          <LuInfo className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="flex-1">
+            Looks like an external wishlist. Switch to{' '}
+            <button
+              type="button"
+              className="font-medium underline underline-offset-2 hover:no-underline"
+              onClick={onAcceptSuggestion}
+            >
+              List link
+            </button>
+            {'?'}
+          </span>
+          <button
+            type="button"
+            aria-label="Dismiss suggestion"
+            className="shrink-0 opacity-60 hover:opacity-100"
+            onClick={onDismissSuggestion}
+          >
+            <LuX className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function getEditorFieldConfig(isListLink: boolean) {
   return {
     titleLabel: isListLink ? 'List name' : 'Title',
@@ -1220,49 +1271,25 @@ function EditorFormSection({
         }}
         errors={fields.title.errors}
       />
-      <div className="flex flex-col gap-1.5">
-        <Field
-          className="w-full"
-          labelProps={{ children: fieldConfig.urlLabel }}
-          inputProps={{
-            placeholder: fieldConfig.urlPlaceholder,
-            ...getInputProps(fields.url, {
-              type: 'url',
-              ariaAttributes: true,
-            }),
-            required: isListLinkType,
-          }}
-          errors={fields.url.errors}
-        />
-        {showListLinkSuggestion ? (
-          <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
-            <LuInfo className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="flex-1">
-              Looks like an external wishlist. Switch to{' '}
-              <button
-                type="button"
-                className="font-medium underline underline-offset-2 hover:no-underline"
-                onClick={() => {
-                  setItemType('wishlist');
-                  resetImageChanges();
-                  setListLinkSuggestionDismissed(true);
-                }}
-              >
-                List link
-              </button>
-              ?
-            </span>
-            <button
-              type="button"
-              aria-label="Dismiss suggestion"
-              className="shrink-0 opacity-60 hover:opacity-100"
-              onClick={() => setListLinkSuggestionDismissed(true)}
-            >
-              <LuX className="h-3.5 w-3.5" aria-hidden />
-            </button>
-          </div>
-        ) : null}
-      </div>
+      <UrlFieldWithSuggestion
+        errors={fields.url.errors}
+        inputProps={{
+          placeholder: fieldConfig.urlPlaceholder,
+          ...getInputProps(fields.url, {
+            type: 'url',
+            ariaAttributes: true,
+          }),
+          required: isListLinkType,
+        }}
+        labelText={fieldConfig.urlLabel}
+        onAcceptSuggestion={() => {
+          setItemType('wishlist');
+          resetImageChanges();
+          setListLinkSuggestionDismissed(true);
+        }}
+        onDismissSuggestion={() => setListLinkSuggestionDismissed(true)}
+        showSuggestion={showListLinkSuggestion}
+      />
       <TextareaField
         className="w-full"
         labelProps={{ children: fieldConfig.noteLabel }}
