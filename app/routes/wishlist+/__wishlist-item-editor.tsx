@@ -14,6 +14,7 @@ import {
   LuGift,
   LuImage,
   LuListChecks,
+  LuInfo,
   LuLoader,
   LuPlus,
   LuUpload,
@@ -62,6 +63,42 @@ const valueMinLength = 1;
 const valueMaxLength = 255;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const SAFE_IMAGE_PROTOCOLS = new Set(['http:', 'https:']);
+
+/**
+ * High-confidence URL patterns that indicate an external wishlist/registry,
+ * not a single product page. Used for the "Looks like a list — switch to
+ * List link?" inline suggestion. False-positive rate must be near zero,
+ * so we only match known wishlist paths, not generic e-commerce domains.
+ */
+const WISHLIST_URL_PATTERNS: RegExp[] = [
+  // Amazon wishlist — /hz/wishlist/ls/<id> or /gp/registry/wishlist/<id>
+  /amazon\.[a-z.]+\/hz\/wishlist\/ls\//i,
+  /amazon\.[a-z.]+\/gp\/registry\/wishlist\//i,
+  // Steam wishlist — store.steampowered.com/wishlist/id/<id>/ or /profiles/<id>/wishlist
+  /store\.steampowered\.com\/wishlist\//i,
+  // MyRegistry.com
+  /myregistry\.com\/giftlist\//i,
+  // The Knot registry
+  /theknot\.com\/registry\//i,
+  // Babylist registry
+  /babylist\.com\/list\//i,
+  // Target registry
+  /target\.com\/gift-registry\//i,
+  // Zola registry
+  /zola\.com\/registry\//i,
+];
+
+export function looksLikeWishlistUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return false;
+    }
+    return WISHLIST_URL_PATTERNS.some((pattern) => pattern.test(url));
+  } catch {
+    return false;
+  }
+}
 
 const ImageActionSchema = z
   .enum(['none', 'upload', 'url', 'auto-detect', 'remove'])
@@ -1136,6 +1173,12 @@ function EditorFormSection({
   wishlistItem?: EditorProps['wishlistItem'];
 }>) {
   const { onSubmit: conformOnSubmit, ...conformFormProps } = getFormProps(form);
+  const [listLinkSuggestionDismissed, setListLinkSuggestionDismissed] =
+    React.useState(false);
+  const showListLinkSuggestion =
+    !isListLinkType &&
+    !listLinkSuggestionDismissed &&
+    looksLikeWishlistUrl(fields.url.value ?? '');
   const fieldConfig = getEditorFieldConfig(isListLinkType);
   return (
     <Form
@@ -1177,19 +1220,49 @@ function EditorFormSection({
         }}
         errors={fields.title.errors}
       />
-      <Field
-        className="w-full"
-        labelProps={{ children: fieldConfig.urlLabel }}
-        inputProps={{
-          placeholder: fieldConfig.urlPlaceholder,
-          ...getInputProps(fields.url, {
-            type: 'url',
-            ariaAttributes: true,
-          }),
-          required: isListLinkType,
-        }}
-        errors={fields.url.errors}
-      />
+      <div className="flex flex-col gap-1.5">
+        <Field
+          className="w-full"
+          labelProps={{ children: fieldConfig.urlLabel }}
+          inputProps={{
+            placeholder: fieldConfig.urlPlaceholder,
+            ...getInputProps(fields.url, {
+              type: 'url',
+              ariaAttributes: true,
+            }),
+            required: isListLinkType,
+          }}
+          errors={fields.url.errors}
+        />
+        {showListLinkSuggestion ? (
+          <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+            <LuInfo className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="flex-1">
+              Looks like an external wishlist. Switch to{' '}
+              <button
+                type="button"
+                className="font-medium underline underline-offset-2 hover:no-underline"
+                onClick={() => {
+                  setItemType('wishlist');
+                  resetImageChanges();
+                  setListLinkSuggestionDismissed(true);
+                }}
+              >
+                List link
+              </button>
+              ?
+            </span>
+            <button
+              type="button"
+              aria-label="Dismiss suggestion"
+              className="shrink-0 opacity-60 hover:opacity-100"
+              onClick={() => setListLinkSuggestionDismissed(true)}
+            >
+              <LuX className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
+        ) : null}
+      </div>
       <TextareaField
         className="w-full"
         labelProps={{ children: fieldConfig.noteLabel }}
@@ -1221,7 +1294,7 @@ function EditorFormSection({
         </select>
       </div>
       <input type="hidden" name="imageAction" value={imageActionState} />
-      <div className="space-y-3">
+      <div className={cn('space-y-3', isListLinkType && 'hidden')}>
         <div className="flex items-center justify-between">
           <label htmlFor={imageFileInputProps.id} className="text-sm font-medium">
             Image
