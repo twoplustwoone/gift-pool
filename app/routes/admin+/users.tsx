@@ -48,7 +48,7 @@ const UsersRoute = () => {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-h1">Users</h1>
+        <h1 className="text-xl font-semibold">Users</h1>
         <p className="text-muted-foreground">
           Search by email, username, or name. Results include role badges and
           lightweight counts.

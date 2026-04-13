@@ -123,7 +123,7 @@ const AdminUserDetailRoute = () => {
           >
             ← Back to users
           </Link>
-          <h1 className="text-h1">{user.name ?? user.username}</h1>
+          <h1 className="text-xl font-semibold">{user.name ?? user.username}</h1>
           <p className="text-muted-foreground">
             @{user.username} · {user.email}
           </p>

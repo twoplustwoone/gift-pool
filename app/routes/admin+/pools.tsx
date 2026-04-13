@@ -78,7 +78,7 @@ const PoolsRoute = () => {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-h1">Pools</h1>
+        <h1 className="text-xl font-semibold">Pools</h1>
         <p className="text-muted-foreground">
           Health board — default view is stuck pools. Filter by status or view
           all.

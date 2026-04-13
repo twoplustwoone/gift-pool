@@ -69,7 +69,7 @@ const AdminIndexRoute = () => {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-h1">Overview</h1>
+        <h1 className="text-xl font-semibold">Overview</h1>
         <p className="text-muted-foreground">
           At-a-glance product health — all figures are direct queries against
           the domain tables, cached 60s.

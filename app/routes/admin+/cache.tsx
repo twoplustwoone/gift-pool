@@ -101,7 +101,7 @@ const CacheAdminRoute = () => {
   }, 400);
   return (
     <div className="space-y-4">
-      <h1 className="text-h1">Cache Admin</h1>
+      <h1 className="text-xl font-semibold">Cache Admin</h1>
       <Spacer size="2xs" />
       <Form
         method="get"

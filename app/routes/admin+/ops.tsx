@@ -201,7 +201,7 @@ const OpsRoute = () => {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-h1">Ops</h1>
+        <h1 className="text-xl font-semibold">Ops</h1>
         <p className="text-muted-foreground">
           Cleanup jobs, disk usage, and LiteFS instance info. All purges are
           idempotent — running them twice is safe.
