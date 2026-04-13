@@ -134,7 +134,7 @@ export function FriendRow({
 
         {birthdaySoon ? (
           <div
-            className="hidden flex-shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-900 ring-1 ring-inset ring-amber-200 sm:flex"
+            className="flex flex-shrink-0 flex-wrap items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-900 ring-1 ring-inset ring-amber-200"
             aria-label={`Birthday ${formatBirthdayLabel(birthdaySoon.date, birthdaySoon.daysUntil)}`}
           >
             <LuCake className="h-3.5 w-3.5" aria-hidden />
