@@ -8,6 +8,7 @@ import { Flex, Stack, Text } from '#app/components/ui-kit'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { formatAbsoluteDate } from '#app/utils/dates.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { cn } from '#app/utils/misc.tsx'
 import {
 	POOL_STATUS,
 	POOL_STATUS_LABELS,
@@ -129,11 +130,43 @@ const PoolCard = ({ pool }: { pool: Pool }) => {
 function TabBadge({ count, isSelected }: { count: number; isSelected: boolean }) {
 	if (count === 0) return null
 	return (
-		<span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${
-			isSelected ? 'bg-primary/10 text-primary' : 'bg-muted-foreground/20 text-muted-foreground'
-		}`}>
+		<span className={cn(
+			'ml-1.5 rounded-full px-1.5 py-0.5 text-xs',
+			isSelected ? 'bg-primary/10 text-primary' : 'bg-muted-foreground/20 text-muted-foreground',
+		)}>
 			{count}
 		</span>
+	)
+}
+
+function TabButton({
+	id,
+	isSelected,
+	onClick,
+	children,
+}: {
+	id: string
+	isSelected: boolean
+	onClick: () => void
+	children: React.ReactNode
+}) {
+	return (
+		<button
+			type="button"
+			role="tab"
+			aria-selected={isSelected}
+			aria-controls="pools-tabpanel"
+			id={id}
+			onClick={onClick}
+			className={cn(
+				'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+				isSelected
+					? 'bg-background text-foreground shadow-sm'
+					: 'text-muted-foreground hover:text-foreground',
+			)}
+		>
+			{children}
+		</button>
 	)
 }
 
@@ -154,6 +187,7 @@ const PoolsIndex = () => {
 	const { active, completed } = useLoaderData<typeof loader>()
 	const [tab, setTab] = useState<'active' | 'past'>('active')
 	const hasAny = active.length > 0 || completed.length > 0
+	const panelLabelId = tab === 'active' ? 'tab-active' : 'tab-past'
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -198,45 +232,21 @@ const PoolsIndex = () => {
 					<Stack gap={5}>
 						{/* Tab bar */}
 						<div role="tablist" aria-label="Pool filter" className="flex gap-1 rounded-lg bg-muted p-1 w-fit">
-							<button
-								type="button"
-								role="tab"
-								aria-selected={tab === 'active'}
-								aria-controls="pools-tabpanel"
-								id="tab-active"
-								onClick={() => setTab('active')}
-								className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-									tab === 'active'
-										? 'bg-background text-foreground shadow-sm'
-										: 'text-muted-foreground hover:text-foreground'
-								}`}
-							>
+							<TabButton id="tab-active" isSelected={tab === 'active'} onClick={() => setTab('active')}>
 								Active
 								<TabBadge count={active.length} isSelected={tab === 'active'} />
-							</button>
-							<button
-								type="button"
-								role="tab"
-								aria-selected={tab === 'past'}
-								aria-controls="pools-tabpanel"
-								id="tab-past"
-								onClick={() => setTab('past')}
-								className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-									tab === 'past'
-										? 'bg-background text-foreground shadow-sm'
-										: 'text-muted-foreground hover:text-foreground'
-								}`}
-							>
+							</TabButton>
+							<TabButton id="tab-past" isSelected={tab === 'past'} onClick={() => setTab('past')}>
 								Past
 								<TabBadge count={completed.length} isSelected={tab === 'past'} />
-							</button>
+							</TabButton>
 						</div>
 
 						{/* Tab content */}
 						<div
 							id="pools-tabpanel"
 							role="tabpanel"
-							aria-labelledby={tab === 'active' ? 'tab-active' : 'tab-past'}
+							aria-labelledby={panelLabelId}
 						>
 							{tab === 'active' ? (
 								<PoolList pools={active} emptyMessage="No active pools." />
