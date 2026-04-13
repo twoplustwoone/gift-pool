@@ -19,12 +19,16 @@ type DetailProps = {
   children?: React.ReactNode
 }
 
-type PageHeaderProps = SectionProps | DetailProps
+type PageHeaderProps = (SectionProps | DetailProps) & {
+  contentWidth?: 'standard' | 'narrow'
+}
 
 const PageHeader = (props: PageHeaderProps) => {
+  const widthClass =
+    props.contentWidth === 'narrow' ? 'max-w-3xl' : 'max-w-6xl'
   return (
     <div className="border-b bg-surface shadow">
-      <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-4 sm:px-6">
+      <div className={`mx-auto flex ${widthClass} items-center gap-2 px-4 py-4 sm:px-6`}>
         {props.variant === 'section' ? (
           <>
             <Flex gap={2} align="center" className="flex-1">
