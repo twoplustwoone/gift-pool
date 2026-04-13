@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { LuGift, LuPlus } from 'react-icons/lu'
 import { Link, type LoaderFunctionArgs, useLoaderData } from 'react-router'
 import { PageHeader } from '#app/components/page-header.tsx'
@@ -148,7 +149,7 @@ function TabButton({
 	id: string
 	isSelected: boolean
 	onClick: () => void
-	children: React.ReactNode
+	children: ReactNode
 }) {
 	return (
 		<button
