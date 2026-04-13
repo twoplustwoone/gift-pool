@@ -943,7 +943,6 @@ function EditorTrigger({
       <DialogTriggerComponent asChild>
         <Button
           className="hidden sm:inline-flex"
-          variant="outline"
           onClick={() => setMode('create')}
         >
           <Flex gap={1}>
