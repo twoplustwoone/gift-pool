@@ -121,7 +121,7 @@ describe('group detail overview route', () => {
     rerender(<GroupsDetailOverview />);
 
     expect(
-      screen.getByRole('button', { name: /creating invite link/i }),
+      screen.getByRole('button', { name: /creating\.\.\./i }),
     ).toBeDisabled();
 
     fetcherState.state = 'idle';
