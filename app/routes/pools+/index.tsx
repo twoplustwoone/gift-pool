@@ -1,8 +1,8 @@
 import { LuGift, LuPlus } from 'react-icons/lu'
 import { Link, type LoaderFunctionArgs, useLoaderData } from 'react-router'
+import { PageHeader } from '#app/components/page-header.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
-import { Icon } from '#app/components/ui/icon.tsx'
 import { Flex, Stack, Text } from '#app/components/ui-kit'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -133,28 +133,23 @@ const PoolsIndex = () => {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			{/* Header */}
-			<div className="border-b bg-surface px-4 py-4 shadow">
-				<div className="container flex items-center justify-between gap-2">
-					<Flex gap={2} align="center">
-						<LuGift className="text-primary" size={22} />
-						<Text size="xl" weight="bold">
-							Pools
-						</Text>
-					</Flex>
-					<Button asChild>
-						<Link to="/pools/new">
-							<Flex gap={1}>
-								<LuPlus />
-								<Text>Start a Pool</Text>
-							</Flex>
-						</Link>
-					</Button>
-				</div>
-			</div>
+			<PageHeader
+				variant="section"
+				icon={<LuGift className="text-primary" size={22} />}
+				title="Pools"
+			>
+				<Button asChild>
+					<Link to="/pools/new">
+						<Flex gap={1}>
+							<LuPlus />
+							<Text>Start a Pool</Text>
+						</Flex>
+					</Link>
+				</Button>
+			</PageHeader>
 
 			{/* Content */}
-			<div className="container min-h-0 flex-1 py-8">
+			<div className="mx-auto w-full max-w-6xl min-h-0 flex-1 px-4 py-8 sm:px-6">
 				{active.length === 0 && completed.length === 0 ? (
 					<div className="mx-auto max-w-lg">
 						<Card padding="lg" className="rounded-2xl text-center">
@@ -205,19 +200,6 @@ const PoolsIndex = () => {
 				)}
 			</div>
 
-			{/* Floating create button for mobile */}
-			<div className="fixed bottom-[calc(theme(spacing.4)+theme(spacing.bottom-nav))] right-4 z-40 sm:hidden">
-				<Button
-					asChild
-					size="icon"
-					aria-label="Start a Pool"
-					className="h-14 w-14 rounded-full border bg-primary text-primary-foreground shadow-lg"
-				>
-					<Link to="/pools/new">
-						<Icon name="plus" />
-					</Link>
-				</Button>
-			</div>
 		</div>
 	)
 }

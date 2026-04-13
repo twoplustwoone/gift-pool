@@ -1,6 +1,7 @@
 import { LuPlus, LuUsers } from 'react-icons/lu';
 import { type LoaderFunctionArgs, useLoaderData, useNavigate  } from 'react-router';
 import { GroupCard } from '#app/components/groups/GroupCard.tsx';
+import { PageHeader } from '#app/components/page-header.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import {
@@ -10,8 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#app/components/ui/dialog.tsx';
-import { Heading } from '#app/components/ui/heading.tsx';
-import { Icon } from '#app/components/ui/icon.tsx';
 import { Flex, Text } from '#app/components/ui-kit';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
@@ -92,30 +91,23 @@ const GroupsIndex = () => {
   const navigate = useNavigate();
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Header bar (mirrors Wishlist header style) */}
-      <div className="border-b bg-surface px-4 py-4 shadow">
-        <div className="container flex items-center justify-between gap-2">
-          <Heading>
-            <Flex gap={2} align="center">
-              <LuUsers className="text-primary" />
-              <Text size="xl" weight="bold">
-                Groups
-              </Text>
+      <PageHeader
+        variant="section"
+        icon={<LuUsers className="text-primary" />}
+        title="Groups"
+      >
+        <CreateGroupDialog>
+          <Button>
+            <Flex gap={1}>
+              <LuPlus />
+              <Text>Create Group</Text>
             </Flex>
-          </Heading>
-          <CreateGroupDialog>
-            <Button>
-              <Flex gap={1}>
-                <LuPlus />
-                <Text>Create Group</Text>
-              </Flex>
-            </Button>
-          </CreateGroupDialog>
-        </div>
-      </div>
+          </Button>
+        </CreateGroupDialog>
+      </PageHeader>
 
       {/* Content */}
-      <div className="container min-h-0 flex-1 py-8">
+      <div className="mx-auto w-full max-w-6xl min-h-0 flex-1 px-4 py-8 sm:px-6">
         {groups.length === 0 ? (
           <div className="mx-auto max-w-lg">{EmptyState}</div>
         ) : (
@@ -129,21 +121,6 @@ const GroupsIndex = () => {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Floating create button for mobile */}
-      <div className="fixed bottom-[calc(theme(spacing.4)+theme(spacing.bottom-nav))] right-4 z-40 sm:hidden">
-        <CreateGroupDialog>
-          <Button
-            type="button"
-            size="icon"
-            aria-label="Create Group"
-            title="Create Group"
-            className="h-14 w-14 rounded-full border bg-primary text-primary-foreground shadow-lg"
-          >
-            <Icon name="plus" />
-          </Button>
-        </CreateGroupDialog>
       </div>
     </div>
   );
