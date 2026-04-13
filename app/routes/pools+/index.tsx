@@ -126,6 +126,30 @@ const PoolCard = ({ pool }: { pool: Pool }) => {
 	)
 }
 
+function TabBadge({ count, isSelected }: { count: number; isSelected: boolean }) {
+	if (count === 0) return null
+	return (
+		<span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${
+			isSelected ? 'bg-primary/10 text-primary' : 'bg-muted-foreground/20 text-muted-foreground'
+		}`}>
+			{count}
+		</span>
+	)
+}
+
+function PoolList({ pools, emptyMessage }: { pools: Pool[]; emptyMessage: string }) {
+	if (pools.length === 0) {
+		return <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+	}
+	return (
+		<Stack gap={3}>
+			{pools.map(p => (
+				<PoolCard key={p.id} pool={p} />
+			))}
+		</Stack>
+	)
+}
+
 const PoolsIndex = () => {
 	const { active, completed } = useLoaderData<typeof loader>()
 	const [tab, setTab] = useState<'active' | 'past'>('active')
@@ -188,13 +212,7 @@ const PoolsIndex = () => {
 								}`}
 							>
 								Active
-								{active.length > 0 && (
-									<span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${
-										tab === 'active' ? 'bg-primary/10 text-primary' : 'bg-muted-foreground/20 text-muted-foreground'
-									}`}>
-										{active.length}
-									</span>
-								)}
+								<TabBadge count={active.length} isSelected={tab === 'active'} />
 							</button>
 							<button
 								type="button"
@@ -210,13 +228,7 @@ const PoolsIndex = () => {
 								}`}
 							>
 								Past
-								{completed.length > 0 && (
-									<span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${
-										tab === 'past' ? 'bg-primary/10 text-primary' : 'bg-muted-foreground/20 text-muted-foreground'
-									}`}>
-										{completed.length}
-									</span>
-								)}
+								<TabBadge count={completed.length} isSelected={tab === 'past'} />
 							</button>
 						</div>
 
@@ -227,25 +239,9 @@ const PoolsIndex = () => {
 							aria-labelledby={tab === 'active' ? 'tab-active' : 'tab-past'}
 						>
 							{tab === 'active' ? (
-								active.length > 0 ? (
-									<Stack gap={3}>
-										{active.map(p => (
-											<PoolCard key={p.id} pool={p} />
-										))}
-									</Stack>
-								) : (
-									<p className="text-sm text-muted-foreground">No active pools.</p>
-								)
+								<PoolList pools={active} emptyMessage="No active pools." />
 							) : (
-								completed.length > 0 ? (
-									<Stack gap={3}>
-										{completed.map(p => (
-											<PoolCard key={p.id} pool={p} />
-										))}
-									</Stack>
-								) : (
-									<p className="text-sm text-muted-foreground">No past pools.</p>
-								)
+								<PoolList pools={completed} emptyMessage="No past pools." />
 							)}
 						</div>
 					</Stack>
