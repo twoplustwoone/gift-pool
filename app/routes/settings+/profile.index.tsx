@@ -219,6 +219,7 @@ function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
         >
           <Avatar
             size="l"
+            className="max-h-40 max-w-40 sm:max-h-52 sm:max-w-52"
             image={
               data.user.image
                 ? { id: data.user.image.id, altText: null }
