@@ -6,6 +6,7 @@ import {
   LuExternalLink,
   LuGift,
   LuImage,
+  LuLayoutList,
   LuLock,
   LuPencil,
   LuTrash,
@@ -309,7 +310,7 @@ function useWishlistImageController({
         imageFetcher.submit(formData, {
           method: 'post',
           encType: 'multipart/form-data',
-          action: '/wishlist',
+          action: '/wishlist?index',
         }),
       ).catch(() => {});
     },
@@ -443,14 +444,17 @@ function WishlistNonOwnerExtras({
   );
 }
 
-// Right-slot control for the non-owner row. Swaps between four states:
-// public-view (no claims), already-claimed-by-someone-else (with an info
-// popover explaining why), you-claimed-it, or free-to-claim.
+// Right-slot control for the non-owner row. Swaps between states:
+// list-link (visit external list), public-view (no claims),
+// already-claimed-by-someone-else (with an info popover explaining why),
+// you-claimed-it, or free-to-claim.
 function NonOwnerClaimSlot({
   allowClaims,
   handlePurchaseToggle,
   isClaimInfoOpen,
   isClaimed,
+  isListLink,
+  itemUrl,
   isPurchasePending,
   isPurchasedByMe,
   isPurchasedBySomeoneElse,
@@ -467,7 +471,34 @@ function NonOwnerClaimSlot({
   | 'isPurchasedBySomeoneElse'
   | 'onClaimInfoOpenChange'
   | 'purchaseButtonAriaLabel'
->) {
+> & {
+  isListLink?: boolean;
+  itemUrl?: string | null;
+}) {
+  // List link — show "Visit list" external link instead of claim affordance.
+  if (!allowClaims && isListLink) {
+    if (itemUrl) {
+      return (
+        <a
+          href={itemUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(event) => event.stopPropagation()}
+          className="pointer-events-auto flex flex-shrink-0 items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+        >
+          Visit
+          <LuExternalLink className="h-3 w-3" aria-hidden />
+        </a>
+      );
+    }
+    return (
+      <LuChevronRight
+        className="h-5 w-5 flex-shrink-0 text-muted-foreground"
+        aria-hidden
+      />
+    );
+  }
+
   // Public view (signed out on a shared link) — no claim affordance, just
   // show a chevron so the row looks tap-able, or an "Already claimed" badge.
   if (!allowClaims) {
@@ -596,6 +627,8 @@ function WishlistNonOwnerTrigger({
   imageErrored: boolean;
   onImageError: (event?: React.SyntheticEvent) => void;
 }) {
+  const isListLink = wishlistItem.type === 'wishlist';
+
   return (
     <WishlistItemCardShell
       ariaLabel={wishlistItem.title}
@@ -611,6 +644,7 @@ function WishlistNonOwnerTrigger({
       displayImageSrc={displayImageSrc}
       hasImage={wishlistItem.hasImage ?? false}
       imageErrored={imageErrored}
+      isListLink={isListLink}
       note={wishlistItem.note ?? null}
       onImageError={onImageError}
       onOpen={onOpen}
@@ -620,6 +654,8 @@ function WishlistNonOwnerTrigger({
           handlePurchaseToggle={handlePurchaseToggle}
           isClaimInfoOpen={isClaimInfoOpen}
           isClaimed={isClaimed}
+          isListLink={isListLink}
+          itemUrl={wishlistItem.url ?? null}
           isPurchasePending={isPurchasePending}
           isPurchasedByMe={isPurchasedByMe}
           isPurchasedBySomeoneElse={isPurchasedBySomeoneElse}
@@ -697,6 +733,7 @@ type WishlistItemThumbnailProps = Readonly<{
   displayImageSrc: string | null;
   hasImage: boolean;
   imageErrored: boolean;
+  isListLink?: boolean;
   onImageError: (event?: React.SyntheticEvent) => void;
   title: string;
 }>;
@@ -709,6 +746,7 @@ export function WishlistItemThumbnail({
   displayImageSrc,
   hasImage,
   imageErrored,
+  isListLink,
   onImageError,
   title,
 }: WishlistItemThumbnailProps) {
@@ -728,7 +766,7 @@ export function WishlistItemThumbnail({
     );
   }
 
-  const PlaceholderIcon = hasImage && imageErrored ? LuImage : LuGift;
+  const PlaceholderIcon = hasImage && imageErrored ? LuImage : isListLink ? LuLayoutList : LuGift;
 
   return (
     <div
@@ -751,6 +789,7 @@ type WishlistItemCardShellProps = Readonly<{
   displayImageSrc: string | null;
   hasImage: boolean;
   imageErrored: boolean;
+  isListLink?: boolean;
   note: string | null;
   onImageError: (event?: React.SyntheticEvent) => void;
   onOpen: () => void;
@@ -779,6 +818,7 @@ function WishlistItemCardShell({
   displayImageSrc,
   hasImage,
   imageErrored,
+  isListLink,
   note,
   onImageError,
   onOpen,
@@ -811,6 +851,7 @@ function WishlistItemCardShell({
           displayImageSrc={displayImageSrc}
           hasImage={hasImage}
           imageErrored={imageErrored}
+          isListLink={isListLink}
           onImageError={onImageError}
           title={title}
         />
@@ -829,6 +870,12 @@ function WishlistItemCardShell({
             >
               {note}
             </Text>
+          ) : null}
+          {isListLink ? (
+            <span className="pointer-events-none inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 ring-1 ring-inset ring-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:ring-blue-900">
+              <LuLayoutList className="h-3 w-3" aria-hidden />
+              List link
+            </span>
           ) : null}
           {url ? <WishlistItemUrlChip url={url} /> : null}
         </div>
@@ -863,6 +910,8 @@ function WishlistOwnerRow({
   onOpen,
   wishlistItem,
 }: WishlistOwnerRowProps) {
+  const isListLink = wishlistItem.type === 'wishlist';
+
   return (
     <WishlistItemCardShell
       ariaLabel={ariaLabel}
@@ -877,6 +926,7 @@ function WishlistOwnerRow({
       displayImageSrc={displayImageSrc}
       hasImage={wishlistItem.hasImage ?? false}
       imageErrored={imageErrored}
+      isListLink={isListLink}
       note={wishlistItem.note ?? null}
       onImageError={onImageError}
       onOpen={onOpen}
@@ -926,6 +976,30 @@ export const WishlistItem = ({
   });
   const [isClaimInfoOpen, setIsClaimInfoOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const typeChangeFetcher = useFetcher();
+
+  const handleTypeChange = React.useCallback(
+    (newType: 'text' | 'wishlist') => {
+      const formData = new FormData();
+      formData.set('intent', 'save');
+      formData.set('id', wishlistItem.id);
+      formData.set('title', wishlistItem.title);
+      formData.set('type', newType);
+      if (wishlistItem.url) formData.set('url', wishlistItem.url);
+      if (wishlistItem.note) formData.set('note', wishlistItem.note);
+      if (wishlistItem.categoryId) formData.set('categoryId', wishlistItem.categoryId);
+      formData.set('imageAction', 'none');
+      formData.set('clientMutationId', createClientMutationId());
+      Promise.resolve(
+        typeChangeFetcher.submit(formData, {
+          method: 'post',
+          encType: 'multipart/form-data',
+          action: '/wishlist?index',
+        }),
+      ).catch(() => {});
+    },
+    [typeChangeFetcher, wishlistItem],
+  );
 
   // The purchase-related copy below is used by WishlistNonOwnerExtras, which
   // renders INSIDE the item-editor modal (not on the row itself). The row
@@ -1055,6 +1129,7 @@ export const WishlistItem = ({
     );
   }
 
+  const isListLink = wishlistItem.type === 'wishlist';
   const actionMenu = !isReorderMode ? (
     <WishlistRowActionsMenu label={`Item actions for ${wishlistItem.title}`}>
       <WishlistRowActionsItem
@@ -1064,6 +1139,12 @@ export const WishlistItem = ({
       >
         <LuPencil className="h-4 w-4 text-muted-foreground" aria-hidden />
         Edit item
+      </WishlistRowActionsItem>
+      <WishlistRowActionsItem
+        onSelect={() => handleTypeChange(isListLink ? 'text' : 'wishlist')}
+      >
+        <LuLayoutList className="h-4 w-4 text-muted-foreground" aria-hidden />
+        {isListLink ? 'Mark as gift idea' : 'Mark as list link'}
       </WishlistRowActionsItem>
       {onStatusChange ? (
         <WishlistRowActionsItem

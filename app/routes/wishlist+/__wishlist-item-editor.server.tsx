@@ -381,7 +381,7 @@ export async function action({ request }: ActionFunctionArgs) {
   if (submission.status !== 'success') {
     return rrData(
       {
-        ...submission.reply(),
+        result: submission.reply(),
         clientMutationId,
       },
       {

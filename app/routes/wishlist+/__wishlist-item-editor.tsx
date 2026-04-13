@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   LuArchive,
   LuExternalLink,
+  LuGift,
   LuImage,
   LuListChecks,
   LuLoader,
@@ -50,7 +51,7 @@ import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Flex, Text } from '#app/components/ui-kit';
 import { track } from '#app/utils/analytics.client.ts';
 import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
-import { getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
+import { cn, getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { type Toast } from '#app/utils/toast.server.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
@@ -87,17 +88,27 @@ const useIsDesktop = () => {
   return isDesktop;
 };
 
-export const WishlistItemSchema = z.object({
-  id: z.string().optional(),
-  categoryId: z.string().nullable().optional(),
-  title: z.string().min(valueMinLength).max(valueMaxLength),
-  note: z.string().optional(),
-  url: z.string().url().optional(),
-  type: z.enum(['text', 'link', 'wishlist']).default('text'),
-  imageAction: ImageActionSchema,
-  imageUrl: z.string().url().optional(),
-  imageFile: z.instanceof(File).optional(),
-});
+export const WishlistItemSchema = z
+  .object({
+    id: z.string().optional(),
+    categoryId: z.string().nullable().optional(),
+    title: z.string().min(valueMinLength).max(valueMaxLength),
+    note: z.string().optional(),
+    url: z.string().url().optional(),
+    type: z.enum(['text', 'link', 'wishlist']).default('text'),
+    imageAction: ImageActionSchema,
+    imageUrl: z.string().url().optional(),
+    imageFile: z.instanceof(File).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type === 'wishlist' && !data.url?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['url'],
+        message: 'A URL is required for list links',
+      });
+    }
+  });
 
 const getSafePreviewSrc = (value: string | null) => {
   if (!value) return null;
@@ -147,12 +158,13 @@ type EditorProps = {
 type WishlistItemEditorActionData =
   | {
       result: SubmissionResult<z.infer<typeof WishlistItemSchema>>;
-      intent: 'save' | 'save-add-another';
-      toast: Toast | null;
+      intent?: 'save' | 'save-add-another';
+      toast?: Toast | null;
       imageError?: string | null;
       imageAction?: z.infer<typeof ImageActionSchema>;
       analyticsEventId?: string | null;
       requestId?: string;
+      clientMutationId?: string | null;
     }
   | undefined;
 
@@ -1001,9 +1013,12 @@ function EditorFormSection({
   setImageUrlValue,
   setImageWarning,
   setIsImageLoading,
+  setItemType,
   showImageError,
   imageError,
   imageWarning,
+  isListLinkType,
+  itemType,
   wishlistItem,
   attachClientMutationId,
   applyUrlPreview,
@@ -1029,6 +1044,8 @@ function EditorFormSection({
   imageWarning: string | null;
   isImageLoading: boolean;
   isPending: boolean;
+  isListLinkType: boolean;
+  itemType: 'text' | 'link' | 'wishlist';
   mode: EditorMode;
   prepareImageActionForSave: () => void;
   previewSrc: string | null;
@@ -1044,35 +1061,74 @@ function EditorFormSection({
   setImageUrlValue: React.Dispatch<React.SetStateAction<string>>;
   setImageWarning: React.Dispatch<React.SetStateAction<string | null>>;
   setIsImageLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  setItemType: React.Dispatch<React.SetStateAction<'text' | 'link' | 'wishlist'>>;
   showImageError: boolean;
   wishlistItem?: EditorProps['wishlistItem'];
 }>) {
+  const { onSubmit: conformOnSubmit, ...conformFormProps } = getFormProps(form);
   return (
     <Form
       method="POST"
-      {...getFormProps(form)}
+      {...conformFormProps}
       className="flex flex-col gap-4"
       encType="multipart/form-data"
       ref={formRef as React.RefObject<HTMLFormElement>}
-      onSubmit={attachClientMutationId}
+      onSubmit={(event) => {
+        conformOnSubmit?.(event);
+        if (!event.defaultPrevented) {
+          attachClientMutationId(event);
+        }
+      }}
     >
       <input type="hidden" name="clientMutationId" value="" />
+      <input type="hidden" name="type" value={itemType} />
       {mode === 'create' ? (
         <button type="submit" name="intent" value="save-add-another" className="hidden" />
       ) : null}
       {wishlistItem?.id ? (
-        <>
-          <input type="hidden" name="id" value={wishlistItem.id} />
-          {wishlistItem?.type ? (
-            <input type="hidden" name="type" value={wishlistItem.type} />
-          ) : null}
-        </>
+        <input type="hidden" name="id" value={wishlistItem.id} />
       ) : null}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium">What are you adding?</span>
+        <div className="flex rounded-lg bg-muted p-1">
+          <button
+            type="button"
+            onClick={() => setItemType('text')}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all',
+              !isListLinkType
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <LuGift className="h-3.5 w-3.5" aria-hidden />
+            Gift idea
+          </button>
+          <button
+            type="button"
+            onClick={() => setItemType('wishlist')}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all',
+              isListLinkType
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <LuListChecks className="h-3.5 w-3.5" aria-hidden />
+            List link
+          </button>
+        </div>
+        {isListLinkType ? (
+          <p className="text-xs text-muted-foreground">
+            Links to an external collection (Amazon wishlist, Steam list, etc.). Friends can browse it — list links can&apos;t be claimed.
+          </p>
+        ) : null}
+      </div>
       <Field
         className="w-full"
-        labelProps={{ children: 'Title' }}
+        labelProps={{ children: isListLinkType ? 'List name' : 'Title' }}
         inputProps={{
-          placeholder: 'Title for your item',
+          placeholder: isListLinkType ? 'My Amazon Wishlist' : 'Title for your item',
           autoFocus: true,
           ...getInputProps(fields.title, {
             type: 'text',
@@ -1083,21 +1139,26 @@ function EditorFormSection({
       />
       <Field
         className="w-full"
-        labelProps={{ children: 'Link' }}
+        labelProps={{ children: isListLinkType ? 'List URL' : 'Link' }}
         inputProps={{
-          placeholder: 'https://amazon.com/',
+          placeholder: isListLinkType
+            ? 'https://www.amazon.com/hz/wishlist/…'
+            : 'https://amazon.com/',
           ...getInputProps(fields.url, {
             type: 'url',
             ariaAttributes: true,
           }),
+          required: isListLinkType,
         }}
         errors={fields.url.errors}
       />
       <TextareaField
         className="w-full"
-        labelProps={{ children: 'Description' }}
+        labelProps={{ children: isListLinkType ? 'Note for friends' : 'Description' }}
         textareaProps={{
-          placeholder: 'Describe the item...',
+          placeholder: isListLinkType
+            ? 'e.g. Anything in the kitchen section works for me'
+            : 'Describe the item...',
           rows: 3,
           ...getInputProps(fields.note, {
             type: 'text',
@@ -1580,6 +1641,10 @@ export const WishlistItemEditor = React.forwardRef<
 
     const formId = React.useId();
     const isDesktop = useIsDesktop();
+    const [itemType, setItemType] = React.useState<'text' | 'link' | 'wishlist'>(
+      (wishlistItem?.type as 'text' | 'link' | 'wishlist' | undefined) ?? 'text',
+    );
+    const isListLinkType = itemType === 'wishlist';
     const [form, fields] = useForm<z.input<typeof WishlistItemSchema>>({
       id: formId,
       constraint: getZodConstraint(WishlistItemSchema),
@@ -1633,9 +1698,7 @@ export const WishlistItemEditor = React.forwardRef<
       normalizeEditorFieldValue(
         (fields.categoryId.value ?? fields.categoryId.defaultValue ?? '') as string,
       ) !== normalizeEditorFieldValue(initialValues.categoryId) ||
-      normalizeEditorFieldValue(
-        fields.type.value ?? fields.type.defaultValue ?? initialValues.type,
-      ) !== normalizeEditorFieldValue(initialValues.type);
+      itemType !== normalizeEditorFieldValue(initialValues.type);
     const hasImageChanges =
       imageController.hasPendingImageChange ||
       imageController.imageActionState === 'remove' ||
@@ -1714,6 +1777,8 @@ export const WishlistItemEditor = React.forwardRef<
                 imageWarning={imageController.imageWarning}
                 isImageLoading={imageController.isImageLoading}
                 isPending={isPending}
+                isListLinkType={isListLinkType}
+                itemType={itemType}
                 mode={mode}
                 prepareImageActionForSave={imageController.prepareImageActionForSave}
                 previewSrc={imageController.previewSrc}
@@ -1727,6 +1792,7 @@ export const WishlistItemEditor = React.forwardRef<
                 setImageUrlValue={imageController.setImageUrlValue}
                 setImageWarning={imageController.setImageWarning}
                 setIsImageLoading={imageController.setIsImageLoading}
+                setItemType={setItemType}
                 showImageError={imageController.showImageError}
                 wishlistItem={wishlistItem}
               />
