@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LuCopy, LuLink, LuPlus, LuQrCode } from 'react-icons/lu';
+import { LuCopy, LuLink, LuPlus, LuQrCode, LuUsers } from 'react-icons/lu';
 import { Link, Outlet, useLoaderData, useSearchParams,
   type ClientLoaderFunctionArgs,
   type LoaderFunctionArgs,
@@ -28,6 +28,7 @@ import {
   MobileBottomSheetTitle,
 } from '#app/components/ui/mobile-bottom-sheet.tsx';
 import { EmptyState } from '#app/components/ui/empty-state.tsx';
+import { PageHeader } from '#app/components/page-header.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Skeleton } from '#app/components/ui/skeleton.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
@@ -1243,43 +1244,48 @@ const FriendsRoute = () => {
   );
 
   return (
-    <div className="container py-6 sm:py-8">
-      <header className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Friends</h1>
+    <div className="flex h-full min-h-0 flex-col">
+      <PageHeader
+        variant="section"
+        icon={<LuUsers className="text-primary" />}
+        title="Friends"
+      >
         <AddFriendDialog
           q={q}
           setQ={setQ}
           onOutgoingCreated={handleOutgoingCreated}
         />
-      </header>
+      </PageHeader>
 
-      <Stack gap={4}>
-        <PendingRequestsCard
-          incomingState={incomingState}
-          outgoingState={outgoingState}
-          onIncomingTransition={handleIncomingTransition}
-          onOutgoingTransition={handleOutgoingTransition}
-        />
-
-        {friendsState.length > 8 ? (
-          <Input
-            value={friendsFilter}
-            onChange={(event) => setFriendsFilter(event.currentTarget.value)}
-            placeholder="Search friends"
-            aria-label="Search friends"
+      <div className="mx-auto w-full max-w-6xl min-h-0 flex-1 px-4 py-6 sm:px-6 sm:py-8">
+        <Stack gap={4}>
+          <PendingRequestsCard
+            incomingState={incomingState}
+            outgoingState={outgoingState}
+            onIncomingTransition={handleIncomingTransition}
+            onOutgoingTransition={handleOutgoingTransition}
           />
-        ) : null}
 
-        <FriendsListSection
-          activeTab="friends"
-          filteredFriends={filteredFriends}
-          friendsState={friendsState}
-          onRenderFriendRow={renderFriendRow}
-          t={t}
-        />
-      </Stack>
-      {/* Nested routes (e.g., /friends/accept/:code) render here */}
-      <Outlet />
+          {friendsState.length > 8 ? (
+            <Input
+              value={friendsFilter}
+              onChange={(event) => setFriendsFilter(event.currentTarget.value)}
+              placeholder="Search friends"
+              aria-label="Search friends"
+            />
+          ) : null}
+
+          <FriendsListSection
+            activeTab="friends"
+            filteredFriends={filteredFriends}
+            friendsState={friendsState}
+            onRenderFriendRow={renderFriendRow}
+            t={t}
+          />
+        </Stack>
+        {/* Nested routes (e.g., /friends/accept/:code) render here */}
+        <Outlet />
+      </div>
     </div>
   );
 };

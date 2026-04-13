@@ -31,6 +31,9 @@ export const en = {
       message: '{{name}} accepted your friend request',
       fallbackName: 'Someone',
     },
+    upcomingBirthday: {
+      message: "{{name}}'s birthday is in {{daysUntil}} days",
+    },
     markAllReadSuccess: 'All notifications marked as read.',
   },
   friends: {
