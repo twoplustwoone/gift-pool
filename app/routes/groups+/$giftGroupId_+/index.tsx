@@ -91,30 +91,29 @@ const GiftGroupOverview = () => {
         </div>
         {resolvedInviteLink ? (
           <Button
-            className="w-full"
+            variant="outline"
             onClick={async () => {
               await navigator.clipboard.writeText(resolvedInviteLink);
             }}
           >
-            <Icon name="copy" className="mr-2" /> Copy Invite Link
+            <Icon name="copy" className="mr-2" /> Copy invite link
           </Button>
         ) : canInvite ? (
           <createFetcher.Form
             method="post"
             action={`/groups/${giftGroup.id}`}
-            className="w-full"
           >
             <input type="hidden" name="giftGroupId" value={giftGroup.id} />
             <input type="hidden" name="intent" value="create-invite-link" />
             <input type="hidden" name="expiresInDays" value="7" />
             <Button
-              className="w-full"
+              variant="outline"
               disabled={createFetcher.state !== 'idle'}
             >
               <Icon name="link-2" className="mr-2" />
               {createInvitePending
-                ? 'Creating Invite Link...'
-                : 'Create & Copy Invite Link'}
+                ? 'Creating...'
+                : 'Create & copy invite link'}
             </Button>
           </createFetcher.Form>
         ) : (

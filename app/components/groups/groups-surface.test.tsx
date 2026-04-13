@@ -111,7 +111,7 @@ describe('group surface components', () => {
     expect(screen.getByText('Members')).toBeInTheDocument();
     expect(screen.getByText('4')).toBeInTheDocument();
     expect(
-      screen.getByRole('link', { name: /manage group/i }),
+      screen.getByRole('link', { name: /manage/i }),
     ).toHaveAttribute('href', '/groups/group-1/settings');
 
     await userEvent.click(screen.getByRole('link', { name: 'Open group Family' }));

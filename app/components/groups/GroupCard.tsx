@@ -73,14 +73,14 @@ export function GroupCard({
         </Stack>
       </Stack>
       {g.myRole !== 'MEMBER' ? (
-        <div className="pt-3">
+        <div className="flex justify-end pt-3">
           <Link
             to={`/groups/${g.id}/settings`}
-            className="flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm hover:bg-muted"
+            className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
             onClick={(e) => e.stopPropagation()}
           >
-            <LuSettings />
-            Manage Group
+            <LuSettings className="h-3.5 w-3.5" />
+            Manage
           </Link>
         </div>
       ) : null}

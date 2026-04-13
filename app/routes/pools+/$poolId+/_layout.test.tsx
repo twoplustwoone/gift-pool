@@ -73,6 +73,6 @@ describe('app/routes/pools+/$poolId+/_layout.tsx', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('jamie')).toBeInTheDocument();
+    expect(screen.getByText('Birthday for jamie')).toBeInTheDocument();
   });
 });

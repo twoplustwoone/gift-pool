@@ -995,9 +995,12 @@ const PoolIndex = () => {
 
 			{/* ── Danger zone (organizer only) ── */}
 			{isOrganizer && !isCompleted && (
-				<Card className="border-destructive/30 p-4">
+				<Card className="border-destructive/40 bg-destructive/5 p-4">
 					<Stack gap={3}>
 						<SectionHeading>Danger zone</SectionHeading>
+						<Text size="sm" className="text-muted-foreground">
+							These actions are destructive. Double-check before proceeding.
+						</Text>
 						<Flex gap={2} wrap="wrap">
 							{/* Cancel pool lives here — less drastic than delete but still destructive */}
 							{isActive && (

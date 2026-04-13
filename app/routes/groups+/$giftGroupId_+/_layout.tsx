@@ -1,8 +1,7 @@
 import { LuUsers } from 'react-icons/lu';
-import { Link, NavLink, Outlet, useLoaderData } from 'react-router';
+import { NavLink, Outlet, useLoaderData } from 'react-router';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
-import { Button } from '#app/components/ui/button.tsx';
-import { Icon } from '#app/components/ui/icon.tsx';
+import { PageHeader } from '#app/components/page-header.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
 import { type GroupRole } from '#app/utils/group-role.ts';
 import { cn } from '#app/utils/misc.tsx';
@@ -17,33 +16,15 @@ const GroupLayout = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="w-full border-b bg-surface backdrop-blur">
-        <div className="mx-auto max-w-6xl px-3 py-3 sm:px-6">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Button asChild variant="ghost" size="sm" className="px-2">
-                <Link to="/groups">
-                  <Icon name="arrow-left" className="mr-1" /> Back to Groups
-                </Link>
-              </Button>
-              <div className="flex items-center gap-3">
-                <LuUsers size={24} className="text-primary" />
-                <div className="leading-tight">
-                  <div className="text-md font-extrabold sm:text-xl">
-                    {giftGroup.name}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {giftGroup.groupMembers.length} members
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <RoleBadge role={viewer.role as GroupRole} />
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        variant="detail"
+        back={{ label: 'Groups', href: '/groups' }}
+        icon={<LuUsers size={24} className="text-primary" />}
+        title={giftGroup.name}
+        subtitle={`${giftGroup.groupMembers.length} ${giftGroup.groupMembers.length === 1 ? 'member' : 'members'}`}
+      >
+        <RoleBadge role={viewer.role as GroupRole} />
+      </PageHeader>
       <main className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl p-3 sm:p-6">
           <Stack gap={6}>
