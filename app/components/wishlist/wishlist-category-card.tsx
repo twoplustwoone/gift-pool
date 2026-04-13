@@ -278,7 +278,7 @@ function CategoryItemsGrid({
           wishlistItem={item}
           isOwner={isOwner}
           categories={optimisticCategories}
-          disableClaims={isPublicView}
+          disableClaims={isPublicView || item.type === 'wishlist'}
           isReorderMode={false}
           dragState={dragState}
           onStatusChange={onStatusChange}
