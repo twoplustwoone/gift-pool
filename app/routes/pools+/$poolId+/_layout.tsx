@@ -37,7 +37,6 @@ const PoolLayout = () => {
 		<div className="flex h-full min-h-0 flex-col">
 			<PageHeader
 				variant="detail"
-				contentWidth="narrow"
 				back={{ label: 'Pools', href: '/pools' }}
 				icon={<LuGift size={22} className="shrink-0 text-primary" />}
 				title={pool.title}
@@ -52,7 +51,7 @@ const PoolLayout = () => {
 
 			{/* Content */}
 			<main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
-				<div className="mx-auto max-w-3xl p-3 sm:p-6">
+				<div className="mx-auto max-w-6xl p-3 sm:p-6">
 					<Stack gap={6}>
 						<Outlet />
 					</Stack>
