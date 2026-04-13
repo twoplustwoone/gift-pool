@@ -39,11 +39,24 @@ describe('PageHeader — section variant', () => {
     expect(screen.getByText('Pools')).toBeInTheDocument();
   });
 
-  it('applies max-w-6xl width class', () => {
+  it('applies max-w-6xl for standard contentWidth (default)', () => {
     renderWithRouter(
       <PageHeader variant="section" icon={<LuGift />} title="Pools" />,
     );
     const inner = document.querySelector('.max-w-6xl');
+    expect(inner).toBeInTheDocument();
+  });
+
+  it('applies max-w-3xl for narrow contentWidth', () => {
+    renderWithRouter(
+      <PageHeader
+        variant="section"
+        contentWidth="narrow"
+        icon={<LuGift />}
+        title="Pools"
+      />,
+    );
+    const inner = document.querySelector('.max-w-3xl');
     expect(inner).toBeInTheDocument();
   });
 });
@@ -86,7 +99,7 @@ describe('PageHeader — detail variant', () => {
     expect(screen.queryByText('Graduation for Leo')).not.toBeInTheDocument();
   });
 
-  it('renders the back link with correct href', () => {
+  it('renders the back link with correct href and aria-label', () => {
     renderWithRouter(
       <PageHeader
         variant="detail"
@@ -95,7 +108,8 @@ describe('PageHeader — detail variant', () => {
         title="Leo's Graduation"
       />,
     );
-    const backLink = screen.getByRole('link', { name: /Pools/ });
+    const backLink = screen.getByRole('link', { name: 'Back to Pools' });
+    expect(backLink).toBeInTheDocument();
     expect(backLink).toHaveAttribute('href', '/pools');
   });
 
@@ -128,7 +142,7 @@ describe('PageHeader — detail variant', () => {
     expect(screen.getByText('Internal operator surface')).toBeInTheDocument();
   });
 
-  it('applies max-w-6xl width class', () => {
+  it('applies max-w-6xl for standard contentWidth (default)', () => {
     renderWithRouter(
       <PageHeader
         variant="detail"
@@ -138,6 +152,20 @@ describe('PageHeader — detail variant', () => {
       />,
     );
     const inner = document.querySelector('.max-w-6xl');
+    expect(inner).toBeInTheDocument();
+  });
+
+  it('applies max-w-3xl for narrow contentWidth', () => {
+    renderWithRouter(
+      <PageHeader
+        variant="detail"
+        contentWidth="narrow"
+        back={{ label: 'Pools', href: '/pools' }}
+        icon={<LuGift />}
+        title="Leo's Graduation"
+      />,
+    );
+    const inner = document.querySelector('.max-w-3xl');
     expect(inner).toBeInTheDocument();
   });
 });
