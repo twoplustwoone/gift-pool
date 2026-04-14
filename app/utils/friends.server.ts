@@ -134,6 +134,41 @@ export async function listFriends(userId: string) {
   });
 }
 
+/**
+ * Returns true if `viewerId` is a friend-of-a-friend of `ownerId` — i.e. they
+ * share at least one mutual friend. Does NOT return true if they are already
+ * direct friends (call getRelationshipState first if you need that distinction).
+ */
+export async function isFriendOfFriend(
+  viewerId: string,
+  ownerId: string,
+): Promise<boolean> {
+  const [viewerFriendships, ownerFriendships] = await Promise.all([
+    prisma.friendship.findMany({
+      where: { OR: [{ userAId: viewerId }, { userBId: viewerId }] },
+      select: { userAId: true, userBId: true },
+    }),
+    prisma.friendship.findMany({
+      where: { OR: [{ userAId: ownerId }, { userBId: ownerId }] },
+      select: { userAId: true, userBId: true },
+    }),
+  ]);
+
+  const viewerFriendIds = new Set(
+    viewerFriendships.map((f) => (f.userAId === viewerId ? f.userBId : f.userAId)),
+  );
+
+  for (const f of ownerFriendships) {
+    const ownerFriendId = f.userAId === ownerId ? f.userBId : f.userAId;
+    // Exclude the two principals themselves from the intersection
+    if (ownerFriendId !== viewerId && viewerFriendIds.has(ownerFriendId)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 async function assertCanSendRequest(fromUserId: string, toUserId: string) {
   if (fromUserId === toUserId) {
     throw new Response('Cannot send a friend request to yourself', {

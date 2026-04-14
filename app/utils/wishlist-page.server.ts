@@ -2,7 +2,7 @@ import { invariantResponse } from '@epic-web/invariant';
 import { type WishlistUser } from '#app/components/wishlist';
 import { queueLogEvent } from './analytics.server.ts';
 import { prisma } from './db.server.ts';
-import { getRelationshipDetails } from './friends.server.ts';
+import { getRelationshipDetails, isFriendOfFriend } from './friends.server.ts';
 import { cleanupWishlistPurchasesForOwner } from './wishlist.server.ts';
 
 type Relationship = {
@@ -40,6 +40,7 @@ const friendWishlistOwnerSummarySelect = {
   id: true,
   name: true,
   username: true,
+  wishlistVisibility: true,
   image: {
     select: {
       id: true,
@@ -48,6 +49,7 @@ const friendWishlistOwnerSummarySelect = {
 } as const;
 
 const friendWishlistPageDetailsSelect = {
+  wishlistNote: true,
   wishlistItems: {
     select: {
       id: true,
@@ -160,7 +162,17 @@ export async function loadFriendWishlistAccess({
     wishlistOwner.id,
   );
   const relationship = buildRelationship(relationshipDetails);
-  const canViewWishlist = relationship.state === 'FRIENDS';
+
+  let canViewWishlist: boolean;
+  if (wishlistOwner.wishlistVisibility === 'EVERYONE') {
+    canViewWishlist = true;
+  } else if (wishlistOwner.wishlistVisibility === 'FRIENDS_OF_FRIENDS') {
+    canViewWishlist =
+      relationship.state === 'FRIENDS' ||
+      (await isFriendOfFriend(viewerId, wishlistOwner.id));
+  } else {
+    canViewWishlist = relationship.state === 'FRIENDS';
+  }
 
   return {
     canViewWishlist,
@@ -192,6 +204,7 @@ export async function loadOwnWishlistPageData({
       id: true,
       name: true,
       username: true,
+      wishlistNote: true,
       wishlistItems: {
         select: {
           id: true,
@@ -303,7 +316,17 @@ export async function loadFriendWishlistPageData({
     wishlistOwner.id,
   );
   const relationship = buildRelationship(relationshipDetails);
-  const canViewWishlist = relationship.state === 'FRIENDS';
+
+  let canViewWishlist: boolean;
+  if (wishlistOwner.wishlistVisibility === 'EVERYONE') {
+    canViewWishlist = true;
+  } else if (wishlistOwner.wishlistVisibility === 'FRIENDS_OF_FRIENDS') {
+    canViewWishlist =
+      relationship.state === 'FRIENDS' ||
+      (await isFriendOfFriend(viewerId, wishlistOwner.id));
+  } else {
+    canViewWishlist = relationship.state === 'FRIENDS';
+  }
 
   const userSummary = {
     id: wishlistOwner.id,
@@ -356,6 +379,7 @@ export async function loadFriendWishlistPageData({
     canViewWishlist: true,
     user: {
       ...userSummary,
+      wishlistNote: wishlistDetails.wishlistNote,
       wishlistItems,
       wishlistCategories: wishlistDetails.wishlistCategories,
     },

@@ -14,6 +14,7 @@ type LoaderUser = {
   bio: string | null;
   birthday: Date | null;
   birthdayVisibility: string;
+  wishlistVisibility: string;
   image: { id: string } | null;
   _count: { sessions: number };
 };
@@ -31,6 +32,7 @@ const loaderDataSnapshot: {
     bio: 'Mercenary with a mouth.',
     birthday: new Date('1992-05-26T00:00:00.000Z'),
     birthdayVisibility: 'FRIENDS',
+    wishlistVisibility: 'FRIENDS',
     image: { id: 'image-1' },
     _count: { sessions: 3 },
   },
@@ -129,16 +131,17 @@ describe('<SettingsProfileHub />', () => {
     expect(birthday.type).toBe('date');
   });
 
-  it('renders all three birthday visibility options with FRIENDS selected by default', () => {
+  it('renders all four birthday visibility options with FRIENDS selected by default', () => {
     const { container } = renderHub();
     const radios = container.querySelectorAll<HTMLInputElement>(
       'input[name="birthdayVisibility"]',
     );
-    expect(radios).toHaveLength(3);
+    expect(radios).toHaveLength(4);
     const byValue = new Map<string, HTMLInputElement>();
     radios.forEach((r) => byValue.set(r.value, r));
     expect(byValue.get('FRIENDS')?.checked).toBe(true);
     expect(byValue.get('EVERYONE')?.checked).toBe(false);
+    expect(byValue.get('FRIENDS_OF_FRIENDS')?.checked).toBe(false);
     expect(byValue.get('NOBODY')?.checked).toBe(false);
   });
 
