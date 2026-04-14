@@ -140,6 +140,36 @@ describe('group detail overview route', () => {
     ).toBeInTheDocument();
   });
 
+  it('does not throw when clipboard.writeText rejects after fetcher resolves', async () => {
+    clipboardWriteText.mockRejectedValue(
+      new DOMException(
+        'The request is not allowed by the user agent or the platform in the current context, possibly because the user denied permission.',
+        'NotAllowedError',
+      ),
+    );
+    loaderDataSnapshot.inviteLink = null;
+
+    const { rerender } = render(<GroupsDetailOverview />);
+
+    fetcherState.state = 'idle';
+    fetcherState.data = {
+      inviteUrl: 'https://giftpool.app/groups/join/invite-3',
+    };
+    rerender(<GroupsDetailOverview />);
+
+    // The clipboard rejection should be swallowed — the component must remain mounted
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(
+        'https://giftpool.app/groups/join/invite-3',
+      );
+    });
+
+    // Component is still functional after the rejection
+    expect(
+      screen.getByRole('button', { name: /copy invite link/i }),
+    ).toBeInTheDocument();
+  });
+
   it('shows the admin-only fallback when invite creation is unavailable', () => {
     loaderDataSnapshot.canInvite = false;
     loaderDataSnapshot.inviteLink = null;
