@@ -113,3 +113,18 @@ test.describe('Home page', () => {
     'snapshots of hero at mobile and desktop (baselines not yet committed)',
   );
 });
+
+test.describe('Root route resilience', () => {
+  test('POST / returns 405, not a 500', async ({ request }) => {
+    // Bots and stale forms sometimes POST to `/`. The root action should
+    // return a graceful 405 instead of letting React Router throw an
+    // unhandled "no action" error (GIFTPOOL-UI-18, GIFTPOOL-UI-12).
+    const response = await request.post('/');
+    expect(response.status()).toBe(405);
+  });
+
+  test('GET / still returns 200', async ({ request }) => {
+    const response = await request.get('/');
+    expect(response.status()).toBe(200);
+  });
+});
