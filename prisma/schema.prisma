@@ -18,8 +18,13 @@ model User {
   birthday                     DateTime?
   // String, not a true enum — SQLite doesn't support enums natively. Valid
   // values are enforced at the app layer via `BirthdayVisibilitySchema`
-  // (see `app/utils/user-validation.ts`): 'FRIENDS' | 'EVERYONE' | 'NOBODY'.
+  // (see `app/utils/user-validation.ts`): 'EVERYONE' | 'FRIENDS_OF_FRIENDS' | 'FRIENDS' | 'NOBODY'.
   birthdayVisibility           String                        @default("FRIENDS")
+  // String, not a true enum — valid values enforced via `WishlistVisibilitySchema`
+  // (see `app/utils/user-validation.ts`): 'EVERYONE' | 'FRIENDS_OF_FRIENDS' | 'FRIENDS'.
+  wishlistVisibility           String                        @default("FRIENDS")
+  // Optional callout message shown at the top of the user's wishlist. Max 400 chars enforced at app layer.
+  wishlistNote                 String?
   address                      Address?
   connections                  Connection[]
   groupActivities              GroupActivity[]               @relation("GroupActivity_Actor")
