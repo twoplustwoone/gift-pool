@@ -274,4 +274,3 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }> = [];
   return { birthdays, activity };
 }
-export default null;
