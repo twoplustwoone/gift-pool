@@ -22,6 +22,7 @@ vi.mock('#app/utils/db.server', () => ({
   },
 }));
 
+import * as HomePanelsModule from './home.panels.tsx';
 import { loader } from './home.panels.tsx';
 
 function localCalendarDate(year: number, monthIndex: number, day: number) {
@@ -374,5 +375,13 @@ describe('app/routes/resources+/home.panels.tsx', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('regression GIFTPOOL-UI-13: default export is not null (would crash SSR renderer)', () => {
+    // React Router SSR calls renderToString on the default export for every
+    // route module. An explicit `export default null` causes the renderer to
+    // throw "Element type is invalid … but got: null".  Resource-only routes
+    // must have NO default export (undefined), not null.
+    expect((HomePanelsModule as Record<string, unknown>)['default']).toBeUndefined();
   });
 });
