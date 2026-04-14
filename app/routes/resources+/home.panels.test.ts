@@ -234,6 +234,77 @@ describe('app/routes/resources+/home.panels.tsx', () => {
     }
   });
 
+  it('enforces birthdayVisibility: FRIENDS_OF_FRIENDS shown only when mutual friend exists', async () => {
+    getUserId.mockResolvedValue('viewer-1');
+    findMany.mockResolvedValue([
+      {
+        giftGroup: {
+          id: 'group-1',
+          groupMembers: [
+            {
+              // Has a mutual friend with viewer → should appear
+              user: {
+                birthday: localCalendarDate(1990, 3, 1),
+                birthdayVisibility: 'FRIENDS_OF_FRIENDS',
+                id: 'fof-yes',
+                name: 'FOF Yes',
+                username: 'fof_yes',
+              },
+            },
+            {
+              // No mutual friend → should be hidden
+              user: {
+                birthday: localCalendarDate(1990, 3, 2),
+                birthdayVisibility: 'FRIENDS_OF_FRIENDS',
+                id: 'fof-no',
+                name: 'FOF No',
+                username: 'fof_no',
+              },
+            },
+            {
+              // Direct friend with FRIENDS_OF_FRIENDS → should appear (friendIds path)
+              user: {
+                birthday: localCalendarDate(1990, 3, 3),
+                birthdayVisibility: 'FRIENDS_OF_FRIENDS',
+                id: 'direct-friend',
+                name: 'Direct',
+                username: 'direct',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    // First call: viewer's direct friendships (only direct-friend is a direct friend)
+    friendshipFindMany.mockResolvedValueOnce([
+      { userAId: 'viewer-1', userBId: 'direct-friend' },
+    ]);
+    // Second call: mutual-link check for fof-yes and fof-no candidates.
+    // Only fof-yes shares a mutual friend (mutual-friend-1) with viewer.
+    friendshipFindMany.mockResolvedValueOnce([
+      { userAId: 'fof-yes', userBId: 'mutual-friend-1' },
+    ]);
+
+    vi.useFakeTimers();
+    vi.setSystemTime(localCalendarDate(2026, 2, 31));
+
+    try {
+      const result = await loader({
+        context: {},
+        params: {},
+        request: new Request('https://giftpool.app/resources/home.panels'),
+      } as never);
+
+      const ids = result.birthdays.map((b: { id: string }) => b.id).sort();
+      expect(ids).toContain('direct-friend');
+      expect(ids).toContain('fof-yes');
+      expect(ids).not.toContain('fof-no');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('enforces birthdayVisibility: NOBODY hidden, FRIENDS needs friendship, EVERYONE always shown', async () => {
     getUserId.mockResolvedValue('viewer-1');
     findMany.mockResolvedValue([

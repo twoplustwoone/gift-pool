@@ -113,6 +113,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       id: true,
       name: true,
       username: true,
+      wishlistNote: true,
       wishlistItems: {
         select: {
           id: true,

@@ -10,12 +10,18 @@ import {
   applyRequestIdHeader,
   getRequestContext,
 } from '#app/utils/request-context.server.ts';
+import { WishlistNoteSchema } from '#app/utils/user-validation.ts';
 import {
   processImageFromFile,
   processImageFromUrl,
   type WishlistItemImageSource,
 } from '#app/utils/wishlist-images.server.ts';
 import { WishlistItemSchema } from './__wishlist-item-editor';
+
+const UpdateNoteSchema = z.object({
+  intent: z.literal('update-note'),
+  note: WishlistNoteSchema,
+});
 const MAX_UPLOAD_SIZE = 1024 * 1024 * 10; // 10MB
 
 async function getNextSortOrderForCategory({
@@ -373,9 +379,27 @@ export async function action({ request }: ActionFunctionArgs) {
   const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
   const formData = await request.formData();
+  const intentRaw = formData.get('intent');
+
+  if (intentRaw === 'update-note') {
+    const submission = parseWithZod(formData, { schema: UpdateNoteSchema });
+    if (submission.status !== 'success') {
+      return rrData(
+        { result: submission.reply() },
+        { status: submission.status === 'error' ? 400 : 200 },
+      );
+    }
+    await prisma.user.update({
+      select: { id: true },
+      where: { id: userId },
+      data: { wishlistNote: submission.value.note || null },
+    });
+    return rrData({ result: submission.reply(), intent: 'update-note' as const });
+  }
+
   const intent = z
     .enum(['save', 'save-add-another'])
-    .parse(formData.get('intent'));
+    .parse(intentRaw);
   const clientMutationId = getClientMutationId(formData);
   const submission = await parseWishlistItemSubmission(formData, userId);
   if (submission.status !== 'success') {

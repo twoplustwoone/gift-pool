@@ -37,7 +37,10 @@ import {
   BirthdayVisibilitySchema,
   NameSchema,
   UsernameSchema,
+  WISHLIST_VISIBILITY_VALUES,
+  WishlistVisibilitySchema,
   type BirthdayVisibility,
+  type WishlistVisibility,
 } from '#app/utils/user-validation.ts';
 import { DangerZoneDeleteDialog } from './__danger-zone-delete-dialog.tsx';
 import { ProfilePhotoSheet } from './__profile-photo-sheet.tsx';
@@ -56,6 +59,7 @@ const ProfileFormSchema = z.object({
 
 const PrivacyFormSchema = z.object({
   birthdayVisibility: BirthdayVisibilitySchema,
+  wishlistVisibility: WishlistVisibilitySchema,
 });
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -70,6 +74,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       bio: true,
       birthday: true,
       birthdayVisibility: true,
+      wishlistVisibility: true,
       image: { select: { id: true } },
       _count: {
         select: {
@@ -340,20 +345,26 @@ function AccountCard() {
 
 // ─── Privacy card ──────────────────────────────────────────────────────────
 
-const PRIVACY_OPTIONS: ReadonlyArray<{
+const BIRTHDAY_PRIVACY_OPTIONS: ReadonlyArray<{
   value: BirthdayVisibility;
   label: string;
   description: string;
 }> = [
   {
-    value: 'FRIENDS',
-    label: 'Friends only',
-    description: 'Only people you’re friends with on GiftPool can see it.',
-  },
-  {
     value: 'EVERYONE',
     label: 'Everyone',
     description: 'Visible to anyone who lands on your profile.',
+  },
+  {
+    value: 'FRIENDS_OF_FRIENDS',
+    label: 'Friends of friends',
+    description:
+      'Visible to your friends and people who share mutual friends with you.',
+  },
+  {
+    value: 'FRIENDS',
+    label: 'Friends only',
+    description: "Only people you're friends with on GiftPool can see it.",
   },
   {
     value: 'NOBODY',
@@ -362,20 +373,115 @@ const PRIVACY_OPTIONS: ReadonlyArray<{
   },
 ];
 
+const WISHLIST_PRIVACY_OPTIONS: ReadonlyArray<{
+  value: WishlistVisibility;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: 'EVERYONE',
+    label: 'Everyone',
+    description: 'Anyone with a GiftPool account can view your wishlist.',
+  },
+  {
+    value: 'FRIENDS_OF_FRIENDS',
+    label: 'Friends of friends',
+    description:
+      'Your friends and people who share mutual friends with you.',
+  },
+  {
+    value: 'FRIENDS',
+    label: 'Friends only',
+    description: "Only people you're friends with on GiftPool.",
+  },
+];
+
+function VisibilityRadioGroup<T extends string>({
+  legend,
+  name,
+  options,
+  selected,
+  onSubmit,
+}: {
+  legend: string;
+  name: string;
+  options: ReadonlyArray<{ value: T; label: string; description: string }>;
+  selected: T;
+  onSubmit: (value: T) => void;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-3">
+      <legend className="mb-1 text-sm font-medium text-foreground">{legend}</legend>
+      {options.map((option) => {
+        const id = `${name}-${option.value}`;
+        const isSelected = selected === option.value;
+        return (
+          <label
+            key={option.value}
+            htmlFor={id}
+            aria-label={option.label}
+            className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 transition hover:border-border"
+            data-selected={isSelected || undefined}
+          >
+            <input
+              id={id}
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={isSelected}
+              onChange={(event) => onSubmit(event.currentTarget.value as T)}
+              className="h-4 w-4 shrink-0 accent-primary"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium text-foreground">
+                {option.label}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {option.description}
+              </span>
+            </span>
+          </label>
+        );
+      })}
+    </fieldset>
+  );
+}
+
 function PrivacyCard() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof privacyUpdateAction>();
-  const currentValue =
+
+  const currentBirthday =
     (data.user.birthdayVisibility as BirthdayVisibility | undefined) ??
     'FRIENDS';
+  const currentWishlist =
+    (data.user.wishlistVisibility as WishlistVisibility | undefined) ??
+    'FRIENDS';
+
   // Optimistic reflection: while the fetcher is in-flight we show the
-  // pending value from its formData instead of waiting for the revalidation.
-  const pendingValue = fetcher.formData?.get('birthdayVisibility');
-  const selected =
-    typeof pendingValue === 'string' &&
-    (BIRTHDAY_VISIBILITY_VALUES as readonly string[]).includes(pendingValue)
-      ? (pendingValue as BirthdayVisibility)
-      : currentValue;
+  // pending values from its formData instead of waiting for revalidation.
+  const pendingBirthday = fetcher.formData?.get('birthdayVisibility');
+  const pendingWishlist = fetcher.formData?.get('wishlistVisibility');
+
+  const selectedBirthday =
+    typeof pendingBirthday === 'string' &&
+    (BIRTHDAY_VISIBILITY_VALUES as readonly string[]).includes(pendingBirthday)
+      ? (pendingBirthday as BirthdayVisibility)
+      : currentBirthday;
+
+  const selectedWishlist =
+    typeof pendingWishlist === 'string' &&
+    (WISHLIST_VISIBILITY_VALUES as readonly string[]).includes(pendingWishlist)
+      ? (pendingWishlist as WishlistVisibility)
+      : currentWishlist;
+
+  function submitPrivacy(patch: Partial<{ birthdayVisibility: BirthdayVisibility; wishlistVisibility: WishlistVisibility }>) {
+    const formData = new FormData();
+    formData.set('intent', privacyUpdateActionIntent);
+    formData.set('birthdayVisibility', patch.birthdayVisibility ?? selectedBirthday);
+    formData.set('wishlistVisibility', patch.wishlistVisibility ?? selectedWishlist);
+    void fetcher.submit(formData, { method: 'POST' });
+  }
 
   return (
     <Card padding="lg" className="flex flex-col gap-5">
@@ -383,47 +489,20 @@ function PrivacyCard() {
         title="Privacy"
         description="Control who can see personal details on your profile."
       />
-      <fieldset className="flex flex-col gap-3">
-        <legend className="text-sm font-medium text-foreground">
-          Birthday visibility
-        </legend>
-        {PRIVACY_OPTIONS.map((option) => {
-          const id = `birthday-visibility-${option.value}`;
-          const isSelected = selected === option.value;
-          return (
-            <label
-              key={option.value}
-              htmlFor={id}
-              aria-label={option.label}
-              className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 transition hover:border-border"
-              data-selected={isSelected || undefined}
-            >
-              <input
-                id={id}
-                type="radio"
-                name="birthdayVisibility"
-                value={option.value}
-                checked={isSelected}
-                onChange={(event) => {
-                  const formData = new FormData();
-                  formData.set('intent', privacyUpdateActionIntent);
-                  formData.set('birthdayVisibility', event.currentTarget.value);
-                  void fetcher.submit(formData, { method: 'POST' });
-                }}
-                className="h-4 w-4 shrink-0 accent-primary"
-              />
-              <span className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium text-foreground">
-                  {option.label}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {option.description}
-                </span>
-              </span>
-            </label>
-          );
-        })}
-      </fieldset>
+      <VisibilityRadioGroup
+        legend="Birthday visibility"
+        name="birthdayVisibility"
+        options={BIRTHDAY_PRIVACY_OPTIONS}
+        selected={selectedBirthday}
+        onSubmit={(value) => submitPrivacy({ birthdayVisibility: value })}
+      />
+      <VisibilityRadioGroup
+        legend="Wishlist visibility"
+        name="wishlistVisibility"
+        options={WISHLIST_PRIVACY_OPTIONS}
+        selected={selectedWishlist}
+        onSubmit={(value) => submitPrivacy({ wishlistVisibility: value })}
+      />
     </Card>
   );
 }
@@ -638,7 +717,10 @@ async function privacyUpdateAction({ userId, formData }: ProfileActionArgs) {
   await prisma.user.update({
     select: { id: true },
     where: { id: userId },
-    data: { birthdayVisibility: submission.value.birthdayVisibility },
+    data: {
+      birthdayVisibility: submission.value.birthdayVisibility,
+      wishlistVisibility: submission.value.wishlistVisibility,
+    },
   });
   return { result: submission.reply() };
 }

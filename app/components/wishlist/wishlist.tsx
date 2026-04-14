@@ -54,11 +54,13 @@ import {
   toCategoryDragId,
   type WishlistItem,
 } from './wishlist-item-state';
+import { WishlistNote } from './wishlist-note';
 
 export type WishlistUser = Pick<User, 'id' | 'username' | 'name'> & {
   image: Pick<UserImage, 'id'> | null;
   wishlistItems: WishlistItem[];
   wishlistCategories: WishlistCategory[];
+  wishlistNote?: string | null;
 };
 
 type WishlistPublicShare = { token: string; createdAt: Date };
@@ -982,6 +984,9 @@ export const Wishlist = ({
         onStartCategoryReorder={startCategoryReorderMode}
         onCategoryMutationResult={handleCategoryMutationResult}
       />
+      {!isReorderMode ? (
+        <WishlistNote note={user.wishlistNote ?? null} isOwner={isOwner} />
+      ) : null}
       <div className="mx-auto min-h-0 w-full max-w-6xl flex-1 px-3 py-8 sm:px-6">
         <Stack gap={4}>
           <WishlistViewToggle view={view} onChange={handleViewChange} />

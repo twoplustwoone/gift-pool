@@ -5,6 +5,7 @@ import {
   acceptFriendRequest,
   getRelationshipDetails,
   getRelationshipState,
+  isFriendOfFriend,
   sendFriendRequest,
 } from '#app/utils/friends.server.ts';
 
@@ -92,6 +93,51 @@ describe('friends.server', () => {
     ).resolves.toBe('PENDING_INCOMING');
     const details = await getRelationshipDetails(sender.id, recipient.id);
     expect(details.state).toBe('PENDING_OUTGOING');
+  });
+
+  it('isFriendOfFriend returns true when viewer and owner share a mutual friend', async () => {
+    const [viewer, owner, mutual] = await Promise.all([
+      createUser(),
+      createUser(),
+      createUser(),
+    ]);
+    // Establish viewer ↔ mutual and owner ↔ mutual friendships
+    await Promise.all([
+      prisma.friendship.create({
+        data: { userAId: viewer.id, userBId: mutual.id },
+      }),
+      prisma.friendship.create({
+        data: { userAId: owner.id, userBId: mutual.id },
+      }),
+    ]);
+
+    await expect(isFriendOfFriend(viewer.id, owner.id)).resolves.toBe(true);
+  });
+
+  it('isFriendOfFriend returns false when no mutual friend exists', async () => {
+    const [viewer, owner, other] = await Promise.all([
+      createUser(),
+      createUser(),
+      createUser(),
+    ]);
+    // viewer knows other, owner knows nobody — no intersection
+    await prisma.friendship.create({
+      data: { userAId: viewer.id, userBId: other.id },
+    });
+
+    await expect(isFriendOfFriend(viewer.id, owner.id)).resolves.toBe(false);
+  });
+
+  it('isFriendOfFriend returns false when viewer and owner are direct friends (not FOF)', async () => {
+    const [viewer, owner] = await Promise.all([createUser(), createUser()]);
+    // Direct friendship — isFriendOfFriend should not count the principals
+    await prisma.friendship.create({
+      data: { userAId: viewer.id, userBId: owner.id },
+    });
+
+    // The viewer IS in the owner's friend list, but they are the principal —
+    // the function must exclude them from the intersection.
+    await expect(isFriendOfFriend(viewer.id, owner.id)).resolves.toBe(false);
   });
 
   it('acceptFriendRequest upserts the friendship and fires a fanout to the original sender', async () => {

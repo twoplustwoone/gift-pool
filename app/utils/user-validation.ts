@@ -49,9 +49,24 @@ export const BioSchema = z
 
 // SQLite doesn't support Prisma enums, so we store the value as a string and
 // enforce the union at the app layer. Keep these two in sync.
-export const BIRTHDAY_VISIBILITY_VALUES = ['FRIENDS', 'EVERYONE', 'NOBODY'] as const;
+// Ordered from most-visible to least-visible.
+export const BIRTHDAY_VISIBILITY_VALUES = ['EVERYONE', 'FRIENDS_OF_FRIENDS', 'FRIENDS', 'NOBODY'] as const;
 export type BirthdayVisibility = (typeof BIRTHDAY_VISIBILITY_VALUES)[number];
 export const BirthdayVisibilitySchema = z.enum(BIRTHDAY_VISIBILITY_VALUES);
+
+// Ordered from most-visible to least-visible. No 'NOBODY' — a hidden wishlist is
+// handled by not sharing the link rather than a visibility setting.
+export const WISHLIST_VISIBILITY_VALUES = ['EVERYONE', 'FRIENDS_OF_FRIENDS', 'FRIENDS'] as const;
+export type WishlistVisibility = (typeof WISHLIST_VISIBILITY_VALUES)[number];
+export const WishlistVisibilitySchema = z.enum(WISHLIST_VISIBILITY_VALUES);
+
+export const WISHLIST_NOTE_MAX_LENGTH = 400;
+export const WishlistNoteSchema = z
+  .string()
+  .max(WISHLIST_NOTE_MAX_LENGTH, {
+    message: `Message must be ${WISHLIST_NOTE_MAX_LENGTH} characters or fewer`,
+  })
+  .transform((v) => v.trim());
 
 // Accepts YYYY-MM-DD from a native date input, or an empty string (meaning
 // "clear the field"). Transforms to a Date at NOON UTC or null.
