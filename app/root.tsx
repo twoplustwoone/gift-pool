@@ -502,7 +502,11 @@ export const ErrorBoundary = () => {
   // Just make sure your root route never errors out and you'll always be able
   // to give the user a better UX.
 
-  const isChunkError = isChunkLoadError(error);
+  // Guard against SSR context where the .client.ts module resolves to
+  // undefined — calling an undefined value throws "isChunkLoadError is not a
+  // function" (GIFTPOOL-UI-17).
+  const isChunkError =
+    typeof isChunkLoadError === 'function' && isChunkLoadError(error);
 
   useEffect(() => {
     reloadOnceForChunkError(error);
