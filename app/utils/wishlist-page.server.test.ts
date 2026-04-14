@@ -21,9 +21,12 @@ vi.mock('./db.server.ts', () => ({
   },
 }));
 
+const isFriendOfFriend = vi.fn();
+
 vi.mock('./friends.server.ts', () => ({
   getRelationshipDetails: (...args: Array<unknown>) =>
     getRelationshipDetails(...args),
+  isFriendOfFriend: (...args: Array<unknown>) => isFriendOfFriend(...args),
 }));
 
 vi.mock('./analytics.server.ts', () => ({
@@ -41,6 +44,24 @@ import {
 } from './wishlist-page.server.ts';
 
 function createOwnerSummary(overrides?: Partial<{
+  id: string;
+  image: { id: string } | null;
+  name: string | null;
+  username: string;
+  wishlistVisibility: string;
+}>) {
+  return {
+    id: 'owner-1',
+    image: { id: 'image-1' },
+    name: 'Alex',
+    username: 'alex',
+    ...overrides,
+  };
+}
+
+// Creates the subset of the owner summary that the loader echoes back in
+// the `user` field (wishlistVisibility is stripped out before returning).
+function createExpectedUser(overrides?: Partial<{
   id: string;
   image: { id: string } | null;
   name: string | null;
@@ -101,6 +122,7 @@ beforeEach(() => {
   wishlistPublicShareFindUnique.mockReset();
   wishlistPublicShareFindUnique.mockResolvedValue(null);
   getRelationshipDetails.mockReset();
+  isFriendOfFriend.mockReset();
   queueLogEvent.mockReset();
   cleanupWishlistPurchasesForOwner.mockReset();
 });
@@ -152,7 +174,7 @@ describe('loadFriendWishlistPageData', () => {
         outgoingRequestId: null,
         state: 'NONE',
       },
-      user: createOwnerSummary(),
+      user: createExpectedUser(),
     });
 
     expect(userFindFirst).toHaveBeenCalledTimes(1);
@@ -197,7 +219,7 @@ describe('loadFriendWishlistPageData', () => {
         state: 'FRIENDS',
       },
       user: {
-        ...createOwnerSummary(),
+        ...createExpectedUser(),
         wishlistCategories: [
           { id: 'category-1', name: 'Books', order: 0 },
           { id: 'category-2', name: 'Games', order: 1 },
@@ -254,6 +276,82 @@ describe('loadFriendWishlistPageData', () => {
     });
     expect(cleanupWishlistPurchasesForOwner).toHaveBeenCalledWith('owner-1');
     expect(queueLogEvent).not.toHaveBeenCalled();
+  });
+
+  it('grants access for wishlistVisibility EVERYONE and loads wishlist details', async () => {
+    userFindFirst
+      .mockResolvedValueOnce(
+        createOwnerSummary({ wishlistVisibility: 'EVERYONE' }),
+      )
+      .mockResolvedValueOnce(createWishlistDetails());
+    getRelationshipDetails.mockResolvedValueOnce({ state: 'NONE' });
+
+    const result = await loadFriendWishlistPageData({
+      includeAnalytics: false,
+      username: 'alex',
+      viewerId: 'viewer-1',
+    });
+
+    expect(result).toMatchObject({ canViewWishlist: true });
+    expect(isFriendOfFriend).not.toHaveBeenCalled();
+  });
+
+  it('grants access for wishlistVisibility FRIENDS_OF_FRIENDS when viewer is a direct friend', async () => {
+    userFindFirst
+      .mockResolvedValueOnce(
+        createOwnerSummary({ wishlistVisibility: 'FRIENDS_OF_FRIENDS' }),
+      )
+      .mockResolvedValueOnce(createWishlistDetails());
+    getRelationshipDetails.mockResolvedValueOnce({
+      friendship: { id: 'friendship-1' },
+      state: 'FRIENDS',
+    });
+
+    const result = await loadFriendWishlistPageData({
+      includeAnalytics: false,
+      username: 'alex',
+      viewerId: 'viewer-1',
+    });
+
+    expect(result).toMatchObject({ canViewWishlist: true });
+    // Direct friend — should short-circuit before calling isFriendOfFriend
+    expect(isFriendOfFriend).not.toHaveBeenCalled();
+  });
+
+  it('grants access for wishlistVisibility FRIENDS_OF_FRIENDS when viewer shares a mutual friend', async () => {
+    userFindFirst
+      .mockResolvedValueOnce(
+        createOwnerSummary({ wishlistVisibility: 'FRIENDS_OF_FRIENDS' }),
+      )
+      .mockResolvedValueOnce(createWishlistDetails());
+    getRelationshipDetails.mockResolvedValueOnce({ state: 'NONE' });
+    isFriendOfFriend.mockResolvedValueOnce(true);
+
+    const result = await loadFriendWishlistPageData({
+      includeAnalytics: false,
+      username: 'alex',
+      viewerId: 'viewer-1',
+    });
+
+    expect(result).toMatchObject({ canViewWishlist: true });
+    expect(isFriendOfFriend).toHaveBeenCalledWith('viewer-1', 'owner-1');
+  });
+
+  it('denies access for wishlistVisibility FRIENDS_OF_FRIENDS when no mutual friend exists', async () => {
+    userFindFirst.mockResolvedValueOnce(
+      createOwnerSummary({ wishlistVisibility: 'FRIENDS_OF_FRIENDS' }),
+    );
+    getRelationshipDetails.mockResolvedValueOnce({ state: 'NONE' });
+    isFriendOfFriend.mockResolvedValueOnce(false);
+
+    const result = await loadFriendWishlistPageData({
+      includeAnalytics: false,
+      username: 'alex',
+      viewerId: 'viewer-1',
+    });
+
+    expect(result).toMatchObject({ canViewWishlist: false });
+    expect(isFriendOfFriend).toHaveBeenCalledWith('viewer-1', 'owner-1');
   });
 
   it('logs a server analytics event for friend views when enabled', async () => {

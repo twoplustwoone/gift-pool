@@ -316,6 +316,60 @@ describe('app/routes/wishlist+/__wishlist-item-editor.server.tsx', () => {
     expect(queueLogEvent).not.toHaveBeenCalled();
   });
 
+  it('update-note persists the trimmed note and returns the intent', async () => {
+    const { cookie, user } = await createOwnerWithSession();
+
+    const formData = new FormData();
+    formData.set('intent', 'update-note');
+    formData.set('note', '  Thanks for checking out my wishlist!  ');
+
+    const response = await action(
+      toActionArgs({
+        context,
+        params: {},
+        request: createEditorRequest({ cookie, formData }),
+      }),
+    );
+
+    expect(getRouteResultStatus(response)).toBe(200);
+    await expect(getRouteResultData(response)).resolves.toMatchObject({
+      intent: 'update-note',
+    });
+
+    const updated = await prisma.user.findUnique({
+      select: { wishlistNote: true },
+      where: { id: user.id },
+    });
+    expect(updated?.wishlistNote).toBe('Thanks for checking out my wishlist!');
+  });
+
+  it('update-note clears the note when an empty string is submitted', async () => {
+    const { cookie, user } = await createOwnerWithSession();
+    // Pre-set a note
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { wishlistNote: 'Old note' },
+    });
+
+    const formData = new FormData();
+    formData.set('intent', 'update-note');
+    formData.set('note', '   ');
+
+    await action(
+      toActionArgs({
+        context,
+        params: {},
+        request: createEditorRequest({ cookie, formData }),
+      }),
+    );
+
+    const updated = await prisma.user.findUnique({
+      select: { wishlistNote: true },
+      where: { id: user.id },
+    });
+    expect(updated?.wishlistNote).toBeNull();
+  });
+
   it('returns a result key (not a spread) when list-link URL validation fails', async () => {
     const { cookie } = await createOwnerWithSession();
 
