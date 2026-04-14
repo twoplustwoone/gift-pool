@@ -59,16 +59,21 @@ function nextBirthdayDate(birthday: Date, now = new Date()) {
 // Is this group-mate's birthday visible to the viewer?
 // - `NOBODY` → never.
 // - `FRIENDS` → only when the viewer has a confirmed friendship.
-// - `EVERYONE` (or any unexpected default) → always.
+// - `FRIENDS_OF_FRIENDS` → only when the viewer is a direct friend OR shares a mutual friend.
+// - `EVERYONE` → always.
+// - Unexpected values default to the most restrictive behaviour (treat as FRIENDS).
 function isBirthdayVisibleToViewer(
   user: GroupMemberUser,
   friendIds: Set<string>,
+  friendOfFriendIds: Set<string>,
 ) {
   if (user.birthdayVisibility === 'NOBODY') return false;
-  if (user.birthdayVisibility === 'FRIENDS' && !friendIds.has(user.id)) {
-    return false;
+  if (user.birthdayVisibility === 'EVERYONE') return true;
+  if (user.birthdayVisibility === 'FRIENDS_OF_FRIENDS') {
+    return friendIds.has(user.id) || friendOfFriendIds.has(user.id);
   }
-  return true;
+  // FRIENDS or any unrecognised value: require a direct friendship
+  return friendIds.has(user.id);
 }
 
 // Walk the viewer's group memberships and build a de-duped map of
@@ -77,6 +82,7 @@ function isBirthdayVisibleToViewer(
 function collectUpcomingBirthdays(
   memberships: Membership[],
   friendIds: Set<string>,
+  friendOfFriendIds: Set<string>,
   viewerId: string,
   now: Date,
 ): Map<string, UpcomingBirthdayEntry> {
@@ -85,7 +91,7 @@ function collectUpcomingBirthdays(
     for (const gm of m.giftGroup.groupMembers) {
       const u = gm.user;
       if (!u.birthday || u.id === viewerId) continue;
-      if (!isBirthdayVisibleToViewer(u, friendIds)) continue;
+      if (!isBirthdayVisibleToViewer(u, friendIds, friendOfFriendIds)) continue;
       if (birthdayMap.has(u.id)) continue;
       birthdayMap.set(u.id, {
         id: u.id,
@@ -212,10 +218,49 @@ export async function loader({ request }: LoaderFunctionArgs) {
   ]);
 
   const friendIds = buildFriendIdSet(friendships, userId);
+
+  // Collect group-member IDs with FRIENDS_OF_FRIENDS birthday visibility that
+  // are not already direct friends — these need a mutual-friend check.
+  const fofCandidateIds = new Set<string>();
+  for (const m of memberships) {
+    for (const gm of m.giftGroup.groupMembers) {
+      const u = gm.user;
+      if (
+        u.id !== userId &&
+        u.birthdayVisibility === 'FRIENDS_OF_FRIENDS' &&
+        !friendIds.has(u.id)
+      ) {
+        fofCandidateIds.add(u.id);
+      }
+    }
+  }
+
+  // One extra query: find any friendship that links a FOF candidate to one of
+  // the viewer's direct friends, confirming the mutual-friend relationship.
+  const friendOfFriendIds = new Set<string>();
+  if (fofCandidateIds.size > 0) {
+    const friendIdArray = Array.from(friendIds);
+    const candidateArray = Array.from(fofCandidateIds);
+    const mutualLinks = await prisma.friendship.findMany({
+      where: {
+        OR: [
+          { userAId: { in: candidateArray }, userBId: { in: friendIdArray } },
+          { userBId: { in: candidateArray }, userAId: { in: friendIdArray } },
+        ],
+      },
+      select: { userAId: true, userBId: true },
+    });
+    for (const f of mutualLinks) {
+      const fofId = fofCandidateIds.has(f.userAId) ? f.userAId : f.userBId;
+      friendOfFriendIds.add(fofId);
+    }
+  }
+
   const now = new Date();
   const birthdayMap = collectUpcomingBirthdays(
     memberships,
     friendIds,
+    friendOfFriendIds,
     userId,
     now,
   );
