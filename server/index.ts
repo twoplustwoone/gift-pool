@@ -225,6 +225,12 @@ if (!ALLOW_INDEXING) {
   });
 }
 
+// Handle CORS preflight before React Router — React Router only accepts
+// GET/POST/PUT/PATCH/DELETE and throws on OPTIONS, causing Sentry noise.
+app.options('*', (_req, res) => {
+  res.sendStatus(204);
+});
+
 app.all(
   '*',
   createRequestHandler({
