@@ -103,7 +103,7 @@ describe('WishlistNote', () => {
     expect(formData.get('intent')).toBe('update-note');
     expect(formData.get('note')).toBe('New note');
     expect(options.method).toBe('POST');
-    expect(options.action).toBe('/wishlist');
+    expect(options.action).toBe('/wishlist?index');
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 

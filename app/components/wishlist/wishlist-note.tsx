@@ -46,7 +46,7 @@ export const WishlistNote = ({ note, isOwner }: WishlistNoteProps) => {
     const formData = new FormData();
     formData.set('intent', 'update-note');
     formData.set('note', draft.trim());
-    void fetcher.submit(formData, { method: 'POST', action: '/wishlist' });
+    void fetcher.submit(formData, { method: 'POST', action: '/wishlist?index' });
     setIsEditing(false);
   }
 
