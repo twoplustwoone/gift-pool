@@ -220,6 +220,11 @@ export const headers: HeadersFunction = ({ loaderHeaders }) => {
   };
   return headers;
 };
+// The root route has no meaningful action handler. Return 405 for unexpected
+// POST requests (e.g. bots, stale forms) so React Router doesn't 405-error
+// with an unhandled "no action" message. (Fixes GIFTPOOL-UI-18, GIFTPOOL-UI-12)
+export const action = () =>
+  new Response('Method Not Allowed', { status: 405 });
 const ThemeFormSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']),
 });
