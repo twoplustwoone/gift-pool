@@ -42,7 +42,9 @@ const GiftGroupOverview = () => {
     const url = (createFetcher.data as any)?.inviteUrl as string | undefined;
     if (createFetcher.state === 'idle' && url) {
       setLocalInviteLink(url);
-      void navigator.clipboard.writeText(url);
+      navigator.clipboard.writeText(url).catch(() => {
+        // Clipboard access denied (iOS Safari requires a direct user gesture)
+      });
     }
   }, [createFetcher.state, createFetcher.data]);
 
