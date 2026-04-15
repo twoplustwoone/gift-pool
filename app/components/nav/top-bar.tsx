@@ -40,8 +40,9 @@ export const TopBar = ({
       ref={headerRef}
       data-hidden={hidden ? 'true' : 'false'}
       data-testid="top-bar"
+      style={{ top: 'var(--pwa-banner-height, 0px)' }}
       className={cn(
-        'fixed top-0 z-40 w-full border-b border-surface-border bg-surface py-3 transition-[transform,opacity] duration-200 ease-out will-change-transform sm:py-4',
+        'fixed z-40 w-full border-b border-surface-border bg-surface py-3 transition-[transform,opacity] duration-200 ease-out will-change-transform sm:py-4',
         hidden && 'pointer-events-none -translate-y-full opacity-0',
       )}
     >
