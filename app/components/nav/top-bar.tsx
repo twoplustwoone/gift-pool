@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { TopNav } from '#app/components/nav/top/top-nav';
 import { cn } from '#app/utils/misc.tsx';
 
@@ -13,7 +13,6 @@ export const TopBar = ({
   onHeightChange?: (height: number) => void;
 }) => {
   const headerRef = useRef<HTMLElement>(null);
-  const [measuredHeight, setMeasuredHeight] = useState<number>(0);
 
   useIsomorphicLayoutEffect(() => {
     const el = headerRef.current;
@@ -21,8 +20,13 @@ export const TopBar = ({
     const measure = () => {
       const height = el.getBoundingClientRect().height;
       if (height > 0) {
-        setMeasuredHeight(height);
         onHeightChange?.(height);
+        if (typeof document !== 'undefined') {
+          document.documentElement.style.setProperty(
+            '--top-bar-height',
+            `${height}px`,
+          );
+        }
       }
     };
     measure();
@@ -37,10 +41,9 @@ export const TopBar = ({
       data-hidden={hidden ? 'true' : 'false'}
       data-testid="top-bar"
       className={cn(
-        'sticky top-0 z-40 border-b border-surface-border bg-surface py-3 transition-[transform,opacity,margin] duration-200 ease-out will-change-transform sm:py-4',
+        'fixed top-0 z-40 w-full border-b border-surface-border bg-surface py-3 transition-[transform,opacity] duration-200 ease-out will-change-transform sm:py-4',
         hidden && 'pointer-events-none -translate-y-full opacity-0',
       )}
-      style={{ marginBottom: hidden ? -measuredHeight : 0 }}
     >
       <TopNav />
     </header>
