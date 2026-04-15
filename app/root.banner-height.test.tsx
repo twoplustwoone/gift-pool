@@ -303,9 +303,7 @@ describe('root.tsx — PWA banner height CSS variable', () => {
 
     setupMocks({ shouldShowBanner: false });
 
-    act(() => {
-      rerender(<AppWithProviders />);
-    });
+    rerender(<AppWithProviders />);
 
     expect(
       document.documentElement.style.getPropertyValue('--pwa-banner-height'),
