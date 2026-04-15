@@ -223,4 +223,10 @@ describe('app/root.tsx', () => {
     expect(markup).not.toContain('data-testid="route-outlet"');
     expect(markup).not.toContain('data-testid="wishlist-route-skeleton"');
   });
+
+  it('applies --top-bar-height padding-top to the scroll container', () => {
+    const markup = renderToStaticMarkup(<AppWithProviders />);
+    expect(markup).toContain('style="padding-top:var(--top-bar-height)"');
+    expect(markup).toContain('data-testid="app-scroll-area"');
+  });
 });
