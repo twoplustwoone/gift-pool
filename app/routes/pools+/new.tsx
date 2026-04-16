@@ -215,6 +215,135 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 // ─── Action ──────────────────────────────────────────────────────────────────
 
+type RecipientResolution = {
+	recipientUserId: string | null
+	groupMemberDefaults: Array<{ userId: string; contributionCents: number }>
+}
+
+type ResolutionResult =
+	| { ok: true; value: RecipientResolution }
+	| { ok: false; response: ReturnType<typeof data> }
+
+async function resolveGroupBackedRecipient(
+	userId: string,
+	giftGroupId: string,
+	formRecipientUserId: string,
+	contributorIdsRaw: string | undefined,
+	submission: Awaited<
+		ReturnType<typeof parseWithZod<typeof CreatePoolSchema>>
+	>,
+): Promise<ResolutionResult> {
+	// Validate: organizer must be in the group
+	const membership = await prisma.usersInGiftGroups.findUnique({
+		where: { userId_giftGroupId: { userId, giftGroupId } },
+		select: { userId: true },
+	})
+	if (!membership) {
+		return {
+			ok: false,
+			response: data(
+				submission.reply({
+					formErrors: ['You are not a member of this group.'],
+				}),
+				{ status: 403 },
+			),
+		}
+	}
+
+	// Validate: recipient must be in the group
+	const recipientMembership = await prisma.usersInGiftGroups.findUnique({
+		where: {
+			userId_giftGroupId: { userId: formRecipientUserId, giftGroupId },
+		},
+		select: { userId: true },
+	})
+	if (!recipientMembership) {
+		return {
+			ok: false,
+			response: data(
+				submission.reply({
+					formErrors: ['The recipient is not a member of this group.'],
+				}),
+				{ status: 400 },
+			),
+		}
+	}
+
+	const selectedIds = contributorIdsRaw
+		? contributorIdsRaw.split(',').filter(Boolean)
+		: []
+	if (selectedIds.length === 0) {
+		return {
+			ok: false,
+			response: data(
+				submission.reply({
+					formErrors: ['Select at least one contributor.'],
+				}),
+				{ status: 400 },
+			),
+		}
+	}
+
+	// Re-derive authoritative contribution defaults from the DB; filter out
+	// the recipient — they must never be a contributor.
+	const members = await prisma.usersInGiftGroups.findMany({
+		where: {
+			giftGroupId,
+			userId: { in: selectedIds },
+			removedAt: null,
+		},
+		select: { userId: true, contributionCents: true },
+	})
+	const groupMemberDefaults = members
+		.filter((m) => m.userId !== formRecipientUserId)
+		.map((m) => ({
+			userId: m.userId,
+			contributionCents: m.contributionCents,
+		}))
+
+	return {
+		ok: true,
+		value: {
+			recipientUserId: formRecipientUserId,
+			groupMemberDefaults,
+		},
+	}
+}
+
+async function resolveStandaloneRecipient(
+	userId: string,
+	formRecipientUserId: string,
+	submission: Awaited<
+		ReturnType<typeof parseWithZod<typeof CreatePoolSchema>>
+	>,
+): Promise<ResolutionResult> {
+	// Validate the picker selection against the viewer's candidate pool
+	// (friends + group members). Prevents arbitrary user ids being
+	// submitted via a tampered form.
+	const candidates = await fetchRecipientCandidates(userId)
+	const match = candidates.find((c) => c.id === formRecipientUserId)
+	if (!match) {
+		return {
+			ok: false,
+			response: data(
+				submission.reply({
+					formErrors: [
+						'That person is not in your friends or group members.',
+					],
+				}),
+				{ status: 400 },
+			),
+		}
+	}
+	return {
+		ok: true,
+		value: {
+			recipientUserId: match.id,
+			groupMemberDefaults: [],
+		},
+	}
+}
+
 export async function action({ request }: ActionFunctionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
@@ -242,93 +371,23 @@ export async function action({ request }: ActionFunctionArgs) {
 	}> = []
 
 	if (giftGroupId && formRecipientUserId) {
-		// ── Group-backed flow ──
-		// Validate: organizer must be in the group
-		const membership = await prisma.usersInGiftGroups.findUnique({
-			where: {
-				userId_giftGroupId: { userId, giftGroupId },
-			},
-			select: { userId: true },
-		})
-		if (!membership) {
-			return data(
-				submission.reply({ formErrors: ['You are not a member of this group.'] }),
-				{ status: 403 },
-			)
-		}
-
-		// Validate: recipient must be in the group
-		const recipientMembership = await prisma.usersInGiftGroups.findUnique({
-			where: {
-				userId_giftGroupId: {
-					userId: formRecipientUserId,
-					giftGroupId,
-				},
-			},
-			select: { userId: true },
-		})
-		if (!recipientMembership) {
-			return data(
-				submission.reply({
-					formErrors: ['The recipient is not a member of this group.'],
-				}),
-				{ status: 400 },
-			)
-		}
-
-		recipientUserId = formRecipientUserId
-
-		// Parse selected contributor IDs from the comma-separated hidden field
-		const selectedIds = contributorIdsRaw
-			? contributorIdsRaw.split(',').filter(Boolean)
-			: []
-
-		if (selectedIds.length === 0) {
-			return data(
-				submission.reply({
-					formErrors: ['Select at least one contributor.'],
-				}),
-				{ status: 400 },
-			)
-		}
-
-		// Re-derive authoritative contribution defaults from the DB
-		const members = await prisma.usersInGiftGroups.findMany({
-			where: {
-				giftGroupId,
-				userId: { in: selectedIds },
-				removedAt: null,
-			},
-			select: { userId: true, contributionCents: true },
-		})
-
-		// Filter out the recipient — they must never be a contributor
-		groupMemberDefaults = members
-			.filter((m) => m.userId !== formRecipientUserId)
-			.map((m) => ({
-				userId: m.userId,
-				contributionCents: m.contributionCents,
-			}))
-	} else {
-		// ── Standalone flow ──
-		// If the picker selected a user, validate the id against the viewer's
-		// candidate pool (friends + group members). Prevents arbitrary user
-		// ids being submitted via a tampered form.
-		if (formRecipientUserId) {
-			const candidates = await fetchRecipientCandidates(userId)
-			const match = candidates.find((c) => c.id === formRecipientUserId)
-			if (!match) {
-				return data(
-					submission.reply({
-						formErrors: [
-							'That person is not in your friends or group members.',
-						],
-					}),
-					{ status: 400 },
-				)
-			}
-			recipientUserId = match.id
-		}
+		const result = await resolveGroupBackedRecipient(
+			userId,
+			giftGroupId,
+			formRecipientUserId,
+			contributorIdsRaw,
+			submission,
+		)
+		if (!result.ok) return result.response
+		;({ recipientUserId, groupMemberDefaults } = result.value)
+	} else if (formRecipientUserId) {
+		const result = await resolveStandaloneRecipient(
+			userId,
+			formRecipientUserId,
+			submission,
+		)
+		if (!result.ok) return result.response
+		recipientUserId = result.value.recipientUserId
 	}
 
 	const pool = await createPool({
@@ -352,8 +411,13 @@ const NewPool = () => {
 	const { groupContext, candidates } = useLoaderData<typeof loader>()
 	const actionData = useActionData<typeof action>()
 
-	const [form, fields] = useForm({
-		lastResult: actionData,
+	const [form, fields] = useForm<z.input<typeof CreatePoolSchema>>({
+		// `action` returns a union of data() responses with differently-shaped
+		// formErrors (string[] in some branches, unknown in others). Cast so
+		// useForm's stricter SubmissionResult<string[]> binding is satisfied.
+		lastResult: actionData as
+			| Parameters<typeof useForm<z.input<typeof CreatePoolSchema>>>[0]['lastResult']
+			| undefined,
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: CreatePoolSchema })
 		},
@@ -404,8 +468,8 @@ const NewPool = () => {
 
 					{form.errors && form.errors.length > 0 && (
 						<Card padding="md" className="mb-6 border-destructive">
-							{form.errors.map((error, i) => (
-								<Text key={i} size="sm" className="text-destructive">
+							{form.errors.map((error) => (
+								<Text key={error} size="sm" className="text-destructive">
 									{error}
 								</Text>
 							))}

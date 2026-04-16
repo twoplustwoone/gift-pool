@@ -288,25 +288,32 @@ const ActivePoolsSection = ({
   );
 };
 
+function buildProgressLabel(pool: PoolSummary): string {
+  if (pool.status === 'DECIDED' || pool.status === 'PURCHASED') {
+    return `${pool.paidCount} of ${pool.contributorCount} paid`;
+  }
+  if (pool.ideaCount > 0) {
+    const noun = pool.ideaCount === 1 ? 'idea' : 'ideas';
+    return `${pool.ideaCount} ${noun}`;
+  }
+  const noun = pool.contributorCount === 1 ? 'contributor' : 'contributors';
+  return `${pool.contributorCount} ${noun}`;
+}
+
+function buildViewerLabel(pool: PoolSummary): string | null {
+  if (pool.viewerRole === 'organizing') return 'Organizing';
+  if (pool.viewerContributionCents) {
+    return `$${(pool.viewerContributionCents / 100).toFixed(0)}`;
+  }
+  if (pool.viewerRole === 'contributing') return 'Contributing';
+  return null;
+}
+
 const PoolRow = ({ pool }: { pool: PoolSummary }) => {
   const status = pool.status as PoolStatus;
   const occasion = pool.occasionType as OccasionType;
-
-  const progressLabel =
-    status === 'DECIDED' || status === 'PURCHASED'
-      ? `${pool.paidCount} of ${pool.contributorCount} paid`
-      : pool.ideaCount > 0
-        ? `${pool.ideaCount} ${pool.ideaCount === 1 ? 'idea' : 'ideas'}`
-        : `${pool.contributorCount} ${pool.contributorCount === 1 ? 'contributor' : 'contributors'}`;
-
-  const viewerLabel =
-    pool.viewerRole === 'organizing'
-      ? 'Organizing'
-      : pool.viewerContributionCents
-        ? `$${(pool.viewerContributionCents / 100).toFixed(0)}`
-        : pool.viewerRole === 'contributing'
-          ? 'Contributing'
-          : null;
+  const progressLabel = buildProgressLabel(pool);
+  const viewerLabel = buildViewerLabel(pool);
 
   return (
     <Link to={`/pools/${pool.id}`} className="block">

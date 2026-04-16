@@ -9,15 +9,16 @@ import {
 } from '#app/utils/group-overview.ts'
 import { DECISION_MODE, POOL_STATUS } from '#app/utils/pool-constants.ts'
 
-// Re-export so existing test imports from the .server module still work.
-export { ACTION_TYPE }
+// Re-export shared types/constants so existing test imports from this
+// module still work.
+export { ACTION_TYPE } from '#app/utils/group-overview.ts'
 export type {
 	ActionItem,
 	GroupOverviewData,
 	PastGift,
 	PoolSummary,
 	UpcomingOccasion,
-}
+} from '#app/utils/group-overview.ts'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -189,215 +190,263 @@ type PastGiftRow = Awaited<ReturnType<typeof queryPastGifts>>[number]
 //   P3 — informational (your idea was chosen)
 //   P4 — future / low urgency (upcoming occasion, propose idea)
 
-function computeActionQueue(
-	pools: ActivePoolRow[],
-	occasions: UpcomingOccasion[],
+// Per-pool context used by all the per-status builder helpers.
+type PoolContext = {
+	pool: ActivePoolRow
+	viewer: ActivePoolRow['contributors'][number] | undefined
+	isOrganizer: boolean
+	isPurchaser: boolean
+	isDeliverer: boolean
+	base: {
+		poolId: string
+		poolTitle: string
+		recipientName: string
+		eventDate: Date | null
+		daysUntilEvent: number | null
+	}
+}
+
+function makePoolContext(
+	pool: ActivePoolRow,
 	viewerId: string,
-	groupId: string,
-): ActionItem[] {
-	const items: ActionItem[] = []
-
-	for (const pool of pools) {
-		const viewer = pool.contributors.find((c) => c.userId === viewerId)
-		const isOrganizer = pool.organizerId === viewerId
-		const isPurchaser = pool.purchaserId === viewerId
-		const isDeliverer = pool.delivererId === viewerId
-		const name =
-			pool.recipientUser?.name ?? pool.recipientName ?? 'someone'
-		const eventDays = pool.eventDate ? daysUntilDate(pool.eventDate) : null
-
-		const base = {
+): PoolContext {
+	const viewer = pool.contributors.find((c) => c.userId === viewerId)
+	return {
+		pool,
+		viewer,
+		isOrganizer: pool.organizerId === viewerId,
+		isPurchaser: pool.purchaserId === viewerId,
+		isDeliverer: pool.delivererId === viewerId,
+		base: {
 			poolId: pool.id,
 			poolTitle: pool.title,
-			recipientName: name,
+			recipientName:
+				pool.recipientUser?.name ?? pool.recipientName ?? 'someone',
 			eventDate: pool.eventDate,
-			daysUntilEvent: eventDays,
-		}
-
-		if (pool.status === POOL_STATUS.OPEN) {
-			if (viewer && pool._count.ideas === 0) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.PROPOSE_IDEA,
-					priority: 4,
-					ctaLabel: 'Propose an idea',
-					ctaUrl: `/pools/${pool.id}`,
-				})
-			}
-			if (
-				isOrganizer &&
-				pool.decisionMode === DECISION_MODE.VOTE &&
-				pool._count.ideas >= 2
-			) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.CALL_VOTE,
-					priority: 1,
-					ctaLabel: 'Call a vote',
-					ctaUrl: `/pools/${pool.id}`,
-				})
-			}
-			if (
-				isOrganizer &&
-				pool.decisionMode === DECISION_MODE.ORGANIZER_PICKS &&
-				pool._count.ideas >= 1
-			) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.CHOOSE_GIFT,
-					priority: 1,
-					ctaLabel: 'Choose a gift',
-					ctaUrl: `/pools/${pool.id}`,
-				})
-			}
-			if (viewer && !viewer.contributionCents) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.SET_CONTRIBUTION,
-					priority: 2,
-					ctaLabel: 'Set contribution',
-					ctaUrl: `/pools/${pool.id}`,
-				})
-			}
-		}
-
-		if (pool.status === POOL_STATUS.VOTING) {
-			if (viewer && pool.votes.length === 0) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.CAST_VOTE,
-					priority: 1,
-					ctaLabel: 'Cast your vote',
-					ctaUrl: `/pools/${pool.id}`,
-				})
-			}
-			if (isOrganizer) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.CLOSE_VOTE,
-					priority: 1,
-					ctaLabel: 'Close voting',
-					ctaUrl: `/pools/${pool.id}`,
-				})
-			}
-			if (viewer && !viewer.contributionCents) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.SET_CONTRIBUTION,
-					priority: 2,
-					ctaLabel: 'Set contribution',
-					ctaUrl: `/pools/${pool.id}`,
-				})
-			}
-		}
-
-		if (pool.status === POOL_STATUS.DECIDED) {
-			if (
-				viewer &&
-				!viewer.hasPaid &&
-				viewer.contributionCents &&
-				viewer.contributionCents > 0
-			) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.MARK_PAID,
-					priority: 2,
-					ctaLabel: 'Mark as paid',
-					ctaUrl: `/pools/${pool.id}`,
-					amountCents: viewer.contributionCents,
-				})
-			}
-			if (isOrganizer || isPurchaser) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.MARK_PURCHASED,
-					priority: 2,
-					ctaLabel: 'Mark as purchased',
-					ctaUrl: `/pools/${pool.id}`,
-				})
-			}
-			if (pool.chosenIdea?.proposedById === viewerId) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.IDEA_CHOSEN,
-					priority: 3,
-					ctaLabel: 'View pool',
-					ctaUrl: `/pools/${pool.id}`,
-				})
-			}
-			if (viewer && !viewer.contributionCents) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.SET_CONTRIBUTION,
-					priority: 2,
-					ctaLabel: 'Set contribution',
-					ctaUrl: `/pools/${pool.id}`,
-				})
-			}
-		}
-
-		if (pool.status === POOL_STATUS.PURCHASED) {
-			if (isOrganizer || isDeliverer) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.MARK_DELIVERED,
-					priority: 2,
-					ctaLabel: 'Mark as delivered',
-					ctaUrl: `/pools/${pool.id}`,
-				})
-			}
-			if (pool.chosenIdea?.proposedById === viewerId) {
-				items.push({
-					...base,
-					type: ACTION_TYPE.IDEA_CHOSEN,
-					priority: 3,
-					ctaLabel: 'View pool',
-					ctaUrl: `/pools/${pool.id}`,
-				})
-			}
-		}
+			daysUntilEvent: pool.eventDate ? daysUntilDate(pool.eventDate) : null,
+		},
 	}
+}
 
-	// POOL_STUCK pass. A stuck pool is one that's been idle for > 3 days
-	// AND the event is within 30 days (or has no event date). We suppress
-	// STUCK when the viewer already has a direct action on the same pool —
-	// the direct action is more specific, so we don't want duplicates.
+function setContributionItem(ctx: PoolContext): ActionItem | null {
+	if (!ctx.viewer || ctx.viewer.contributionCents) return null
+	return {
+		...ctx.base,
+		type: ACTION_TYPE.SET_CONTRIBUTION,
+		priority: 2,
+		ctaLabel: 'Set contribution',
+		ctaUrl: `/pools/${ctx.pool.id}`,
+	}
+}
+
+function buildOpenActions(ctx: PoolContext): ActionItem[] {
+	const out: ActionItem[] = []
+	const { pool, viewer, isOrganizer, base } = ctx
+
+	if (viewer && pool._count.ideas === 0) {
+		out.push({
+			...base,
+			type: ACTION_TYPE.PROPOSE_IDEA,
+			priority: 4,
+			ctaLabel: 'Propose an idea',
+			ctaUrl: `/pools/${pool.id}`,
+		})
+	}
+	if (
+		isOrganizer &&
+		pool.decisionMode === DECISION_MODE.VOTE &&
+		pool._count.ideas >= 2
+	) {
+		out.push({
+			...base,
+			type: ACTION_TYPE.CALL_VOTE,
+			priority: 1,
+			ctaLabel: 'Call a vote',
+			ctaUrl: `/pools/${pool.id}`,
+		})
+	}
+	if (
+		isOrganizer &&
+		pool.decisionMode === DECISION_MODE.ORGANIZER_PICKS &&
+		pool._count.ideas >= 1
+	) {
+		out.push({
+			...base,
+			type: ACTION_TYPE.CHOOSE_GIFT,
+			priority: 1,
+			ctaLabel: 'Choose a gift',
+			ctaUrl: `/pools/${pool.id}`,
+		})
+	}
+	const setContrib = setContributionItem(ctx)
+	if (setContrib) out.push(setContrib)
+	return out
+}
+
+function buildVotingActions(ctx: PoolContext): ActionItem[] {
+	const out: ActionItem[] = []
+	const { pool, viewer, isOrganizer, base } = ctx
+
+	if (viewer && pool.votes.length === 0) {
+		out.push({
+			...base,
+			type: ACTION_TYPE.CAST_VOTE,
+			priority: 1,
+			ctaLabel: 'Cast your vote',
+			ctaUrl: `/pools/${pool.id}`,
+		})
+	}
+	if (isOrganizer) {
+		out.push({
+			...base,
+			type: ACTION_TYPE.CLOSE_VOTE,
+			priority: 1,
+			ctaLabel: 'Close voting',
+			ctaUrl: `/pools/${pool.id}`,
+		})
+	}
+	const setContrib = setContributionItem(ctx)
+	if (setContrib) out.push(setContrib)
+	return out
+}
+
+function buildDecidedActions(
+	ctx: PoolContext,
+	viewerId: string,
+): ActionItem[] {
+	const out: ActionItem[] = []
+	const { pool, viewer, isOrganizer, isPurchaser, base } = ctx
+
+	if (
+		viewer &&
+		!viewer.hasPaid &&
+		viewer.contributionCents &&
+		viewer.contributionCents > 0
+	) {
+		out.push({
+			...base,
+			type: ACTION_TYPE.MARK_PAID,
+			priority: 2,
+			ctaLabel: 'Mark as paid',
+			ctaUrl: `/pools/${pool.id}`,
+			amountCents: viewer.contributionCents,
+		})
+	}
+	if (isOrganizer || isPurchaser) {
+		out.push({
+			...base,
+			type: ACTION_TYPE.MARK_PURCHASED,
+			priority: 2,
+			ctaLabel: 'Mark as purchased',
+			ctaUrl: `/pools/${pool.id}`,
+		})
+	}
+	if (pool.chosenIdea?.proposedById === viewerId) {
+		out.push({
+			...base,
+			type: ACTION_TYPE.IDEA_CHOSEN,
+			priority: 3,
+			ctaLabel: 'View pool',
+			ctaUrl: `/pools/${pool.id}`,
+		})
+	}
+	const setContrib = setContributionItem(ctx)
+	if (setContrib) out.push(setContrib)
+	return out
+}
+
+function buildPurchasedActions(
+	ctx: PoolContext,
+	viewerId: string,
+): ActionItem[] {
+	const out: ActionItem[] = []
+	const { pool, isOrganizer, isDeliverer, base } = ctx
+
+	if (isOrganizer || isDeliverer) {
+		out.push({
+			...base,
+			type: ACTION_TYPE.MARK_DELIVERED,
+			priority: 2,
+			ctaLabel: 'Mark as delivered',
+			ctaUrl: `/pools/${pool.id}`,
+		})
+	}
+	if (pool.chosenIdea?.proposedById === viewerId) {
+		out.push({
+			...base,
+			type: ACTION_TYPE.IDEA_CHOSEN,
+			priority: 3,
+			ctaLabel: 'View pool',
+			ctaUrl: `/pools/${pool.id}`,
+		})
+	}
+	return out
+}
+
+function buildDirectActionsForPool(
+	pool: ActivePoolRow,
+	viewerId: string,
+): ActionItem[] {
+	const ctx = makePoolContext(pool, viewerId)
+	switch (pool.status) {
+		case POOL_STATUS.OPEN:
+			return buildOpenActions(ctx)
+		case POOL_STATUS.VOTING:
+			return buildVotingActions(ctx)
+		case POOL_STATUS.DECIDED:
+			return buildDecidedActions(ctx, viewerId)
+		case POOL_STATUS.PURCHASED:
+			return buildPurchasedActions(ctx, viewerId)
+		default:
+			return []
+	}
+}
+
+// POOL_STUCK pass. Suppressed when the viewer already has a direct action
+// on the same pool — the direct action is more specific, so we don't want
+// duplicates.
+function buildStuckItems(
+	pools: ActivePoolRow[],
+	items: ActionItem[],
+	viewerId: string,
+): ActionItem[] {
 	const poolIdsWithDirectAction = new Set(
 		items.map((i) => i.poolId).filter((id): id is string => id !== null),
 	)
-
+	const out: ActionItem[] = []
 	for (const pool of pools) {
 		if (poolIdsWithDirectAction.has(pool.id)) continue
-
 		const viewer = pool.contributors.find((c) => c.userId === viewerId)
 		if (!viewer) continue
-
 		if (!isPoolStuck(pool)) continue
-
 		const stuck = buildStuckItem(pool)
-		if (!stuck) continue
-
-		items.push(stuck)
+		if (stuck) out.push(stuck)
 	}
+	return out
+}
 
-	for (const occasion of occasions) {
-		items.push({
-			type: ACTION_TYPE.UPCOMING_OCCASION,
-			priority: 4,
-			poolId: null,
-			poolTitle: null,
-			recipientName: occasion.name,
-			eventDate: null,
-			daysUntilEvent: occasion.daysUntil,
-			ctaLabel: 'Start a pool',
-			ctaUrl: `/pools/new?groupId=${groupId}&recipientId=${occasion.userId}`,
-			memberId: occasion.userId,
-			memberUsername: occasion.username,
-			memberImageId: occasion.imageId,
-		})
+function buildOccasionItem(
+	occasion: UpcomingOccasion,
+	groupId: string,
+): ActionItem {
+	return {
+		type: ACTION_TYPE.UPCOMING_OCCASION,
+		priority: 4,
+		poolId: null,
+		poolTitle: null,
+		recipientName: occasion.name,
+		eventDate: null,
+		daysUntilEvent: occasion.daysUntil,
+		ctaLabel: 'Start a pool',
+		ctaUrl: `/pools/new?groupId=${groupId}&recipientId=${occasion.userId}`,
+		memberId: occasion.userId,
+		memberUsername: occasion.username,
+		memberImageId: occasion.imageId,
 	}
+}
 
-	// P0 promotion: any action tied to an event within the urgency threshold
+// P0 promotion: any action tied to an event within the urgency threshold.
+function promoteUrgentItems(items: ActionItem[]): void {
 	for (const item of items) {
 		if (
 			item.daysUntilEvent !== null &&
@@ -408,14 +457,31 @@ function computeActionQueue(
 			item.priority = 0
 		}
 	}
+}
 
-	items.sort((a, b) => {
-		if (a.priority !== b.priority) return a.priority - b.priority
-		const aDays = a.daysUntilEvent ?? Infinity
-		const bDays = b.daysUntilEvent ?? Infinity
-		return aDays - bDays
-	})
+function compareActionItems(a: ActionItem, b: ActionItem): number {
+	if (a.priority !== b.priority) return a.priority - b.priority
+	const aDays = a.daysUntilEvent ?? Infinity
+	const bDays = b.daysUntilEvent ?? Infinity
+	return aDays - bDays
+}
 
+function computeActionQueue(
+	pools: ActivePoolRow[],
+	occasions: UpcomingOccasion[],
+	viewerId: string,
+	groupId: string,
+): ActionItem[] {
+	const items: ActionItem[] = []
+	for (const pool of pools) {
+		items.push(...buildDirectActionsForPool(pool, viewerId))
+	}
+	items.push(...buildStuckItems(pools, items, viewerId))
+	for (const occasion of occasions) {
+		items.push(buildOccasionItem(occasion, groupId))
+	}
+	promoteUrgentItems(items)
+	items.sort(compareActionItems)
 	return items.slice(0, ACTION_QUEUE_LIMIT)
 }
 
@@ -558,6 +624,16 @@ function computeUpcomingOccasions(
 
 // ─── Shaping helpers ─────────────────────────────────────────────────────────
 
+function viewerRoleFor(
+	pool: ActivePoolRow,
+	viewerId: string,
+	viewerContributor: ActivePoolRow['contributors'][number] | undefined,
+): PoolSummary['viewerRole'] {
+	if (pool.organizerId === viewerId) return 'organizing'
+	if (viewerContributor) return 'contributing'
+	return 'none'
+}
+
 function shapePoolSummaries(
 	pools: ActivePoolRow[],
 	viewerId: string,
@@ -579,11 +655,7 @@ function shapePoolSummaries(
 			ideaCount: pool._count.ideas,
 			contributorCount: pool.contributors.length,
 			paidCount: pool.contributors.filter((c) => c.hasPaid).length,
-			viewerRole: pool.organizerId === viewerId
-				? ('organizing' as const)
-				: viewerContributor
-					? ('contributing' as const)
-					: ('none' as const),
+			viewerRole: viewerRoleFor(pool, viewerId, viewerContributor),
 			viewerContributionCents: viewerContributor?.contributionCents ?? null,
 		}
 	})
