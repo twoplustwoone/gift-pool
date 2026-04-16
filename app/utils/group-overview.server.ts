@@ -500,6 +500,27 @@ export function _isPoolStuckForTesting(pool: ActivePoolRow): boolean {
 	return isPoolStuck(pool)
 }
 
+// Exported for testing. Pure shape converters and the upcoming-occasions
+// scan; thin wrappers so internal signatures stay private.
+export function _computeUpcomingOccasionsForTesting(
+	members: MemberRow[],
+	activePools: ActivePoolRow[],
+	groupId: string,
+): UpcomingOccasion[] {
+	return computeUpcomingOccasions(members, activePools, groupId)
+}
+
+export function _shapePoolSummariesForTesting(
+	pools: ActivePoolRow[],
+	viewerId: string,
+): PoolSummary[] {
+	return shapePoolSummaries(pools, viewerId)
+}
+
+export function _shapePastGiftsForTesting(rows: PastGiftRow[]): PastGift[] {
+	return shapePastGifts(rows)
+}
+
 // ─── Upcoming occasions ──────────────────────────────────────────────────────
 
 function computeUpcomingOccasions(
