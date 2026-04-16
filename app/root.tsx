@@ -321,6 +321,28 @@ const App = () => {
   }, [installCapability, promptInstall]);
   const [hideHeader, setHideHeader] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bannerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = bannerRef.current;
+    if (!el) {
+      document.documentElement.style.setProperty('--pwa-banner-height', '0px');
+      return;
+    }
+    const measure = () => {
+      document.documentElement.style.setProperty(
+        '--pwa-banner-height',
+        `${el.getBoundingClientRect().height}px`,
+      );
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.setProperty('--pwa-banner-height', '0px');
+    };
+  }, [showPwaInstallBanner]);
   const location = useLocation();
   const navigation = useNavigation();
   const lastRouteKey = useRef(
@@ -411,28 +433,31 @@ const App = () => {
         >
           <div className="flex max-h-[100dvh] min-h-[100dvh] flex-col overflow-hidden">
             {showPwaInstallBanner ? (
-              <PwaInstallBanner
-                capability={installCapability}
-                isPrompting={isPrompting}
-                manualHref={
-                  installCapability === 'manual' && manualPlatform
-                    ? `/pwa-install?platform=${manualPlatform}`
-                    : '/pwa-install'
-                }
-                manualPlatform={manualPlatform}
-                onDismiss={dismissInstallBanner}
-                onDismissPermanently={() =>
-                  dismissInstallBanner({
-                    persist: true,
-                  })
-                }
-                onPromptInstall={handleInstallClick}
-              />
+              <div ref={bannerRef}>
+                <PwaInstallBanner
+                  capability={installCapability}
+                  isPrompting={isPrompting}
+                  manualHref={
+                    installCapability === 'manual' && manualPlatform
+                      ? `/pwa-install?platform=${manualPlatform}`
+                      : '/pwa-install'
+                  }
+                  manualPlatform={manualPlatform}
+                  onDismiss={dismissInstallBanner}
+                  onDismissPermanently={() =>
+                    dismissInstallBanner({
+                      persist: true,
+                    })
+                  }
+                  onPromptInstall={handleInstallClick}
+                />
+              </div>
             ) : null}
             <TopBar hidden={hideHeader} />
 
             <div
               ref={scrollRef}
+              style={{ paddingTop: 'var(--top-bar-height)' }}
               className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-background to-background-muted pb-bottom-nav sm:pb-0"
               data-testid="app-scroll-area"
             >
