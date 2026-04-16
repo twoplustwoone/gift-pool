@@ -93,12 +93,12 @@ const GroupMembersRoute = () => {
               </Link>
 
               <div className="ml-auto flex items-center gap-3">
-                <div className="text-right">
+                <div className="text-right" title="Sum of everyone else's per-gift caps — what this person could receive">
                   <div className="text-sm font-semibold">
                     ${(giftBudget / 100).toFixed(2)}
                   </div>
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    budget
+                    gift budget
                   </div>
                 </div>
                 <RoleBadge role={m.role as any} />

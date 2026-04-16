@@ -560,6 +560,9 @@ const ContributorsList = ({
 		<Card className="p-4">
 			<Stack gap={3}>
 				<SectionHeading>Contributors ({contributors.length})</SectionHeading>
+				<p className="text-xs text-muted-foreground">
+					How much each person is chipping in for this one gift.
+				</p>
 				<Stack gap={2}>
 					{contributors.map(c => {
 						const isMe = c.userId === viewerUserId
