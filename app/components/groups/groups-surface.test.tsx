@@ -112,7 +112,7 @@ describe('group surface components', () => {
     expect(screen.getByText('4')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /manage/i }),
-    ).toHaveAttribute('href', '/groups/group-1/settings');
+    ).toHaveAttribute('href', '/groups/group-1');
 
     await userEvent.click(screen.getByRole('link', { name: 'Open group Family' }));
     expect(onOpen).toHaveBeenCalledTimes(1);

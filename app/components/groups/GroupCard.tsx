@@ -76,7 +76,7 @@ export function GroupCard({
       {g.myRole !== 'MEMBER' ? (
         <div className="flex justify-end pt-3">
           <Link
-            to={`/groups/${g.id}/settings`}
+            to={`/groups/${g.id}`}
             className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
             onClick={(e) => e.stopPropagation()}
           >
