@@ -39,7 +39,8 @@ export const groupRolePermissions: Record<
     'manageSettings',
     'lockGiftPlan',
     'unlockGiftPlan',
-    'leaveGroup',
+    // Note: OWNER cannot leave without transferring ownership first.
+    // Either transfer to another admin or delete the group.
     'editOwnBudget',
     'setOwnPreferences',
   ],

@@ -186,7 +186,49 @@ describe('pool detail route loader', () => {
           request: new Request('https://giftpool.app/pools/pool-1'),
         }),
       ),
-    ).rejects.toMatchObject({ init: { status: 404 } });
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('throws 404 when the viewer is the recipient (privacy — must not confirm pool exists)', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({ recipientUserId: 'viewer-1' }),
+    );
+
+    await expect(
+      loader(
+        toLoaderArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: new Request('https://giftpool.app/pools/pool-1'),
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('throws 404 when the viewer is not a contributor (privacy — no 403 leak)', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({
+        contributors: [
+          {
+            contributionCents: null,
+            hasPaid: false,
+            joinedAt: new Date('2026-01-01T00:00:00.000Z'),
+            user: { id: 'other-1', image: null, name: 'Other', username: 'other' },
+            userId: 'other-1',
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      loader(
+        toLoaderArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: new Request('https://giftpool.app/pools/pool-1'),
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 404 });
   });
 
   it('returns viewer state, vote, breakdown, and invite URL for decided pools', async () => {
@@ -757,7 +799,8 @@ describe('pool detail route action', () => {
     expect(deletePool).not.toHaveBeenCalled();
   });
 
-  it('redirects after deleting the pool as organizer', async () => {
+  it('redirects to /pools after deleting a standalone pool as organizer', async () => {
+    // poolFindUnique returns a pool with giftGroupId: null by default
     const result = await action(
       toActionArgs({
         context: {} as never,
@@ -772,6 +815,30 @@ describe('pool detail route action', () => {
     expect(result).toBeInstanceOf(Response);
     expect(deletePool).toHaveBeenCalledWith('pool-1', 'viewer-1');
     expect(redirectWithToast).toHaveBeenCalledWith('/pools', {
+      description: 'The pool has been deleted.',
+      title: 'Pool deleted',
+      type: 'success',
+    });
+  });
+
+  it('redirects to the parent group after deleting a group-backed pool', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({ giftGroupId: 'group-42' }),
+    );
+
+    await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'delete-pool',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(deletePool).toHaveBeenCalledWith('pool-1', 'viewer-1');
+    expect(redirectWithToast).toHaveBeenCalledWith('/groups/group-42', {
       description: 'The pool has been deleted.',
       title: 'Pool deleted',
       type: 'success',

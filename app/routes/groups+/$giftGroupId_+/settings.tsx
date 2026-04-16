@@ -653,7 +653,9 @@ const GroupSettingsRoute = () => {
               Danger Zone
             </div>
             <div className="mb-3 text-sm text-destructive/80">
-              These actions cannot be undone. Please be careful.
+              These actions cannot be undone. Please be careful. As the owner,
+              you can't leave directly — transfer ownership first or delete
+              the group.
             </div>
             <Form method="post" id="delete-group-form">
               <input type="hidden" name="giftGroupId" value={giftGroup.id} />

@@ -23,6 +23,27 @@ const loaderDataSnapshot = {
   },
 };
 
+type ActionItemFixture = {
+  type: string;
+  priority: number;
+  poolId: string | null;
+  poolTitle: string | null;
+  recipientName: string;
+  eventDate: string | null;
+  daysUntilEvent: number | null;
+  ctaLabel: string;
+  ctaUrl: string;
+  description?: string;
+  amountCents?: number;
+};
+
+const overviewData = {
+  actionQueue: [] as ActionItemFixture[],
+  activePools: [] as Array<unknown>,
+  upcomingOccasions: [] as Array<unknown>,
+  pastGifts: [] as Array<unknown>,
+};
+
 const fetcherState = {
   data: undefined as undefined | { inviteUrl?: string; status?: string },
   formData: undefined as FormData | undefined,
@@ -35,6 +56,11 @@ vi.mock('react-router', async () => {
 
   return {
     ...actual,
+    Link: ({ to, children, ...rest }: { to: string; children: React.ReactNode }) => (
+      <a href={to} {...rest}>
+        {children}
+      </a>
+    ),
     useFetcher: () => ({
       Form: (props: React.ComponentProps<'form'>) => <form {...props} />,
       data: fetcherState.data,
@@ -42,6 +68,7 @@ vi.mock('react-router', async () => {
       state: fetcherState.state,
       submit: fetcherState.submit,
     }),
+    useLoaderData: () => overviewData,
     useRouteLoaderData: () => loaderDataSnapshot,
   };
 });
@@ -77,6 +104,11 @@ beforeEach(() => {
   loaderDataSnapshot.inviteLink = 'https://giftpool.app/groups/join/invite-1';
   loaderDataSnapshot.viewer.contributionCents = 1500;
 
+  overviewData.actionQueue = [];
+  overviewData.activePools = [];
+  overviewData.upcomingOccasions = [];
+  overviewData.pastGifts = [];
+
   vi.stubGlobal('navigator', {
     clipboard: {
       writeText: clipboardWriteText,
@@ -85,15 +117,13 @@ beforeEach(() => {
 });
 
 describe('group detail overview route', () => {
-  it('renders an existing invite link and copies it on demand', async () => {
+  it('renders group essentials and copies invite link on demand', async () => {
     clipboardWriteText.mockResolvedValue(undefined);
 
     render(<GroupsDetailOverview />);
 
-    expect(screen.getByText('Group Information')).toBeInTheDocument();
-    expect(screen.getByText('Family')).toBeInTheDocument();
+    expect(screen.getByText('Group info')).toBeInTheDocument();
     expect(screen.getByText('Birthday planning')).toBeInTheDocument();
-    expect(screen.getByTestId('budget-amount')).toHaveTextContent('$15.00');
 
     await userEvent.click(
       screen.getByRole('button', { name: /copy invite link/i }),
@@ -111,7 +141,7 @@ describe('group detail overview route', () => {
     const { rerender } = render(<GroupsDetailOverview />);
 
     expect(
-      screen.getByRole('button', { name: /create & copy invite link/i }),
+      screen.getByRole('button', { name: /create invite link/i }),
     ).toBeInTheDocument();
 
     const pendingFormData = new FormData();
@@ -157,14 +187,12 @@ describe('group detail overview route', () => {
     };
     rerender(<GroupsDetailOverview />);
 
-    // The clipboard rejection should be swallowed — the component must remain mounted
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(
         'https://giftpool.app/groups/join/invite-3',
       );
     });
 
-    // Component is still functional after the rejection
     expect(
       screen.getByRole('button', { name: /copy invite link/i }),
     ).toBeInTheDocument();
@@ -180,7 +208,197 @@ describe('group detail overview route', () => {
       screen.getByText('No active invite link. Ask an admin to create one.'),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: /create & copy invite link/i }),
+      screen.queryByRole('button', { name: /create invite link/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it('renders the For You section with action items', () => {
+    overviewData.actionQueue = [
+      {
+        type: 'CAST_VOTE',
+        priority: 1,
+        poolId: 'pool-1',
+        poolTitle: 'Birthday Gift',
+        recipientName: 'Marco',
+        eventDate: null,
+        daysUntilEvent: null,
+        ctaLabel: 'Cast your vote',
+        ctaUrl: '/pools/pool-1',
+      },
+    ];
+
+    render(<GroupsDetailOverview />);
+
+    expect(screen.getByText('For you')).toBeInTheDocument();
+    expect(screen.getByText("Vote on Marco's gift")).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /cast your vote/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows empty state when action queue is empty', () => {
+    render(<GroupsDetailOverview />);
+
+    expect(screen.getByText('For you')).toBeInTheDocument();
+    expect(
+      screen.getByText(/all caught up/i),
+    ).toBeInTheDocument();
+  });
+
+  it('past gifts section toggles open and closed on click', async () => {
+    overviewData.pastGifts = [
+      {
+        id: 'past-1',
+        title: 'Birthday Gift',
+        status: 'DELIVERED',
+        occasionType: 'BIRTHDAY',
+        updatedAt: '2026-01-15T00:00:00.000Z',
+        recipientName: 'Alex',
+        recipientUsername: 'alex',
+        chosenIdeaName: 'Headphones',
+        totalCents: 5000,
+      },
+    ];
+
+    render(<GroupsDetailOverview />);
+
+    const toggle = screen.getByRole('button', { name: /past gifts/i });
+    expect(toggle).toBeInTheDocument();
+
+    // Initially collapsed — no gift row visible
+    expect(screen.queryByText('Headphones')).not.toBeInTheDocument();
+
+    // Click to expand
+    await userEvent.click(toggle);
+    expect(screen.getByText('Headphones')).toBeInTheDocument();
+    expect(screen.getByText('Alex')).toBeInTheDocument();
+
+    // Click again to collapse
+    await userEvent.click(toggle);
+    expect(screen.queryByText('Headphones')).not.toBeInTheDocument();
+  });
+
+  it('renders the active pools section with status chips and viewer role', () => {
+    overviewData.activePools = [
+      {
+        id: 'pool-1',
+        title: "Marco's Birthday",
+        occasionType: 'BIRTHDAY',
+        eventDate: '2026-05-03T00:00:00.000Z',
+        status: 'OPEN',
+        recipientName: 'Marco',
+        recipientUsername: 'marco',
+        ideaCount: 3,
+        contributorCount: 4,
+        paidCount: 0,
+        viewerRole: 'organizing' as const,
+        viewerContributionCents: 2500,
+      },
+    ];
+
+    render(<GroupsDetailOverview />);
+
+    expect(screen.getByText('Active pools')).toBeInTheDocument();
+    expect(screen.getByText("Marco's Birthday")).toBeInTheDocument();
+    expect(screen.getByText(/birthday for/i)).toBeInTheDocument();
+    expect(screen.getByText('Open')).toBeInTheDocument();
+    expect(screen.getByText('Organizing')).toBeInTheDocument();
+  });
+
+  it('renders the upcoming occasions section with start-pool links', () => {
+    overviewData.upcomingOccasions = [
+      {
+        userId: 'leo',
+        name: 'Leo',
+        username: 'leo',
+        daysUntil: 12,
+        imageId: null,
+        groupId: 'group-1',
+      },
+    ];
+
+    render(<GroupsDetailOverview />);
+
+    expect(screen.getByText('Coming up')).toBeInTheDocument();
+    expect(screen.getByText('Leo')).toBeInTheDocument();
+    expect(
+      screen.getAllByText((_, el) =>
+        /birthday in 12 days/i.test(el?.textContent ?? ''),
+      ).length,
+    ).toBeGreaterThan(0);
+    const startLink = screen.getByRole('link', { name: /start a pool/i });
+    expect(startLink).toHaveAttribute(
+      'href',
+      '/pools/new?groupId=group-1&recipientId=leo',
+    );
+  });
+
+  it('renders different action types with correct CTA labels and descriptions', () => {
+    overviewData.actionQueue = [
+      {
+        type: 'MARK_PAID',
+        priority: 2,
+        poolId: 'pool-1',
+        poolTitle: 'P',
+        recipientName: 'Marco',
+        eventDate: null,
+        daysUntilEvent: null,
+        ctaLabel: 'Mark as paid',
+        ctaUrl: '/pools/pool-1',
+        amountCents: 2500,
+      },
+      {
+        type: 'CHOOSE_GIFT',
+        priority: 1,
+        poolId: 'pool-2',
+        poolTitle: 'P2',
+        recipientName: 'Leo',
+        eventDate: null,
+        daysUntilEvent: null,
+        ctaLabel: 'Choose a gift',
+        ctaUrl: '/pools/pool-2',
+      },
+      {
+        type: 'IDEA_CHOSEN',
+        priority: 3,
+        poolId: 'pool-3',
+        poolTitle: 'P3',
+        recipientName: 'Sofia',
+        eventDate: null,
+        daysUntilEvent: null,
+        ctaLabel: 'View pool',
+        ctaUrl: '/pools/pool-3',
+      },
+      {
+        type: 'POOL_STUCK',
+        priority: 0,
+        poolId: 'pool-4',
+        poolTitle: 'P4',
+        recipientName: 'Ana',
+        eventDate: null,
+        daysUntilEvent: 3,
+        ctaLabel: 'Close voting',
+        ctaUrl: '/pools/pool-4',
+        description: '2 of 3 haven\'t voted yet — close voting?',
+      },
+    ];
+
+    render(<GroupsDetailOverview />);
+
+    expect(
+      screen.getByText("You owe $25.00 for Marco's gift"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Ideas are in — pick Leo's gift"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Your idea was picked for Sofia!'),
+    ).toBeInTheDocument();
+    // Server-provided description for POOL_STUCK
+    expect(
+      screen.getByText("2 of 3 haven't voted yet — close voting?"),
+    ).toBeInTheDocument();
+    // P0 urgency badge
+    expect(screen.getByText(/in 3 days/i)).toBeInTheDocument();
   });
 });

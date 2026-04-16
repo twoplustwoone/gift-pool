@@ -94,7 +94,7 @@ describe('app/routes/pools+/join.$code.tsx', () => {
     );
   });
 
-  it('redirects for missing codes, recipients, and existing contributors', async () => {
+  it('redirects to /pools when the URL is missing a code param', async () => {
     const missingCode = await loader(
       toLoaderArgs({
         context: {} as never,
@@ -104,31 +104,71 @@ describe('app/routes/pools+/join.$code.tsx', () => {
     );
     expect(missingCode).toBeInstanceOf(Response);
     expect((missingCode as Response).status).toBe(302);
+  });
 
+  it('throws 404 when the recipient loads their own pool invite (privacy — indistinguishable from invalid code)', async () => {
     findUnique.mockResolvedValueOnce(
       createInvitePool({ recipientUserId: 'viewer-1' }),
     );
-    const recipientRedirect = await loader(
-      toLoaderArgs({
-        context: {} as never,
-        params: { code: 'invite-1' },
-        request: new Request('https://giftpool.app/pools/join/invite-1'),
-      }),
-    );
-    expect((recipientRedirect as Response).status).toBe(302);
 
-    findUnique.mockResolvedValueOnce(createInvitePool());
+    await expect(
+      loader(
+        toLoaderArgs({
+          context: {} as never,
+          params: { code: 'invite-1' },
+          request: new Request('https://giftpool.app/pools/join/invite-1'),
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('throws 404 for an invalid invite code', async () => {
+    findUnique.mockResolvedValueOnce(null);
+
+    await expect(
+      loader(
+        toLoaderArgs({
+          context: {} as never,
+          params: { code: 'bogus' },
+          request: new Request('https://giftpool.app/pools/join/bogus'),
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('redirects existing contributors straight to the pool', async () => {
     isUserInPool.mockResolvedValueOnce(true);
-    const contributorRedirect = await loader(
+
+    const result = await loader(
       toLoaderArgs({
         context: {} as never,
         params: { code: 'invite-1' },
         request: new Request('https://giftpool.app/pools/join/invite-1'),
       }),
     );
-    expect((contributorRedirect as Response).headers.get('Location')).toBe(
-      '/pools/pool-1',
+
+    expect((result as Response).status).toBe(302);
+    expect((result as Response).headers.get('Location')).toBe('/pools/pool-1');
+  });
+
+  it('does NOT create a contributor row when the recipient submits their own invite (privacy)', async () => {
+    findUnique.mockResolvedValueOnce(
+      createInvitePool({ recipientUserId: 'viewer-1' }),
     );
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { code: 'invite-1' },
+          request: new Request('https://giftpool.app/pools/join/invite-1', {
+            method: 'POST',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+
+    expect(createContributor).not.toHaveBeenCalled();
   });
 
   it('returns invite details for valid links', async () => {

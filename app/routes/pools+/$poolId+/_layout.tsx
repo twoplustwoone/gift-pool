@@ -1,7 +1,7 @@
-import { LuGift } from 'react-icons/lu'
-import { Outlet, useLoaderData } from 'react-router'
+import { LuGift, LuUsers } from 'react-icons/lu'
+import { Link, Outlet, useLoaderData } from 'react-router'
 import { PageHeader } from '#app/components/page-header.tsx'
-import { Stack } from '#app/components/ui-kit'
+import { Stack, Text } from '#app/components/ui-kit'
 import {
 	POOL_STATUS_LABELS,
 	OCCASION_TYPE_LABELS,
@@ -33,11 +33,15 @@ const PoolLayout = () => {
 		pool.recipientUser?.username ??
 		'Someone special'
 
+	const back = pool.giftGroup
+		? { label: pool.giftGroup.name, href: `/groups/${pool.giftGroup.id}` }
+		: { label: 'Pools', href: '/pools' }
+
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			<PageHeader
 				variant="detail"
-				back={{ label: 'Pools', href: '/pools' }}
+				back={back}
 				icon={<LuGift size={22} className="shrink-0 text-primary" />}
 				title={pool.title}
 				subtitle={`${OCCASION_TYPE_LABELS[occasion]} for ${recipientLabel}`}
@@ -53,6 +57,18 @@ const PoolLayout = () => {
 			<main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
 				<div className="mx-auto max-w-6xl p-3 sm:p-6">
 					<Stack gap={6}>
+						{pool.giftGroup && (
+							<Link
+								to={`/groups/${pool.giftGroup.id}`}
+								className="inline-flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+							>
+								<LuUsers size={12} />
+								<Text size="xs">In group</Text>
+								<Text size="xs" weight="medium" className="text-foreground">
+									{pool.giftGroup.name}
+								</Text>
+							</Link>
+						)}
 						<Outlet />
 					</Stack>
 				</div>
