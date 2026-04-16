@@ -23,18 +23,22 @@ const loaderDataSnapshot = {
   },
 };
 
+type ActionItemFixture = {
+  type: string;
+  priority: number;
+  poolId: string | null;
+  poolTitle: string | null;
+  recipientName: string;
+  eventDate: string | null;
+  daysUntilEvent: number | null;
+  ctaLabel: string;
+  ctaUrl: string;
+  description?: string;
+  amountCents?: number;
+};
+
 const overviewData = {
-  actionQueue: [] as Array<{
-    type: string;
-    priority: number;
-    poolId: string | null;
-    poolTitle: string | null;
-    recipientName: string;
-    eventDate: null;
-    daysUntilEvent: null;
-    ctaLabel: string;
-    ctaUrl: string;
-  }>,
+  actionQueue: [] as ActionItemFixture[],
   activePools: [] as Array<unknown>,
   upcomingOccasions: [] as Array<unknown>,
   pastGifts: [] as Array<unknown>,

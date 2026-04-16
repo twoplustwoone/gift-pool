@@ -68,7 +68,9 @@ const layoutLoaderData = {
   viewer: { userId: 'viewer-1', role: 'OWNER' as const },
 };
 
-const overviewLoaderData = {
+const overviewLoaderData: {
+  activePoolsByRecipient: Record<string, { id: string; title: string }>;
+} = {
   activePoolsByRecipient: {
     marco: { id: 'pool-1', title: "Marco's Birthday" },
   },
