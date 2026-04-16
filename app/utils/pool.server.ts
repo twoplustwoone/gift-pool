@@ -32,6 +32,7 @@ export const poolSelect = {
 	chosenIdeaId: true,
 	finalPriceCents: true,
 	inviteCode: true,
+	giftGroup: { select: { id: true, name: true } },
 	organizer: { select: { id: true, username: true, name: true, image: { select: { id: true } } } },
 	purchaser: { select: { id: true, username: true, name: true, image: { select: { id: true } } } },
 	deliverer: { select: { id: true, username: true, name: true, image: { select: { id: true } } } },
