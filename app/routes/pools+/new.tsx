@@ -379,7 +379,8 @@ export async function action({ request }: ActionFunctionArgs) {
 			submission,
 		)
 		if (!result.ok) return result.response
-		;({ recipientUserId, groupMemberDefaults } = result.value)
+		recipientUserId = result.value.recipientUserId
+		groupMemberDefaults = result.value.groupMemberDefaults
 	} else if (formRecipientUserId) {
 		const result = await resolveStandaloneRecipient(
 			userId,
