@@ -462,7 +462,13 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				throw data({ error: 'Only the organizer can delete a pool.' }, { status: 403 })
 			}
 			await deletePool(poolId, userId)
-			return redirectWithToast('/pools', {
+			// If the pool belonged to a group, send the organizer back there
+			// rather than to the global pools list. Matches the Cancel button
+			// on /pools/new when launched from a group context.
+			const redirectTo = pool.giftGroupId
+				? `/groups/${pool.giftGroupId}`
+				: '/pools'
+			return redirectWithToast(redirectTo, {
 				type: 'success',
 				title: 'Pool deleted',
 				description: 'The pool has been deleted.',

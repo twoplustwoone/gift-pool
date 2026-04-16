@@ -799,7 +799,8 @@ describe('pool detail route action', () => {
     expect(deletePool).not.toHaveBeenCalled();
   });
 
-  it('redirects after deleting the pool as organizer', async () => {
+  it('redirects to /pools after deleting a standalone pool as organizer', async () => {
+    // poolFindUnique returns a pool with giftGroupId: null by default
     const result = await action(
       toActionArgs({
         context: {} as never,
@@ -814,6 +815,30 @@ describe('pool detail route action', () => {
     expect(result).toBeInstanceOf(Response);
     expect(deletePool).toHaveBeenCalledWith('pool-1', 'viewer-1');
     expect(redirectWithToast).toHaveBeenCalledWith('/pools', {
+      description: 'The pool has been deleted.',
+      title: 'Pool deleted',
+      type: 'success',
+    });
+  });
+
+  it('redirects to the parent group after deleting a group-backed pool', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({ giftGroupId: 'group-42' }),
+    );
+
+    await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'delete-pool',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(deletePool).toHaveBeenCalledWith('pool-1', 'viewer-1');
+    expect(redirectWithToast).toHaveBeenCalledWith('/groups/group-42', {
       description: 'The pool has been deleted.',
       title: 'Pool deleted',
       type: 'success',
