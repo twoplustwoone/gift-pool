@@ -41,15 +41,22 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const userId = await requireUserId(request)
 	const poolId = params.poolId!
 
-	await requirePoolContributor(userId, poolId)
-
 	const pool = await prisma.pool.findUnique({
 		where: { id: poolId },
 		select: poolSelect,
 	})
 
-	if (!pool) {
-		throw data({ error: 'Pool not found.' }, { status: 404 })
+	// Privacy: the recipient of a pool must never be able to confirm it exists.
+	// Return 404 (indistinguishable from a nonexistent pool) rather than 403.
+	// Non-contributors also get 404 so the recipient case is not distinguishable
+	// from any other unauthorized viewer.
+	if (!pool || pool.recipientUserId === userId) {
+		throw new Response('Not Found', { status: 404 })
+	}
+
+	const isContributor = pool.contributors.some((c) => c.userId === userId)
+	if (!isContributor) {
+		throw new Response('Not Found', { status: 404 })
 	}
 
 	const poolForPerms: PoolForPermissions = {
@@ -247,8 +254,6 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	const userId = await requireUserId(request)
 	const poolId = params.poolId!
 
-	await requirePoolContributor(userId, poolId)
-
 	const pool = await prisma.pool.findUnique({
 		where: { id: poolId },
 		select: {
@@ -258,12 +263,16 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			status: true,
 			purchaserId: true,
 			delivererId: true,
+			recipientUserId: true,
 		},
 	})
 
-	if (!pool) {
+	// Privacy: same invariant as the loader — recipient never sees/mutates.
+	if (!pool || pool.recipientUserId === userId) {
 		throw data({ error: 'Pool not found.' }, { status: 404 })
 	}
+
+	await requirePoolContributor(userId, poolId)
 
 	const poolForPerms: PoolForPermissions = {
 		id: pool.id,

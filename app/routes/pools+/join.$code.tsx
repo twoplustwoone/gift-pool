@@ -38,7 +38,7 @@ async function requireValidInvite(code: string) {
 	})
 
 	if (!pool) {
-		throw data({ error: 'Invite link not found.' }, { status: 404 })
+		throw new Response('Not Found', { status: 404 })
 	}
 
 	if (
@@ -58,9 +58,10 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 	const userId = await requireUserId(request)
 	const pool = await requireValidInvite(code)
 
-	// If they're the recipient, quietly redirect — they shouldn't know this exists
+	// Privacy: if they're the recipient, 404 — indistinguishable from an
+	// invalid code. A redirect would be a signal that the code is valid.
 	if (pool.recipientUserId === userId) {
-		return redirect('/pools')
+		throw new Response('Not Found', { status: 404 })
 	}
 
 	// Already a contributor — just send them to the pool
@@ -90,7 +91,10 @@ export async function action({ params, request }: ActionFunctionArgs) {
 	const userId = await requireUserId(request)
 	const pool = await requireValidInvite(code)
 
-	if (pool.recipientUserId === userId) return redirect('/pools')
+	// Privacy: recipient must never be added as a contributor to their own pool.
+	if (pool.recipientUserId === userId) {
+		throw new Response('Not Found', { status: 404 })
+	}
 
 	const alreadyIn = await isUserInPool(userId, pool.id)
 	if (!alreadyIn) {
