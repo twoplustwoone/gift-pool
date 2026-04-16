@@ -273,4 +273,128 @@ describe('group detail overview route', () => {
     await userEvent.click(toggle);
     expect(screen.queryByText('Headphones')).not.toBeInTheDocument();
   });
+
+  it('renders the active pools section with status chips and viewer role', () => {
+    overviewData.activePools = [
+      {
+        id: 'pool-1',
+        title: "Marco's Birthday",
+        occasionType: 'BIRTHDAY',
+        eventDate: '2026-05-03T00:00:00.000Z',
+        status: 'OPEN',
+        recipientName: 'Marco',
+        recipientUsername: 'marco',
+        ideaCount: 3,
+        contributorCount: 4,
+        paidCount: 0,
+        viewerRole: 'organizing' as const,
+        viewerContributionCents: 2500,
+      },
+    ];
+
+    render(<GroupsDetailOverview />);
+
+    expect(screen.getByText('Active pools')).toBeInTheDocument();
+    expect(screen.getByText("Marco's Birthday")).toBeInTheDocument();
+    expect(screen.getByText(/birthday for/i)).toBeInTheDocument();
+    expect(screen.getByText('Open')).toBeInTheDocument();
+    expect(screen.getByText('Organizing')).toBeInTheDocument();
+  });
+
+  it('renders the upcoming occasions section with start-pool links', () => {
+    overviewData.upcomingOccasions = [
+      {
+        userId: 'leo',
+        name: 'Leo',
+        username: 'leo',
+        daysUntil: 12,
+        imageId: null,
+        groupId: 'group-1',
+      },
+    ];
+
+    render(<GroupsDetailOverview />);
+
+    expect(screen.getByText('Coming up')).toBeInTheDocument();
+    expect(screen.getByText('Leo')).toBeInTheDocument();
+    expect(
+      screen.getAllByText((_, el) =>
+        /birthday in 12 days/i.test(el?.textContent ?? ''),
+      ).length,
+    ).toBeGreaterThan(0);
+    const startLink = screen.getByRole('link', { name: /start a pool/i });
+    expect(startLink).toHaveAttribute(
+      'href',
+      '/pools/new?groupId=group-1&recipientId=leo',
+    );
+  });
+
+  it('renders different action types with correct CTA labels and descriptions', () => {
+    overviewData.actionQueue = [
+      {
+        type: 'MARK_PAID',
+        priority: 2,
+        poolId: 'pool-1',
+        poolTitle: 'P',
+        recipientName: 'Marco',
+        eventDate: null,
+        daysUntilEvent: null,
+        ctaLabel: 'Mark as paid',
+        ctaUrl: '/pools/pool-1',
+        amountCents: 2500,
+      },
+      {
+        type: 'CHOOSE_GIFT',
+        priority: 1,
+        poolId: 'pool-2',
+        poolTitle: 'P2',
+        recipientName: 'Leo',
+        eventDate: null,
+        daysUntilEvent: null,
+        ctaLabel: 'Choose a gift',
+        ctaUrl: '/pools/pool-2',
+      },
+      {
+        type: 'IDEA_CHOSEN',
+        priority: 3,
+        poolId: 'pool-3',
+        poolTitle: 'P3',
+        recipientName: 'Sofia',
+        eventDate: null,
+        daysUntilEvent: null,
+        ctaLabel: 'View pool',
+        ctaUrl: '/pools/pool-3',
+      },
+      {
+        type: 'POOL_STUCK',
+        priority: 0,
+        poolId: 'pool-4',
+        poolTitle: 'P4',
+        recipientName: 'Ana',
+        eventDate: null,
+        daysUntilEvent: 3,
+        ctaLabel: 'Close voting',
+        ctaUrl: '/pools/pool-4',
+        description: '2 of 3 haven\'t voted yet — close voting?',
+      },
+    ];
+
+    render(<GroupsDetailOverview />);
+
+    expect(
+      screen.getByText("You owe $25.00 for Marco's gift"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Ideas are in — pick Leo's gift"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Your idea was picked for Sofia!'),
+    ).toBeInTheDocument();
+    // Server-provided description for POOL_STUCK
+    expect(
+      screen.getByText("2 of 3 haven't voted yet — close voting?"),
+    ).toBeInTheDocument();
+    // P0 urgency badge
+    expect(screen.getByText(/in 3 days/i)).toBeInTheDocument();
+  });
 });

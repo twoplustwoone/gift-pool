@@ -270,6 +270,80 @@ describe('app/routes/pools+/new.tsx', () => {
     ).toBeChecked();
   });
 
+  it('filters candidates as the user types and selects one to fill the hidden field', async () => {
+    const userEvent = (await import('@testing-library/user-event')).default;
+    const App = createRoutesStub([
+      {
+        path: '/pools/new',
+        loader: async () => ({
+          groupContext: null,
+          candidates: [
+            { id: 'marco', name: 'Marco', username: 'marco', imageId: null },
+            { id: 'alex', name: 'Alex', username: 'alex', imageId: null },
+            {
+              id: 'leo',
+              name: 'Leonardo Bianchi',
+              username: 'leo',
+              imageId: null,
+            },
+          ],
+        }),
+        HydrateFallback: () => null,
+        Component: NewPoolPage,
+      },
+    ]);
+
+    const { container } = render(<App initialEntries={['/pools/new']} />);
+
+    const search = await screen.findByLabelText(
+      /Find a friend or group member/i,
+    );
+    await userEvent.type(search, 'leo');
+
+    // Dropdown shows Leonardo
+    const leoButton = await screen.findByRole('button', {
+      name: /Leonardo Bianchi/i,
+    });
+    expect(leoButton).toBeInTheDocument();
+
+    // Select
+    await userEvent.click(leoButton);
+
+    // After selection: chip shows the name; hidden input is set
+    expect(screen.getByText('Leonardo Bianchi')).toBeInTheDocument();
+    const hidden = container.querySelector(
+      'input[name="recipientUserId"]',
+    ) as HTMLInputElement | null;
+    expect(hidden?.value).toBe('leo');
+
+    // Clear and verify the search input returns
+    await userEvent.click(
+      screen.getByRole('button', { name: /clear selection/i }),
+    );
+    expect(
+      screen.getByLabelText(/Find a friend or group member/i),
+    ).toBeInTheDocument();
+  });
+
+  it('shows a helper hint when no candidates are available', async () => {
+    const App = createRoutesStub([
+      {
+        path: '/pools/new',
+        loader: async () => ({ groupContext: null, candidates: [] }),
+        HydrateFallback: () => null,
+        Component: NewPoolPage,
+      },
+    ]);
+
+    render(<App initialEntries={['/pools/new']} />);
+
+    expect(
+      await screen.findByText(
+        /Once you add friends or join groups, they'll show up here/i,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('creates a group-backed pool with re-derived member defaults', async () => {
     // Organizer is a member of the group
     usersInGiftGroupsFindUnique
