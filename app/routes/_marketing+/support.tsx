@@ -1,37 +1,9 @@
-import { LuBug, LuLightbulb, LuMail, LuMessageCircle } from 'react-icons/lu';
+import { LuMessageCircle } from 'react-icons/lu';
 import { type MetaFunction } from 'react-router';
+import { FeedbackForm } from '#app/components/feedback/feedback-form.tsx';
 import { Card, CardContent } from '#app/components/ui/card.tsx';
-import { cn } from '#app/utils/misc.tsx';
 
 export const meta: MetaFunction = () => [{ title: 'Support | GiftPool' }];
-
-const channels = [
-  {
-    icon: <LuMail className="h-5 w-5" aria-hidden />,
-    color: 'text-primary',
-    title: 'Email us',
-    description: 'For account issues, questions, or anything else.',
-    action: 'support@giftpool.app',
-    href: 'mailto:support@giftpool.app',
-  },
-  {
-    icon: <LuBug className="h-5 w-5" aria-hidden />,
-    color: 'text-yellow-500',
-    title: 'Report a bug',
-    description:
-      'Something broken? Let us know and we\u2019ll get it sorted.',
-    action: 'File a report',
-    href: 'mailto:support@giftpool.app?subject=Bug%20Report',
-  },
-  {
-    icon: <LuLightbulb className="h-5 w-5" aria-hidden />,
-    color: 'text-green-500',
-    title: 'Suggest a feature',
-    description: 'Got an idea that would make GiftPool better? We\u2019re all ears.',
-    action: 'Send a suggestion',
-    href: 'mailto:support@giftpool.app?subject=Feature%20Suggestion',
-  },
-];
 
 const faqs = [
   {
@@ -44,11 +16,11 @@ const faqs = [
   },
   {
     q: 'Does GiftPool handle payments?',
-    a: 'No. GiftPool coordinates who\u2019s contributing what, but actual money transfers happen directly between people however they prefer (Venmo, cash, etc.).',
+    a: 'No. GiftPool coordinates who’s contributing what, but actual money transfers happen directly between people however they prefer (Venmo, cash, etc.).',
   },
   {
     q: 'Can I delete my account?',
-    a: 'Yes. Head to Settings and you\u2019ll find the option to delete your account and all associated data.',
+    a: 'Yes. Head to Settings and you’ll find the option to delete your account and all associated data.',
   },
   {
     q: 'Who can see my wishlist?',
@@ -68,39 +40,27 @@ const SupportRoute = () => {
           />
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-body-md leading-relaxed text-muted-foreground">
-          Need help or have feedback? Here&apos;s how to reach us.
+          Need help or have feedback? Send us a message and we&apos;ll get back
+          to you.
         </p>
       </section>
 
       <section className="mt-12">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {channels.map((c) => (
-            <Card key={c.title} padding="lg" className="h-full">
-              <CardContent>
-                <div className="flex flex-col items-center gap-3 text-center">
-                  <div
-                    className={cn(
-                      'flex h-12 w-12 items-center justify-center rounded-full bg-accent',
-                      c.color,
-                    )}
-                  >
-                    {c.icon}
-                  </div>
-                  <h2 className="text-base font-bold md:text-lg">{c.title}</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {c.description}
-                  </p>
-                  <a
-                    href={c.href}
-                    className="mt-1 text-sm font-medium text-foreground underline hover:no-underline"
-                  >
-                    {c.action}
-                  </a>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Card padding="lg">
+          <CardContent>
+            <FeedbackForm className="mx-auto max-w-xl" />
+          </CardContent>
+        </Card>
+        <p className="mt-4 text-center text-sm text-muted-foreground">
+          Prefer email? Reach us directly at{' '}
+          <a
+            href="mailto:support@giftpool.app"
+            className="font-medium text-foreground underline hover:no-underline"
+          >
+            support@giftpool.app
+          </a>
+          .
+        </p>
       </section>
 
       <section className="mt-16">
