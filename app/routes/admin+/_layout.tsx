@@ -21,6 +21,7 @@ const TABS: ReadonlyArray<Tab> = [
   { to: '/admin', label: 'Overview', end: true },
   { to: '/admin/users', label: 'Users' },
   { to: '/admin/pools', label: 'Pools' },
+  { to: '/admin/feedback', label: 'Feedback' },
   { to: '/admin/ops', label: 'Ops' },
   { to: '/admin/analytics', label: 'Analytics' },
   { to: '/admin/cache', label: 'Cache' },
@@ -52,7 +53,7 @@ export default AdminLayout;
 
 const TabBar = () => {
   return (
-    <div className="grid w-full grid-cols-3 rounded-2xl bg-muted p-1 sm:grid-cols-6">
+    <div className="grid w-full grid-cols-3 rounded-2xl bg-muted p-1 sm:grid-cols-4 lg:grid-cols-7">
       {TABS.map((tab) => (
         <NavLink
           key={tab.to}
