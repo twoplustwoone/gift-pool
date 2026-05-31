@@ -81,46 +81,68 @@ export async function action({ request }: ActionFunctionArgs) {
     properties: { type, anonymous: !userId, feedbackId: feedback.id },
   });
 
+  // `sendEmail` resolves to `{ status: 'error' }` on a non-2xx Resend response
+  // rather than rejecting, so a bare `.catch` only sees network/render throws
+  // and would let API-level failures (bad address, rate limit, auth) drop
+  // silently. Inspect the resolved status AND catch throws — surfacing both to
+  // Sentry — without ever failing the already-committed action.
+  const dispatchEmail = (kind: string, send: ReturnType<typeof sendEmail>) => {
+    void send
+      .then((result) => {
+        if (result.status === 'error') {
+          captureException(
+            new Error(`Feedback ${kind} email failed: ${result.error.message}`),
+            { extra: { feedbackId: feedback.id, kind } },
+          );
+        }
+      })
+      .catch((error: unknown) => {
+        captureException(error, { extra: { feedbackId: feedback.id, kind } });
+      });
+  };
+
   const adminUrl = `${getDomainUrl(request)}/admin/feedback`;
   // CC a monitored inbox (e.g. a personal address) when configured, so
   // notifications reach someone even if support@ goes unwatched. Unset in
   // dev/test/CI, where it's simply omitted.
   const operatorCc = process.env.FEEDBACK_CC_EMAIL;
-  void sendEmail({
-    to: FEEDBACK_INBOX,
-    ...(operatorCc ? { cc: operatorCc } : {}),
-    subject: `[Feedback] ${type} from ${user?.username ?? contactEmail ?? 'anonymous'}`,
-    react: (
-      <FeedbackReceivedEmail
-        type={type as FeedbackType}
-        message={message}
-        fromEmail={contactEmail ?? undefined}
-        username={user?.username}
-        pageUrl={pageUrl}
-        adminUrl={adminUrl}
-      />
-    ),
-  }).catch((error: unknown) => {
-    captureException(error);
-  });
+  dispatchEmail(
+    'operator',
+    sendEmail({
+      to: FEEDBACK_INBOX,
+      ...(operatorCc ? { cc: operatorCc } : {}),
+      subject: `[Feedback] ${type} from ${user?.username ?? contactEmail ?? 'anonymous'}`,
+      react: (
+        <FeedbackReceivedEmail
+          type={type as FeedbackType}
+          message={message}
+          fromEmail={contactEmail ?? undefined}
+          username={user?.username}
+          pageUrl={pageUrl}
+          adminUrl={adminUrl}
+        />
+      ),
+    }),
+  );
 
   // Send a transactional acknowledgment back to the submitter when we know
   // their address. Fire-and-forget like the operator notification — a failure
   // here must never turn a successful submission into a 500.
   if (contactEmail) {
-    void sendEmail({
-      to: contactEmail,
-      subject: 'We got your feedback — thanks!',
-      react: (
-        <FeedbackAcknowledgedEmail
-          type={type as FeedbackType}
-          message={message}
-          recipientName={user?.name ?? user?.username ?? null}
-        />
-      ),
-    }).catch((error: unknown) => {
-      captureException(error);
-    });
+    dispatchEmail(
+      'acknowledgment',
+      sendEmail({
+        to: contactEmail,
+        subject: 'We got your feedback — thanks!',
+        react: (
+          <FeedbackAcknowledgedEmail
+            type={type as FeedbackType}
+            message={message}
+            recipientName={user?.name ?? user?.username ?? null}
+          />
+        ),
+      }),
+    );
   }
 
   return data({ result: submission.reply({ resetForm: true }), ok: true });

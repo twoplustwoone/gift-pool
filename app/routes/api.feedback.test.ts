@@ -14,13 +14,15 @@ import { getSessionCookieHeader } from '#tests/utils.ts';
 // Side effects fire off the action response; stub them so they don't perform
 // real network calls or race the test teardown. `vi.hoisted` ensures the mock
 // fns exist before any transitive import pulls in the mocked modules.
-const { sendEmail, queueLogEvent } = vi.hoisted(() => ({
+const { sendEmail, queueLogEvent, captureException } = vi.hoisted(() => ({
   sendEmail: vi.fn(async () => ({ status: 'success' as const })),
   queueLogEvent: vi.fn(() => ({ eventId: 'test-event' })),
+  captureException: vi.fn(),
 }));
 
 vi.mock('#app/utils/email.server.ts', () => ({ sendEmail }));
 vi.mock('#app/utils/analytics.server.ts', () => ({ queueLogEvent }));
+vi.mock('@sentry/react-router', () => ({ captureException }));
 
 import { action } from './api.feedback.tsx';
 
@@ -139,5 +141,35 @@ describe('/api/feedback action', () => {
     expect(row.userId).toBe(user.id);
     expect(row.email).toBe('real-user@example.com');
     expect(row.type).toBe('FEATURE');
+  });
+
+  it('reports to Sentry when sendEmail resolves with an error status', async () => {
+    // Resend returns a non-2xx → sendEmail RESOLVES { status: 'error' } rather
+    // than rejecting. The submission must still succeed, but the silent email
+    // failure must reach Sentry.
+    sendEmail.mockResolvedValue({
+      status: 'error',
+      error: { name: 'rate_limit', message: 'Too many requests', statusCode: 429 },
+    } as never);
+
+    const result = await action(
+      toActionArgs({
+        request: createRequest({ ...baseBody, email: 'guest@example.com' }),
+        params: {},
+        context: {} as any,
+      }),
+    );
+    // Action still succeeds — the side-effect failure never 500s the request.
+    await expect(getRouteResultData(result)).resolves.toMatchObject({ ok: true });
+
+    // Flush the fire-and-forget `.then` microtasks before asserting.
+    await new Promise((resolve) => setTimeout(resolve));
+
+    expect(captureException).toHaveBeenCalled();
+    const reported = (captureException.mock.calls as Array<[Error, unknown]>).map(
+      (call) => (call[0] as Error).message,
+    );
+    expect(reported.some((m) => /operator email failed/.test(m))).toBe(true);
+    expect(reported.some((m) => /acknowledgment email failed/.test(m))).toBe(true);
   });
 });
