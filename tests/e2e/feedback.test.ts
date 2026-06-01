@@ -65,10 +65,18 @@ test('a logged-in user can submit feedback from the global widget', async ({
 
   await expect(page.getByText(/thanks for the feedback/i)).toBeVisible();
 
+  // Scope the lookup to this attempt's freshly-created user, NOT the shared
+  // message. On retry, the `login` fixture has deleted the prior attempt's
+  // user, and Feedback.userId is onDelete:SetNull — so a message-based query
+  // would match that prior row with its userId nulled out. Querying by userId
+  // matches only this attempt's row.
   await waitFor(async () => {
-    const row = await prisma.feedback.findFirst({ where: { message } });
+    const row = await prisma.feedback.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+    });
     expect(row).not.toBeNull();
-    expect(row?.userId).toBe(user.id);
+    expect(row?.message).toBe(message);
     return row;
   });
 });
