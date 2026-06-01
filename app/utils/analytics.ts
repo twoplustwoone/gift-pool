@@ -20,6 +20,8 @@ export const ANALYTIC_EVENT_NAMES = [
   'admin_role_granted',
   'admin_role_revoked',
   'admin_sessions_revoked',
+  // Feedback — submitter may be anonymous, so this is NOT a user-required event.
+  'feedback_submitted',
 ] as const;
 
 export type AnalyticEventName = (typeof ANALYTIC_EVENT_NAMES)[number];

@@ -52,6 +52,10 @@ vi.mock('./components/error-boundary.tsx', () => ({
   GeneralErrorBoundary: () => <div>error boundary</div>,
 }));
 
+vi.mock('./components/feedback/feedback-widget.tsx', () => ({
+  FeedbackWidget: () => null,
+}));
+
 vi.mock('./components/nav/bottom/bottom-nav.tsx', () => ({
   BottomNav: () => <div>bottom nav</div>,
 }));

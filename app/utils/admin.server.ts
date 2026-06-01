@@ -1,6 +1,7 @@
 import { queueLogEvent } from './analytics.server.ts';
 import { cache, cachified, lruCache } from './cache.server.ts';
 import { prisma } from './db.server.ts';
+import { type FeedbackStatus } from './feedback-validation.ts';
 import { POOL_STATUS, type PoolStatus } from './pool-constants.ts';
 
 const SIXTY_SECONDS = 60 * 1000;
@@ -1439,5 +1440,92 @@ export async function getNotificationOptOutMatrix(): Promise<
       emailOptOutPercent: total > 0 ? Math.round((emailOff / total) * 100) : 0,
       total,
     };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Feedback triage — NOT cached. This is a live queue where an admin flips a
+// status and expects the change reflected on the next render, so stale reads
+// (lruCache or SQLite) would be a regression. Volume is low.
+// ---------------------------------------------------------------------------
+
+export type AdminFeedbackListItem = {
+  id: string;
+  type: string;
+  message: string;
+  email: string | null;
+  status: string;
+  adminNotes: string | null;
+  pageUrl: string | null;
+  createdAt: Date;
+  user: { id: string; username: string; name: string | null } | null;
+};
+
+export async function listAdminFeedback({
+  status,
+  limit = 25,
+  offset = 0,
+}: {
+  status?: FeedbackStatus | 'all';
+  limit?: number;
+  offset?: number;
+}): Promise<{ items: AdminFeedbackListItem[]; total: number }> {
+  const where = status && status !== 'all' ? { status } : {};
+  const [rows, total] = await Promise.all([
+    prisma.feedback.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
+      select: {
+        id: true,
+        type: true,
+        message: true,
+        email: true,
+        status: true,
+        adminNotes: true,
+        pageUrl: true,
+        createdAt: true,
+        user: { select: { id: true, username: true, name: true } },
+      },
+    }),
+    prisma.feedback.count({ where }),
+  ]);
+  return { items: rows, total };
+}
+
+export async function getFeedbackStatusCounts(): Promise<
+  Record<FeedbackStatus, number> & { all: number }
+> {
+  const grouped = await prisma.feedback.groupBy({
+    by: ['status'],
+    _count: { _all: true },
+  });
+  const counts = { NEW: 0, IN_PROGRESS: 0, RESOLVED: 0, WONT_FIX: 0, all: 0 };
+  for (const row of grouped) {
+    const n = row._count._all;
+    counts.all += n;
+    if (row.status in counts) {
+      counts[row.status as FeedbackStatus] = n;
+    }
+  }
+  return counts;
+}
+
+export async function updateFeedbackStatus({
+  feedbackId,
+  status,
+  adminNotes,
+}: {
+  feedbackId: string;
+  status: FeedbackStatus;
+  adminNotes?: string | null;
+}): Promise<void> {
+  await prisma.feedback.update({
+    where: { id: feedbackId },
+    data: {
+      status,
+      ...(adminNotes !== undefined ? { adminNotes: adminNotes || null } : {}),
+    },
   });
 }

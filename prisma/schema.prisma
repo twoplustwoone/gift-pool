@@ -60,6 +60,7 @@ model User {
   ideaVotesCast                IdeaVote[]
   poolActivities               PoolActivity[]                @relation("PoolActivity_Actor")
   poolMessages                 PoolMessage[]
+  feedback                     Feedback[]
 }
 
 model Friendship {
@@ -424,6 +425,43 @@ model PoolMessage {
   referencedIdea   GiftIdea? @relation("PoolMessage_ReferencedIdea", fields: [referencedIdeaId], references: [id], onDelete: SetNull)
 
   @@index([poolId, createdAt])
+}
+
+// -----------------------------------------------------------------------------
+// Feedback
+// -----------------------------------------------------------------------------
+
+model Feedback {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // String, not a true enum — SQLite doesn't support enums natively. Valid
+  // values enforced at the app layer via `FeedbackTypeSchema`
+  // (see `app/utils/feedback-validation.ts`): 'BUG' | 'FEATURE' | 'QUESTION'.
+  type    String
+  message String
+
+  // Contact-back address. Required for anonymous submissions, prefilled from
+  // the user record when logged in. Validated via `FeedbackSchema`.
+  email String?
+
+  // Submitter, when authenticated. SetNull so feedback survives account
+  // deletion — a deleted user's bug reports are still worth triaging.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Context captured automatically at submit time for triage/debugging.
+  pageUrl   String?
+  userAgent String?
+
+  // String, not a true enum — valid values enforced via `FeedbackStatusSchema`:
+  // 'NEW' | 'IN_PROGRESS' | 'RESOLVED' | 'WONT_FIX'.
+  status     String  @default("NEW")
+  adminNotes String?
+
+  @@index([status, createdAt])
+  @@index([createdAt])
 }
 
 // -----------------------------------------------------------------------------

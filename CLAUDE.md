@@ -36,10 +36,11 @@ npm test -- file.test.tsx               # Specific file
 npm test -- --grep "pattern"            # By pattern
 npm run coverage         # With coverage
 
-npm run test:e2e         # E2E tests (Playwright, headless)
+npm run test:e2e:run     # E2E tests headless — one-shot, used by `validate`. THIS is the command for CI/agents/non-interactive runs.
+npm run test:e2e:run -- feedback.test.ts        # Specific E2E test, headless
+npm run test:e2e         # Opens Playwright UI runner (interactive — never exits). Same as test:e2e:dev. Do NOT use in a non-interactive context.
 npm run test:e2e:dev     # E2E with UI (recommended for dev)
-npm run test:e2e:dev -- --grep "name"   # Specific E2E test
-npm run test:e2e:dev -- --headed        # With browser visible
+npm run test:e2e:dev -- --headed                # With browser visible
 ```
 
 ### Database
@@ -149,7 +150,7 @@ Uses Conform + Zod for validation with honeypot spam protection.
 - Server: `queueLogEvent(...)` from `analytics.server.ts` is the default for action/loader hot paths — it pre-generates the `eventId` synchronously, fires `logEvent` without awaiting, and tails errors to `captureException`. Callers can echo the returned `eventId` back to the client immediately.
 - Use `logEvent` (awaited) only when you genuinely need the persisted row before returning — e.g. `api.analytics` fanning out from a `sendBeacon`.
 - On `eventId` conflict, server writes are canonical: `logEvent` upgrades a `source: 'client'` row in place when the incoming write is `source: 'server'`, so the richer server payload always wins the client-echo race. See `recoverFromEventIdConflict`.
-- Event names in `ANALYTIC_EVENT_NAMES` constant (16 events: 5 original + 11 gifting-workflow events added in the admin rebuild — `pool_created`, `pool_contributor_joined`, `pool_vote_called`, `pool_vote_cast`, `pool_decided`, `pool_purchased`, `pool_delivered`, `pool_cancelled`, `friend_request_sent`, `friend_request_accepted`, `wishlist_purchase_recorded`).
+- Event names in `ANALYTIC_EVENT_NAMES` constant: 5 original + 11 gifting-workflow events added in the admin rebuild (`pool_created`, `pool_contributor_joined`, `pool_vote_called`, `pool_vote_cast`, `pool_decided`, `pool_purchased`, `pool_delivered`, `pool_cancelled`, `friend_request_sent`, `friend_request_accepted`, `wishlist_purchase_recorded`) + 3 admin actions (`admin_role_granted`, `admin_role_revoked`, `admin_sessions_revoked`) + `feedback_submitted`. Note: `feedback_submitted` is NOT in `USER_REQUIRED_EVENTS` — anonymous visitors can submit feedback.
 - `queueLogEvent` must be called AFTER `$transaction` closes, never inside the transaction callback — a concurrent write inside the parent's lock produces spurious SQLITE_BUSY in Sentry.
 - Admin dashboard at `/admin/analytics` (DAU/WAU/MAU, activation funnel, weekly retention, notification opt-out matrix, event count tables)
 
@@ -163,11 +164,12 @@ Mutation handlers should return after committing the primary change; anything th
 
 ### Admin surface
 
-`/admin` is gated by `requireUserWithRole(request, 'admin')` in the layout loader. All admin routes share a persistent layout with a 6-tab NavLink bar. Bootstrap a first admin via `other/ensure-admin.js`; subsequent grants/revokes happen from the UI (`/admin/users/:id`).
+`/admin` is gated by `requireUserWithRole(request, 'admin')` in the layout loader. All admin routes share a persistent layout with a 7-tab NavLink bar. Bootstrap a first admin via `other/ensure-admin.js`; subsequent grants/revokes happen from the UI (`/admin/users/:id`).
 
 - **Overview** (`/admin`): metric cards, stuck-pool alerts, cleanup queue, recent activity feed. Queries domain tables directly (not `AnalyticsEvent`). Cached 60s in `lruCache` (instance-local).
 - **Users** (`/admin/users`): search + drill-down with role toggle (transactional last-admin guard in `$transaction`) and session + verification revoke.
 - **Pools** (`/admin/pools`): health board with stuck detection (OPEN+overdue, VOTING+stalled, DECIDED+stale), per-status tabs, drill-down with admin-cancel action. Break-out filename: `pools_.$poolId.tsx`.
+- **Feedback** (`/admin/feedback`): triage queue for user-submitted bugs/ideas/questions (`Feedback` model). Per-status tabs (NEW default), inline status + admin-notes mutation. NOT cached — it's a live queue where a status flip must show on the next render. Submissions arrive via the `api.feedback` action (used by both the support page form and the global `FeedbackWidget`).
 - **Ops** (`/admin/ops`): 5 idempotent cleanup jobs (verifications, sessions, friend requests, group invitations, group bans), disk usage, LiteFS instance panel.
 - **Analytics** (`/admin/analytics`): DAU/WAU/MAU + daily-active chart + activation funnel (domain tables, 1h cache) + weekly retention (via `Session.createdAt`, 1h cache) + notification opt-out matrix + event count tables.
 - **Cache** (`/admin/cache`): LRU + SQLite cache inspector (pre-existing).
