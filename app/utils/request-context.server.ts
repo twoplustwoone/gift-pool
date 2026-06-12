@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sessionKey } from './auth.server.ts';
 import { authSessionStorage } from './session.server.ts';
-import { getVisitorId } from './visitor-id.server.ts';
+import { ensureVisitorId } from './visitor-id.server.ts';
 
 export const REQUEST_ID_HEADER = 'X-Request-ID';
 
@@ -18,7 +18,10 @@ export async function getRequestContext(request: Request) {
     request.headers.get('cookie'),
   );
   const sessionId = authSession.get(sessionKey) ?? null;
-  const visitorId = getVisitorId(request);
+  // ensure (not just read): on a first visit the cookie doesn't exist yet,
+  // but events logged during that request must carry the same id the root
+  // loader is about to set. See visitor-id.server.ts.
+  const { visitorId } = ensureVisitorId(request);
 
   return { requestId, sessionId, visitorId };
 }
