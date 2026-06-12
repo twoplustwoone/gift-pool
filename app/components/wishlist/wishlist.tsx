@@ -1050,6 +1050,16 @@ export const Wishlist = ({
             startItemReorderMode={startItemReorderMode}
             view={view}
           />
+          <p className="pt-2 text-center text-xs text-muted-foreground/70">
+            Some product links are affiliate links — GiftPool may earn a small
+            commission, at no cost to you.{' '}
+            <a
+              href="/support#affiliate"
+              className="underline underline-offset-2 hover:text-muted-foreground"
+            >
+              Learn more
+            </a>
+          </p>
         </Stack>
       </div>
       <DeleteCategoryDialog

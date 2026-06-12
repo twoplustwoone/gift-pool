@@ -28,6 +28,11 @@ const faqs = [
   },
 ];
 
+// Required by the Amazon Associates Operating Agreement — the exact statement
+// must appear on the site. Keep in sync with the matching section on /about.
+const AFFILIATE_DISCLOSURE =
+  'As an Amazon Associate, GiftPool earns from qualifying purchases. Some product links on wishlists and gift ideas are affiliate links — clicking them costs you nothing and never changes the price, but GiftPool may earn a small commission that helps cover hosting.';
+
 const SupportRoute = () => {
   return (
     <div className="container max-w-3xl pb-32 pt-20">
@@ -79,6 +84,15 @@ const SupportRoute = () => {
             </div>
           ))}
         </dl>
+      </section>
+
+      <section className="mt-16" id="affiliate">
+        <h2 className="text-center text-xl font-semibold tracking-tight md:text-2xl">
+          Affiliate links
+        </h2>
+        <p className="mx-auto mt-4 max-w-xl text-center text-body-md leading-relaxed text-muted-foreground">
+          {AFFILIATE_DISCLOSURE}
+        </p>
       </section>
     </div>
   );
