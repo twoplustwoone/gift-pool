@@ -9,7 +9,8 @@ const FIVE_MINUTES = 5 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const daysAgo = (days: number) => new Date(Date.now() - days * DAY_MS);
-const hoursAgo = (hours: number) => new Date(Date.now() - hours * 60 * 60 * 1000);
+const hoursAgo = (hours: number) =>
+  new Date(Date.now() - hours * 60 * 60 * 1000);
 
 const STALE_FRIEND_REQUEST_DAYS = 30;
 const REJECTED_FRIEND_REQUEST_RETENTION_DAYS = 90;
@@ -1027,8 +1028,7 @@ export async function getAdminUserDetail(
     notificationPreferences: identity.notificationPreferences,
     counts: {
       wishlistItems: identity._count.wishlistItems,
-      friendships:
-        identity._count.friendshipsA + identity._count.friendshipsB,
+      friendships: identity._count.friendshipsA + identity._count.friendshipsB,
       poolsOrganized: identity._count.poolsOrganized,
       poolsAsPurchaser: identity._count.poolsAsPurchaser,
       poolsAsDeliverer: identity._count.poolsAsDeliverer,
@@ -1102,10 +1102,7 @@ export async function toggleAdminRole({
         },
       });
       if (remaining < 1) {
-        throw new AdminRoleError(
-          'LAST_ADMIN',
-          'Cannot revoke the last admin.',
-        );
+        throw new AdminRoleError('LAST_ADMIN', 'Cannot revoke the last admin.');
       }
     }
 
@@ -1227,10 +1224,7 @@ export async function getActivationFunnel({
           }),
           prisma.friendship.findMany({
             where: {
-              OR: [
-                { userAId: { in: userIds } },
-                { userBId: { in: userIds } },
-              ],
+              OR: [{ userAId: { in: userIds } }, { userBId: { in: userIds } }],
             },
             select: { userAId: true, userBId: true },
           }),
@@ -1285,6 +1279,161 @@ export async function getActivationFunnel({
           percent: pct(deliveredCount),
         },
       ];
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Drop-off funnels — built from the funnel-entry events (signup_submitted,
+// invite_landed, wishlist_editor_opened, wishlist_share_viewed) paired with
+// their completion events. Counts are distinct actors per step
+// (visitorId → userId → eventId fallback), so a visitor retrying a step
+// isn't inflated. Long-window aggregate → SQLite cache, 1h (cross-instance
+// coherent via LiteFS).
+// ---------------------------------------------------------------------------
+
+export type DropOffSignupFunnel = Array<{
+  step: string;
+  count: number;
+  percent: number;
+}>;
+
+export type DropOffInviteRow = {
+  inviteType: string;
+  landed: number;
+  deadLinkLandings: number;
+  completed: number;
+};
+
+export type DropOffFunnels = {
+  signup: DropOffSignupFunnel;
+  invites: DropOffInviteRow[];
+  editor: { opened: number; added: number };
+  share: { views: number; uniqueVisitors: number; outboundClicks: number };
+};
+
+export async function getDropOffFunnels({
+  days = 30,
+}: { days?: number } = {}): Promise<DropOffFunnels> {
+  return cachified({
+    key: `admin:dropoff:v1:${days}`,
+    cache,
+    ttl: ONE_HOUR,
+    getFreshValue: async () => {
+      const since = Date.now() - days * DAY_MS;
+
+      const [stepRows, inviteRows, shareRows] = await Promise.all([
+        prisma.$queryRaw<Array<{ name: string; n: bigint }>>`
+          SELECT name, COUNT(DISTINCT COALESCE(visitorId, userId, eventId)) AS n
+          FROM AnalyticsEvent
+          WHERE name IN (
+            'signup_submitted',
+            'signup_email_verified',
+            'user_registered',
+            'wishlist_editor_opened',
+            'wishlist_item_added',
+            'group_joined',
+            'pool_contributor_joined'
+          ) AND createdAt >= ${since}
+          GROUP BY name
+        `,
+        prisma.$queryRaw<
+          Array<{ inviteType: string | null; valid: number | null; n: bigint }>
+        >`
+          SELECT
+            json_extract(properties, '$.inviteType') AS inviteType,
+            json_extract(properties, '$.valid') AS valid,
+            COUNT(DISTINCT COALESCE(visitorId, userId, eventId)) AS n
+          FROM AnalyticsEvent
+          WHERE name = 'invite_landed' AND createdAt >= ${since}
+          GROUP BY 1, 2
+        `,
+        prisma.$queryRaw<
+          Array<{ views: bigint; uniqueVisitors: bigint; clicks: bigint }>
+        >`
+          SELECT
+            SUM(CASE WHEN name = 'wishlist_share_viewed' THEN 1 ELSE 0 END) AS views,
+            COUNT(DISTINCT CASE WHEN name = 'wishlist_share_viewed' THEN COALESCE(visitorId, userId, eventId) END) AS uniqueVisitors,
+            SUM(CASE WHEN name = 'wishlist_link_clicked' THEN 1 ELSE 0 END) AS clicks
+          FROM AnalyticsEvent
+          WHERE name IN ('wishlist_share_viewed', 'wishlist_link_clicked')
+            AND createdAt >= ${since}
+        `,
+      ]);
+
+      const stepCount = new Map(
+        stepRows.map((row) => [row.name, Number(row.n)]),
+      );
+      const get = (name: string) => stepCount.get(name) ?? 0;
+
+      // Friend-invite completions are friend_request_accepted with
+      // via=invite_link — direct request accepts never saw a landing page.
+      const [friendInviteRows] = await prisma.$queryRaw<Array<{ n: bigint }>>`
+        SELECT COUNT(DISTINCT COALESCE(userId, eventId)) AS n
+        FROM AnalyticsEvent
+        WHERE name = 'friend_request_accepted'
+          AND json_extract(properties, '$.via') = 'invite_link'
+          AND createdAt >= ${since}
+      `;
+
+      const submitted = get('signup_submitted');
+      const pctOfSubmitted = (n: number) =>
+        submitted > 0 ? Math.round((n / submitted) * 100) : 0;
+      const signup: DropOffSignupFunnel = [
+        { step: 'Signup submitted', count: submitted, percent: 100 },
+        {
+          step: 'Email verified',
+          count: get('signup_email_verified'),
+          percent: pctOfSubmitted(get('signup_email_verified')),
+        },
+        {
+          step: 'Onboarding completed',
+          count: get('user_registered'),
+          percent: pctOfSubmitted(get('user_registered')),
+        },
+      ];
+
+      const inviteCount = (type: string, valid: boolean) =>
+        inviteRows
+          .filter(
+            (row) => row.inviteType === type && Boolean(row.valid) === valid,
+          )
+          .reduce((sum, row) => sum + Number(row.n), 0);
+      const invites: DropOffInviteRow[] = [
+        {
+          inviteType: 'group',
+          landed: inviteCount('group', true),
+          deadLinkLandings: inviteCount('group', false),
+          completed: get('group_joined'),
+        },
+        {
+          inviteType: 'pool',
+          landed: inviteCount('pool', true),
+          deadLinkLandings: inviteCount('pool', false),
+          completed: get('pool_contributor_joined'),
+        },
+        {
+          inviteType: 'friend',
+          landed: inviteCount('friend', true),
+          deadLinkLandings: inviteCount('friend', false),
+          completed: Number(friendInviteRows?.n ?? 0),
+        },
+      ];
+
+      const share = shareRows[0];
+      return {
+        signup,
+        invites,
+        editor: {
+          opened: get('wishlist_editor_opened'),
+          added: get('wishlist_item_added'),
+        },
+        share: {
+          views: Number(share?.views ?? 0),
+          uniqueVisitors: Number(share?.uniqueVisitors ?? 0),
+          outboundClicks: Number(share?.clicks ?? 0),
+        },
+      };
     },
   });
 }
