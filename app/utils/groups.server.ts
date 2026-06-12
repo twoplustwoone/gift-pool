@@ -1,4 +1,5 @@
 import { data, redirect } from 'react-router';
+import { queueLogEvent } from './analytics.server';
 import { requireUserId } from './auth.server';
 import { prisma } from './db.server';
 import { logGroupActivity } from './group-activity.server';
@@ -617,6 +618,13 @@ export async function approveJoinRequest(
   await logGroupActivity(giftGroupId, actorId, 'join.approve', {
     joinRequestId,
     userId: jr.userId,
+  });
+  // Fired after the transaction closes.
+  queueLogEvent({
+    name: 'group_joined',
+    userId: jr.userId,
+    source: 'server',
+    properties: { giftGroupId, via: 'approval' },
   });
 }
 export async function rejectJoinRequest(

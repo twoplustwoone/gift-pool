@@ -16,7 +16,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#app/components/ui/dialog.tsx';
-import { requireUserId } from '#app/utils/auth.server.ts';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
+import { getUserId, requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import {
   POOL_STATUS,
@@ -24,6 +25,7 @@ import {
   type OccasionType,
 } from '#app/utils/pool-constants.ts';
 import { addContributor, isUserInPool } from '#app/utils/pool.server.ts';
+import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 
 async function requireValidInvite(code: string) {
@@ -59,8 +61,34 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const { code } = params;
   if (!code) return redirect('/pools');
 
+  // Funnel entry: fired before the auth gate so anonymous landings (the
+  // drop-off we want to measure) are captured, and on dead links too.
+  const { requestId, visitorId } = await getRequestContext(request);
+  const maybeUserId = await getUserId(request);
+  let pool;
+  try {
+    pool = await requireValidInvite(code);
+  } catch (error) {
+    queueLogEvent({
+      name: 'invite_landed',
+      userId: maybeUserId,
+      source: 'server',
+      requestId,
+      visitorId,
+      properties: { inviteType: 'pool', valid: false },
+    });
+    throw error;
+  }
+  queueLogEvent({
+    name: 'invite_landed',
+    userId: maybeUserId,
+    source: 'server',
+    requestId,
+    visitorId,
+    properties: { inviteType: 'pool', valid: true, poolId: pool.id },
+  });
+
   const userId = await requireUserId(request);
-  const pool = await requireValidInvite(code);
 
   // Privacy: if they're the recipient, 404 — indistinguishable from an
   // invalid code. A redirect would be a signal that the code is valid.

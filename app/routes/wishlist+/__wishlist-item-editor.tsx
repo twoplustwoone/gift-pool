@@ -7,7 +7,13 @@ import {
 } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type WishlistItem } from '@prisma/client';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   LuArchive,
   LuExternalLink,
@@ -213,8 +219,8 @@ function EditorTypeSelector({
       </div>
       {isListLinkType ? (
         <p className="text-xs text-muted-foreground">
-          Links to an external collection (Amazon wishlist, Steam list, etc.). Friends can browse
-          it — list links can&apos;t be claimed.
+          Links to an external collection (Amazon wishlist, Steam list, etc.).
+          Friends can browse it — list links can&apos;t be claimed.
         </p>
       ) : null}
     </div>
@@ -366,15 +372,9 @@ type DialogComponentSet = {
   DialogContentComponent:
     | typeof DialogContent
     | typeof MobileBottomSheetContent;
-  DialogHeaderComponent:
-    | typeof DialogHeader
-    | typeof MobileBottomSheetHeader;
-  DialogFooterComponent:
-    | typeof DialogFooter
-    | typeof MobileBottomSheetFooter;
-  DialogTitleComponent:
-    | typeof DialogTitle
-    | typeof MobileBottomSheetTitle;
+  DialogHeaderComponent: typeof DialogHeader | typeof MobileBottomSheetHeader;
+  DialogFooterComponent: typeof DialogFooter | typeof MobileBottomSheetFooter;
+  DialogTitleComponent: typeof DialogTitle | typeof MobileBottomSheetTitle;
   DialogDescriptionComponent:
     | typeof DialogDescription
     | typeof MobileBottomSheetDescription;
@@ -433,8 +433,12 @@ type EditorImageController = {
 function getEditorDialogComponents(isDesktop: boolean): DialogComponentSet {
   return {
     DialogRoot: isDesktop ? Dialog : MobileBottomSheet,
-    DialogTriggerComponent: isDesktop ? DialogTrigger : MobileBottomSheetTrigger,
-    DialogContentComponent: isDesktop ? DialogContent : MobileBottomSheetContent,
+    DialogTriggerComponent: isDesktop
+      ? DialogTrigger
+      : MobileBottomSheetTrigger,
+    DialogContentComponent: isDesktop
+      ? DialogContent
+      : MobileBottomSheetContent,
     DialogHeaderComponent: isDesktop ? DialogHeader : MobileBottomSheetHeader,
     DialogFooterComponent: isDesktop ? DialogFooter : MobileBottomSheetFooter,
     DialogTitleComponent: isDesktop ? DialogTitle : MobileBottomSheetTitle,
@@ -477,12 +481,13 @@ function useWishlistItemEditorMode(
   const [open, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<EditorMode>(computedInitial);
 
-  const openView: WishlistItemEditorHandle['openView'] = useCallback(({
-    fromTrigger = false,
-  } = {}) => {
-    setMode('view');
-    if (!fromTrigger) setOpen(true);
-  }, []);
+  const openView: WishlistItemEditorHandle['openView'] = useCallback(
+    ({ fromTrigger = false } = {}) => {
+      setMode('view');
+      if (!fromTrigger) setOpen(true);
+    },
+    [],
+  );
 
   const openEdit = useCallback(() => {
     if (!canEdit) {
@@ -517,6 +522,21 @@ function useWishlistItemEditorMode(
     [openCreate, openEdit, openView],
   );
 
+  // Funnel entry for wishlist_item_added: fires once per open, when the
+  // editor first enters an editable mode (so a view → edit transition still
+  // counts, but mode flips while editing don't double-fire).
+  const trackedOpenRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!open) {
+      trackedOpenRef.current = false;
+      return;
+    }
+    if (trackedOpenRef.current) return;
+    if (mode !== 'create' && mode !== 'edit') return;
+    trackedOpenRef.current = true;
+    track('wishlist_editor_opened', { mode });
+  }, [open, mode]);
+
   return {
     hasId,
     mode,
@@ -532,7 +552,10 @@ function useWishlistItemEditorMode(
 function useWishlistItemStatusController({
   onStatusChange,
   wishlistItem,
-}: Pick<EditorProps, 'onStatusChange' | 'wishlistItem'>): EditorStatusController {
+}: Pick<
+  EditorProps,
+  'onStatusChange' | 'wishlistItem'
+>): EditorStatusController {
   const [currentStatus, setCurrentStatus] = useState<WishlistItemStatusValue>(
     wishlistItem?.status ?? 'ACTIVE',
   );
@@ -549,9 +572,7 @@ function useWishlistItemStatusController({
       : null;
   const toggleStatus = currentStatus === 'ACTIVE' ? 'ARCHIVED' : 'ACTIVE';
   const toggleLabel =
-    currentStatus === 'ACTIVE'
-      ? 'Remove from wishlist'
-      : 'Restore to wishlist';
+    currentStatus === 'ACTIVE' ? 'Remove from wishlist' : 'Restore to wishlist';
   const ToggleIcon = currentStatus === 'ACTIVE' ? LuArchive : LuListChecks;
   useToast((statusFetcher.data as any)?.toast);
 
@@ -1287,7 +1308,9 @@ function EditorViewSection({
             <span>—</span>
           )}
         </dd>
-        <dt className="text-xs text-muted-foreground sm:text-sm">Description</dt>
+        <dt className="text-xs text-muted-foreground sm:text-sm">
+          Description
+        </dt>
         <dd className="whitespace-pre-wrap break-words text-sm text-foreground/90">
           {wishlistItem?.note || '—'}
         </dd>
@@ -1329,7 +1352,10 @@ function EnrichmentStatusLine({
 }: Readonly<{ isUnfurling: boolean; showHint: boolean }>) {
   if (isUnfurling) {
     return (
-      <Text size="xs" className="flex items-center gap-1.5 text-muted-foreground">
+      <Text
+        size="xs"
+        className="flex items-center gap-1.5 text-muted-foreground"
+      >
         <LuLoader className="h-3 w-3 animate-spin" aria-hidden />
         Looking up link…
       </Text>
@@ -1466,7 +1492,12 @@ function EditorFormSection({
         value={enrichment.enrichmentEdited ? 'true' : ''}
       />
       {mode === 'create' ? (
-        <button type="submit" name="intent" value="save-add-another" className="hidden" />
+        <button
+          type="submit"
+          name="intent"
+          value="save-add-another"
+          className="hidden"
+        />
       ) : null}
       {wishlistItem?.id ? (
         <input type="hidden" name="id" value={wishlistItem.id} />
@@ -1567,7 +1598,10 @@ function EditorFormSection({
       <input type="hidden" name="imageAction" value={imageActionState} />
       <div className={cn('space-y-3', isListLinkType && 'hidden')}>
         <div className="flex items-center justify-between">
-          <label htmlFor={imageFileInputProps.id} className="text-sm font-medium">
+          <label
+            htmlFor={imageFileInputProps.id}
+            className="text-sm font-medium"
+          >
             Image
           </label>
           <Text size="xs" className="text-muted-foreground">
@@ -1671,9 +1705,9 @@ function EditorFormSection({
               setImageWarning(null);
             }}
             onPaste={(event) => {
-              const [file] = Array.from(event.clipboardData?.files ?? []).filter((f) =>
-                f.type.startsWith('image/'),
-              );
+              const [file] = Array.from(
+                event.clipboardData?.files ?? [],
+              ).filter((f) => f.type.startsWith('image/'));
               if (file) {
                 event.preventDefault();
                 const transfer = new DataTransfer();
@@ -1702,7 +1736,9 @@ function EditorFormSection({
             }}
           />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Paste an image URL or paste an image file into this field.</span>
+            <span>
+              Paste an image URL or paste an image file into this field.
+            </span>
           </div>
         </div>
         {fields.imageUrl.errors?.length ? (
@@ -1721,11 +1757,7 @@ function EditorFormSection({
           </Text>
         ) : null}
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={resetImageChanges}
-          >
+          <Button type="button" variant="outline" onClick={resetImageChanges}>
             Reset image changes
           </Button>
         </div>
@@ -1733,11 +1765,7 @@ function EditorFormSection({
 
       <DialogFooterComponent className="grid gap-3 sm:flex sm:justify-end sm:space-x-2">
         <DialogCloseComponent asChild>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full sm:w-auto"
-          >
+          <Button type="button" variant="outline" className="w-full sm:w-auto">
             Cancel
           </Button>
         </DialogCloseComponent>
@@ -1901,13 +1929,15 @@ function useSubmissionImageSync({
             nextValue?.price == null
               ? initialValuesRef.current.price
               : formatPriceInputValue(nextValue.price),
-          categoryId: nextValue?.categoryId ?? initialValuesRef.current.categoryId,
+          categoryId:
+            nextValue?.categoryId ?? initialValuesRef.current.categoryId,
           type: nextValue?.type ?? initialValuesRef.current.type,
           hasImage:
             (nextValue as { hasImage?: boolean } | null)?.hasImage ??
             wishlistItem?.hasImage ??
             initialValuesRef.current.hasImage,
-          updatedAt: wishlistItem?.updatedAt ?? initialValuesRef.current.updatedAt,
+          updatedAt:
+            wishlistItem?.updatedAt ?? initialValuesRef.current.updatedAt,
         };
 
     if (actionData.intent === 'save') {
@@ -1980,7 +2010,9 @@ export const WishlistItemEditor = React.forwardRef<
       onStatusChange,
       wishlistItem,
     });
-    const actionData = useActionData<typeof action>() as WishlistItemEditorActionData;
+    const actionData = useActionData<
+      typeof action
+    >() as WishlistItemEditorActionData;
     const requestInfo = useOptionalRequestInfo();
     const trackedAnalyticsEventIdRef = useRef<string | null>(null);
     const requestIdFallback = requestInfo?.requestId ?? null;
@@ -2089,24 +2121,30 @@ export const WishlistItemEditor = React.forwardRef<
       wishlistItem,
     });
     const hasFieldChanges =
-      normalizeEditorFieldValue(fields.title.value ?? fields.title.defaultValue ?? '') !==
-        normalizeEditorFieldValue(initialValues.title) ||
-      normalizeEditorFieldValue(fields.url.value ?? fields.url.defaultValue ?? '') !==
-        normalizeEditorFieldValue(initialValues.url) ||
-      normalizeEditorFieldValue(fields.note.value ?? fields.note.defaultValue ?? '') !==
-        normalizeEditorFieldValue(initialValues.note) ||
+      normalizeEditorFieldValue(
+        fields.title.value ?? fields.title.defaultValue ?? '',
+      ) !== normalizeEditorFieldValue(initialValues.title) ||
+      normalizeEditorFieldValue(
+        fields.url.value ?? fields.url.defaultValue ?? '',
+      ) !== normalizeEditorFieldValue(initialValues.url) ||
+      normalizeEditorFieldValue(
+        fields.note.value ?? fields.note.defaultValue ?? '',
+      ) !== normalizeEditorFieldValue(initialValues.note) ||
       normalizeEditorFieldValue(
         (fields.price.value ?? fields.price.defaultValue ?? '') as string,
       ) !== normalizeEditorFieldValue(initialValues.price) ||
       normalizeEditorFieldValue(
-        (fields.categoryId.value ?? fields.categoryId.defaultValue ?? '') as string,
+        (fields.categoryId.value ??
+          fields.categoryId.defaultValue ??
+          '') as string,
       ) !== normalizeEditorFieldValue(initialValues.categoryId) ||
       itemType !== normalizeEditorFieldValue(initialValues.type);
     const hasImageChanges =
       imageController.hasPendingImageChange ||
       imageController.imageActionState === 'remove' ||
       imageController.imageActionState === 'url';
-    const saveDisabled = isPending || !(form.dirty || hasFieldChanges || hasImageChanges);
+    const saveDisabled =
+      isPending || !(form.dirty || hasFieldChanges || hasImageChanges);
 
     return (
       <DialogRoot open={open} onOpenChange={setOpen}>
@@ -2184,12 +2222,16 @@ export const WishlistItemEditor = React.forwardRef<
                 isListLinkType={isListLinkType}
                 itemType={itemType}
                 mode={mode}
-                prepareImageActionForSave={imageController.prepareImageActionForSave}
+                prepareImageActionForSave={
+                  imageController.prepareImageActionForSave
+                }
                 previewSrc={imageController.previewSrc}
                 previewVersion={imageController.previewVersion}
                 resetImageChanges={imageController.resetImageChanges}
                 saveDisabled={saveDisabled}
-                setHasPendingImageChange={imageController.setHasPendingImageChange}
+                setHasPendingImageChange={
+                  imageController.setHasPendingImageChange
+                }
                 setImageActionState={imageController.setImageActionState}
                 setImageError={imageController.setImageError}
                 setImagePreview={imageController.setImagePreview}

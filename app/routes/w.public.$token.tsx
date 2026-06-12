@@ -5,11 +5,15 @@ import {
   type HeadersFunction,
   type LoaderFunctionArgs,
   type MetaFunction,
-  data, useLoaderData 
+  data,
+  useLoaderData,
 } from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
+import { getUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { getRequestContext } from '#app/utils/request-context.server.ts';
 import {
   cleanupWishlistPurchasesForOwner,
   findWishlistPublicShareByToken,
@@ -106,6 +110,18 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const share = await findWishlistPublicShareByToken(params.token);
   invariantResponse(share, 'Link not found or revoked', {
     status: 404,
+  });
+  // Share-link reach was previously invisible (only /out clicks were logged).
+  // Anonymous viewers are attributed via visitorId.
+  const { requestId, visitorId } = await getRequestContext(request);
+  const viewerId = await getUserId(request);
+  queueLogEvent({
+    name: 'wishlist_share_viewed',
+    userId: viewerId,
+    source: 'server',
+    requestId,
+    visitorId,
+    properties: { wishlistOwnerId: share.ownerId },
   });
   await cleanupWishlistPurchasesForOwner(share.ownerId);
   const user = await prisma.user.findFirst({

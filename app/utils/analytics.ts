@@ -49,6 +49,21 @@ export const ANALYTIC_EVENT_NAMES = [
   // Marketing-page CTA clicks (`cta` property). Anonymous visitors, so NOT
   // user-required.
   'home_cta_clicked',
+  // Funnel-entry events. Each pairs with an existing completion event so the
+  // admin drop-off view can compute started → completed conversion. All are
+  // anonymous-capable (joined via `visitorId`), so NOT user-required:
+  // - signup_submitted / signup_email_verified → user_registered
+  // - invite_landed (`inviteType: group|pool|friend`) → group_joined /
+  //   pool_contributor_joined / friend_request_accepted
+  // - wishlist_share_viewed → wishlist_link_clicked
+  'signup_submitted',
+  'signup_email_verified',
+  'invite_landed',
+  'wishlist_share_viewed',
+  // Completion event for group invite-code joins (was previously untracked).
+  'group_joined',
+  // Funnel entry for wishlist_item_added — measures open-then-abandon.
+  'wishlist_editor_opened',
 ] as const;
 
 export type AnalyticEventName = (typeof ANALYTIC_EVENT_NAMES)[number];
@@ -92,4 +107,7 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   'wishlist_unfurl_completed',
   // Proposing an idea requires being an authenticated pool contributor.
   'pool_idea_proposed',
+  // Joining a group and opening the wishlist editor require a session.
+  'group_joined',
+  'wishlist_editor_opened',
 ]);

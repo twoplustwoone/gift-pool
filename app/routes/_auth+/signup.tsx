@@ -20,10 +20,12 @@ import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { ErrorList, Field } from '#app/components/forms.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { sendEmail } from '#app/utils/email.server.ts';
 import { checkHoneypot } from '#app/utils/honeypot.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
+import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { EmailSchema } from '#app/utils/user-validation.ts';
 import { prepareVerification } from './verify.server.ts';
 export const handle: SEOHandle = {
@@ -81,6 +83,15 @@ export async function action({ request }: ActionFunctionArgs) {
     react: <SignupEmail onboardingUrl={verifyUrl.toString()} otp={otp} />,
   });
   if (response.status === 'success') {
+    // Funnel entry for user_registered — joined via visitorId, since no
+    // account exists yet. No email in properties (PII).
+    const { requestId, visitorId } = await getRequestContext(request);
+    queueLogEvent({
+      name: 'signup_submitted',
+      source: 'server',
+      requestId,
+      visitorId,
+    });
     return redirect(redirectTo.toString());
   } else {
     return data(

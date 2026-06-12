@@ -2,7 +2,10 @@ import {
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
   data,
-  redirect, Form, useLoaderData, useNavigate 
+  redirect,
+  Form,
+  useLoaderData,
+  useNavigate,
 } from 'react-router';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -14,18 +17,49 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#app/components/ui/dialog.tsx';
-import { requireUserId } from '#app/utils/auth.server.ts';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
+import { getUserId, requireUserId } from '#app/utils/auth.server.ts';
 import {
   acceptFriendInvite,
   requireFriendInvitationNotExpired,
 } from '#app/utils/friend-invitations.server.ts';
 import { dispatchFriendshipUpdate } from '#app/utils/friendship-events.ts';
+import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const code = params.code;
   if (!code) return redirect('/friends');
+  // Funnel entry: fired before the auth gate so anonymous landings (the
+  // drop-off we want to measure) are captured, and on dead links too.
+  const { requestId, visitorId } = await getRequestContext(request);
+  const maybeUserId = await getUserId(request);
+  let invitation;
+  try {
+    invitation = await requireFriendInvitationNotExpired(code);
+  } catch (error) {
+    queueLogEvent({
+      name: 'invite_landed',
+      userId: maybeUserId,
+      source: 'server',
+      requestId,
+      visitorId,
+      properties: { inviteType: 'friend', valid: false },
+    });
+    throw error;
+  }
+  queueLogEvent({
+    name: 'invite_landed',
+    userId: maybeUserId,
+    source: 'server',
+    requestId,
+    visitorId,
+    properties: {
+      inviteType: 'friend',
+      valid: true,
+      inviterId: invitation.createdBy.id,
+    },
+  });
   const userId = await requireUserId(request);
-  const invitation = await requireFriendInvitationNotExpired(code);
   if (invitation.createdBy.id === userId) {
     return redirect('/friends');
   }
