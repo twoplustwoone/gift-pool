@@ -58,6 +58,8 @@ const friendWishlistPageDetailsSelect = {
       type: true,
       url: true,
       note: true,
+      priceCents: true,
+      currency: true,
       categoryId: true,
       updatedAt: true,
       sortOrder: true,
@@ -106,6 +108,8 @@ function mapWishlistItems(
     type: string;
     url: string | null;
     note: string | null;
+    priceCents?: number | null;
+    currency?: string | null;
     categoryId: string | null;
     updatedAt: Date;
     sortOrder: number;
@@ -214,6 +218,8 @@ export async function loadOwnWishlistPageData({
           note: true,
           url: true,
           type: true,
+          priceCents: true,
+          currency: true,
           updatedAt: true,
           sortOrder: true,
           hasImage: true,

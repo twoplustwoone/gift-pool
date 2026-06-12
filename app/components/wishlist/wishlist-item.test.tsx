@@ -112,6 +112,45 @@ describe('WishlistItem', () => {
     expect(mockOpenEdit).toHaveBeenCalledWith();
   });
 
+  it('renders the formatted price when the item has one and omits it otherwise', () => {
+    const baseItem = {
+      id: 'item-1',
+      title: 'Item one',
+      note: null,
+      url: null,
+      type: 'text',
+      categoryId: null,
+      ownerId: 'owner-id',
+      updatedAt: new Date(),
+      status: 'ACTIVE' as const,
+    };
+
+    const { rerender } = render(
+      <WishlistItem
+        isOwner
+        categories={[]}
+        wishlistItem={{ ...baseItem, priceCents: 1999, currency: 'USD' }}
+      />,
+    );
+    expect(screen.getByTestId('wishlist-item-price')).toHaveTextContent(
+      '$19.99',
+    );
+
+    rerender(
+      <WishlistItem
+        isOwner
+        categories={[]}
+        wishlistItem={{ ...baseItem, priceCents: 125000, currency: 'EUR' }}
+      />,
+    );
+    expect(screen.getByTestId('wishlist-item-price')).toHaveTextContent(
+      '€1,250.00',
+    );
+
+    rerender(<WishlistItem isOwner categories={[]} wishlistItem={baseItem} />);
+    expect(screen.queryByTestId('wishlist-item-price')).not.toBeInTheDocument();
+  });
+
   it('opens the editor when owners click the desktop row', async () => {
     const user = userEvent.setup();
 
@@ -457,12 +496,10 @@ describe('WishlistItem — list link type', () => {
 
     const visitLink = screen.getByRole('link', { name: /visit/i });
     expect(visitLink).toBeInTheDocument();
-    expect(visitLink).toHaveAttribute(
-      'href',
-      'https://www.amazon.com/hz/wishlist/ls/abc',
-    );
+    // Routes through /out so the click is tagged + counted server-side.
+    expect(visitLink).toHaveAttribute('href', '/out?item=item-1');
     expect(visitLink).toHaveAttribute('target', '_blank');
-    expect(visitLink).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(visitLink).toHaveAttribute('rel', 'sponsored noopener noreferrer');
   });
 
   it('does not render a Visit link when the stored URL has a non-http(s) scheme', () => {
