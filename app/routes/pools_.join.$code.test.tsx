@@ -138,6 +138,28 @@ describe('app/routes/pools_.join.$code.tsx', () => {
     expect(result).toEqual({ kind: 'invalid' });
   });
 
+  it.each(['CANCELLED', 'DELIVERED'])(
+    'returns the invalid state for a %s pool (not the error boundary)',
+    async (status) => {
+      findUnique.mockResolvedValueOnce(createInvitePool({ status }));
+
+      const result = await loader(
+        toLoaderArgs({
+          context: {} as never,
+          params: { code: 'invite-1' },
+          request: new Request('https://giftpool.app/pools/join/invite-1'),
+        }),
+      );
+      expect(result).toEqual({ kind: 'invalid' });
+      expect(queueLogEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'invite_landed',
+          properties: { inviteType: 'pool', valid: false },
+        }),
+      );
+    },
+  );
+
   it('redirects existing contributors straight to the pool', async () => {
     isUserInPool.mockResolvedValueOnce(true);
 

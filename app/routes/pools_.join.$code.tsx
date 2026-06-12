@@ -1,5 +1,4 @@
 import {
-  data,
   redirect,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
@@ -44,7 +43,10 @@ async function requireValidInvite(code: string) {
     pool.status === POOL_STATUS.CANCELLED ||
     pool.status === POOL_STATUS.DELIVERED
   ) {
-    throw data({ error: 'This pool is no longer active.' }, { status: 410 });
+    // A real Response (not `data()`, which returns DataWithResponseInit and
+    // would slip past the loader's `instanceof Response` dead-link catch) —
+    // finished pools are the most common dead invite link.
+    throw new Response('This pool is no longer active.', { status: 410 });
   }
 
   return pool;
