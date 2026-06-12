@@ -1529,3 +1529,259 @@ export async function updateFeedbackStatus({
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Link enrichment & affiliate health — powers the "Link enrichment" section
+// on /admin/analytics. Aggregates AnalyticsEvent rows via json_extract over
+// the JSON `properties` column (fine at current scale with the
+// (name, createdAt) index narrowing the scan; promote hot properties to
+// columns if this ever drags).
+//
+// Operational health with a short window → lruCache, 5-minute TTL (the
+// SQLite cache tier is reserved for 1h+ aggregates).
+// ---------------------------------------------------------------------------
+
+const ENRICHMENT_CACHE_TTL = 1000 * 60 * 5;
+
+export type EnrichmentFunnel = {
+  attempts: number;
+  successes: number;
+  foundTitle: number;
+  foundPrice: number;
+  foundImage: number;
+  llmAttempted: number;
+  llmRescued: number;
+  avgDurationMs: number | null;
+  itemsSaved: number;
+  itemsSavedEnriched: number;
+  itemsSavedWithPrice: number;
+};
+
+export async function getEnrichmentFunnel({
+  days = 30,
+}: { days?: number } = {}): Promise<EnrichmentFunnel> {
+  return cachified({
+    key: `admin:enrichment:funnel:v1:${days}`,
+    cache: lruCache,
+    ttl: ENRICHMENT_CACHE_TTL,
+    getFreshValue: async () => {
+      const since = Date.now() - days * DAY_MS;
+
+      const [unfurlRows, savedRows] = await Promise.all([
+        prisma.$queryRaw<
+          Array<{
+            attempts: bigint;
+            successes: bigint | null;
+            foundTitle: bigint | null;
+            foundPrice: bigint | null;
+            foundImage: bigint | null;
+            llmAttempted: bigint | null;
+            llmRescued: bigint | null;
+            avgDurationMs: number | null;
+          }>
+        >`
+          SELECT
+            COUNT(*) AS attempts,
+            SUM(CASE WHEN json_extract(properties, '$.outcome') = 'success' THEN 1 ELSE 0 END) AS successes,
+            SUM(CASE WHEN json_extract(properties, '$.foundTitle') THEN 1 ELSE 0 END) AS foundTitle,
+            SUM(CASE WHEN json_extract(properties, '$.foundPrice') THEN 1 ELSE 0 END) AS foundPrice,
+            SUM(CASE WHEN json_extract(properties, '$.foundImage') THEN 1 ELSE 0 END) AS foundImage,
+            SUM(CASE WHEN json_extract(properties, '$.llmAttempted') THEN 1 ELSE 0 END) AS llmAttempted,
+            SUM(CASE WHEN json_extract(properties, '$.source') IN ('llm', 'mixed') THEN 1 ELSE 0 END) AS llmRescued,
+            AVG(json_extract(properties, '$.durationMs')) AS avgDurationMs
+          FROM AnalyticsEvent
+          WHERE name = 'wishlist_unfurl_completed' AND createdAt >= ${since}
+        `,
+        prisma.$queryRaw<
+          Array<{
+            itemsSaved: bigint;
+            itemsSavedEnriched: bigint | null;
+            itemsSavedWithPrice: bigint | null;
+          }>
+        >`
+          SELECT
+            COUNT(*) AS itemsSaved,
+            SUM(CASE WHEN json_extract(properties, '$.enriched') THEN 1 ELSE 0 END) AS itemsSavedEnriched,
+            SUM(CASE WHEN json_extract(properties, '$.hasPrice') THEN 1 ELSE 0 END) AS itemsSavedWithPrice
+          FROM AnalyticsEvent
+          WHERE name = 'wishlist_item_added' AND createdAt >= ${since}
+        `,
+      ]);
+
+      const unfurl = unfurlRows[0];
+      const saved = savedRows[0];
+      return {
+        attempts: Number(unfurl?.attempts ?? 0),
+        successes: Number(unfurl?.successes ?? 0),
+        foundTitle: Number(unfurl?.foundTitle ?? 0),
+        foundPrice: Number(unfurl?.foundPrice ?? 0),
+        foundImage: Number(unfurl?.foundImage ?? 0),
+        llmAttempted: Number(unfurl?.llmAttempted ?? 0),
+        llmRescued: Number(unfurl?.llmRescued ?? 0),
+        avgDurationMs:
+          unfurl?.avgDurationMs != null
+            ? Math.round(Number(unfurl.avgDurationMs))
+            : null,
+        itemsSaved: Number(saved?.itemsSaved ?? 0),
+        itemsSavedEnriched: Number(saved?.itemsSavedEnriched ?? 0),
+        itemsSavedWithPrice: Number(saved?.itemsSavedWithPrice ?? 0),
+      };
+    },
+  });
+}
+
+export type EnrichmentFailures = {
+  byOutcome: Array<{ outcome: string; count: number }>;
+  topFailingHosts: Array<{ host: string; count: number }>;
+};
+
+export async function getEnrichmentFailures({
+  days = 30,
+}: { days?: number } = {}): Promise<EnrichmentFailures> {
+  return cachified({
+    key: `admin:enrichment:failures:v1:${days}`,
+    cache: lruCache,
+    ttl: ENRICHMENT_CACHE_TTL,
+    getFreshValue: async () => {
+      const since = Date.now() - days * DAY_MS;
+
+      const [outcomeRows, hostRows] = await Promise.all([
+        prisma.$queryRaw<Array<{ outcome: string; count: bigint }>>`
+          SELECT
+            json_extract(properties, '$.outcome') AS outcome,
+            COUNT(*) AS count
+          FROM AnalyticsEvent
+          WHERE name = 'wishlist_unfurl_completed'
+            AND createdAt >= ${since}
+            AND json_extract(properties, '$.outcome') != 'success'
+          GROUP BY outcome
+          ORDER BY count DESC
+        `,
+        prisma.$queryRaw<Array<{ host: string; count: bigint }>>`
+          SELECT
+            json_extract(properties, '$.host') AS host,
+            COUNT(*) AS count
+          FROM AnalyticsEvent
+          WHERE name = 'wishlist_unfurl_completed'
+            AND createdAt >= ${since}
+            AND json_extract(properties, '$.outcome') != 'success'
+          GROUP BY host
+          ORDER BY count DESC
+          LIMIT 10
+        `,
+      ]);
+
+      return {
+        byOutcome: outcomeRows.map((r) => ({
+          outcome: r.outcome,
+          count: Number(r.count),
+        })),
+        topFailingHosts: hostRows.map((r) => ({
+          host: r.host,
+          count: Number(r.count),
+        })),
+      };
+    },
+  });
+}
+
+export type LinkClickStats = {
+  totalClicks: number;
+  taggedClicks: number;
+  itemClicks: number;
+  ideaClicks: number;
+  perDay: Array<{ day: string; clicks: number; tagged: number }>;
+};
+
+export async function getLinkClickStats({
+  days = 30,
+}: { days?: number } = {}): Promise<LinkClickStats> {
+  return cachified({
+    key: `admin:enrichment:clicks:v1:${days}`,
+    cache: lruCache,
+    ttl: ENRICHMENT_CACHE_TTL,
+    getFreshValue: async () => {
+      const since = Date.now() - days * DAY_MS;
+
+      const rows = await prisma.$queryRaw<
+        Array<{
+          day: string;
+          clicks: bigint;
+          tagged: bigint | null;
+          itemClicks: bigint | null;
+        }>
+      >`
+        SELECT
+          strftime('%Y-%m-%d', createdAt / 1000, 'unixepoch') AS day,
+          COUNT(*) AS clicks,
+          SUM(CASE WHEN json_extract(properties, '$.tagged') THEN 1 ELSE 0 END) AS tagged,
+          SUM(CASE WHEN json_extract(properties, '$.entity') = 'item' THEN 1 ELSE 0 END) AS itemClicks
+        FROM AnalyticsEvent
+        WHERE name = 'wishlist_link_clicked' AND createdAt >= ${since}
+        GROUP BY day
+        ORDER BY day DESC
+      `;
+
+      const perDay = rows.map((r) => ({
+        day: r.day,
+        clicks: Number(r.clicks),
+        tagged: Number(r.tagged ?? 0),
+      }));
+      const totalClicks = perDay.reduce((sum, d) => sum + d.clicks, 0);
+      const taggedClicks = perDay.reduce((sum, d) => sum + d.tagged, 0);
+      const itemClicks = rows.reduce(
+        (sum, r) => sum + Number(r.itemClicks ?? 0),
+        0,
+      );
+
+      return {
+        totalClicks,
+        taggedClicks,
+        itemClicks,
+        ideaClicks: totalClicks - itemClicks,
+        perDay,
+      };
+    },
+  });
+}
+
+export type SmartLinkAdoption = {
+  proposed: number;
+  fromWishlist: number;
+  withPrice: number;
+};
+
+export async function getSmartLinkAdoption({
+  days = 30,
+}: { days?: number } = {}): Promise<SmartLinkAdoption> {
+  return cachified({
+    key: `admin:enrichment:smartlink:v1:${days}`,
+    cache: lruCache,
+    ttl: ENRICHMENT_CACHE_TTL,
+    getFreshValue: async () => {
+      const since = Date.now() - days * DAY_MS;
+
+      const rows = await prisma.$queryRaw<
+        Array<{
+          proposed: bigint;
+          fromWishlist: bigint | null;
+          withPrice: bigint | null;
+        }>
+      >`
+        SELECT
+          COUNT(*) AS proposed,
+          SUM(CASE WHEN json_extract(properties, '$.fromWishlist') THEN 1 ELSE 0 END) AS fromWishlist,
+          SUM(CASE WHEN json_extract(properties, '$.hasPrice') THEN 1 ELSE 0 END) AS withPrice
+        FROM AnalyticsEvent
+        WHERE name = 'pool_idea_proposed' AND createdAt >= ${since}
+      `;
+
+      const row = rows[0];
+      return {
+        proposed: Number(row?.proposed ?? 0),
+        fromWishlist: Number(row?.fromWishlist ?? 0),
+        withPrice: Number(row?.withPrice ?? 0),
+      };
+    },
+  });
+}

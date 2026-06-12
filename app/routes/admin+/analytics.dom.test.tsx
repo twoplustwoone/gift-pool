@@ -46,6 +46,34 @@ const loaderDataSnapshot = {
     { type: 'FRIEND_REQUEST_RECEIVED', inAppOptOutPercent: 0, emailOptOutPercent: 0, total: 10 },
     { type: 'UPCOMING_BIRTHDAY', inAppOptOutPercent: 0, emailOptOutPercent: 100, total: 10 },
   ],
+  enrichment: {
+    attempts: 20,
+    successes: 15,
+    foundTitle: 14,
+    foundPrice: 11,
+    foundImage: 12,
+    llmAttempted: 4,
+    llmRescued: 3,
+    avgDurationMs: 850,
+    itemsSaved: 9,
+    itemsSavedEnriched: 6,
+    itemsSavedWithPrice: 5,
+  },
+  enrichmentFailures: {
+    byOutcome: [
+      { outcome: 'fetch_failed', count: 3 },
+      { outcome: 'timeout', count: 2 },
+    ],
+    topFailingHosts: [{ host: 'amazon.com', count: 3 }],
+  },
+  linkClicks: {
+    totalClicks: 11,
+    taggedClicks: 7,
+    itemClicks: 8,
+    ideaClicks: 3,
+    perDay: [{ day: '2026-03-13', clicks: 11, tagged: 7 }],
+  },
+  smartLinks: { proposed: 5, fromWishlist: 2, withPrice: 4 },
 };
 
 vi.mock('react-router', async () => {
@@ -68,6 +96,10 @@ vi.mock('#app/utils/admin.server.ts', () => ({
   getActivationFunnel: vi.fn(),
   getWeeklyRetention: vi.fn(),
   getNotificationOptOutMatrix: vi.fn(),
+  getEnrichmentFunnel: vi.fn(),
+  getEnrichmentFailures: vi.fn(),
+  getLinkClickStats: vi.fn(),
+  getSmartLinkAdoption: vi.fn(),
 }));
 
 import AnalyticsRoute from './analytics.tsx';
@@ -137,6 +169,29 @@ describe('admin analytics page', () => {
       screen.getByText('friend request received'),
     ).toBeInTheDocument();
     expect(screen.getByText('upcoming birthday')).toBeInTheDocument();
+  });
+
+  it('renders the link enrichment & affiliate section', () => {
+    renderAnalytics();
+    expect(
+      screen.getByRole('heading', { name: 'Link enrichment & affiliate' }),
+    ).toBeInTheDocument();
+    // Funnel cards: 15/20 success, 11/20 price found, 6/9 kept at save.
+    expect(screen.getByText('Unfurl attempts')).toBeInTheDocument();
+    expect(screen.getByText('75%')).toBeInTheDocument();
+    expect(screen.getByText('55%')).toBeInTheDocument();
+    expect(screen.getByText('67%')).toBeInTheDocument();
+    // Failure breakdown + failing hosts.
+    expect(screen.getByText('fetch failed')).toBeInTheDocument();
+    expect(screen.getByText('amazon.com')).toBeInTheDocument();
+    // Click reconciliation.
+    expect(screen.getByText('Tagged clicks')).toBeInTheDocument();
+    expect(
+      screen.getByText(/compare “Tagged” with the click report/i),
+    ).toBeInTheDocument();
+    // Smart-link adoption: 2/5 = 40%.
+    expect(screen.getByText('Ideas from wishlists')).toBeInTheDocument();
+    expect(screen.getByText('40%')).toBeInTheDocument();
   });
 
   it('renders event tables', () => {

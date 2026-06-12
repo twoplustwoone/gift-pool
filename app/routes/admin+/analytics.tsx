@@ -11,11 +11,19 @@ import {
   getAnalyticsCounts,
 } from '#app/utils/analytics.server.ts';
 import {
+  type EnrichmentFailures,
+  type EnrichmentFunnel,
   type FunnelStep,
+  type LinkClickStats,
   type NotificationOptOutRow,
   type RetentionCohort,
+  type SmartLinkAdoption,
   getActivationFunnel,
+  getEnrichmentFailures,
+  getEnrichmentFunnel,
+  getLinkClickStats,
   getNotificationOptOutMatrix,
+  getSmartLinkAdoption,
   getWeeklyRetention,
 } from '#app/utils/admin.server.ts';
 import { cn } from '#app/utils/misc.tsx';
@@ -27,14 +35,36 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const [analytics, funnel, retention, optOutMatrix] = await Promise.all([
+  const [
+    analytics,
+    funnel,
+    retention,
+    optOutMatrix,
+    enrichment,
+    enrichmentFailures,
+    linkClicks,
+    smartLinks,
+  ] = await Promise.all([
     getAnalyticsCounts(),
     getActivationFunnel({ cohortStart: thirtyDaysAgo, cohortEnd: now }),
     getWeeklyRetention(8),
     getNotificationOptOutMatrix(),
+    getEnrichmentFunnel({ days: 30 }),
+    getEnrichmentFailures({ days: 30 }),
+    getLinkClickStats({ days: 30 }),
+    getSmartLinkAdoption({ days: 30 }),
   ]);
 
-  return { analytics, funnel, retention, optOutMatrix };
+  return {
+    analytics,
+    funnel,
+    retention,
+    optOutMatrix,
+    enrichment,
+    enrichmentFailures,
+    linkClicks,
+    smartLinks,
+  };
 }
 
 const LineChart = ({
@@ -145,8 +175,16 @@ const EventTable = ({
 );
 
 const AnalyticsRoute = () => {
-  const { analytics, funnel, retention, optOutMatrix } =
-    useLoaderData<typeof loader>();
+  const {
+    analytics,
+    funnel,
+    retention,
+    optOutMatrix,
+    enrichment,
+    enrichmentFailures,
+    linkClicks,
+    smartLinks,
+  } = useLoaderData<typeof loader>();
   return (
     <div className="space-y-8">
       <div className="space-y-1">
@@ -214,6 +252,19 @@ const AnalyticsRoute = () => {
         )}
       </SectionCard>
 
+      {/* --- link enrichment & affiliate health --- */}
+      <SectionCard
+        title="Link enrichment & affiliate"
+        description="Last 30 days. Paste-a-link enrichment funnel, failure breakdown, and outbound click reconciliation."
+      >
+        <EnrichmentSection
+          enrichment={enrichment}
+          failures={enrichmentFailures}
+          linkClicks={linkClicks}
+          smartLinks={smartLinks}
+        />
+      </SectionCard>
+
       {/* --- event tables (existing) --- */}
       <section className="grid gap-4 lg:grid-cols-2">
         <EventTable
@@ -225,6 +276,189 @@ const AnalyticsRoute = () => {
           rows={analytics.eventsLast30Days}
         />
       </section>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Link enrichment & affiliate health
+// ---------------------------------------------------------------------------
+
+const pctOf = (count: number, total: number) =>
+  total > 0 ? Math.round((count / total) * 100) : 0;
+
+const EnrichmentSection = ({
+  enrichment,
+  failures,
+  linkClicks,
+  smartLinks,
+}: {
+  enrichment: EnrichmentFunnel;
+  failures: EnrichmentFailures;
+  linkClicks: LinkClickStats;
+  smartLinks: SmartLinkAdoption;
+}) => {
+  if (
+    enrichment.attempts === 0 &&
+    enrichment.itemsSaved === 0 &&
+    linkClicks.totalClicks === 0
+  ) {
+    return <EmptyRow>No enrichment or click activity recorded yet.</EmptyRow>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Funnel cards */}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard label="Unfurl attempts" value={enrichment.attempts} />
+        <SummaryCard
+          label="Success rate"
+          value={`${pctOf(enrichment.successes, enrichment.attempts)}%`}
+          delta={`${enrichment.successes.toLocaleString()} succeeded${
+            enrichment.avgDurationMs != null
+              ? ` · avg ${enrichment.avgDurationMs}ms`
+              : ''
+          }`}
+        />
+        <SummaryCard
+          label="Price found"
+          value={`${pctOf(enrichment.foundPrice, enrichment.attempts)}%`}
+          delta={`title ${pctOf(enrichment.foundTitle, enrichment.attempts)}% · image ${pctOf(enrichment.foundImage, enrichment.attempts)}%`}
+        />
+        <SummaryCard
+          label="Kept at save"
+          value={`${pctOf(enrichment.itemsSavedEnriched, enrichment.itemsSaved)}%`}
+          delta={`${enrichment.itemsSavedEnriched.toLocaleString()} of ${enrichment.itemsSaved.toLocaleString()} new items · ${pctOf(enrichment.itemsSavedWithPrice, enrichment.itemsSaved)}% have a price`}
+        />
+      </div>
+
+      {/* LLM + smart links */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <SummaryCard
+          label="Claude fallback"
+          value={enrichment.llmAttempted}
+          delta={
+            enrichment.llmAttempted > 0
+              ? `${enrichment.llmRescued.toLocaleString()} rescued (${pctOf(enrichment.llmRescued, enrichment.llmAttempted)}%)`
+              : 'No fallback calls (structured data sufficed or key unset)'
+          }
+        />
+        <SummaryCard
+          label="Ideas from wishlists"
+          value={`${pctOf(smartLinks.fromWishlist, smartLinks.proposed)}%`}
+          delta={`${smartLinks.fromWishlist.toLocaleString()} of ${smartLinks.proposed.toLocaleString()} proposed ideas · ${pctOf(smartLinks.withPrice, smartLinks.proposed)}% priced`}
+        />
+      </div>
+
+      {/* Failure breakdown */}
+      {failures.byOutcome.length > 0 ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="overflow-hidden rounded-md border border-border/50">
+            <table className="min-w-full divide-y divide-border/60 text-sm">
+              <thead className="bg-muted/40">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Failure outcome
+                  </th>
+                  <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Count
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {failures.byOutcome.map((row) => (
+                  <tr key={row.outcome}>
+                    <td className="px-4 py-2 font-medium">
+                      {row.outcome.replaceAll('_', ' ')}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {row.count.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="overflow-hidden rounded-md border border-border/50">
+            <table className="min-w-full divide-y divide-border/60 text-sm">
+              <thead className="bg-muted/40">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Top failing hosts
+                  </th>
+                  <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Failures
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {failures.topFailingHosts.map((row) => (
+                  <tr key={row.host}>
+                    <td className="px-4 py-2 font-mono text-xs">{row.host}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {row.count.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Outbound clicks */}
+      <div className="space-y-3">
+        <div className="grid gap-4 md:grid-cols-3">
+          <SummaryCard label="Outbound clicks" value={linkClicks.totalClicks} />
+          <SummaryCard
+            label="Tagged clicks"
+            value={linkClicks.taggedClicks}
+            delta={`${pctOf(linkClicks.taggedClicks, linkClicks.totalClicks)}% of clicks carried an affiliate tag`}
+          />
+          <SummaryCard
+            label="By source"
+            value={`${linkClicks.itemClicks} / ${linkClicks.ideaClicks}`}
+            delta="wishlist items / pool ideas"
+          />
+        </div>
+        {linkClicks.perDay.length > 0 ? (
+          <div className="overflow-hidden rounded-md border border-border/50">
+            <table className="min-w-full divide-y divide-border/60 text-sm">
+              <thead className="bg-muted/40">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Day
+                  </th>
+                  <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Clicks
+                  </th>
+                  <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Tagged
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {linkClicks.perDay.slice(0, 14).map((row) => (
+                  <tr key={row.day}>
+                    <td className="px-4 py-2 font-mono text-xs">{row.day}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {row.clicks.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {row.tagged.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
+          Reconciliation: compare “Tagged” with the click report in your Amazon
+          Associates dashboard. A persistent gap means clicks are being lost or
+          stripped after the redirect (extensions, bots, blocked referrers).
+        </p>
+      </div>
     </div>
   );
 };
