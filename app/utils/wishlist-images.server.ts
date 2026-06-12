@@ -19,6 +19,9 @@ type FetchWithLimitOptions = {
   allowedContentTypes?: string[];
   maxBytes: number;
   headers?: Record<string, string>;
+  // Return the first maxBytes instead of throwing when the body is larger.
+  // Safe for HTML metadata extraction: meta tags live in the document head.
+  truncateOnLimit?: boolean;
 };
 
 type ProcessedImage = {
@@ -136,7 +139,11 @@ function assertResponseSize(
   }
 }
 
-async function readResponseBuffer(response: Response, maxBytes: number) {
+async function readResponseBuffer(
+  response: Response,
+  maxBytes: number,
+  truncateOnLimit = false,
+) {
   const reader = response.body?.getReader();
   if (!reader) throw new Error('Unable to read response');
 
@@ -149,7 +156,13 @@ async function readResponseBuffer(response: Response, maxBytes: number) {
     if (!value) continue;
     total += value.byteLength;
     if (total > maxBytes) {
-      throw new Error('Response too large');
+      if (!truncateOnLimit) {
+        throw new Error('Response too large');
+      }
+      const keep = value.byteLength - (total - maxBytes);
+      if (keep > 0) chunks.push(value.subarray(0, keep));
+      await reader.cancel().catch(() => {});
+      break;
     }
     chunks.push(value);
   }
@@ -181,7 +194,12 @@ async function fetchValidatedResponse(
 
   const contentType = response.headers.get('content-type');
   assertAllowedContentType(contentType, options.allowedContentTypes);
-  assertResponseSize(response.headers.get('content-length'), options.maxBytes);
+  if (!options.truncateOnLimit) {
+    assertResponseSize(
+      response.headers.get('content-length'),
+      options.maxBytes,
+    );
+  }
 
   return { redirectTarget: null, response, contentType };
 }
@@ -209,7 +227,11 @@ async function fetchWithLimit(
         continue;
       }
 
-      const buffer = await readResponseBuffer(result.response, options.maxBytes);
+      const buffer = await readResponseBuffer(
+        result.response,
+        options.maxBytes,
+        options.truncateOnLimit,
+      );
       return { buffer, contentType: result.contentType ?? null };
     }
 
@@ -256,11 +278,15 @@ export async function processImageFromUrl(urlString: string) {
   return processImage(buffer);
 }
 
-export async function fetchHtml(urlString: string) {
+export async function fetchHtml(
+  urlString: string,
+  { truncate = false }: { truncate?: boolean } = {},
+) {
   const target = new URL(urlString);
   const { buffer } = await fetchWithLimit(target, {
     maxBytes: MAX_HTML_BYTES,
     allowedContentTypes: ['text/html', 'application/xhtml+xml'],
+    truncateOnLimit: truncate,
   });
   return buffer.toString('utf8');
 }
