@@ -213,6 +213,108 @@ describe('parseMetadataFromHtml', () => {
   });
 });
 
+describe('amazon adapter', () => {
+  const AMAZON_URL = 'https://www.amazon.com/dp/B09JQMJHXY';
+  // Amazon product pages ship no og/JSON-LD — title only, data in the body.
+  const amazonHtml = (body = '') =>
+    htmlPage(
+      '<title>Amazon.com: Apple AirPods Pro with MagSafe Case : Electronics</title>',
+      body,
+    );
+
+  it('fills price, image, and a cleaned title from amazon markup', async () => {
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock.mockResolvedValue(
+      new Response(
+        amazonHtml(
+          `<span class="a-price"><span class="a-offscreen">$205.97</span></span>
+           <img id="landingImage" src="https://m.media-amazon.com/images/I/71bhWgQK.jpg" />`,
+        ),
+        { status: 200, headers: { 'content-type': 'text/html' } },
+      ),
+    );
+
+    const result = await extractUrlMetadata(AMAZON_URL);
+    expect(result).toMatchObject({
+      ok: true,
+      llmAttempted: false,
+      metadata: {
+        title: 'Apple AirPods Pro with MagSafe Case',
+        priceCents: 20597,
+        currency: 'USD',
+        imageUrl: 'https://m.media-amazon.com/images/I/71bhWgQK.jpg',
+        source: 'structured',
+      },
+    });
+  });
+
+  it('finds the image in the hiRes JSON blob when no landingImage exists', async () => {
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock.mockResolvedValue(
+      new Response(
+        amazonHtml(
+          `<span class="a-offscreen">£19.99</span>
+           <script>var data = {"hiRes":"https://m.media-amazon.com/images/I/81xyz.jpg","thumb":"x"};</script>`,
+        ),
+        { status: 200, headers: { 'content-type': 'text/html' } },
+      ),
+    );
+
+    const result = await extractUrlMetadata('https://www.amazon.co.uk/dp/B0ABC');
+    expect(result).toMatchObject({
+      ok: true,
+      metadata: {
+        priceCents: 1999,
+        currency: 'GBP',
+        imageUrl: 'https://m.media-amazon.com/images/I/81xyz.jpg',
+      },
+    });
+  });
+
+  it('does not apply amazon heuristics to other hosts', async () => {
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock.mockResolvedValue(
+      new Response(
+        htmlPage(
+          '<title>Amazon.com: Not Really</title>',
+          '<span class="a-offscreen">$9.99</span>',
+        ),
+        { status: 200, headers: { 'content-type': 'text/html' } },
+      ),
+    );
+
+    const result = await extractUrlMetadata('https://shop.example.com/lookalike');
+    expect(result).toMatchObject({
+      ok: true,
+      metadata: {
+        title: 'Amazon.com: Not Really', // untouched
+        priceCents: null,
+        imageUrl: null,
+      },
+    });
+  });
+
+  it('degrades to title-only on a bot-wall page with no product markup', async () => {
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock.mockResolvedValue(
+      new Response(amazonHtml('<p>Enter the characters you see below</p>'), {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      }),
+    );
+
+    const result = await extractUrlMetadata(AMAZON_URL);
+    expect(result).toMatchObject({
+      ok: true,
+      metadata: {
+        title: 'Apple AirPods Pro with MagSafe Case',
+        priceCents: null,
+        imageUrl: null,
+      },
+    });
+  });
+});
+
 describe('extractUrlMetadata', () => {
   it('fetches and parses a product page', async () => {
     dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);

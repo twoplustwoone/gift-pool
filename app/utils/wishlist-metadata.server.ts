@@ -257,6 +257,80 @@ function stripRootToText(root: HTMLElement): string {
   return [title, description, body].filter(Boolean).join('\n');
 }
 
+const AMAZON_HOST = /(^|\.)amazon\.[a-z]{2,3}(\.[a-z]{2})?$/i;
+
+const CURRENCY_SYMBOLS: Array<[string, string]> = [
+  ['$', 'USD'],
+  ['€', 'EUR'],
+  ['£', 'GBP'],
+];
+
+function currencyFromSymbol(raw: string): string | null {
+  return CURRENCY_SYMBOLS.find(([symbol]) => raw.includes(symbol))?.[1] ?? null;
+}
+
+// Amazon ships no og tags and no JSON-LD on product pages, so the generic
+// parser only ever sees the <title>. The real values ARE in the fetched
+// markup though: the buybox price in `.a-offscreen` spans and the product
+// image in the image-block JSON. Fill only the gaps the generic parse left.
+// (Datacenter IPs often get a bot-wall instead — then nothing here matches
+// and the result degrades exactly as before.)
+export function applyAmazonAdapter(
+  html: string,
+  root: HTMLElement,
+  baseUrl: string,
+  metadata: UrlMetadata,
+): UrlMetadata {
+  let hostname: string;
+  try {
+    hostname = new URL(baseUrl).hostname;
+  } catch {
+    return metadata;
+  }
+  if (!AMAZON_HOST.test(hostname)) return metadata;
+
+  // "Amazon.com: Apple AirPods Pro … : Electronics" → "Apple AirPods Pro …"
+  const title =
+    metadata.title
+      ?.replace(/^Amazon\.[a-z.]+\s*:\s*/i, '')
+      .replace(/\s+:\s+[A-Za-z ,&'-]+$/, '')
+      .trim() || null;
+
+  let priceCents = metadata.priceCents;
+  let currency = metadata.currency;
+  if (priceCents == null) {
+    // First `.a-offscreen` in DOM order is the buybox price.
+    const rawPrice = root.querySelector('span.a-offscreen')?.textContent.trim();
+    const parsed = parsePriceToCents(rawPrice);
+    if (rawPrice && parsed != null) {
+      priceCents = parsed;
+      currency = currencyFromSymbol(rawPrice);
+    }
+  }
+
+  let imageUrl = metadata.imageUrl;
+  if (!imageUrl) {
+    const landing = root.querySelector('#landingImage');
+    const candidate =
+      landing?.getAttribute('data-old-hires') ||
+      landing?.getAttribute('src') ||
+      html.match(/"hiRes":"(https:[^"]+?)"/)?.[1] ||
+      null;
+    imageUrl = resolveAbsoluteUrl(candidate, baseUrl);
+  }
+
+  const foundAnything =
+    title != null || priceCents != null || imageUrl != null;
+
+  return {
+    title,
+    imageUrl,
+    priceCents,
+    currency,
+    source: foundAnything ? 'structured' : metadata.source,
+  };
+}
+
 export async function extractUrlMetadata(itemUrl: string): Promise<UnfurlResult> {
   let html: string;
   try {
@@ -266,7 +340,12 @@ export async function extractUrlMetadata(itemUrl: string): Promise<UnfurlResult>
   }
 
   const root = parse(html);
-  const structured = parseMetadataFromRoot(root, itemUrl);
+  const structured = applyAmazonAdapter(
+    html,
+    root,
+    itemUrl,
+    parseMetadataFromRoot(root, itemUrl),
+  );
 
   // The LLM is a fallback, not a second opinion: it only runs when the
   // deterministic parse is missing title or price, and deterministic values
