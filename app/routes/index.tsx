@@ -1,4 +1,9 @@
-import { type LoaderFunctionArgs, type MetaFunction, useLoaderData, useSearchParams  } from 'react-router';
+import {
+  type LoaderFunctionArgs,
+  type MetaFunction,
+  useLoaderData,
+  useSearchParams,
+} from 'react-router';
 import { HOME_COPY } from '#app/components/home/home-copy';
 import { HomeFeatures } from '#app/components/home/HomeFeatures';
 import { HomeHero } from '#app/components/home/HomeHero';
@@ -69,13 +74,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
     ]);
     wishlistCount = wCount;
     groupCount = gCount;
-    activePools = pools.map(p => ({
+    activePools = pools.map((p) => ({
       id: p.id,
       title: p.title,
       status: p.status,
       occasionType: p.occasionType,
       recipientName:
-        p.recipientName ?? p.recipientUser?.name ?? p.recipientUser?.username ?? null,
+        p.recipientName ??
+        p.recipientUser?.name ??
+        p.recipientUser?.username ??
+        null,
       eventDate: p.eventDate?.toISOString() ?? null,
       contributorCount: p._count.contributors,
     }));
@@ -114,8 +122,12 @@ const Index = () => {
   return (
     <main role="main">
       <HomeHero
-        onPrimaryClick={() => track('home.cta.create_wishlist')}
-        onSecondaryClick={() => track('home.cta.start_group')}
+        onPrimaryClick={() =>
+          track('home_cta_clicked', { cta: 'create_wishlist' })
+        }
+        onSecondaryClick={() =>
+          track('home_cta_clicked', { cta: 'start_group' })
+        }
       />
       <HomeFeatures />
     </main>

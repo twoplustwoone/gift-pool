@@ -15,6 +15,8 @@ export const ANALYTIC_EVENT_NAMES = [
   'pool_cancelled',
   'friend_request_sent',
   'friend_request_accepted',
+  'friend_request_rejected',
+  'friend_removed',
   'wishlist_purchase_recorded',
   // Phase 2 — admin actions
   'admin_role_granted',
@@ -31,6 +33,22 @@ export const ANALYTIC_EVENT_NAMES = [
   // too, so this is NOT a user-required event. `tagged` powers the affiliate
   // reconciliation view in admin analytics.
   'wishlist_link_clicked',
+  // Phase 3 — drop-off instrumentation. These previously existed as client
+  // track() calls with unregistered names (silently dropped); registered as
+  // part of the friction investigation.
+  'notifications_opened',
+  'notification_clicked',
+  'notifications_marked_all_read',
+  // Outcome-coded (like wishlist_unfurl_completed): fires on success AND
+  // failure with `kind` + `success` properties.
+  'notification_action_completed',
+  'wishlist_item_removed',
+  'wishlist_item_undo_clicked',
+  'wishlist_item_undo_expired',
+  'group_budget_saved',
+  // Marketing-page CTA clicks (`cta` property). Anonymous visitors, so NOT
+  // user-required.
+  'home_cta_clicked',
 ] as const;
 
 export type AnalyticEventName = (typeof ANALYTIC_EVENT_NAMES)[number];
@@ -54,7 +72,18 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   'pool_cancelled',
   'friend_request_sent',
   'friend_request_accepted',
+  'friend_request_rejected',
+  'friend_removed',
   'wishlist_purchase_recorded',
+  // Notification + wishlist-undo interactions only exist for signed-in users.
+  'notifications_opened',
+  'notification_clicked',
+  'notifications_marked_all_read',
+  'notification_action_completed',
+  'wishlist_item_removed',
+  'wishlist_item_undo_clicked',
+  'wishlist_item_undo_expired',
+  'group_budget_saved',
   // Admin actions: the acting admin is always a known user.
   'admin_role_granted',
   'admin_role_revoked',

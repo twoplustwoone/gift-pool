@@ -92,7 +92,10 @@ function NotificationRowActions({
 }: {
   notification: ApiNotification;
   pendingActionKeys: Set<PendingActionKey>;
-  onAction: (notification: ApiNotification, action: NotificationActionPayload) => void;
+  onAction: (
+    notification: ApiNotification,
+    action: NotificationActionPayload,
+  ) => void;
   t: NotificationTranslator;
 }) {
   if (notification.actions.length === 0) return null;
@@ -141,9 +144,15 @@ function NotificationListItem({
 }: {
   locale: NotificationLocale;
   notification: ApiNotification;
-  onDelete: (event: React.MouseEvent<HTMLButtonElement>, notificationId: string) => void;
+  onDelete: (
+    event: React.MouseEvent<HTMLButtonElement>,
+    notificationId: string,
+  ) => void;
   onOpen: (notification: ApiNotification) => void;
-  onAction: (notification: ApiNotification, action: NotificationActionPayload) => void;
+  onAction: (
+    notification: ApiNotification,
+    action: NotificationActionPayload,
+  ) => void;
   pendingActionKeys: Set<PendingActionKey>;
   pendingDeleteIds: Set<string>;
   t: NotificationTranslator;
@@ -183,7 +192,9 @@ function NotificationListItem({
             aria-hidden
           />
           <div className="flex-1">
-            <div className="line-clamp-2 text-sm text-foreground">{message}</div>
+            <div className="line-clamp-2 text-sm text-foreground">
+              {message}
+            </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {relativeTime}
             </div>
@@ -214,9 +225,15 @@ function NotificationsList({
   loading: boolean;
   locale: NotificationLocale;
   notifications: ApiNotification[];
-  onDelete: (event: React.MouseEvent<HTMLButtonElement>, notificationId: string) => void;
+  onDelete: (
+    event: React.MouseEvent<HTMLButtonElement>,
+    notificationId: string,
+  ) => void;
   onOpen: (notification: ApiNotification) => void;
-  onAction: (notification: ApiNotification, action: NotificationActionPayload) => void;
+  onAction: (
+    notification: ApiNotification,
+    action: NotificationActionPayload,
+  ) => void;
   pendingActionKeys: Set<PendingActionKey>;
   pendingDeleteIds: Set<string>;
   t: NotificationTranslator;
@@ -328,7 +345,7 @@ export const NotificationBell = () => {
     if (!initialFetchCompleted && !loading) {
       loadNotifications().catch(() => {});
     }
-    track('notifications_open');
+    track('notifications_opened');
   }, [open, initialFetchCompleted, loading, loadNotifications]);
 
   useEffect(() => {
@@ -448,7 +465,7 @@ export const NotificationBell = () => {
 
   const handleNotificationClick = useCallback(
     async (notification: ApiNotification) => {
-      track('notification_click', { type: notification.type });
+      track('notification_clicked', { type: notification.type });
       if (notification.status === 'UNREAD') {
         await markNotificationRead(notification.id);
       }
@@ -477,7 +494,7 @@ export const NotificationBell = () => {
     setUnreadCount(0);
 
     try {
-      track('notifications_mark_all_read');
+      track('notifications_marked_all_read');
       const response = await fetch(MARK_ALL_ENDPOINT, {
         method: 'POST',
         credentials: 'same-origin',
@@ -544,7 +561,7 @@ export const NotificationBell = () => {
         if (typeof payload.unreadCount === 'number') {
           setUnreadCount(payload.unreadCount);
         }
-        track('notification_inline_action', {
+        track('notification_action_completed', {
           kind: action.kind,
           success: true,
         });
@@ -570,7 +587,7 @@ export const NotificationBell = () => {
         console.error(err);
         setNotifications(previousNotifications);
         setUnreadCount(previousUnreadCount);
-        track('notification_inline_action', {
+        track('notification_action_completed', {
           kind: action.kind,
           success: false,
         });

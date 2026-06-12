@@ -155,7 +155,9 @@ export async function isFriendOfFriend(
   ]);
 
   const viewerFriendIds = new Set(
-    viewerFriendships.map((f) => (f.userAId === viewerId ? f.userBId : f.userAId)),
+    viewerFriendships.map((f) =>
+      f.userAId === viewerId ? f.userBId : f.userAId,
+    ),
   );
 
   for (const f of ownerFriendships) {
@@ -370,7 +372,7 @@ export async function rejectFriendRequest(
   requestId: string,
   actingUserId: string,
 ) {
-  return prisma.$transaction(async (tx) => {
+  const request = await prisma.$transaction(async (tx) => {
     const request = await tx.friendRequest.findUniqueOrThrow({
       where: { id: requestId },
       include: { notification: true },
@@ -406,6 +408,19 @@ export async function rejectFriendRequest(
 
     return request;
   });
+
+  // Fired after the transaction closes (see plan §1.10.3).
+  queueLogEvent({
+    name: 'friend_request_rejected',
+    userId: actingUserId,
+    source: 'server',
+    properties: {
+      friendRequestId: request.id,
+      fromUserId: request.fromUserId,
+    },
+  });
+
+  return request;
 }
 
 export async function removeFriend(
@@ -428,6 +443,13 @@ export async function removeFriend(
 
   await prisma.friendship.delete({
     where: { id: existing.id },
+  });
+
+  queueLogEvent({
+    name: 'friend_removed',
+    userId: currentUserId,
+    source: 'server',
+    properties: { friendshipId: existing.id, friendUserId },
   });
 
   return existing;
