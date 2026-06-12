@@ -222,7 +222,12 @@ function EditorTypeSelector({
           Links to an external collection (Amazon wishlist, Steam list, etc.).
           Friends can browse it — list links can&apos;t be claimed.
         </p>
-      ) : null}
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          One specific thing you&apos;d like. Paste a product link below and
+          we&apos;ll fill in the details.
+        </p>
+      )}
     </div>
   );
 }
@@ -1513,24 +1518,14 @@ function EditorFormSection({
         resetImageChanges={resetImageChanges}
         setItemType={setItemType}
       />
-      <Field
-        className="w-full"
-        labelProps={{ children: fieldConfig.titleLabel }}
-        inputProps={{
-          placeholder: fieldConfig.titlePlaceholder,
-          autoFocus: true,
-          ...getInputProps(fields.title, {
-            type: 'text',
-            ariaAttributes: true,
-          }),
-          onInput: () => enrichment.markEdited('title'),
-        }}
-        errors={fields.title.errors}
-      />
+      {/* Link leads: "paste a link, get a complete item" is the fast path,
+          and Title-first framing buried it (June 2026 audit). The autofocused
+          link field invites the paste; Title prefills from the unfurl. */}
       <UrlFieldWithSuggestion
         errors={fields.url.errors}
         inputProps={{
           placeholder: fieldConfig.urlPlaceholder,
+          autoFocus: true,
           ...getInputProps(fields.url, {
             type: 'url',
             ariaAttributes: true,
@@ -1554,6 +1549,19 @@ function EditorFormSection({
       <EnrichmentStatusLine
         isUnfurling={enrichment.isUnfurling}
         showHint={enrichment.showHint}
+      />
+      <Field
+        className="w-full"
+        labelProps={{ children: fieldConfig.titleLabel }}
+        inputProps={{
+          placeholder: fieldConfig.titlePlaceholder,
+          ...getInputProps(fields.title, {
+            type: 'text',
+            ariaAttributes: true,
+          }),
+          onInput: () => enrichment.markEdited('title'),
+        }}
+        errors={fields.title.errors}
       />
       {isListLinkType ? null : (
         <Field
@@ -1762,11 +1770,15 @@ function EditorFormSection({
             {imageWarning}
           </Text>
         ) : null}
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={resetImageChanges}>
-            Reset image changes
-          </Button>
-        </div>
+        {/* Only meaningful once there's an image (or one was removed) —
+            showing it on a pristine empty editor reads as clutter. */}
+        {imagePreview || wishlistItem?.hasImage ? (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={resetImageChanges}>
+              Reset image changes
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <DialogFooterComponent className="grid gap-3 sm:flex sm:justify-end sm:space-x-2">
