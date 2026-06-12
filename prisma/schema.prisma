@@ -488,6 +488,8 @@ model WishlistItem {
   note        String?
   url         String?
   type        String
+  priceCents  Int?
+  currency    String? // ISO-4217; only ever stored alongside a price
   image       Bytes?
   hasImage    Boolean           @default(false)
   imageSource String?
