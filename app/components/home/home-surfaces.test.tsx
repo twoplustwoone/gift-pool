@@ -11,7 +11,11 @@ const fetcherLoad = vi.fn();
 const fetcherSnapshot: {
   data:
     | {
-        activity: Array<{ description: string; id: string; timestampISO: string }>;
+        activity: Array<{
+          description: string;
+          id: string;
+          timestampISO: string;
+        }>;
         birthdays: Array<{
           dateISO: string;
           dateLabel: string;
@@ -29,9 +33,8 @@ const fetcherSnapshot: {
 };
 
 vi.mock('react-router', async () => {
-  const actual = await vi.importActual<typeof import('react-router')>(
-    'react-router',
-  );
+  const actual =
+    await vi.importActual<typeof import('react-router')>('react-router');
 
   return {
     ...actual,
@@ -278,10 +281,9 @@ describe('home surface components', () => {
       ],
     });
 
-    expect(screen.getByRole('link', { name: '+ Start a Pool' })).toHaveAttribute(
-      'href',
-      '/pools/new',
-    );
+    expect(
+      screen.getByRole('link', { name: '+ Start a Pool' }),
+    ).toHaveAttribute('href', '/pools/new');
   });
 
   it('"View all pools →" link is shown when activePools.length > 0', () => {
@@ -299,10 +301,9 @@ describe('home surface components', () => {
       ],
     });
 
-    expect(screen.getByRole('link', { name: 'View all pools →' })).toHaveAttribute(
-      'href',
-      '/pools',
-    );
+    expect(
+      screen.getByRole('link', { name: 'View all pools →' }),
+    ).toHaveAttribute('href', '/pools');
   });
 
   it('"View all pools →" link is NOT shown when activePools is empty', () => {
@@ -355,12 +356,24 @@ describe('home surface components', () => {
     );
   });
 
-  it('shows onboarding nudge card for wishlist when wishlistCount === 0', () => {
+  it('leads with the first-item hero when the wishlist is empty', () => {
     renderHomeLoggedIn({ wishlistCount: 0 });
 
+    expect(screen.getByText('Start your wishlist')).toBeInTheDocument();
+    expect(screen.getByTestId('first-item-cta')).toHaveAttribute(
+      'href',
+      '/wishlist?add=1',
+    );
+    // The first-run hero replaces the old bottom nudge card.
     expect(
-      screen.getByText(HOME_COPY.panels.emptyWishlistTitle),
-    ).toBeInTheDocument();
+      screen.queryByText(HOME_COPY.panels.emptyWishlistTitle),
+    ).not.toBeInTheDocument();
+  });
+
+  it('hides the first-item hero once the wishlist has items', () => {
+    renderHomeLoggedIn({ wishlistCount: 3 });
+
+    expect(screen.queryByText('Start your wishlist')).not.toBeInTheDocument();
   });
 
   it('shows onboarding nudge card for groups when groupCount === 0', () => {
@@ -371,12 +384,10 @@ describe('home surface components', () => {
     ).toBeInTheDocument();
   });
 
-  it('hides both nudge cards when wishlistCount > 0 AND groupCount > 0', () => {
+  it('hides hero and nudges when wishlistCount > 0 AND groupCount > 0', () => {
     renderHomeLoggedIn({ wishlistCount: 1, groupCount: 1 });
 
-    expect(
-      screen.queryByText(HOME_COPY.panels.emptyWishlistTitle),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Start your wishlist')).not.toBeInTheDocument();
     expect(
       screen.queryByText(HOME_COPY.panels.emptyGroupsTitle),
     ).not.toBeInTheDocument();
