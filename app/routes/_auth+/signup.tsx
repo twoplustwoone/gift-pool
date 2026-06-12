@@ -76,6 +76,10 @@ export async function action({ request }: ActionFunctionArgs) {
     request,
     type: 'onboarding',
     target: email,
+    // Carry the original intent (e.g. an invite page or /wishlist) through
+    // verify → onboarding so signup delivers the user where they meant to go.
+    redirectTo:
+      new URL(request.url).searchParams.get('redirectTo') ?? undefined,
   });
   const response = await sendEmail({
     to: email,

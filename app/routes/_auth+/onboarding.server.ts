@@ -11,7 +11,14 @@ export async function handleVerification({ submission }: VerifyFunctionArgs) {
   );
   const verifySession = await verifySessionStorage.getSession();
   verifySession.set(onboardingEmailSessionKey, submission.value.target);
-  return redirect('/onboarding', {
+  // Forward the original intent (invite page, /wishlist, …) so the
+  // onboarding form's hidden redirectTo field picks it up and the user
+  // lands where they meant to go instead of the dashboard.
+  const redirectTo = submission.value.redirectTo as string | undefined;
+  const onboardingUrl = redirectTo
+    ? `/onboarding?redirectTo=${encodeURIComponent(redirectTo)}`
+    : '/onboarding';
+  return redirect(onboardingUrl, {
     headers: {
       'set-cookie': await verifySessionStorage.commitSession(verifySession),
     },

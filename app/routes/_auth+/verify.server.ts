@@ -73,16 +73,24 @@ export async function prepareVerification({
   request,
   type,
   target,
+  redirectTo: postVerificationRedirectTo,
 }: {
   period: number;
   request: Request;
   type: VerificationTypes;
   target: string;
+  /**
+   * Where the user should land AFTER the whole verification flow completes
+   * (e.g. the invite page that sent them to signup). Carried through the
+   * verify URL and the emailed magic link.
+   */
+  redirectTo?: string;
 }) {
   const verifyUrl = getRedirectToUrl({
     request,
     type,
     target,
+    redirectTo: postVerificationRedirectTo,
   });
   const redirectTo = new URL(verifyUrl.toString());
   const { otp, ...verificationConfig } = generateTOTP({
