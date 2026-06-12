@@ -248,17 +248,34 @@ function buildWishlistItemDataWithImage({
   nextImageSource,
   normalizedNote,
   normalizedUrl,
+  priceCents,
+  currency,
 }: {
-  data: Omit<z.infer<typeof WishlistItemSchema>, 'id' | 'categoryId' | 'imageAction' | 'imageUrl' | 'imageFile'>;
+  data: Omit<
+    z.infer<typeof WishlistItemSchema>,
+    | 'id'
+    | 'categoryId'
+    | 'imageAction'
+    | 'imageUrl'
+    | 'imageFile'
+    | 'price'
+    | 'currency'
+    | 'enrichedFields'
+    | 'enrichmentEdited'
+  >;
   normalizedNote: string | null;
   normalizedUrl: string | null;
   nextImage: Buffer | null | undefined;
   nextImageSource: WishlistItemImageSource | null | undefined;
+  priceCents: number | null;
+  currency: string | null;
 }) {
   return {
     ...data,
     note: normalizedNote,
     url: normalizedUrl,
+    priceCents,
+    currency,
     ...(typeof nextImage !== 'undefined'
       ? {
           image: nextImage,
@@ -289,6 +306,8 @@ async function saveUpdatedWishlistItem({
     note: true,
     url: true,
     type: true,
+    priceCents: true,
+    currency: true,
     categoryId: true,
     sortOrder: true,
     updatedAt: true,
@@ -360,6 +379,8 @@ async function createWishlistItem({
       note: true,
       url: true,
       type: true,
+      priceCents: true,
+      currency: true,
       categoryId: true,
       sortOrder: true,
       updatedAt: true,
@@ -419,6 +440,10 @@ export async function action({ request }: ActionFunctionArgs) {
     imageAction,
     imageUrl,
     imageFile,
+    price,
+    currency,
+    enrichedFields,
+    enrichmentEdited,
     ...data
   } = submission.value;
   const { note: normalizedNote, url: normalizedUrl } =
@@ -435,6 +460,9 @@ export async function action({ request }: ActionFunctionArgs) {
     normalizedUrl,
     nextImage,
     nextImageSource,
+    priceCents: price ?? null,
+    // Never store a currency without a price.
+    currency: price != null ? (currency ?? 'USD') : null,
   });
   const nextCategoryId = categoryId || null;
   const savedItem = wishlistItemId
@@ -468,6 +496,12 @@ export async function action({ request }: ActionFunctionArgs) {
         wishlistItemId: savedItem.id,
         categoryId: savedItem.categoryId,
         type: savedItem.type,
+        hasPrice: savedItem.priceCents != null,
+        enriched: Boolean(enrichedFields),
+        enrichedFields: enrichedFields
+          ? enrichedFields.split(',').filter(Boolean)
+          : [],
+        enrichmentEdited: enrichmentEdited === 'true',
       },
     });
     analyticsEventId = event.eventId;
@@ -492,6 +526,8 @@ export async function action({ request }: ActionFunctionArgs) {
         note: savedItem.note,
         url: savedItem.url,
         type: savedItem.type,
+        priceCents: savedItem.priceCents,
+        currency: savedItem.currency,
         categoryId: savedItem.categoryId,
         sortOrder: savedItem.sortOrder,
         updatedAt: savedItem.updatedAt,

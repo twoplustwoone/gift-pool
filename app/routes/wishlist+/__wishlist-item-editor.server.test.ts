@@ -166,12 +166,116 @@ describe('app/routes/wishlist+/__wishlist-item-editor.server.tsx', () => {
         categoryId: category.id,
         type: 'text',
         wishlistItemId: expect.any(String),
+        hasPrice: false,
+        enriched: false,
+        enrichedFields: [],
+        enrichmentEdited: false,
       },
       requestId: 'request-1',
       sessionId: session.id,
       source: 'server',
       userId: user.id,
     });
+  });
+
+  it('persists price + currency and reports enrichment bookkeeping in analytics', async () => {
+    const { cookie, user } = await createOwnerWithSession();
+    queueLogEvent.mockReturnValue({ eventId: 'analytics-2' });
+
+    const formData = new FormData();
+    formData.set('intent', 'save');
+    formData.set('title', 'Enriched widget');
+    formData.set('type', 'text');
+    formData.set('url', 'https://shop.example.com/widget');
+    formData.set('price', '19.99');
+    formData.set('currency', 'EUR');
+    formData.set('enrichedFields', 'title,price');
+    formData.set('enrichmentEdited', 'true');
+    formData.set('imageAction', 'none');
+
+    const response = await action(
+      toActionArgs({
+        context,
+        params: {},
+        request: createEditorRequest({ cookie, formData }),
+      }),
+    );
+
+    expect(getRouteResultStatus(response)).toBe(200);
+    const saved = await prisma.wishlistItem.findFirstOrThrow({
+      where: { ownerId: user.id, title: 'Enriched widget' },
+      select: { priceCents: true, currency: true },
+    });
+    expect(saved).toEqual({ priceCents: 1999, currency: 'EUR' });
+    expect(queueLogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'wishlist_item_added',
+        properties: expect.objectContaining({
+          hasPrice: true,
+          enriched: true,
+          enrichedFields: ['title', 'price'],
+          enrichmentEdited: true,
+        }),
+      }),
+    );
+  });
+
+  it('defaults currency to USD when a price is saved without one, and clears price on empty update', async () => {
+    const { cookie, user } = await createOwnerWithSession();
+    const item = await prisma.wishlistItem.create({
+      data: {
+        ownerId: user.id,
+        sortOrder: 0,
+        title: 'Priced item',
+        type: 'text',
+        priceCents: 4999,
+        currency: 'USD',
+      },
+    });
+
+    // Save with a price but no currency → USD default.
+    const withPrice = new FormData();
+    withPrice.set('intent', 'save');
+    withPrice.set('id', item.id);
+    withPrice.set('title', 'Priced item');
+    withPrice.set('type', 'text');
+    withPrice.set('price', '12.50');
+    withPrice.set('imageAction', 'none');
+    await action(
+      toActionArgs({
+        context,
+        params: {},
+        request: createEditorRequest({ cookie, formData: withPrice }),
+      }),
+    );
+    await expect(
+      prisma.wishlistItem.findUniqueOrThrow({
+        where: { id: item.id },
+        select: { priceCents: true, currency: true },
+      }),
+    ).resolves.toEqual({ priceCents: 1250, currency: 'USD' });
+
+    // Save with an empty price → both cleared.
+    const cleared = new FormData();
+    cleared.set('intent', 'save');
+    cleared.set('id', item.id);
+    cleared.set('title', 'Priced item');
+    cleared.set('type', 'text');
+    cleared.set('price', '');
+    cleared.set('imageAction', 'none');
+    await action(
+      toActionArgs({
+        context,
+        params: {},
+        request: createEditorRequest({ cookie, formData: cleared }),
+      }),
+    );
+    await expect(
+      prisma.wishlistItem.findUniqueOrThrow({
+        where: { id: item.id },
+        select: { priceCents: true, currency: true },
+      }),
+    ).resolves.toEqual({ priceCents: null, currency: null });
   });
 
   it('moves an existing item to a new category and redensifies the old category ordering', async () => {
