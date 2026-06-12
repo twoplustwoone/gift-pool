@@ -38,11 +38,16 @@ const giftIdeaFindFirst = vi.fn();
 const ideaVoteFindUnique = vi.fn();
 const wishlistItemFindMany = vi.fn();
 const wishlistItemFindFirst = vi.fn();
+const canViewWishlistOf = vi.fn();
 const queueLogEvent = vi.fn();
 const redirectWithToast = vi.fn();
 
 vi.mock('#app/utils/auth.server.ts', () => ({
   requireUserId: (...args: Array<unknown>) => requireUserId(...args),
+}));
+
+vi.mock('#app/utils/friends.server.ts', () => ({
+  canViewWishlistOf: (...args: Array<unknown>) => canViewWishlistOf(...args),
 }));
 
 vi.mock('#app/utils/analytics.server.ts', () => ({
@@ -182,6 +187,7 @@ beforeEach(() => {
   ideaVoteFindUnique.mockReset().mockResolvedValue(null);
   wishlistItemFindMany.mockReset().mockResolvedValue([]);
   wishlistItemFindFirst.mockReset().mockResolvedValue(null);
+  canViewWishlistOf.mockReset().mockResolvedValue(true);
   queueLogEvent.mockReset().mockReturnValue({ eventId: 'event-1' });
   poolFindUnique.mockReset().mockResolvedValue(createPool());
   redirectWithToast.mockReset().mockResolvedValue(
@@ -193,6 +199,25 @@ beforeEach(() => {
 });
 
 describe('pool detail route loader', () => {
+  it('hides recipient wishlist items from viewers the visibility rules exclude', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({ recipientUserId: 'recipient-1', status: 'OPEN' }),
+    );
+    canViewWishlistOf.mockResolvedValue(false);
+
+    const result = await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: new Request('https://giftpool.app/pools/pool-1'),
+      }),
+    );
+
+    expect(canViewWishlistOf).toHaveBeenCalledWith('viewer-1', 'recipient-1');
+    expect((result as { recipientWishlistItems: unknown[] }).recipientWishlistItems).toEqual([]);
+    expect(wishlistItemFindMany).not.toHaveBeenCalled();
+  });
+
   it('throws 404 when the pool cannot be loaded', async () => {
     poolFindUnique.mockResolvedValue(null);
 
@@ -412,6 +437,31 @@ describe('pool detail route action', () => {
         properties: expect.objectContaining({ fromWishlist: true }),
       }),
     );
+  });
+
+  it('rejects a wishlistItemId when the proposer may not view the recipient wishlist', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({ recipientUserId: 'recipient-1' }),
+    );
+    canViewWishlistOf.mockResolvedValue(false);
+    wishlistItemFindFirst.mockResolvedValue({ id: 'item-1' });
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            intent: 'propose-idea',
+            name: 'Hidden wishlist item',
+            poolId: 'pool-1',
+            wishlistItemId: 'item-1',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 400 } });
+    expect(wishlistItemFindFirst).not.toHaveBeenCalled();
+    expect(proposeIdea).not.toHaveBeenCalled();
   });
 
   it('rejects a wishlistItemId the recipient does not own', async () => {

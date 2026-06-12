@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { queueLogEvent } from '#app/utils/analytics.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { canViewWishlistOf } from '#app/utils/friends.server.ts'
 import { dollarsToCents } from '#app/utils/price.ts'
 import { POOL_STATUS } from '#app/utils/pool-constants.ts'
 import {
@@ -94,14 +95,15 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		: null
 
 	// Recipient's active wishlist items power the "from their wishlist" picker
-	// in the propose form. Pool membership is a deliberate gifting circle, and
-	// poolSelect already exposes smart-linked item data to every contributor,
-	// so this follows the same precedent. Only fetched while ideas can still
-	// be proposed.
+	// in the propose form. Only fetched while ideas can still be proposed, and
+	// gated per viewer on the recipient's wishlistVisibility — joining a pool
+	// (e.g. via invite code) must not bypass the recipient's privacy setting.
 	const ideasOpen =
 		pool.status === POOL_STATUS.OPEN || pool.status === POOL_STATUS.VOTING
 	const recipientWishlistItems =
-		pool.recipientUserId && ideasOpen
+		pool.recipientUserId &&
+		ideasOpen &&
+		(await canViewWishlistOf(userId, pool.recipientUserId))
 			? await prisma.wishlistItem.findMany({
 					where: {
 						ownerId: pool.recipientUserId,
@@ -323,15 +325,23 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	switch (v.intent) {
 		case Intent.ProposeIdea: {
 			// A smart link must point at an item the recipient actually owns —
-			// otherwise a contributor could attach arbitrary users' items.
+			// otherwise a contributor could attach arbitrary users' items. The
+			// proposer must also be allowed to see the recipient's wishlist
+			// (same gate as the picker), so the hidden UI can't be bypassed
+			// by POSTing ids directly.
 			if (v.wishlistItemId) {
-				const item = await prisma.wishlistItem.findFirst({
-					where: {
-						id: v.wishlistItemId,
-						ownerId: pool.recipientUserId ?? '',
-					},
-					select: { id: true },
-				})
+				const allowed = pool.recipientUserId
+					? await canViewWishlistOf(userId, pool.recipientUserId)
+					: false
+				const item = allowed
+					? await prisma.wishlistItem.findFirst({
+							where: {
+								id: v.wishlistItemId,
+								ownerId: pool.recipientUserId ?? '',
+							},
+							select: { id: true },
+						})
+					: null
 				if (!item) {
 					throw data({ error: 'Wishlist item not found.' }, { status: 400 })
 				}

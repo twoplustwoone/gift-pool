@@ -496,3 +496,31 @@ export async function getOutgoingFriendRequests(userId: string) {
   });
   return requests;
 }
+
+/**
+ * Whether `viewerId` may see `ownerId`'s wishlist under the owner's
+ * `wishlistVisibility` setting — the same rules the wishlist pages apply
+ * (EVERYONE / FRIENDS_OF_FRIENDS / FRIENDS). Use this anywhere wishlist
+ * items leak outside the owner's own pages (e.g. the pool idea picker).
+ */
+export async function canViewWishlistOf(
+  viewerId: string,
+  ownerId: string,
+): Promise<boolean> {
+  if (viewerId === ownerId) return true;
+
+  const owner = await prisma.user.findUnique({
+    where: { id: ownerId },
+    select: { wishlistVisibility: true },
+  });
+  if (!owner) return false;
+  if (owner.wishlistVisibility === 'EVERYONE') return true;
+
+  const relationship = await getRelationshipDetails(viewerId, ownerId);
+  if (relationship.state === 'FRIENDS') return true;
+
+  if (owner.wishlistVisibility === 'FRIENDS_OF_FRIENDS') {
+    return isFriendOfFriend(viewerId, ownerId);
+  }
+  return false;
+}
