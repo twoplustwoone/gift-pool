@@ -94,6 +94,13 @@ const loaderDataSnapshot = {
     status: 'VOTING',
     title: 'Alex Birthday Pool',
   },
+  recipientWishlistItems: [] as Array<{
+    id: string;
+    title: string;
+    url: string | null;
+    priceCents: number | null;
+    currency: string | null;
+  }>,
   viewer: {
     contributionCents: 3000,
     hasPaid: false,
@@ -143,6 +150,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     loaderDataSnapshot.pool.finalPriceCents = null;
     loaderDataSnapshot.pool.purchaserId = 'buyer-1';
     loaderDataSnapshot.pool.status = 'VOTING';
+    loaderDataSnapshot.recipientWishlistItems = [];
     loaderDataSnapshot.viewer.userId = 'viewer-1';
 
     vi.stubGlobal('navigator', {
@@ -172,7 +180,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     expect(screen.getByText('From wishlist')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /view link/i })).toHaveAttribute(
       'href',
-      'https://example.com/headphones',
+      '/out?idea=idea-1',
     );
     expect(screen.getByText('Propose an idea')).toBeInTheDocument();
     expect(screen.getByDisplayValue('30.00')).toBeInTheDocument();
@@ -190,6 +198,42 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     expect(screen.getByText('Danger zone')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel pool' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete pool' })).toBeInTheDocument();
+  });
+
+  it('prefills the propose form from a picked wishlist item', async () => {
+    loaderDataSnapshot.recipientWishlistItems = [
+      {
+        id: 'wish-9',
+        title: 'Espresso machine',
+        url: 'https://shop.example.com/espresso',
+        priceCents: 24999,
+        currency: 'USD',
+      },
+    ];
+
+    renderRoute();
+
+    const picker = screen.getByTestId('wishlist-item-picker');
+    expect(picker).toHaveTextContent('Espresso machine — $249.99');
+
+    await userEvent.selectOptions(picker, 'wish-9');
+
+    await screen.findByDisplayValue('Espresso machine');
+    expect(
+      screen.getByDisplayValue('https://shop.example.com/espresso'),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue('249.99')).toBeInTheDocument();
+    expect(
+      document.querySelector<HTMLInputElement>('input[name="wishlistItemId"]')
+        ?.value,
+    ).toBe('wish-9');
+  });
+
+  it('hides the wishlist picker when the recipient has no platform wishlist', () => {
+    renderRoute();
+    expect(
+      screen.queryByTestId('wishlist-item-picker'),
+    ).not.toBeInTheDocument();
   });
 
   it('renders the decided purchaser UI with contribution breakdown and role assignment', () => {

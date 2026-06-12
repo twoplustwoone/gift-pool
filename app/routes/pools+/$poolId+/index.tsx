@@ -178,9 +178,9 @@ const IdeaCard = ({
 					)}
 					{idea.url && (
 						<a
-							href={idea.url}
+							href={`/out?idea=${idea.id}`}
 							target="_blank"
-							rel="noopener noreferrer"
+							rel="sponsored noopener noreferrer"
 							className="flex items-center gap-1 text-xs text-primary hover:underline"
 						>
 							<LuLink size={11} /> View link
@@ -281,8 +281,17 @@ const IdeaCard = ({
 }
 
 // Propose idea form
-const ProposeIdeaForm = ({ poolId }: { poolId: string }) => {
+type RecipientWishlistItem = LoaderData['recipientWishlistItems'][number]
+
+const ProposeIdeaForm = ({
+	poolId,
+	recipientWishlistItems = [],
+}: {
+	poolId: string
+	recipientWishlistItems?: RecipientWishlistItem[]
+}) => {
 	const fetcher = useFetcher()
+	const [selectedItemId, setSelectedItemId] = useState('')
 	const [form, fields] = useForm({
 		lastResult: fetcher.data as any,
 		onValidate({ formData }) {
@@ -303,6 +312,7 @@ const ProposeIdeaForm = ({ poolId }: { poolId: string }) => {
 						.min(0)
 						.optional()
 						.or(z.literal('')),
+					wishlistItemId: z.string().optional(),
 				}),
 			})
 		},
@@ -310,15 +320,50 @@ const ProposeIdeaForm = ({ poolId }: { poolId: string }) => {
 
 	const isSubmitting = fetcher.state !== 'idle'
 
+	// Prefill name/url/price from a picked wishlist item. Clearing the picker
+	// only unlinks the item — prefilled text stays, it's the user's now.
+	const handlePickItem = (itemId: string) => {
+		setSelectedItemId(itemId)
+		if (!itemId) return
+		const item = recipientWishlistItems.find(i => i.id === itemId)
+		if (!item) return
+		form.update({ name: fields.name.name, value: item.title })
+		form.update({ name: fields.url.name, value: item.url ?? '' })
+		form.update({
+			name: fields.estimatedPriceCents.name,
+			value: item.priceCents != null ? (item.priceCents / 100).toFixed(2) : '',
+		})
+	}
+
 	return (
 		<fetcher.Form method="post" {...getFormProps(form)}>
 			<input type="hidden" name="intent" value="propose-idea" />
 			<input type="hidden" name="poolId" value={poolId} />
+			<input type="hidden" name="wishlistItemId" value={selectedItemId} />
 			<Card className="p-4">
 				<Stack gap={3}>
 					<Text weight="medium" size="sm">
 						Propose an idea
 					</Text>
+					{recipientWishlistItems.length > 0 && (
+						<select
+							value={selectedItemId}
+							onChange={e => handlePickItem(e.target.value)}
+							data-testid="wishlist-item-picker"
+							aria-label="Pick from their wishlist"
+							className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-muted-foreground"
+						>
+							<option value="">From their wishlist… (optional)</option>
+							{recipientWishlistItems.map(item => (
+								<option key={item.id} value={item.id}>
+									{item.title}
+									{item.priceCents != null
+										? ` — ${formatCents(item.priceCents, item.currency ?? 'USD')}`
+										: ''}
+								</option>
+							))}
+						</select>
+					)}
 					<Stack gap={2}>
 						<Input
 							{...getInputProps(fields.name, { type: 'text' })}
@@ -399,9 +444,9 @@ const ChosenGiftBanner = ({
 					)}
 					{idea.url && (
 						<a
-							href={idea.url}
+							href={`/out?idea=${idea.id}`}
 							target="_blank"
-							rel="noopener noreferrer"
+							rel="sponsored noopener noreferrer"
 							className="flex items-center gap-1 text-sm text-primary hover:underline"
 						>
 							<LuLink size={13} /> View link
@@ -805,6 +850,7 @@ const PoolIndex = () => {
 		myVoteIdeaId,
 		contributionBreakdown,
 		inviteUrl,
+		recipientWishlistItems,
 	} = useRouteLoaderData<typeof routeLoader>(
 		'routes/pools+/$poolId+/_layout',
 	)!
@@ -942,7 +988,20 @@ const PoolIndex = () => {
 					)}
 
 					{/* Propose form — anchored at the bottom */}
-					<ProposeIdeaForm poolId={pool.id} />
+					<ProposeIdeaForm
+						poolId={pool.id}
+						recipientWishlistItems={recipientWishlistItems}
+					/>
+					<p className="text-center text-xs text-muted-foreground/70">
+						Some product links are affiliate links — GiftPool may earn a small
+						commission, at no cost to you.{' '}
+						<a
+							href="/support#affiliate"
+							className="underline underline-offset-2 hover:text-muted-foreground"
+						>
+							Learn more
+						</a>
+					</p>
 				</Stack>
 			)}
 
