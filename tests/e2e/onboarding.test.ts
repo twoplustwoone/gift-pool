@@ -112,7 +112,7 @@ test('onboarding with a short code', async ({ page, getOnboardingData }) => {
 
   await page.getByRole('button', { name: /submit/i }).click();
   await expect(
-    page.getByText(/we've sent you a code to verify your email address/i),
+    page.getByText(/we've sent a code to/i),
   ).toBeVisible();
 
   const email = await readEmail(onboardingData.email);
@@ -157,7 +157,7 @@ test('reset password with a link', async ({ page, insertNewUser }) => {
   await page.getByRole('textbox', { name: /username/i }).fill(user.username);
   await page.getByRole('button', { name: /recover password/i }).click();
   await expect(
-    page.getByText(/we've sent you a code to verify your email address/i),
+    page.getByText(/we've sent a code to/i),
   ).toBeVisible();
 
   const email = await readEmail(user.email);
@@ -213,7 +213,7 @@ test('reset password with a short code', async ({ page, insertNewUser }) => {
   await page.getByRole('textbox', { name: /username/i }).fill(user.username);
   await page.getByRole('button', { name: /recover password/i }).click();
   await expect(
-    page.getByText(/we've sent you a code to verify your email address/i),
+    page.getByText(/we've sent a code to/i),
   ).toBeVisible();
 
   const email = await readEmail(user.email);
