@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sessionKey } from './auth.server.ts';
 import { authSessionStorage } from './session.server.ts';
+import { getVisitorId } from './visitor-id.server.ts';
 
 export const REQUEST_ID_HEADER = 'X-Request-ID';
 
@@ -17,8 +18,9 @@ export async function getRequestContext(request: Request) {
     request.headers.get('cookie'),
   );
   const sessionId = authSession.get(sessionKey) ?? null;
+  const visitorId = getVisitorId(request);
 
-  return { requestId, sessionId };
+  return { requestId, sessionId, visitorId };
 }
 
 export function applyRequestIdHeader(

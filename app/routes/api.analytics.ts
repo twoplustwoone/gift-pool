@@ -5,6 +5,7 @@ import { logEvent } from '#app/utils/analytics.server.ts';
 import {
   type AnalyticEventName,
   ANALYTIC_EVENT_NAMES,
+  USER_REQUIRED_EVENTS,
 } from '#app/utils/analytics.ts';
 import { getUserId } from '#app/utils/auth.server.ts';
 import {
@@ -40,18 +41,11 @@ export async function action({ request }: ActionFunctionArgs) {
     );
   }
   const userId = await getUserId(request);
-  if (!userId) {
-    return data(
-      {
-        error: 'Unauthorized',
-      },
-      {
-        status: 401,
-      },
-    );
-  }
-  const { requestId: contextRequestId, sessionId } =
-    await getRequestContext(request);
+  const {
+    requestId: contextRequestId,
+    sessionId,
+    visitorId,
+  } = await getRequestContext(request);
   let payload: z.infer<typeof AnalyticsEventSchema>;
   try {
     const raw = await request.json();
@@ -79,12 +73,25 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     );
   }
+  // Anonymous visitors may post events that don't require a user (e.g.
+  // share-page views, invite landings). Anything user-required still 401s.
+  if (!userId && USER_REQUIRED_EVENTS.has(payload.name)) {
+    return data(
+      {
+        error: 'Unauthorized',
+      },
+      {
+        status: 401,
+      },
+    );
+  }
   const event = await logEvent({
     name: payload.name as AnalyticEventName,
     userId,
     source: 'client',
     requestId: payload.requestId ?? contextRequestId,
     sessionId: sessionId ?? payload.sessionId ?? null,
+    visitorId,
     properties: payload.properties as Prisma.InputJsonValue | undefined,
     eventId: payload.eventId,
   });

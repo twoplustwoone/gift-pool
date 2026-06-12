@@ -55,12 +55,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   const { url: finalUrl, network } = applyAffiliateTags(parsed.toString());
 
-  const { requestId } = await getRequestContext(request);
+  const { requestId, visitorId } = await getRequestContext(request);
   queueLogEvent({
     name: 'wishlist_link_clicked',
     userId: userId ?? null,
     source: 'server',
     requestId,
+    visitorId,
     properties: {
       entity,
       id: itemId ?? ideaId,

@@ -47,7 +47,10 @@ import { usePwaInstallPrompt } from './hooks/use-pwa-install-prompt.ts';
 import nunitoStyleSheet from './styles/nunito-font.css?url';
 import tailwindStyleSheetUrl from './styles/tailwind.css?url';
 import { getUserId, logout } from './utils/auth.server.ts';
-import { isChunkLoadError, reloadOnceForChunkError } from './utils/chunk-error.client.ts';
+import {
+  isChunkLoadError,
+  reloadOnceForChunkError,
+} from './utils/chunk-error.client.ts';
 import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx';
 import { prisma } from './utils/db.server.ts';
 import { honeypot } from './utils/honeypot.server.ts';
@@ -63,6 +66,7 @@ import { useRequestInfo } from './utils/request-info.ts';
 import { type Theme, getTheme } from './utils/theme.server.ts';
 import { makeTimings, time } from './utils/timing.server.ts';
 import { getToast } from './utils/toast.server.ts';
+import { ensureVisitorId } from './utils/visitor-id.server.ts';
 export const links: LinksFunction = () => [
   // Preload svg sprite as a resource to avoid render blocking
   {
@@ -124,6 +128,9 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
 export async function loader({ request }: LoaderFunctionArgs) {
   const timings = makeTimings('root loader');
   const { requestId } = await getRequestContext(request);
+  // Anonymous visitor id for drop-off analytics — set/refreshed on every
+  // document request so share/invite landings are attributable pre-signup.
+  const { setCookieHeader: visitorCookieHeader } = ensureVisitorId(request);
   const userId = await time(() => getUserId(request), {
     timings,
     type: 'getUserId',
@@ -209,6 +216,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         {
           'Server-Timing': timings.toString(),
         },
+        visitorCookieHeader ? { 'Set-Cookie': visitorCookieHeader } : null,
         toastHeaders,
         applyRequestIdHeader(null, requestId),
       ),
@@ -224,8 +232,7 @@ export const headers: HeadersFunction = ({ loaderHeaders }) => {
 // The root route has no meaningful action handler. Return 405 for unexpected
 // POST requests (e.g. bots, stale forms) so React Router doesn't 405-error
 // with an unhandled "no action" message. (Fixes GIFTPOOL-UI-18, GIFTPOOL-UI-12)
-export const action = () =>
-  new Response('Method Not Allowed', { status: 405 });
+export const action = () => new Response('Method Not Allowed', { status: 405 });
 const ThemeFormSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']),
 });

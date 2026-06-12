@@ -19,6 +19,7 @@ type LogEventInput = {
   source: AnalyticEventSource;
   requestId?: string | null;
   sessionId?: string | null;
+  visitorId?: string | null;
   properties?: Prisma.InputJsonValue | null;
   eventId?: string;
   createdAt?: Date;
@@ -55,6 +56,7 @@ type RecoverFromConflictArgs = {
   userId?: string | null;
   requestId?: string | null;
   sessionId?: string | null;
+  visitorId?: string | null;
   serializedProperties: string | null;
 };
 
@@ -70,6 +72,7 @@ async function recoverFromEventIdConflict({
   userId,
   requestId,
   sessionId,
+  visitorId,
   serializedProperties,
 }: RecoverFromConflictArgs) {
   const existing = await prisma.analyticsEvent.findUnique({
@@ -84,6 +87,7 @@ async function recoverFromEventIdConflict({
       userId: userId ?? existing.userId,
       requestId: requestId ?? existing.requestId,
       sessionId: sessionId ?? existing.sessionId,
+      visitorId: visitorId ?? existing.visitorId,
       properties: serializedProperties ?? existing.properties,
     },
   });
@@ -95,6 +99,7 @@ export async function logEvent({
   source,
   requestId,
   sessionId,
+  visitorId,
   properties,
   eventId,
   createdAt,
@@ -133,6 +138,7 @@ export async function logEvent({
         source,
         requestId: requestId ?? null,
         sessionId: sessionId ?? null,
+        visitorId: visitorId ?? null,
         properties: serializedProperties,
         createdAt: resolvedCreatedAt,
       },
@@ -145,6 +151,7 @@ export async function logEvent({
       userId,
       requestId,
       sessionId,
+      visitorId,
       serializedProperties,
     });
     if (recovered) return recovered;
@@ -166,9 +173,7 @@ export function queueLogEvent(input: LogEventInput): { eventId: string } {
   // instead of a silent Sentry-only failure.
   assertValidEventName(input.name);
   if (USER_REQUIRED_EVENTS.has(input.name) && !input.userId) {
-    throw new Error(
-      `userId is required for analytics event "${input.name}"`,
-    );
+    throw new Error(`userId is required for analytics event "${input.name}"`);
   }
   const eventId = input.eventId ?? randomUUID();
   void logEvent({ ...input, eventId }).catch((error: unknown) => {
