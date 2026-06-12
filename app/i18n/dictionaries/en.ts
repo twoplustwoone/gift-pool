@@ -53,8 +53,8 @@ export const en = {
     listDescription: 'See the people you have connected with across GiftPool.',
     emptyTitle: 'No friends yet',
     emptyDescription:
-      'Find people in your groups and send them a friend request.',
-    emptyCta: 'Browse groups',
+      'Friends can see your wishlist and chip in on group gifts. Share an invite link or search by username.',
+    emptyCta: 'Add friend',
     incomingRequests: 'Incoming requests',
     outgoingRequests: 'Outgoing requests',
     removeSuccess: '{{name}} removed from friends.',
@@ -85,7 +85,7 @@ export const en = {
     gateIncomingDescriptionProfile:
       'Accept their request to view their profile and activity.',
     gateIncomingDescriptionWishlist:
-      "Accept their request to view their wishlist.",
+      'Accept their request to view their wishlist.',
   },
   time: {
     justNow: 'just now',

@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LuCopy, LuLink, LuPlus, LuQrCode, LuUsers } from 'react-icons/lu';
-import { Link, Outlet, useLoaderData, useSearchParams,
+import {
+  Link,
+  Outlet,
+  useLoaderData,
+  useSearchParams,
   type ClientLoaderFunctionArgs,
   type LoaderFunctionArgs,
-  type MetaFunction } from 'react-router';
+  type MetaFunction,
+} from 'react-router';
 import { toast } from 'sonner';
 import {
   FriendActionButton,
@@ -91,19 +96,13 @@ type FriendRequestRowProps = Readonly<{
   user: RequestListEntryUser;
 }>;
 type SearchResultRowProps = Readonly<{
-  onOutgoingCreated?: (
-    requestId: string,
-    user: FriendEntry['user'],
-  ) => void;
+  onOutgoingCreated?: (requestId: string, user: FriendEntry['user']) => void;
   result: SearchResult;
 }>;
 type SearchResultsPanelProps = Readonly<{
   hasResults: boolean;
   isLoading: boolean;
-  onOutgoingCreated?: (
-    requestId: string,
-    user: FriendEntry['user'],
-  ) => void;
+  onOutgoingCreated?: (requestId: string, user: FriendEntry['user']) => void;
   query: string;
   results: SearchResult[];
   showEmpty: boolean;
@@ -142,10 +141,7 @@ export function getActiveTab(searchParams: URLSearchParams): FriendsTab {
     : 'friends';
 }
 
-export function addFriendIfMissing(
-  friends: FriendEntry[],
-  entry: FriendEntry,
-) {
+export function addFriendIfMissing(friends: FriendEntry[], entry: FriendEntry) {
   if (friends.some((item) => item.user.id === entry.user.id)) {
     return friends;
   }
@@ -223,7 +219,9 @@ export async function runBatchRequestMutation(
   return { failedIds, unreadCount };
 }
 
-export async function runOptimisticRequestBatch<TRequest extends { id: string }>(
+export async function runOptimisticRequestBatch<
+  TRequest extends { id: string },
+>(
   ids: string[],
   action: RequestMutationAction,
   requests: TRequest[],
@@ -274,10 +272,7 @@ export function getRequestMutationMessages(
   };
 }
 
-export function filterFriends(
-  friends: FriendEntry[],
-  term: string,
-) {
+export function filterFriends(friends: FriendEntry[], term: string) {
   const normalizedTerm = term.trim().toLowerCase();
   if (!normalizedTerm) return friends;
 
@@ -337,7 +332,11 @@ export function sortFriendsByUpcomingBirthday(
   return withMeta.map((entry) => entry.friend);
 }
 
-export function toggleSelection(set: Set<string>, id: string, selected: boolean) {
+export function toggleSelection(
+  set: Set<string>,
+  id: string,
+  selected: boolean,
+) {
   const next = new Set(set);
   if (selected) next.add(id);
   else next.delete(id);
@@ -367,7 +366,8 @@ export function applyOutgoingRelationshipTransition(
 }
 
 export function extractInviteUser(detail: FriendshipEventDetail) {
-  return (detail as FriendshipEventDetail & { user?: FriendEntry['user'] }).user;
+  return (detail as FriendshipEventDetail & { user?: FriendEntry['user'] })
+    .user;
 }
 
 export function toRelationshipSnapshot(
@@ -418,9 +418,7 @@ function FriendRequestRow({
   const username = user.username;
 
   return (
-    <li
-      className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm"
-    >
+    <li className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm">
       {selectMode ? (
         <input
           type="checkbox"
@@ -447,19 +445,13 @@ function FriendRequestRow({
   );
 }
 
-function SearchResultRow({
-  onOutgoingCreated,
-  result,
-}: SearchResultRowProps) {
+function SearchResultRow({ onOutgoingCreated, result }: SearchResultRowProps) {
   const { relationship, user } = result;
   const username = user.username;
 
   const handleStateChange = useCallback(
     (snapshot: RelationshipSnapshot) => {
-      if (
-        snapshot.state === 'PENDING_OUTGOING' &&
-        snapshot.outgoingRequestId
-      ) {
+      if (snapshot.state === 'PENDING_OUTGOING' && snapshot.outgoingRequestId) {
         onOutgoingCreated?.(snapshot.outgoingRequestId, user);
       }
     },
@@ -471,7 +463,9 @@ function SearchResultRow({
       <div className="flex items-center gap-4">
         <Avatar size="s" image={user.image} user={user} />
         <div className="min-w-0">
-          <div className="truncate font-medium text-foreground">@{username}</div>
+          <div className="truncate font-medium text-foreground">
+            @{username}
+          </div>
         </div>
       </div>
       <div className="sm:ml-auto">
@@ -665,7 +659,9 @@ export function syncIncomingForFriendshipEvent(
     const match = prev.find((request) => request.fromUser.id === detail.userId);
     if (!match) return prev;
     if (detail.state === 'FRIENDS') {
-      addFriendEntry(buildFriendEntry(match.id, match.fromUser, detail.friendshipId));
+      addFriendEntry(
+        buildFriendEntry(match.id, match.fromUser, detail.friendshipId),
+      );
     }
     return applyIncomingRelationshipTransition(
       prev,
@@ -684,7 +680,9 @@ export function syncOutgoingForFriendshipEvent(
     const match = prev.find((request) => request.toUser.id === detail.userId);
     if (!match) return prev;
     if (detail.state === 'FRIENDS') {
-      addFriendEntry(buildFriendEntry(match.id, match.toUser, detail.friendshipId));
+      addFriendEntry(
+        buildFriendEntry(match.id, match.toUser, detail.friendshipId),
+      );
     }
     return applyOutgoingRelationshipTransition(
       prev,
@@ -856,8 +854,14 @@ function FriendsListSection({
         title={t('friends.emptyTitle')}
         description={t('friends.emptyDescription')}
         action={
-          <Button asChild variant="ghost">
-            <Link to="/groups">{t('friends.emptyCta')}</Link>
+          // Opens the Add friend dialog directly — the old "Browse groups"
+          // CTA was circular for new users, whose groups page is empty too.
+          <Button
+            onClick={() =>
+              window.dispatchEvent(new Event('friends:add-friend-open'))
+            }
+          >
+            {t('friends.emptyCta')}
           </Button>
         }
       />
@@ -1014,8 +1018,12 @@ function useInviteLinkController() {
     if (!inviteUrl) return;
 
     try {
-      const qrCodeModule: { toDataURL: (value: string, options: { margin: number; scale: number }) => Promise<string> } =
-        await import('qrcode');
+      const qrCodeModule: {
+        toDataURL: (
+          value: string,
+          options: { margin: number; scale: number },
+        ) => Promise<string>;
+      } = await import('qrcode');
       const dataUrl = await qrCodeModule.toDataURL(inviteUrl, {
         margin: 1,
         scale: 6,
@@ -1127,12 +1135,17 @@ function AddFriendDialog({
 }: Readonly<{
   q: string;
   setQ: (next: string) => void;
-  onOutgoingCreated: (
-    requestId: string,
-    user: FriendEntry['user'],
-  ) => void;
+  onOutgoingCreated: (requestId: string, user: FriendEntry['user']) => void;
 }>) {
   const [open, setOpen] = useState(false);
+  // Lets the empty state (and anything else) open this dialog without
+  // prop-drilling — same pattern as the notification bell's
+  // 'notifications:open' event.
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener('friends:add-friend-open', handler);
+    return () => window.removeEventListener('friends:add-friend-open', handler);
+  }, []);
   return (
     <>
       <Button onClick={() => setOpen(true)}>
@@ -1234,7 +1247,12 @@ const FriendsRoute = () => {
   const handleOutgoingCreated = useCallback(
     (requestId: string, user: FriendEntry['user']) => {
       setOutgoingState((prev) => {
-        if (prev.some((request) => request.id === requestId || request.toUser.id === user.id)) {
+        if (
+          prev.some(
+            (request) =>
+              request.id === requestId || request.toUser.id === user.id,
+          )
+        ) {
           return prev;
         }
         return [createOutgoingEntry(requestId, user), ...prev];
@@ -1257,7 +1275,7 @@ const FriendsRoute = () => {
         />
       </PageHeader>
 
-      <div className="mx-auto w-full max-w-6xl min-h-0 flex-1 px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto min-h-0 w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
         <Stack gap={4}>
           <PendingRequestsCard
             incomingState={incomingState}
@@ -1389,10 +1407,7 @@ function AddFriendsPanel({
   query: controlledQuery,
   onQueryChange,
 }: {
-  onOutgoingCreated?: (
-    requestId: string,
-    user: FriendEntry['user'],
-  ) => void;
+  onOutgoingCreated?: (requestId: string, user: FriendEntry['user']) => void;
   query?: string;
   onQueryChange?: (q: string) => void;
 }) {
