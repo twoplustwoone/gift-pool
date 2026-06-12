@@ -3,7 +3,11 @@ import {
   type ActionFunctionArgs,
   data,
   redirect,
-  type LoaderFunctionArgs, Form, useActionData, useLoaderData, useNavigate 
+  type LoaderFunctionArgs,
+  Form,
+  useActionData,
+  useLoaderData,
+  useNavigate,
 } from 'react-router';
 import { Button } from '#app/components/ui/button.tsx';
 import {
@@ -14,6 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#app/components/ui/dialog.tsx';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
+import { getUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import {
   addUserToGroup,
@@ -21,13 +27,43 @@ import {
   submitJoinRequest,
 } from '#app/utils/group-invitations.server.ts';
 import { requireUserIdNotInGroup } from '#app/utils/groups.server.ts';
+import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { code } = params;
   if (!code) {
     return redirect('/groups');
   }
-  const invitation = await requireInvitationNotExpired(code);
+  // Funnel entry: fired before the auth gate so anonymous landings (the
+  // drop-off we want to measure) are captured, and on dead links too.
+  const { requestId, visitorId } = await getRequestContext(request);
+  const userId = await getUserId(request);
+  let invitation;
+  try {
+    invitation = await requireInvitationNotExpired(code);
+  } catch (error) {
+    queueLogEvent({
+      name: 'invite_landed',
+      userId,
+      source: 'server',
+      requestId,
+      visitorId,
+      properties: { inviteType: 'group', valid: false },
+    });
+    throw error;
+  }
+  queueLogEvent({
+    name: 'invite_landed',
+    userId,
+    source: 'server',
+    requestId,
+    visitorId,
+    properties: {
+      inviteType: 'group',
+      valid: true,
+      giftGroupId: invitation.giftGroupId,
+    },
+  });
   await requireUserIdNotInGroup(request, invitation.giftGroupId);
   return {
     giftGroupId: invitation.giftGroup.id,
@@ -73,6 +109,12 @@ export async function action({ request, params }: ActionFunctionArgs) {
         increment: 1,
       },
     },
+  });
+  queueLogEvent({
+    name: 'group_joined',
+    userId,
+    source: 'server',
+    properties: { giftGroupId: invitation.giftGroupId, via: 'invite' },
   });
   return redirectWithToast(`/groups/${invitation.giftGroupId}`, {
     type: 'success',

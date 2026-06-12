@@ -33,7 +33,9 @@ vi.mock('#app/utils/analytics.client.ts', () => ({
 }));
 
 vi.mock('#app/components/ui/dropdown-menu.tsx', () => ({
-  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -48,18 +50,30 @@ vi.mock('#app/components/ui/dropdown-menu.tsx', () => ({
       {children}
     </button>
   ),
-  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 vi.mock('#app/components/ui/dialog.tsx', () => ({
-  Dialog: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Dialog: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
   DialogContent: ({ children }: { children: React.ReactNode }) => (
     <div role="dialog">{children}</div>
   ),
-  DialogDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogFooter: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogTitle: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }));
 
 beforeEach(() => {
@@ -140,14 +154,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderButton(
-  relationship: {
-    friendshipId: string | null;
-    incomingRequestId: string | null;
-    outgoingRequestId: string | null;
-    state: 'NONE' | 'PENDING_INCOMING' | 'PENDING_OUTGOING' | 'FRIENDS';
-  },
-) {
+function renderButton(relationship: {
+  friendshipId: string | null;
+  incomingRequestId: string | null;
+  outgoingRequestId: string | null;
+  state: 'NONE' | 'PENDING_INCOMING' | 'PENDING_OUTGOING' | 'FRIENDS';
+}) {
   const onStateChange = vi.fn();
 
   render(
@@ -174,15 +186,12 @@ describe('<FriendActionButton />', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add Friend' }));
 
     await waitFor(() => {
-      expect(track).toHaveBeenCalledWith('friend_request_send', {
-        targetUserId: 'target-user',
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/friends/requests', {
+        body: JSON.stringify({ toUserId: 'target-user' }),
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
       });
-    });
-    expect(globalThis.fetch).toHaveBeenCalledWith('/api/friends/requests', {
-      body: JSON.stringify({ toUserId: 'target-user' }),
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      method: 'POST',
     });
     expect(toastSuccess).toHaveBeenCalledWith('Friend request sent.');
     expect(onStateChange).toHaveBeenCalledWith({
@@ -194,10 +203,14 @@ describe('<FriendActionButton />', () => {
   });
 
   it('rolls back a failed request send', async () => {
-    (console.error as unknown as { mockImplementation: (fn: () => void) => void }).mockImplementation(
-      () => {},
+    (
+      console.error as unknown as {
+        mockImplementation: (fn: () => void) => void;
+      }
+    ).mockImplementation(() => {});
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(null, { status: 500 }),
     );
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(null, { status: 500 }));
 
     const { onStateChange } = renderButton({
       friendshipId: null,
@@ -209,7 +222,9 @@ describe('<FriendActionButton />', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add Friend' }));
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith('Something went wrong. Try again.');
+      expect(toastError).toHaveBeenCalledWith(
+        'Something went wrong. Try again.',
+      );
     });
     expect(onStateChange).toHaveBeenLastCalledWith({
       friendshipId: null,
@@ -227,7 +242,9 @@ describe('<FriendActionButton />', () => {
       state: 'PENDING_OUTGOING',
     });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Cancel request' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Cancel request' }),
+    );
 
     await waitFor(() => {
       expect(toastSuccess).toHaveBeenCalledWith('Friend request cancelled.');
@@ -248,13 +265,12 @@ describe('<FriendActionButton />', () => {
       state: 'PENDING_INCOMING',
     });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Accept friend request from @alex' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Accept friend request from @alex' }),
+    );
 
     await waitFor(() => {
       expect(setUnreadCount).toHaveBeenCalledWith(4);
-    });
-    expect(track).toHaveBeenCalledWith('friend_request_accept', {
-      targetUserId: 'target-user',
     });
     expect(toastSuccess).toHaveBeenCalledWith('Friend request accepted.');
     expect(onStateChange).toHaveBeenLastCalledWith({
@@ -266,9 +282,11 @@ describe('<FriendActionButton />', () => {
   });
 
   it('rejects an incoming request and rolls back on failure', async () => {
-    (console.error as unknown as { mockImplementation: (fn: () => void) => void }).mockImplementation(
-      () => {},
-    );
+    (
+      console.error as unknown as {
+        mockImplementation: (fn: () => void) => void;
+      }
+    ).mockImplementation(() => {});
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response(null, { status: 500 }))
       .mockResolvedValueOnce(
@@ -290,10 +308,14 @@ describe('<FriendActionButton />', () => {
       state: 'PENDING_INCOMING',
     });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Reject friend request from @alex' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Reject friend request from @alex' }),
+    );
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith('Something went wrong. Try again.');
+      expect(toastError).toHaveBeenCalledWith(
+        'Something went wrong. Try again.',
+      );
     });
     expect(onStateChange).toHaveBeenLastCalledWith({
       friendshipId: null,
@@ -315,11 +337,8 @@ describe('<FriendActionButton />', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
     await waitFor(() => {
-      expect(track).toHaveBeenCalledWith('friend_remove', {
-        targetUserId: 'target-user',
-      });
+      expect(toastSuccess).toHaveBeenCalledWith('@alex removed from friends.');
     });
-    expect(toastSuccess).toHaveBeenCalledWith('@alex removed from friends.');
     expect(onStateChange).toHaveBeenLastCalledWith({
       friendshipId: null,
       incomingRequestId: null,
@@ -344,7 +363,9 @@ describe('<FriendActionButton />', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole('button', { name: 'Accept friend request from @alex' }),
+        screen.getByRole('button', {
+          name: 'Accept friend request from @alex',
+        }),
       ).toBeInTheDocument();
     });
   });

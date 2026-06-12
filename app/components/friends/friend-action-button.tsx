@@ -17,7 +17,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx';
-import { track } from '#app/utils/analytics.client.ts';
 import { type RelationshipState } from '#app/utils/friends.ts';
 import {
   dispatchFriendshipUpdate,
@@ -143,7 +142,6 @@ export const FriendActionButton = ({
     dispatchFriendshipUpdate({ userId: targetUserId, ...optimisticNext });
     setPendingAction('send');
     try {
-      track('friend_request_send', { targetUserId });
       const response = await fetch('/api/friends/requests', {
         method: 'POST',
         credentials: 'same-origin',
@@ -219,7 +217,6 @@ export const FriendActionButton = ({
     dispatchFriendshipUpdate({ userId: targetUserId, ...optimisticNext });
     setPendingAction(FRIEND_ACCEPT_EVENT);
     try {
-      track('friend_request_accept', { targetUserId });
       const response = await fetch(
         `/api/friends/requests/${current.incomingRequestId}/accept`,
         {
@@ -261,7 +258,6 @@ export const FriendActionButton = ({
     dispatchFriendshipUpdate({ userId: targetUserId, ...EMPTY_SNAPSHOT });
     setPendingAction(FRIEND_REJECT_EVENT);
     try {
-      track('friend_request_reject', { targetUserId });
       const response = await fetch(
         `/api/friends/requests/${current.incomingRequestId}/reject`,
         {
@@ -302,7 +298,6 @@ export const FriendActionButton = ({
     dispatchFriendshipUpdate({ userId: targetUserId, ...EMPTY_SNAPSHOT });
     setPendingAction('remove');
     try {
-      track('friend_remove', { targetUserId });
       const response = await fetch('/api/friends/remove', {
         method: 'POST',
         credentials: 'same-origin',

@@ -5,9 +5,11 @@ import { data } from 'react-router';
 import { z } from 'zod';
 import { handleVerification as handleChangeEmailVerification } from '#app/routes/settings+/profile.change-email.server.tsx';
 import { twoFAVerificationType } from '#app/routes/settings+/profile.two-factor.tsx';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getDomainUrl } from '#app/utils/misc.tsx';
+import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import { generateTOTP, verifyTOTP } from '#app/utils/totp.server.ts';
 import { type twoFAVerifyVerificationType } from '../settings+/profile.two-factor.verify.tsx';
@@ -208,6 +210,15 @@ export async function validateRequest(
     }
     case 'onboarding': {
       await deleteVerification();
+      // Funnel step between signup_submitted and user_registered — the email
+      // is verified but the account doesn't exist yet, so visitorId only.
+      const { requestId, visitorId } = await getRequestContext(request);
+      queueLogEvent({
+        name: 'signup_email_verified',
+        source: 'server',
+        requestId,
+        visitorId,
+      });
       return handleOnboardingVerification({
         request,
         body,

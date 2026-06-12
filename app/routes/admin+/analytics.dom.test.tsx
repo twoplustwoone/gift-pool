@@ -32,6 +32,20 @@ const loaderDataSnapshot = {
     { step: 'Contributed to a pool', count: 4, percent: 40 },
     { step: 'Received a delivered gift', count: 0, percent: 0 },
   ],
+  dropOff: {
+    signup: [
+      { step: 'Signup submitted', count: 25, percent: 100 },
+      { step: 'Email verified', count: 18, percent: 72 },
+      { step: 'Onboarding completed', count: 15, percent: 60 },
+    ],
+    invites: [
+      { inviteType: 'group', landed: 10, deadLinkLandings: 1, completed: 6 },
+      { inviteType: 'pool', landed: 8, deadLinkLandings: 0, completed: 2 },
+      { inviteType: 'friend', landed: 5, deadLinkLandings: 2, completed: 3 },
+    ],
+    editor: { opened: 20, added: 14 },
+    share: { views: 30, uniqueVisitors: 18, outboundClicks: 9 },
+  },
   retention: [
     {
       cohortWeek: '2026-W14',
@@ -43,8 +57,18 @@ const loaderDataSnapshot = {
     },
   ],
   optOutMatrix: [
-    { type: 'FRIEND_REQUEST_RECEIVED', inAppOptOutPercent: 0, emailOptOutPercent: 0, total: 10 },
-    { type: 'UPCOMING_BIRTHDAY', inAppOptOutPercent: 0, emailOptOutPercent: 100, total: 10 },
+    {
+      type: 'FRIEND_REQUEST_RECEIVED',
+      inAppOptOutPercent: 0,
+      emailOptOutPercent: 0,
+      total: 10,
+    },
+    {
+      type: 'UPCOMING_BIRTHDAY',
+      inAppOptOutPercent: 0,
+      emailOptOutPercent: 100,
+      total: 10,
+    },
   ],
   enrichment: {
     attempts: 20,
@@ -94,6 +118,7 @@ vi.mock('#app/utils/analytics.server.ts', () => ({
 
 vi.mock('#app/utils/admin.server.ts', () => ({
   getActivationFunnel: vi.fn(),
+  getDropOffFunnels: vi.fn(),
   getWeeklyRetention: vi.fn(),
   getNotificationOptOutMatrix: vi.fn(),
   getEnrichmentFunnel: vi.fn(),
@@ -150,6 +175,28 @@ describe('admin analytics page', () => {
     expect(screen.getByText(/4 \(40%\)/)).toBeInTheDocument();
   });
 
+  it('renders the drop-off funnels section', () => {
+    renderAnalytics();
+    expect(
+      screen.getByRole('heading', { name: 'Drop-off funnels' }),
+    ).toBeInTheDocument();
+    // Signup funnel steps with percents relative to submissions.
+    expect(screen.getByText('Signup submitted')).toBeInTheDocument();
+    expect(screen.getByText(/18 \(72%\)/)).toBeInTheDocument();
+    expect(screen.getByText(/15 \(60%\)/)).toBeInTheDocument();
+    // Invite table: per-type landings, joins, conversion, dead links.
+    expect(screen.getByText('Invite links')).toBeInTheDocument();
+    expect(screen.getByText('Dead-link landings')).toBeInTheDocument();
+    expect(screen.getByText('group')).toBeInTheDocument();
+    expect(screen.getByText('25%')).toBeInTheDocument(); // pool: 2 of 8
+    // Editor conversion card: 14 of 20 = 70%.
+    expect(screen.getByText('Add-item editor')).toBeInTheDocument();
+    expect(screen.getByText('70%')).toBeInTheDocument();
+    // Share reach cards.
+    expect(screen.getByText('Share-link views')).toBeInTheDocument();
+    expect(screen.getByText('18 unique visitors')).toBeInTheDocument();
+  });
+
   it('renders the retention cohort grid', () => {
     renderAnalytics();
     expect(
@@ -165,9 +212,7 @@ describe('admin analytics page', () => {
     expect(
       screen.getByRole('heading', { name: 'Notification opt-outs' }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText('friend request received'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('friend request received')).toBeInTheDocument();
     expect(screen.getByText('upcoming birthday')).toBeInTheDocument();
   });
 

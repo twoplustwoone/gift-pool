@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 
 import { track } from '#app/utils/analytics.client.ts';
 import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
-import  { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
+import { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
 
 import {
   compareItemsBySortOrder,
@@ -217,7 +217,7 @@ export const useWishlistStatusUpdate = ({
       markEducationSeen();
     }
     lastRemovalRef.current = null;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearUndoTimer, markEducationSeen, onViewChange, showEducation, userId]);
 
   const handleStatusChange = useCallback(
@@ -249,10 +249,7 @@ export const useWishlistStatusUpdate = ({
             setShowEducation(true);
             setEducationSeen(true);
             if (typeof window !== 'undefined') {
-              window.localStorage.setItem(
-                `past_items_edu_seen_${userId}`,
-                '1',
-              );
+              window.localStorage.setItem(`past_items_edu_seen_${userId}`, '1');
             }
           }
           if (lastRemovalRef.current?.toastId) {
@@ -271,7 +268,7 @@ export const useWishlistStatusUpdate = ({
           });
           lastRemovalRef.current = { ...removalInfo, toastId };
           undoTimerRef.current = setTimeout(() => {
-            track('wishlist_item_undo_timeout', {
+            track('wishlist_item_undo_expired', {
               itemId: removalInfo.itemId,
               wishlistId: userId,
               reason: 'previously_wanted',

@@ -11,6 +11,7 @@ import {
   getAnalyticsCounts,
 } from '#app/utils/analytics.server.ts';
 import {
+  type DropOffFunnels,
   type EnrichmentFailures,
   type EnrichmentFunnel,
   type FunnelStep,
@@ -19,6 +20,7 @@ import {
   type RetentionCohort,
   type SmartLinkAdoption,
   getActivationFunnel,
+  getDropOffFunnels,
   getEnrichmentFailures,
   getEnrichmentFunnel,
   getLinkClickStats,
@@ -38,6 +40,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const [
     analytics,
     funnel,
+    dropOff,
     retention,
     optOutMatrix,
     enrichment,
@@ -47,6 +50,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   ] = await Promise.all([
     getAnalyticsCounts(),
     getActivationFunnel({ cohortStart: thirtyDaysAgo, cohortEnd: now }),
+    getDropOffFunnels({ days: 30 }),
     getWeeklyRetention(8),
     getNotificationOptOutMatrix(),
     getEnrichmentFunnel({ days: 30 }),
@@ -58,6 +62,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   return {
     analytics,
     funnel,
+    dropOff,
     retention,
     optOutMatrix,
     enrichment,
@@ -178,6 +183,7 @@ const AnalyticsRoute = () => {
   const {
     analytics,
     funnel,
+    dropOff,
     retention,
     optOutMatrix,
     enrichment,
@@ -197,10 +203,7 @@ const AnalyticsRoute = () => {
 
       {/* --- DAU/WAU/MAU --- */}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
-          label="Total users"
-          value={analytics.totalUsers}
-        />
+        <SummaryCard label="Total users" value={analytics.totalUsers} />
         <SummaryCard label="DAU (24h)" value={analytics.dau} />
         <SummaryCard label="WAU (7d)" value={analytics.wau} />
         <SummaryCard label="MAU (30d)" value={analytics.mau} />
@@ -226,6 +229,14 @@ const AnalyticsRoute = () => {
         description="Last 30-day cohort. Steps: signup → wishlist → friend → pool contribution → delivered gift."
       >
         <FunnelViz steps={funnel} />
+      </SectionCard>
+
+      {/* --- drop-off funnels --- */}
+      <SectionCard
+        title="Drop-off funnels"
+        description="Last 30 days. Where users stall mid-flow: signup, invite landings, and the add-item editor. Counts are distinct people per step."
+      >
+        <DropOffSection dropOff={dropOff} />
       </SectionCard>
 
       {/* --- retention cohort grid --- */}
@@ -286,6 +297,107 @@ const AnalyticsRoute = () => {
 
 const pctOf = (count: number, total: number) =>
   total > 0 ? Math.round((count / total) * 100) : 0;
+
+// ---------------------------------------------------------------------------
+// Drop-off funnels
+// ---------------------------------------------------------------------------
+
+const DropOffSection = ({ dropOff }: { dropOff: DropOffFunnels }) => {
+  const hasAnyData =
+    (dropOff.signup[0]?.count ?? 0) > 0 ||
+    dropOff.invites.some((row) => row.landed + row.deadLinkLandings > 0) ||
+    dropOff.editor.opened > 0 ||
+    dropOff.share.views > 0;
+  if (!hasAnyData) {
+    return (
+      <EmptyRow>
+        No funnel-entry events yet — they start recording from this deploy.
+      </EmptyRow>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Signup funnel */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">Signup</h3>
+        <FunnelViz steps={dropOff.signup} />
+      </div>
+
+      {/* Invite landings → joins */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">Invite links</h3>
+        <div className="overflow-hidden rounded-md border border-border/50">
+          <table className="min-w-full divide-y divide-border/60 text-sm">
+            <thead className="bg-muted/40">
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Invite type
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Landed
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Joined
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Conversion
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Dead-link landings
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {dropOff.invites.map((row) => (
+                <tr key={row.inviteType}>
+                  <td className="px-4 py-2 font-medium capitalize">
+                    {row.inviteType}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">
+                    {row.landed.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">
+                    {row.completed.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">
+                    {pctOf(row.completed, row.landed)}%
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">
+                    {row.deadLinkLandings.toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Dead-link landings are clicks on expired or revoked invites — a high
+          count means links circulate longer than they stay valid.
+        </p>
+      </div>
+
+      {/* Editor + share reach */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <SummaryCard
+          label="Add-item editor"
+          value={`${pctOf(dropOff.editor.added, dropOff.editor.opened)}%`}
+          delta={`${dropOff.editor.added.toLocaleString()} of ${dropOff.editor.opened.toLocaleString()} people who opened the editor added an item`}
+        />
+        <SummaryCard
+          label="Share-link views"
+          value={dropOff.share.views}
+          delta={`${dropOff.share.uniqueVisitors.toLocaleString()} unique visitors`}
+        />
+        <SummaryCard
+          label="Share → outbound click"
+          value={dropOff.share.outboundClicks}
+          delta="outbound product clicks in window"
+        />
+      </div>
+    </div>
+  );
+};
 
 const EnrichmentSection = ({
   enrichment,

@@ -73,7 +73,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 export async function action({ request }: ActionFunctionArgs) {
   const email = await requireOnboardingEmail(request);
-  const { requestId } = await getRequestContext(request);
+  const { requestId, visitorId } = await getRequestContext(request);
   const formData = await request.formData();
   await checkHoneypot(formData);
   const submission = await parseWithZod(formData, {
@@ -145,6 +145,9 @@ export async function action({ request }: ActionFunctionArgs) {
     source: 'server',
     requestId,
     sessionId: session.id,
+    // Joins the anonymous signup_submitted / signup_email_verified /
+    // invite_landed events to the new account.
+    visitorId,
     properties: {
       remember: remember ?? false,
     },

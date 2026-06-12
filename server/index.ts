@@ -63,6 +63,21 @@ app.use((req, res, next) => {
   next();
 });
 
+const VISITOR_UUID_RE =
+  /(?:^|;\s*)gp_visitor=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:;|$)/i;
+app.use((req, _res, next) => {
+  // Anonymous visitor id for drop-off analytics. Resolved here (like the
+  // request id above) because React Router clones the Request per loader:
+  // on a first visit the cookie doesn't exist yet, and without one shared
+  // id the root loader would set one UUID while a child loader logs the
+  // landing event with another. The header is injected server-side only —
+  // any inbound value is discarded so clients can't spoof it.
+  const fromCookie = VISITOR_UUID_RE.exec(req.headers.cookie ?? '')?.[1];
+  (req.headers as Record<string, string>)['x-visitor-id'] =
+    fromCookie ?? crypto.randomUUID();
+  next();
+});
+
 if (viteDevServer) {
   app.use(viteDevServer.middlewares);
 } else {

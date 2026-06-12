@@ -536,6 +536,7 @@ model AnalyticsEvent {
   source     String
   requestId  String?
   sessionId  String?
+  visitorId  String?
   properties String?
   createdAt  DateTime @default(now())
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -543,6 +544,7 @@ model AnalyticsEvent {
   @@index([createdAt])
   @@index([name, createdAt])
   @@index([userId, createdAt])
+  @@index([visitorId, createdAt])
 }
 
 // -----------------------------------------------------------------------------

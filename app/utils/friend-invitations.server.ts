@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getRelationshipState } from '#app/utils/friends.server.ts';
@@ -151,6 +152,16 @@ export async function acceptFriendInvite(code: string, actingUserId: string) {
       create: { userAId, userBId },
       update: {},
     });
+  });
+
+  // Fired after the transaction closes. Invite-link accepts previously
+  // produced no analytics event at all; `via` separates them from direct
+  // friend-request accepts.
+  queueLogEvent({
+    name: 'friend_request_accepted',
+    userId: actingUserId,
+    source: 'server',
+    properties: { via: 'invite_link', inviterId: invitation.createdById },
   });
 
   return invitation;

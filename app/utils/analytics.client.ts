@@ -18,7 +18,7 @@ function generateId() {
 
 async function postAnalytics(
   payload: {
-    name: AnalyticEventName | string;
+    name: AnalyticEventName;
     eventId: string;
     properties?: Record<string, unknown>;
     requestId?: string | null;
@@ -48,8 +48,11 @@ async function postAnalytics(
   }
 }
 
+// `name` is deliberately AnalyticEventName only (no `| string` escape hatch):
+// an unregistered name used to be silently dropped below, which left ~14 call
+// sites recording nothing. Now it's a compile error.
 export function track(
-  name: AnalyticEventName | string,
+  name: AnalyticEventName,
   properties?: Record<string, unknown>,
   options: TrackOptions = {},
 ) {

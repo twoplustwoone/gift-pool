@@ -14,15 +14,16 @@ import {
 } from '#tests/route-module-test-utils.ts';
 
 const requireUserId = vi.fn();
+const getUserId = vi.fn();
 const findUnique = vi.fn();
-const createContributor = vi.fn();
+const addContributor = vi.fn();
 const isUserInPool = vi.fn();
 const redirectWithToast = vi.fn();
+const queueLogEvent = vi.fn();
 
 vi.mock('react-router', async () => {
-  const actual = await vi.importActual<typeof import('react-router')>(
-    'react-router',
-  );
+  const actual =
+    await vi.importActual<typeof import('react-router')>('react-router');
 
   return {
     ...actual,
@@ -31,17 +32,26 @@ vi.mock('react-router', async () => {
 });
 
 vi.mock('#app/components/ui/dialog.tsx', () => ({
-  Dialog: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Dialog: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
   DialogClose: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   DialogContent: ({ children }: { children: React.ReactNode }) => (
     <div role="dialog">{children}</div>
   ),
-  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogTitle: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }));
 
 vi.mock('#app/utils/auth.server.ts', () => ({
+  getUserId: (...args: Array<unknown>) => getUserId(...args),
   requireUserId: (...args: Array<unknown>) => requireUserId(...args),
 }));
 
@@ -50,14 +60,24 @@ vi.mock('#app/utils/db.server.ts', () => ({
     pool: {
       findUnique: (...args: Array<unknown>) => findUnique(...args),
     },
-    poolContributor: {
-      create: (...args: Array<unknown>) => createContributor(...args),
-    },
   },
 }));
 
 vi.mock('#app/utils/pool.server.ts', () => ({
+  addContributor: (...args: Array<unknown>) => addContributor(...args),
   isUserInPool: (...args: Array<unknown>) => isUserInPool(...args),
+}));
+
+vi.mock('#app/utils/analytics.server.ts', () => ({
+  queueLogEvent: (...args: Array<unknown>) => queueLogEvent(...args),
+}));
+
+vi.mock('#app/utils/request-context.server.ts', () => ({
+  getRequestContext: vi.fn(async () => ({
+    requestId: 'req-1',
+    sessionId: null,
+    visitorId: 'visitor-1',
+  })),
 }));
 
 vi.mock('#app/utils/toast.server.ts', () => ({
@@ -83,9 +103,11 @@ function createInvitePool(overrides: Record<string, unknown> = {}) {
 describe('app/routes/pools+/join.$code.tsx', () => {
   beforeEach(() => {
     requireUserId.mockReset().mockResolvedValue('viewer-1');
+    getUserId.mockReset().mockResolvedValue('viewer-1');
     findUnique.mockReset().mockResolvedValue(createInvitePool());
-    createContributor.mockReset().mockResolvedValue(undefined);
+    addContributor.mockReset().mockResolvedValue(undefined);
     isUserInPool.mockReset().mockResolvedValue(false);
+    queueLogEvent.mockReset().mockReturnValue({ eventId: 'evt-1' });
     redirectWithToast.mockReset().mockReturnValue(
       new Response(null, {
         headers: { Location: '/pools/pool-1' },
@@ -168,7 +190,7 @@ describe('app/routes/pools+/join.$code.tsx', () => {
       ),
     ).rejects.toMatchObject({ status: 404 });
 
-    expect(createContributor).not.toHaveBeenCalled();
+    expect(addContributor).not.toHaveBeenCalled();
   });
 
   it('returns invite details for valid links', async () => {
@@ -201,9 +223,7 @@ describe('app/routes/pools+/join.$code.tsx', () => {
       }),
     );
 
-    expect(createContributor).toHaveBeenCalledWith({
-      data: { poolId: 'pool-1', userId: 'viewer-1' },
-    });
+    expect(addContributor).toHaveBeenCalledWith('pool-1', 'viewer-1');
     expect(redirectWithToast).toHaveBeenCalledWith('/pools/pool-1', {
       description: "You've joined the pool — welcome!",
       type: 'success',
@@ -224,7 +244,42 @@ describe('app/routes/pools+/join.$code.tsx', () => {
       }),
     );
 
-    expect(createContributor).not.toHaveBeenCalled();
+    expect(addContributor).not.toHaveBeenCalled();
+  });
+
+  it('logs invite_landed for valid and dead invite links', async () => {
+    await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { code: 'invite-1' },
+        request: new Request('https://giftpool.app/pools/join/invite-1'),
+      }),
+    );
+    expect(queueLogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'invite_landed',
+        visitorId: 'visitor-1',
+        properties: { inviteType: 'pool', valid: true, poolId: 'pool-1' },
+      }),
+    );
+
+    queueLogEvent.mockClear();
+    findUnique.mockResolvedValueOnce(null);
+    await expect(
+      loader(
+        toLoaderArgs({
+          context: {} as never,
+          params: { code: 'bogus' },
+          request: new Request('https://giftpool.app/pools/join/bogus'),
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(queueLogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'invite_landed',
+        properties: { inviteType: 'pool', valid: false },
+      }),
+    );
   });
 
   it('renders the invite dialog', async () => {
@@ -249,8 +304,12 @@ describe('app/routes/pools+/join.$code.tsx', () => {
     expect(screen.getByText("You're invited to a pool 🎁")).toBeInTheDocument();
     expect(screen.getByText('Alex Birthday Pool')).toBeInTheDocument();
     expect(
-      screen.getByText((_, element) => element?.textContent === 'Birthday for Alex'),
+      screen.getByText(
+        (_, element) => element?.textContent === 'Birthday for Alex',
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Maybe later' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Maybe later' }),
+    ).toBeInTheDocument();
   });
 });

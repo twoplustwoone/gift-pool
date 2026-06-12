@@ -11,7 +11,11 @@ const fetcherLoad = vi.fn();
 const fetcherSnapshot: {
   data:
     | {
-        activity: Array<{ description: string; id: string; timestampISO: string }>;
+        activity: Array<{
+          description: string;
+          id: string;
+          timestampISO: string;
+        }>;
         birthdays: Array<{
           dateISO: string;
           dateLabel: string;
@@ -361,8 +365,12 @@ describe('app/routes/index.tsx', () => {
       screen.getByRole('link', { name: HOME_COPY.hero.secondaryCta }),
     );
 
-    expect(track).toHaveBeenNthCalledWith(1, 'home.cta.create_wishlist');
-    expect(track).toHaveBeenNthCalledWith(2, 'home.cta.start_group');
+    expect(track).toHaveBeenNthCalledWith(1, 'home_cta_clicked', {
+      cta: 'create_wishlist',
+    });
+    expect(track).toHaveBeenNthCalledWith(2, 'home_cta_clicked', {
+      cta: 'start_group',
+    });
     expect(prefetchSpy).toHaveBeenCalledWith({
       enabled: false,
       scopeKey: null,
@@ -467,7 +475,9 @@ describe('app/routes/index.tsx', () => {
     expect(
       screen.getByRole('link', { name: HOME_COPY.panels.planGift }),
     ).toHaveAttribute('href', '/groups/group-1');
-    expect(screen.getByText('Jamie added a blender to Family')).toBeInTheDocument();
+    expect(
+      screen.getByText('Jamie added a blender to Family'),
+    ).toBeInTheDocument();
     expect(fetcherLoad).not.toHaveBeenCalled();
   });
 

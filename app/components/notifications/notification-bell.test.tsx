@@ -52,8 +52,9 @@ vi.mock('#app/utils/friendship-events.ts', () => ({
 
 vi.mock('#app/utils/i18n.tsx', () => ({
   formatRelativeTime: () => 'just now',
-  sanitizeTranslationParams: (params: Record<string, unknown> | null | undefined) =>
-    params ?? undefined,
+  sanitizeTranslationParams: (
+    params: Record<string, unknown> | null | undefined,
+  ) => params ?? undefined,
   useTranslation: () => ({
     locale: 'en',
     t: (key: string) =>
@@ -119,7 +120,10 @@ vi.mock('#app/components/ui/popover.tsx', async () => {
       }
 
       return (
-        <button type="button" onClick={() => context.onOpenChange?.(!context.open)}>
+        <button
+          type="button"
+          onClick={() => context.onOpenChange?.(!context.open)}
+        >
           {children}
         </button>
       );
@@ -129,9 +133,15 @@ vi.mock('#app/components/ui/popover.tsx', async () => {
 
 vi.mock('#app/components/ui/tooltip.tsx', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  TooltipContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  TooltipTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipContent: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  TooltipTrigger: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 import { NotificationBell } from './notification-bell.tsx';
@@ -193,7 +203,7 @@ describe('NotificationBell', () => {
     window.dispatchEvent(new Event('notifications:open'));
 
     expect(await screen.findByText('notification.message')).toBeInTheDocument();
-    expect(track).toHaveBeenCalledWith('notifications_open');
+    expect(track).toHaveBeenCalledWith('notifications_opened');
 
     await userEvent.click(screen.getByText('notification.message'));
 
@@ -206,7 +216,7 @@ describe('NotificationBell', () => {
         }),
       );
     });
-    expect(track).toHaveBeenCalledWith('notification_click', {
+    expect(track).toHaveBeenCalledWith('notification_clicked', {
       type: 'INFO',
     });
     expect(navigate).toHaveBeenCalledWith('/wishlist');
@@ -238,7 +248,9 @@ describe('NotificationBell', () => {
       .mockResolvedValueOnce(jsonResponse({ unreadCount: 0 }));
 
     renderBell(2);
-    await userEvent.click(screen.getByRole('button', { name: 'Notifications' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Notifications' }),
+    );
 
     await screen.findByText('notification.message');
     await userEvent.click(
@@ -254,7 +266,7 @@ describe('NotificationBell', () => {
         }),
       );
     });
-    expect(track).toHaveBeenCalledWith('notifications_mark_all_read');
+    expect(track).toHaveBeenCalledWith('notifications_marked_all_read');
     expect(toastSuccess).toHaveBeenCalledWith(
       'All notifications marked as read.',
     );
@@ -296,7 +308,9 @@ describe('NotificationBell', () => {
       );
 
     renderBell(1);
-    await userEvent.click(screen.getByRole('button', { name: 'Notifications' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Notifications' }),
+    );
 
     await screen.findByText('friend.request.received');
     await userEvent.click(screen.getByRole('button', { name: 'Accept' }));
@@ -320,7 +334,7 @@ describe('NotificationBell', () => {
       state: 'FRIENDS',
       userId: 'friend-1',
     });
-    expect(track).toHaveBeenCalledWith('notification_inline_action', {
+    expect(track).toHaveBeenCalledWith('notification_action_completed', {
       kind: 'FRIEND_ACCEPT',
       success: true,
     });
