@@ -40,15 +40,19 @@ export const Field = ({
   inputProps,
   errors,
   className,
+  description,
 }: {
   labelProps: React.LabelHTMLAttributes<HTMLLabelElement>;
   inputProps: React.InputHTMLAttributes<HTMLInputElement>;
   errors?: ListOfErrors;
   className?: string;
+  /** Upfront requirements hint — show rules BEFORE the user fails them. */
+  description?: string;
 }) => {
   const fallbackId = useId();
   const id = inputProps.id ?? fallbackId;
   const errorId = errors?.length ? `${id}-error` : undefined;
+  const descriptionId = description ? `${id}-description` : undefined;
   return (
     <Stack gap={2} className={className}>
       <Label htmlFor={id} {...labelProps}>
@@ -62,9 +66,16 @@ export const Field = ({
       <Input
         id={id}
         aria-invalid={errorId ? true : undefined}
-        aria-describedby={errorId}
+        aria-describedby={
+          [errorId, descriptionId].filter(Boolean).join(' ') || undefined
+        }
         {...inputProps}
       />
+      {description && !errorId ? (
+        <p id={descriptionId} className="text-xs text-muted-foreground">
+          {description}
+        </p>
+      ) : null}
       {errorId && (
         <div className="px-4 pb-3 pt-1">
           <ErrorList id={errorId} errors={errors} />

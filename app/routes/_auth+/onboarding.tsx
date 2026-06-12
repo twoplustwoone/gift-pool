@@ -219,6 +219,7 @@ const OnboardingRoute = () => {
               className: 'lowercase',
             }}
             errors={fields.username.errors}
+            description="Letters, numbers, and underscores only."
           />
           <Field
             labelProps={{
@@ -245,6 +246,7 @@ const OnboardingRoute = () => {
               autoComplete: 'new-password',
             }}
             errors={fields.password.errors}
+            description="At least 6 characters."
           />
 
           <Field
@@ -285,12 +287,15 @@ const OnboardingRoute = () => {
                 </>
               ),
             }}
-            buttonProps={getInputProps(
-              fields.agreeToTermsOfServiceAndPrivacyPolicy,
-              {
+            buttonProps={{
+              ...getInputProps(fields.agreeToTermsOfServiceAndPrivacyPolicy, {
                 type: 'checkbox',
-              },
-            )}
+              }),
+              // The visual label's link text doesn't reach the accessible
+              // name (it reads "I agree to the and" to screen readers).
+              'aria-label':
+                'I agree to the Terms of Service and Privacy Policy',
+            }}
             errors={fields.agreeToTermsOfServiceAndPrivacyPolicy.errors}
           />
           <CheckboxField

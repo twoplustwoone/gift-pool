@@ -5,17 +5,24 @@ export const USERNAME_MAX_LENGTH = 20;
 
 export const UsernameSchema = z
   .string({ required_error: 'Username is required' })
-  .min(USERNAME_MIN_LENGTH, { message: 'Username is too short' })
+  .min(USERNAME_MIN_LENGTH, {
+    message: `Username is too short (minimum ${USERNAME_MIN_LENGTH} characters)`,
+  })
   .max(USERNAME_MAX_LENGTH, { message: 'Username is too long' })
   .regex(/^[a-zA-Z0-9_]+$/, {
-    message: 'Username can only include letters, numbers, and underscores',
+    message:
+      'Username can only include letters, numbers, and underscores — no spaces or hyphens',
   })
   // users can type the username in any case, but we store it in lowercase
   .transform((value) => value.toLowerCase());
 
+export const PASSWORD_MIN_LENGTH = 6;
+
 export const PasswordSchema = z
   .string({ required_error: 'Password is required' })
-  .min(6, { message: 'Password is too short' })
+  .min(PASSWORD_MIN_LENGTH, {
+    message: `Password is too short (minimum ${PASSWORD_MIN_LENGTH} characters)`,
+  })
   .max(100, { message: 'Password is too long' });
 export const NameSchema = z
   .string({ required_error: 'Name is required' })
@@ -44,19 +51,30 @@ export const PasswordAndConfirmPasswordSchema = z
 export const BIO_MAX_LENGTH = 160;
 export const BioSchema = z
   .string()
-  .max(BIO_MAX_LENGTH, { message: `Bio must be ${BIO_MAX_LENGTH} characters or fewer` })
+  .max(BIO_MAX_LENGTH, {
+    message: `Bio must be ${BIO_MAX_LENGTH} characters or fewer`,
+  })
   .transform((value) => value.trim());
 
 // SQLite doesn't support Prisma enums, so we store the value as a string and
 // enforce the union at the app layer. Keep these two in sync.
 // Ordered from most-visible to least-visible.
-export const BIRTHDAY_VISIBILITY_VALUES = ['EVERYONE', 'FRIENDS_OF_FRIENDS', 'FRIENDS', 'NOBODY'] as const;
+export const BIRTHDAY_VISIBILITY_VALUES = [
+  'EVERYONE',
+  'FRIENDS_OF_FRIENDS',
+  'FRIENDS',
+  'NOBODY',
+] as const;
 export type BirthdayVisibility = (typeof BIRTHDAY_VISIBILITY_VALUES)[number];
 export const BirthdayVisibilitySchema = z.enum(BIRTHDAY_VISIBILITY_VALUES);
 
 // Ordered from most-visible to least-visible. No 'NOBODY' — a hidden wishlist is
 // handled by not sharing the link rather than a visibility setting.
-export const WISHLIST_VISIBILITY_VALUES = ['EVERYONE', 'FRIENDS_OF_FRIENDS', 'FRIENDS'] as const;
+export const WISHLIST_VISIBILITY_VALUES = [
+  'EVERYONE',
+  'FRIENDS_OF_FRIENDS',
+  'FRIENDS',
+] as const;
 export type WishlistVisibility = (typeof WISHLIST_VISIBILITY_VALUES)[number];
 export const WishlistVisibilitySchema = z.enum(WISHLIST_VISIBILITY_VALUES);
 
