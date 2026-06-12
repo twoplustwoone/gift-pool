@@ -180,6 +180,9 @@ app.use((req, res, next) => {
     '/settings/profile',
     '/resources/login',
     '/resources/verify',
+    // Each unfurl triggers an outbound page fetch (and possibly an LLM call),
+    // so it gets the strictest tier.
+    '/api/wishlist/unfurl',
   ];
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     if (strongPaths.some((p) => req.path.includes(p))) {
