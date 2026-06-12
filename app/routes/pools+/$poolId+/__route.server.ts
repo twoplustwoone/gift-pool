@@ -1,8 +1,10 @@
 import { parseWithZod } from '@conform-to/zod'
 import { data, type ActionFunctionArgs, type LoaderFunctionArgs } from 'react-router'
 import { z } from 'zod'
+import { queueLogEvent } from '#app/utils/analytics.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { canViewWishlistOf } from '#app/utils/friends.server.ts'
 import { dollarsToCents } from '#app/utils/price.ts'
 import { POOL_STATUS } from '#app/utils/pool-constants.ts'
 import {
@@ -33,6 +35,7 @@ import {
 	updateContribution,
 	updateFinalPrice,
 } from '#app/utils/pool.server.ts'
+import { getRequestContext } from '#app/utils/request-context.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
@@ -91,6 +94,34 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		? `${new URL(request.url).origin}/pools/join/${pool.inviteCode}`
 		: null
 
+	// Recipient's active wishlist items power the "from their wishlist" picker
+	// in the propose form. Only fetched while ideas can still be proposed, and
+	// gated per viewer on the recipient's wishlistVisibility — joining a pool
+	// (e.g. via invite code) must not bypass the recipient's privacy setting.
+	const ideasOpen =
+		pool.status === POOL_STATUS.OPEN || pool.status === POOL_STATUS.VOTING
+	const recipientWishlistItems =
+		pool.recipientUserId &&
+		ideasOpen &&
+		(await canViewWishlistOf(userId, pool.recipientUserId))
+			? await prisma.wishlistItem.findMany({
+					where: {
+						ownerId: pool.recipientUserId,
+						status: 'ACTIVE',
+						// External list links aren't individual products to propose.
+						type: { not: 'wishlist' },
+					},
+					select: {
+						id: true,
+						title: true,
+						url: true,
+						priceCents: true,
+						currency: true,
+					},
+					orderBy: [{ categoryId: 'asc' }, { sortOrder: 'asc' }],
+				})
+			: []
+
 	return {
 		pool,
 		viewer,
@@ -99,6 +130,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		myVoteIdeaId: myVote?.ideaId ?? null,
 		contributionBreakdown,
 		inviteUrl,
+		recipientWishlistItems,
 	}
 }
 
@@ -292,6 +324,28 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
 	switch (v.intent) {
 		case Intent.ProposeIdea: {
+			// A smart link must point at an item the recipient actually owns —
+			// otherwise a contributor could attach arbitrary users' items. The
+			// proposer must also be allowed to see the recipient's wishlist
+			// (same gate as the picker), so the hidden UI can't be bypassed
+			// by POSTing ids directly.
+			if (v.wishlistItemId) {
+				const allowed = pool.recipientUserId
+					? await canViewWishlistOf(userId, pool.recipientUserId)
+					: false
+				const item = allowed
+					? await prisma.wishlistItem.findFirst({
+							where: {
+								id: v.wishlistItemId,
+								ownerId: pool.recipientUserId ?? '',
+							},
+							select: { id: true },
+						})
+					: null
+				if (!item) {
+					throw data({ error: 'Wishlist item not found.' }, { status: 400 })
+				}
+			}
 			await proposeIdea({
 				poolId,
 				proposedById: userId,
@@ -300,6 +354,18 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				url: v.url || null,
 				estimatedPriceCents: v.estimatedPriceCents ?? null,
 				wishlistItemId: v.wishlistItemId || null,
+			})
+			const { requestId } = await getRequestContext(request)
+			queueLogEvent({
+				name: 'pool_idea_proposed',
+				userId,
+				source: 'server',
+				requestId,
+				properties: {
+					poolId,
+					fromWishlist: Boolean(v.wishlistItemId),
+					hasPrice: v.estimatedPriceCents != null,
+				},
 			})
 			return data(submission.reply({ resetForm: true }))
 		}

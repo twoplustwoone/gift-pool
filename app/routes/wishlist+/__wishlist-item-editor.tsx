@@ -53,10 +53,12 @@ import { Flex, Text } from '#app/components/ui-kit';
 import { track } from '#app/utils/analytics.client.ts';
 import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
 import { cn, getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
+import { dollarsToCents } from '#app/utils/price.ts';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { type Toast } from '#app/utils/toast.server.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
 import { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
+import { type action as unfurlAction } from '../api.wishlist.unfurl.ts';
 import { type action } from './__wishlist-item-editor.server';
 
 const valueMinLength = 1;
@@ -133,6 +135,23 @@ export const WishlistItemSchema = z
     note: z.string().optional(),
     url: z.string().url().optional(),
     type: z.enum(['text', 'link', 'wishlist']).default('text'),
+    // Dollars in the input, cents out of the schema.
+    price: z.preprocess(
+      (value) => (value === '' || value == null ? undefined : value),
+      z.coerce
+        .number()
+        .min(0)
+        .max(1_000_000)
+        .transform(dollarsToCents)
+        .optional(),
+    ),
+    currency: z
+      .string()
+      .regex(/^[A-Z]{3}$/)
+      .optional(),
+    // Enrichment bookkeeping (hidden inputs) — analytics only, never persisted.
+    enrichedFields: z.string().max(64).optional(),
+    enrichmentEdited: z.string().optional(),
     imageAction: ImageActionSchema,
     imageUrl: z.string().url().optional(),
     imageFile: z.instanceof(File).optional(),
@@ -298,6 +317,8 @@ type EditorProps = {
     Partial<{
       hasImage: boolean;
       imageSource: WishlistItemImageSource | null;
+      priceCents: number | null;
+      currency: string | null;
     }>;
   trigger?: React.ReactNode;
   initialMode?: 'auto' | 'view' | 'edit' | 'create';
@@ -330,6 +351,7 @@ type EditorInitialValues = {
   title: string;
   url: string;
   note: string;
+  price: string;
   categoryId: string;
   type: string;
   hasImage: boolean;
@@ -913,6 +935,168 @@ function useWishlistItemEditorImageState({
   };
 }
 
+type EnrichableField = 'title' | 'price';
+
+type EditorEnrichmentController = {
+  currencyValue: string;
+  enrichedFieldsValue: string;
+  enrichmentEdited: boolean;
+  isUnfurling: boolean;
+  markEdited: (field: EnrichableField) => void;
+  requestUnfurl: (rawUrl: string) => void;
+  showHint: boolean;
+};
+
+/**
+ * Live "paste a link, get a complete item" enrichment. On URL blur/paste the
+ * hook asks /api/wishlist/unfurl for page metadata and prefills title, price,
+ * and image — but only into fields the user hasn't touched. Failures are
+ * silent by design: the form just stays manual.
+ */
+function useUrlEnrichment({
+  fields,
+  form,
+  formRef,
+  imageController,
+  isListLinkType,
+  wishlistItem,
+}: {
+  fields: ReturnType<typeof useForm<z.input<typeof WishlistItemSchema>>>[1];
+  form: ReturnType<typeof useForm<z.input<typeof WishlistItemSchema>>>[0];
+  formRef: React.RefObject<HTMLFormElement | null>;
+  imageController: EditorImageController;
+  isListLinkType: boolean;
+  wishlistItem: EditorProps['wishlistItem'];
+}): EditorEnrichmentController {
+  const fetcher = useFetcher<typeof unfurlAction>();
+  const lastRequestedUrl = useRef<string | null>(null);
+  const appliedForUrl = useRef<string | null>(null);
+  const userEdited = useRef(new Set<EnrichableField>());
+  const enrichedFieldsRef = useRef<string[]>([]);
+  // form.update re-fires input events on the target field; this guard keeps
+  // programmatic prefill from being recorded as a user edit.
+  const applyingPrefill = useRef(false);
+  const [currencyValue, setCurrencyValue] = useState(
+    wishlistItem?.currency ?? '',
+  );
+  const [enrichedFieldsValue, setEnrichedFieldsValue] = useState('');
+  const [enrichmentEdited, setEnrichmentEdited] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+
+  const readFieldValue = useCallback(
+    (name: string) => {
+      const element = formRef.current?.elements.namedItem(name);
+      return element instanceof HTMLInputElement ? element.value.trim() : '';
+    },
+    [formRef],
+  );
+
+  const markEdited = useCallback((field: EnrichableField) => {
+    if (applyingPrefill.current) return;
+    userEdited.current.add(field);
+    if (enrichedFieldsRef.current.includes(field)) {
+      setEnrichmentEdited(true);
+    }
+  }, []);
+
+  const requestUnfurl = useCallback(
+    (rawUrl: string) => {
+      if (isListLinkType) return;
+      const url = rawUrl.trim();
+      if (!url) return;
+      try {
+        const protocol = new URL(url).protocol;
+        if (protocol !== 'http:' && protocol !== 'https:') return;
+      } catch {
+        return;
+      }
+      if (url === lastRequestedUrl.current) return;
+      lastRequestedUrl.current = url;
+      void fetcher.submit(
+        { url },
+        { method: 'POST', action: '/api/wishlist/unfurl' },
+      );
+    },
+    [fetcher, isListLinkType],
+  );
+
+  const { applyUrlPreview, hasPendingImageChange, imageUrlValue } =
+    imageController;
+  const hasExistingImage = Boolean(wishlistItem?.hasImage);
+
+  useEffect(() => {
+    if (fetcher.state !== 'idle') return;
+    const metadata = fetcher.data?.result;
+    if (!metadata) return;
+    if (appliedForUrl.current === lastRequestedUrl.current) return;
+    appliedForUrl.current = lastRequestedUrl.current;
+
+    const applied: string[] = [];
+    applyingPrefill.current = true;
+    if (
+      metadata.title &&
+      !readFieldValue(fields.title.name) &&
+      !userEdited.current.has('title')
+    ) {
+      form.update({ name: fields.title.name, value: metadata.title });
+      applied.push('title');
+    }
+    if (
+      metadata.priceCents != null &&
+      !readFieldValue(fields.price.name) &&
+      !userEdited.current.has('price')
+    ) {
+      form.update({
+        name: fields.price.name,
+        value: formatPriceInputValue(metadata.priceCents),
+      });
+      if (metadata.currency) setCurrencyValue(metadata.currency);
+      applied.push('price');
+    }
+    if (
+      metadata.imageUrl &&
+      !hasPendingImageChange &&
+      !hasExistingImage &&
+      !imageUrlValue
+    ) {
+      applyUrlPreview(metadata.imageUrl);
+      applied.push('image');
+    }
+    setTimeout(() => {
+      applyingPrefill.current = false;
+    });
+
+    if (applied.length > 0) {
+      enrichedFieldsRef.current = [
+        ...new Set([...enrichedFieldsRef.current, ...applied]),
+      ];
+      setEnrichedFieldsValue(enrichedFieldsRef.current.join(','));
+      setShowHint(true);
+    }
+  }, [
+    applyUrlPreview,
+    fetcher.data,
+    fetcher.state,
+    fields.price.name,
+    fields.title.name,
+    form,
+    hasExistingImage,
+    hasPendingImageChange,
+    imageUrlValue,
+    readFieldValue,
+  ]);
+
+  return {
+    currencyValue,
+    enrichedFieldsValue,
+    enrichmentEdited,
+    isUnfurling: fetcher.state !== 'idle',
+    markEdited,
+    requestUnfurl,
+    showHint,
+  };
+}
+
 function EditorTrigger({
   DialogTriggerComponent,
   hideFloatingTrigger,
@@ -1139,6 +1323,28 @@ function EditorViewSection({
   );
 }
 
+function EnrichmentStatusLine({
+  isUnfurling,
+  showHint,
+}: Readonly<{ isUnfurling: boolean; showHint: boolean }>) {
+  if (isUnfurling) {
+    return (
+      <Text size="xs" className="flex items-center gap-1.5 text-muted-foreground">
+        <LuLoader className="h-3 w-3 animate-spin" aria-hidden />
+        Looking up link…
+      </Text>
+    );
+  }
+  if (showHint) {
+    return (
+      <Text size="xs" className="text-muted-foreground">
+        Filled from link — edit anything that looks off.
+      </Text>
+    );
+  }
+  return null;
+}
+
 function EditorFormSection({
   categories,
   DialogCloseComponent,
@@ -1179,10 +1385,12 @@ function EditorFormSection({
   wishlistItem,
   attachClientMutationId,
   applyUrlPreview,
+  enrichment,
 }: Readonly<{
   applyUrlPreview: (rawValue: string) => void;
   attachClientMutationId: (event: React.FormEvent<HTMLFormElement>) => void;
   categories: { id: string; name: string }[];
+  enrichment: EditorEnrichmentController;
   DialogCloseComponent: DialogComponentSet['DialogCloseComponent'];
   DialogFooterComponent: DialogComponentSet['DialogFooterComponent'];
   fields: ReturnType<typeof useForm<z.input<typeof WishlistItemSchema>>>[1];
@@ -1246,6 +1454,17 @@ function EditorFormSection({
     >
       <input type="hidden" name="clientMutationId" value="" />
       <input type="hidden" name="type" value={itemType} />
+      <input type="hidden" name="currency" value={enrichment.currencyValue} />
+      <input
+        type="hidden"
+        name="enrichedFields"
+        value={enrichment.enrichedFieldsValue}
+      />
+      <input
+        type="hidden"
+        name="enrichmentEdited"
+        value={enrichment.enrichmentEdited ? 'true' : ''}
+      />
       {mode === 'create' ? (
         <button type="submit" name="intent" value="save-add-another" className="hidden" />
       ) : null}
@@ -1267,6 +1486,7 @@ function EditorFormSection({
             type: 'text',
             ariaAttributes: true,
           }),
+          onInput: () => enrichment.markEdited('title'),
         }}
         errors={fields.title.errors}
       />
@@ -1279,6 +1499,11 @@ function EditorFormSection({
             ariaAttributes: true,
           }),
           required: isListLinkType,
+          onBlur: (event) => enrichment.requestUnfurl(event.target.value),
+          onPaste: (event) => {
+            const target = event.currentTarget;
+            setTimeout(() => enrichment.requestUnfurl(target.value));
+          },
         }}
         labelText={fieldConfig.urlLabel}
         onAcceptSuggestion={() => {
@@ -1289,6 +1514,26 @@ function EditorFormSection({
         onDismissSuggestion={() => setListLinkSuggestionDismissed(true)}
         showSuggestion={showListLinkSuggestion}
       />
+      <EnrichmentStatusLine
+        isUnfurling={enrichment.isUnfurling}
+        showHint={enrichment.showHint}
+      />
+      {isListLinkType ? null : (
+        <Field
+          className="w-full"
+          labelProps={{ children: 'Price (optional)' }}
+          inputProps={{
+            placeholder: '19.99',
+            inputMode: 'decimal',
+            ...getInputProps(fields.price, {
+              type: 'text',
+              ariaAttributes: true,
+            }),
+            onInput: () => enrichment.markEdited('price'),
+          }}
+          errors={fields.price.errors}
+        />
+      )}
       <TextareaField
         className="w-full"
         labelProps={{ children: fieldConfig.noteLabel }}
@@ -1558,11 +1803,16 @@ function buildInitialValues({
     title: wishlistItem?.title ?? '',
     url: wishlistItem?.url ?? '',
     note: wishlistItem?.note ?? '',
+    price: formatPriceInputValue(wishlistItem?.priceCents),
     categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
     type: wishlistItem?.type ?? 'text',
     hasImage: wishlistItem?.hasImage ?? false,
     updatedAt: wishlistItem?.updatedAt ?? null,
   };
+}
+
+function formatPriceInputValue(priceCents: number | null | undefined) {
+  return priceCents == null ? '' : (priceCents / 100).toFixed(2);
 }
 
 function getActionSubmissionValue(actionData: WishlistItemEditorActionData) {
@@ -1633,6 +1883,7 @@ function useSubmissionImageSync({
           title: '',
           url: '',
           note: '',
+          price: '',
           categoryId:
             nextValue?.categoryId ??
             initialValuesRef.current.categoryId ??
@@ -1646,6 +1897,10 @@ function useSubmissionImageSync({
           title: nextValue?.title ?? initialValuesRef.current.title,
           url: nextValue?.url ?? initialValuesRef.current.url,
           note: nextValue?.note ?? initialValuesRef.current.note,
+          price:
+            nextValue?.price == null
+              ? initialValuesRef.current.price
+              : formatPriceInputValue(nextValue.price),
           categoryId: nextValue?.categoryId ?? initialValuesRef.current.categoryId,
           type: nextValue?.type ?? initialValuesRef.current.type,
           hasImage:
@@ -1793,10 +2048,20 @@ export const WishlistItemEditor = React.forwardRef<
         title: wishlistItem?.title ?? '',
         url: wishlistItem?.url ?? '',
         note: wishlistItem?.note ?? '',
+        price: formatPriceInputValue(wishlistItem?.priceCents),
         categoryId: wishlistItem?.categoryId ?? defaultCategoryId ?? '',
         imageAction: 'none',
         imageUrl: '',
       },
+    });
+
+    const enrichment = useUrlEnrichment({
+      fields,
+      form,
+      formRef,
+      imageController,
+      isListLinkType,
+      wishlistItem,
     });
 
     const {
@@ -1830,6 +2095,9 @@ export const WishlistItemEditor = React.forwardRef<
         normalizeEditorFieldValue(initialValues.url) ||
       normalizeEditorFieldValue(fields.note.value ?? fields.note.defaultValue ?? '') !==
         normalizeEditorFieldValue(initialValues.note) ||
+      normalizeEditorFieldValue(
+        (fields.price.value ?? fields.price.defaultValue ?? '') as string,
+      ) !== normalizeEditorFieldValue(initialValues.price) ||
       normalizeEditorFieldValue(
         (fields.categoryId.value ?? fields.categoryId.defaultValue ?? '') as string,
       ) !== normalizeEditorFieldValue(initialValues.categoryId) ||
@@ -1894,6 +2162,7 @@ export const WishlistItemEditor = React.forwardRef<
                 applyUrlPreview={imageController.applyUrlPreview}
                 attachClientMutationId={attachClientMutationId}
                 categories={categories}
+                enrichment={enrichment}
                 DialogCloseComponent={DialogCloseComponent}
                 DialogFooterComponent={DialogFooterComponent}
                 fields={fields}

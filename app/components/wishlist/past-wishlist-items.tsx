@@ -207,7 +207,7 @@ export const PastWishlistItemCard = ({
                 </Text>
               ) : null}
               {item.url ? (
-                <WishlistItemUrlChip url={item.url} dimmed />
+                <WishlistItemUrlChip url={item.url} itemId={item.id} dimmed />
               ) : null}
             </div>
             {/*

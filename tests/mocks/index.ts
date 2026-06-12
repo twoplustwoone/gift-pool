@@ -1,8 +1,9 @@
 import closeWithGrace from 'close-with-grace';
 import { setupServer } from 'msw/node';
+import { handlers as anthropicHandlers } from './anthropic.ts';
 import { handlers as resendHandlers } from './resend.ts';
 
-export const server = setupServer(...resendHandlers);
+export const server = setupServer(...resendHandlers, ...anthropicHandlers);
 
 server.listen({
   onUnhandledRequest(request, print) {

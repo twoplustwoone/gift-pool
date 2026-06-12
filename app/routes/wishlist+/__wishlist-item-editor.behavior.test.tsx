@@ -48,6 +48,19 @@ vi.mock('#app/utils/request-info.ts', () => ({
   useOptionalRequestInfo: () => ({ requestId: 'fallback-request' }),
 }));
 
+// Shared snapshot backing every useFetcher() in the editor. Only the
+// enrichment test populates `data`; the status fetcher tolerates it because
+// it only reads `data.ok`/`data.status`, which stay undefined.
+const fetcherSnapshot: {
+  data: unknown;
+  state: 'idle' | 'submitting' | 'loading';
+  submit: ReturnType<typeof vi.fn>;
+} = {
+  data: undefined,
+  state: 'idle',
+  submit: vi.fn(),
+};
+
 vi.mock('react-router', async () => {
   const actual = await vi.importActual('react-router');
   const Form = React.forwardRef<HTMLFormElement, React.ComponentProps<'form'>>(
@@ -60,9 +73,13 @@ vi.mock('react-router', async () => {
     useActionData: () => actionDataSnapshot.value,
     useFetcher: () => ({
       Form,
-      data: undefined,
-      state: 'idle',
-      submit: vi.fn(),
+      get data() {
+        return fetcherSnapshot.data;
+      },
+      get state() {
+        return fetcherSnapshot.state;
+      },
+      submit: (...args: Array<unknown>) => fetcherSnapshot.submit(...args),
     }),
     useRevalidator: () => ({ revalidate: vi.fn() }),
   };
@@ -92,13 +109,120 @@ const baseItem = {
 beforeEach(() => {
   actionDataSnapshot.value = undefined;
   track.mockReset();
-  vi.stubGlobal('URL', {
-    ...URL,
-    createObjectURL: vi.fn(() => 'blob:preview'),
-  });
+  fetcherSnapshot.data = undefined;
+  fetcherSnapshot.state = 'idle';
+  fetcherSnapshot.submit.mockReset();
+  // Keep URL constructible (the enrichment hook calls `new URL(...)`) while
+  // stubbing the object-URL statics jsdom doesn't implement.
+  vi.stubGlobal(
+    'URL',
+    Object.assign(class extends URL {}, {
+      createObjectURL: vi.fn(() => 'blob:preview'),
+      revokeObjectURL: vi.fn(),
+    }),
+  );
 });
 
 describe('wishlist item editor behavior', () => {
+  it('unfurls on link blur and prefills only fields the user has not touched', async () => {
+    const user = userEvent.setup();
+
+    const view = render(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+    const linkField = screen.getByLabelText('Link');
+    await user.type(linkField, 'https://shop.example.com/widget');
+    fireEvent.blur(linkField);
+
+    expect(fetcherSnapshot.submit).toHaveBeenCalledWith(
+      { url: 'https://shop.example.com/widget' },
+      { method: 'POST', action: '/api/wishlist/unfurl' },
+    );
+
+    // Deliver the unfurl result and re-render so the prefill effect runs.
+    fetcherSnapshot.data = {
+      result: {
+        title: 'Acme Widget',
+        imageUrl: null,
+        priceCents: 4999,
+        currency: 'USD',
+        source: 'structured',
+      },
+    };
+    view.rerender(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Title for your item')).toHaveValue('Acme Widget');
+      expect(screen.getByLabelText('Price (optional)')).toHaveValue('49.99');
+    });
+    expect(
+      document.querySelector<HTMLInputElement>('input[name="currency"]')?.value,
+    ).toBe('USD');
+    expect(
+      document.querySelector<HTMLInputElement>('input[name="enrichedFields"]')
+        ?.value,
+    ).toBe('title,price');
+    expect(
+      screen.getByText('Filled from link — edit anything that looks off.'),
+    ).toBeInTheDocument();
+  });
+
+  it('never overwrites a title the user already typed', async () => {
+    const user = userEvent.setup();
+
+    const view = render(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+    await user.type(screen.getByPlaceholderText('Title for your item'), 'My own title');
+    const linkField = screen.getByLabelText('Link');
+    await user.type(linkField, 'https://shop.example.com/widget');
+    fireEvent.blur(linkField);
+
+    fetcherSnapshot.data = {
+      result: {
+        title: 'Scraped Title',
+        imageUrl: null,
+        priceCents: 1000,
+        currency: null,
+        source: 'structured',
+      },
+    };
+    view.rerender(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Price (optional)')).toHaveValue('10.00');
+    });
+    expect(screen.getByPlaceholderText('Title for your item')).toHaveValue('My own title');
+    expect(
+      document.querySelector<HTMLInputElement>('input[name="enrichedFields"]')
+        ?.value,
+    ).toBe('price');
+  });
+
   it('shows a validation message when the image URL preview is not http(s)', async () => {
     const user = userEvent.setup();
 

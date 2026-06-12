@@ -92,6 +92,18 @@ const AboutRoute = () => {
         </div>
       </section>
 
+      <section className="mt-16">
+        <h2 className="text-center text-xl font-semibold tracking-tight md:text-2xl">
+          How GiftPool stays free
+        </h2>
+        <p className="mx-auto mt-4 max-w-xl text-center text-body-md leading-relaxed text-muted-foreground">
+          As an Amazon Associate, GiftPool earns from qualifying purchases.
+          Some product links are affiliate links — they cost you nothing and
+          never change the price, but they may earn a small commission that
+          helps cover hosting.
+        </p>
+      </section>
+
       <section className="mt-16 text-center">
         <h2 className="text-xl font-semibold tracking-tight md:text-2xl">
           Have a question?

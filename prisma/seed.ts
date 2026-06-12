@@ -391,6 +391,8 @@ async function seed() {
 				note: 'Black preferred. The XM4 are fine but these have better mic quality for calls.',
 				url: 'https://www.sony.com/electronics/headband-headphones/wh-1000xm5',
 				type: 'text',
+				priceCents: 39_999,
+				currency: 'USD',
 				...itemImage(0),
 			},
 			{
@@ -401,6 +403,8 @@ async function seed() {
 				note: 'Black knob version. Gateron Jupiter Browns if available.',
 				url: 'https://www.keychron.com/products/keychron-q1-pro-qmk-via-wireless-custom-mechanical-keyboard',
 				type: 'text',
+				priceCents: 21_900,
+				currency: 'USD',
 			},
 			{
 				ownerId: wade.id,

@@ -36,10 +36,26 @@ const updateFinalPrice = vi.fn();
 const poolFindUnique = vi.fn();
 const giftIdeaFindFirst = vi.fn();
 const ideaVoteFindUnique = vi.fn();
+const wishlistItemFindMany = vi.fn();
+const wishlistItemFindFirst = vi.fn();
+const canViewWishlistOf = vi.fn();
+const queueLogEvent = vi.fn();
 const redirectWithToast = vi.fn();
 
 vi.mock('#app/utils/auth.server.ts', () => ({
   requireUserId: (...args: Array<unknown>) => requireUserId(...args),
+}));
+
+vi.mock('#app/utils/friends.server.ts', () => ({
+  canViewWishlistOf: (...args: Array<unknown>) => canViewWishlistOf(...args),
+}));
+
+vi.mock('#app/utils/analytics.server.ts', () => ({
+  queueLogEvent: (...args: Array<unknown>) => queueLogEvent(...args),
+}));
+
+vi.mock('#app/utils/request-context.server.ts', () => ({
+  getRequestContext: async () => ({ requestId: 'request-1', sessionId: null }),
 }));
 
 vi.mock('#app/utils/pool-permissions.server.ts', () => ({
@@ -59,6 +75,10 @@ vi.mock('#app/utils/db.server.ts', () => ({
     },
     pool: {
       findUnique: (...args: Array<unknown>) => poolFindUnique(...args),
+    },
+    wishlistItem: {
+      findMany: (...args: Array<unknown>) => wishlistItemFindMany(...args),
+      findFirst: (...args: Array<unknown>) => wishlistItemFindFirst(...args),
     },
   },
 }));
@@ -165,6 +185,10 @@ beforeEach(() => {
   updateFinalPrice.mockReset().mockResolvedValue(undefined);
   giftIdeaFindFirst.mockReset();
   ideaVoteFindUnique.mockReset().mockResolvedValue(null);
+  wishlistItemFindMany.mockReset().mockResolvedValue([]);
+  wishlistItemFindFirst.mockReset().mockResolvedValue(null);
+  canViewWishlistOf.mockReset().mockResolvedValue(true);
+  queueLogEvent.mockReset().mockReturnValue({ eventId: 'event-1' });
   poolFindUnique.mockReset().mockResolvedValue(createPool());
   redirectWithToast.mockReset().mockResolvedValue(
     new Response(null, {
@@ -175,6 +199,25 @@ beforeEach(() => {
 });
 
 describe('pool detail route loader', () => {
+  it('hides recipient wishlist items from viewers the visibility rules exclude', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({ recipientUserId: 'recipient-1', status: 'OPEN' }),
+    );
+    canViewWishlistOf.mockResolvedValue(false);
+
+    const result = await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: new Request('https://giftpool.app/pools/pool-1'),
+      }),
+    );
+
+    expect(canViewWishlistOf).toHaveBeenCalledWith('viewer-1', 'recipient-1');
+    expect((result as { recipientWishlistItems: unknown[] }).recipientWishlistItems).toEqual([]);
+    expect(wishlistItemFindMany).not.toHaveBeenCalled();
+  });
+
   it('throws 404 when the pool cannot be loaded', async () => {
     poolFindUnique.mockResolvedValue(null);
 
@@ -331,6 +374,118 @@ describe('pool detail route action', () => {
       url: null,
       wishlistItemId: null,
     });
+  });
+
+  it('logs a pool_idea_proposed event with smart-link adoption properties', async () => {
+    await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          estimatedPriceCents: '15.99',
+          intent: 'propose-idea',
+          name: 'Speaker',
+          poolId: 'pool-1',
+          url: '',
+        }),
+      }),
+    );
+
+    expect(queueLogEvent).toHaveBeenCalledWith({
+      name: 'pool_idea_proposed',
+      userId: 'viewer-1',
+      source: 'server',
+      requestId: 'request-1',
+      properties: {
+        poolId: 'pool-1',
+        fromWishlist: false,
+        hasPrice: true,
+      },
+    });
+  });
+
+  it('accepts a wishlistItemId owned by the pool recipient', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({ recipientUserId: 'recipient-1' }),
+    );
+    wishlistItemFindFirst.mockResolvedValue({ id: 'item-1' });
+
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'propose-idea',
+          name: 'From the wishlist',
+          poolId: 'pool-1',
+          wishlistItemId: 'item-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(wishlistItemFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'item-1', ownerId: 'recipient-1' },
+      }),
+    );
+    expect(proposeIdea).toHaveBeenCalledWith(
+      expect.objectContaining({ wishlistItemId: 'item-1' }),
+    );
+    expect(queueLogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        properties: expect.objectContaining({ fromWishlist: true }),
+      }),
+    );
+  });
+
+  it('rejects a wishlistItemId when the proposer may not view the recipient wishlist', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({ recipientUserId: 'recipient-1' }),
+    );
+    canViewWishlistOf.mockResolvedValue(false);
+    wishlistItemFindFirst.mockResolvedValue({ id: 'item-1' });
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            intent: 'propose-idea',
+            name: 'Hidden wishlist item',
+            poolId: 'pool-1',
+            wishlistItemId: 'item-1',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 400 } });
+    expect(wishlistItemFindFirst).not.toHaveBeenCalled();
+    expect(proposeIdea).not.toHaveBeenCalled();
+  });
+
+  it('rejects a wishlistItemId the recipient does not own', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({ recipientUserId: 'recipient-1' }),
+    );
+    wishlistItemFindFirst.mockResolvedValue(null);
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            intent: 'propose-idea',
+            name: 'Sneaky link',
+            poolId: 'pool-1',
+            wishlistItemId: 'someone-elses-item',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 400 } });
+    expect(proposeIdea).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
   });
 
   it('rejects deleting ideas that are not in the route pool', async () => {

@@ -12,6 +12,8 @@ export type WishlistItem = {
   note: string | null;
   url: string | null;
   type: string;
+  priceCents?: number | null;
+  currency?: string | null;
   categoryId: string | null;
   sortOrder: number;
   updatedAt: Date;

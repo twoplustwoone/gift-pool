@@ -38,6 +38,7 @@ import {
   type WishlistItemEditorHandle,
 } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { track } from '#app/utils/analytics.client.ts';
+import { formatCents } from '#app/utils/pool-contributions.ts';
 import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
 import { cn, getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
@@ -87,6 +88,8 @@ type WishlistItemRecord = (Pick<
   Partial<{
     hasImage: boolean;
     imageSource: WishlistItemImageSource | null;
+    priceCents: number | null;
+    currency: string | null;
   }> &
   Partial<{ purchase: { purchasedById: string } | null }>;
 type WishlistItemProps = Readonly<{
@@ -444,6 +447,38 @@ function WishlistNonOwnerExtras({
   );
 }
 
+// List link — "Visit" external link instead of a claim affordance. Routes
+// through /out when an item id is available so the click is tagged + counted.
+function ListLinkVisitSlot({
+  itemUrl,
+  itemId,
+}: {
+  itemUrl?: string | null;
+  itemId?: string;
+}) {
+  const safeUrl = itemUrl ? parseDisplayUrl(itemUrl) : null;
+  if (!safeUrl) {
+    return (
+      <LuChevronRight
+        className="h-5 w-5 flex-shrink-0 text-muted-foreground"
+        aria-hidden
+      />
+    );
+  }
+  return (
+    <a
+      href={itemId ? `/out?item=${itemId}` : safeUrl.href}
+      target="_blank"
+      rel="sponsored noopener noreferrer"
+      onClick={(event) => event.stopPropagation()}
+      className="pointer-events-auto flex flex-shrink-0 items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+    >
+      Visit
+      <LuExternalLink className="h-3 w-3" aria-hidden />
+    </a>
+  );
+}
+
 // Right-slot control for the non-owner row. Swaps between states:
 // list-link (visit external list), public-view (no claims),
 // already-claimed-by-someone-else (with an info popover explaining why),
@@ -455,6 +490,7 @@ function NonOwnerClaimSlot({
   isClaimed,
   isListLink,
   itemUrl,
+  itemId,
   isPurchasePending,
   isPurchasedByMe,
   isPurchasedBySomeoneElse,
@@ -474,30 +510,11 @@ function NonOwnerClaimSlot({
 > & {
   isListLink?: boolean;
   itemUrl?: string | null;
+  itemId?: string;
 }) {
   // List link — show "Visit list" external link instead of claim affordance.
   if (!allowClaims && isListLink) {
-    const safeUrl = itemUrl ? parseDisplayUrl(itemUrl) : null;
-    if (safeUrl) {
-      return (
-        <a
-          href={safeUrl.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(event) => event.stopPropagation()}
-          className="pointer-events-auto flex flex-shrink-0 items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-        >
-          Visit
-          <LuExternalLink className="h-3 w-3" aria-hidden />
-        </a>
-      );
-    }
-    return (
-      <LuChevronRight
-        className="h-5 w-5 flex-shrink-0 text-muted-foreground"
-        aria-hidden
-      />
-    );
+    return <ListLinkVisitSlot itemUrl={itemUrl} itemId={itemId} />;
   }
 
   // Public view (signed out on a shared link) — no claim affordance, just
@@ -646,9 +663,12 @@ function WishlistNonOwnerTrigger({
       hasImage={wishlistItem.hasImage ?? false}
       imageErrored={imageErrored}
       isListLink={isListLink}
+      itemId={wishlistItem.id}
       note={wishlistItem.note ?? null}
       onImageError={onImageError}
       onOpen={onOpen}
+      priceCents={wishlistItem.priceCents ?? null}
+      currency={wishlistItem.currency ?? null}
       rightSlot={
         <NonOwnerClaimSlot
           allowClaims={allowClaims}
@@ -657,6 +677,7 @@ function WishlistNonOwnerTrigger({
           isClaimed={isClaimed}
           isListLink={isListLink}
           itemUrl={wishlistItem.url ?? null}
+          itemId={wishlistItem.id}
           isPurchasePending={isPurchasePending}
           isPurchasedByMe={isPurchasedByMe}
           isPurchasedBySomeoneElse={isPurchasedBySomeoneElse}
@@ -704,18 +725,22 @@ export function formatUrlHost(rawUrl: string): string | null {
 // a belt-and-braces guard against any enclosing click handlers.
 export function WishlistItemUrlChip({
   url,
+  itemId,
   dimmed = false,
 }: {
   url: string;
+  // When set, the click routes through /out for affiliate tagging + click
+  // analytics. The visible label stays the destination host either way.
+  itemId?: string;
   dimmed?: boolean;
 }) {
   const parsed = parseDisplayUrl(url);
   if (!parsed) return null;
   return (
     <a
-      href={parsed.href}
+      href={itemId ? `/out?item=${itemId}` : parsed.href}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="sponsored noopener noreferrer"
       onClick={(event) => event.stopPropagation()}
       className={cn(
         'pointer-events-auto relative mt-0.5 inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors',
@@ -792,9 +817,12 @@ type WishlistItemCardShellProps = Readonly<{
   hasImage: boolean;
   imageErrored: boolean;
   isListLink?: boolean;
+  itemId?: string;
   note: string | null;
   onImageError: (event?: React.SyntheticEvent) => void;
   onOpen: () => void;
+  priceCents?: number | null;
+  currency?: string | null;
   rightSlot?: React.ReactNode;
   title: string;
   url: string | null;
@@ -821,9 +849,12 @@ function WishlistItemCardShell({
   hasImage,
   imageErrored,
   isListLink,
+  itemId,
   note,
   onImageError,
   onOpen,
+  priceCents,
+  currency,
   rightSlot,
   title,
   url,
@@ -879,7 +910,21 @@ function WishlistItemCardShell({
               List link
             </span>
           ) : null}
-          {url ? <WishlistItemUrlChip url={url} /> : null}
+          {priceCents != null || url ? (
+            <div className="flex max-w-full flex-wrap items-center gap-1.5">
+              {priceCents == null ? null : (
+                <Text
+                  size="xs"
+                  weight="medium"
+                  className="text-foreground/80"
+                  data-testid="wishlist-item-price"
+                >
+                  {formatCents(priceCents, currency ?? 'USD')}
+                </Text>
+              )}
+              {url ? <WishlistItemUrlChip url={url} itemId={itemId} /> : null}
+            </div>
+          ) : null}
         </div>
         {rightSlot ? (
           <div className="pointer-events-auto relative flex flex-shrink-0 items-center">
@@ -930,8 +975,11 @@ function WishlistOwnerRow({
       imageErrored={imageErrored}
       isListLink={isListLink}
       note={wishlistItem.note ?? null}
+      itemId={wishlistItem.id}
       onImageError={onImageError}
       onOpen={onOpen}
+      priceCents={wishlistItem.priceCents ?? null}
+      currency={wishlistItem.currency ?? null}
       rightSlot={actionMenu}
       title={wishlistItem.title}
       url={wishlistItem.url ?? null}

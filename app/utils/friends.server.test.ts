@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import {
   acceptFriendRequest,
+  canViewWishlistOf,
   getRelationshipDetails,
   getRelationshipState,
   isFriendOfFriend,
@@ -44,6 +45,54 @@ describe('friends.server', () => {
     await prisma.user.deleteMany({
       where: { email: { contains: '@example.com' } },
     });
+  });
+
+  it('canViewWishlistOf applies the owner wishlistVisibility rules', async () => {
+    const makeFriends = async (aId: string, bId: string) => {
+      const [userAId, userBId] = aId < bId ? [aId, bId] : [bId, aId];
+      await prisma.friendship.create({ data: { userAId, userBId } });
+    };
+
+    const [owner, friend, friendOfFriend, stranger] = await Promise.all([
+      createUser(),
+      createUser(),
+      createUser(),
+      createUser(),
+    ]);
+    await makeFriends(owner.id, friend.id);
+    await makeFriends(friend.id, friendOfFriend.id);
+
+    // Owner always sees their own wishlist.
+    await expect(canViewWishlistOf(owner.id, owner.id)).resolves.toBe(true);
+
+    // Default FRIENDS: only direct friends.
+    await expect(canViewWishlistOf(friend.id, owner.id)).resolves.toBe(true);
+    await expect(canViewWishlistOf(friendOfFriend.id, owner.id)).resolves.toBe(
+      false,
+    );
+    await expect(canViewWishlistOf(stranger.id, owner.id)).resolves.toBe(false);
+
+    // FRIENDS_OF_FRIENDS widens by one hop.
+    await prisma.user.update({
+      where: { id: owner.id },
+      data: { wishlistVisibility: 'FRIENDS_OF_FRIENDS' },
+    });
+    await expect(canViewWishlistOf(friendOfFriend.id, owner.id)).resolves.toBe(
+      true,
+    );
+    await expect(canViewWishlistOf(stranger.id, owner.id)).resolves.toBe(false);
+
+    // EVERYONE: anyone, including strangers.
+    await prisma.user.update({
+      where: { id: owner.id },
+      data: { wishlistVisibility: 'EVERYONE' },
+    });
+    await expect(canViewWishlistOf(stranger.id, owner.id)).resolves.toBe(true);
+
+    // Unknown owner: never visible.
+    await expect(
+      canViewWishlistOf(stranger.id, 'no-such-user'),
+    ).resolves.toBe(false);
   });
 
   it('sendFriendRequest upserts a PENDING row and fires the fanout without awaiting it', async () => {

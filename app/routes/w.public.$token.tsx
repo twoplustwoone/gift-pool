@@ -121,6 +121,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
           type: true,
           url: true,
           note: true,
+          priceCents: true,
+          currency: true,
           categoryId: true,
           updatedAt: true,
           sortOrder: true,
