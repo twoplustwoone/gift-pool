@@ -269,6 +269,27 @@ function currencyFromSymbol(raw: string): string | null {
   return CURRENCY_SYMBOLS.find(([symbol]) => raw.includes(symbol))?.[1] ?? null;
 }
 
+// "Amazon.com: Apple AirPods Pro … : Electronics" → "Apple AirPods Pro …".
+// The title comes from an untrusted page, so the suffix strip avoids
+// backtracking-prone regex: locate the separator with lastIndexOf and test
+// the remainder with a single unambiguous character class (linear).
+function cleanAmazonTitle(raw: string): string | null {
+  // Real product titles are far shorter; anything beyond this is junk and
+  // bounds the work the regexes below can ever do.
+  let title = raw
+    .slice(0, 500)
+    .replace(/^Amazon\.[a-z.]+\s*:\s*/i, '')
+    .trim();
+  const separator = title.lastIndexOf(' : ');
+  if (
+    separator !== -1 &&
+    /^[A-Za-z ,&'-]+$/.test(title.slice(separator + 3))
+  ) {
+    title = title.slice(0, separator).trim();
+  }
+  return title || null;
+}
+
 // Amazon ships no og tags and no JSON-LD on product pages, so the generic
 // parser only ever sees the <title>. The real values ARE in the fetched
 // markup though: the buybox price in `.a-offscreen` spans and the product
@@ -289,12 +310,7 @@ export function applyAmazonAdapter(
   }
   if (!AMAZON_HOST.test(hostname)) return metadata;
 
-  // "Amazon.com: Apple AirPods Pro … : Electronics" → "Apple AirPods Pro …"
-  const title =
-    metadata.title
-      ?.replace(/^Amazon\.[a-z.]+\s*:\s*/i, '')
-      .replace(/\s+:\s+[A-Za-z ,&'-]+$/, '')
-      .trim() || null;
+  const title = metadata.title ? cleanAmazonTitle(metadata.title) : null;
 
   let priceCents = metadata.priceCents;
   let currency = metadata.currency;
