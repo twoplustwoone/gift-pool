@@ -26,40 +26,35 @@ export type UnfurlResult =
   | { ok: false; outcome: UnfurlFailureOutcome };
 
 // Reject obviously-corrupt prices: anything above $100M is parser noise.
-const MAX_PRICE_CENTS = 100_000_000_00;
+const MAX_PRICE_CENTS = 10_000_000_000;
+
+// "$1,299.99" → 1299.99; "1.299,00" → 1299.00; "19,99" → 19.99
+function priceStringToNumber(raw: string): number {
+  let cleaned = raw.replace(/[^\d.,]/g, '');
+  if (!cleaned) return Number.NaN;
+  const lastDot = cleaned.lastIndexOf('.');
+  const lastComma = cleaned.lastIndexOf(',');
+  if (lastDot !== -1 && lastComma !== -1) {
+    // Both separators present: the last one is the decimal separator.
+    const decimal = lastDot > lastComma ? '.' : ',';
+    const thousands = decimal === '.' ? ',' : '.';
+    cleaned = cleaned.split(thousands).join('').replace(decimal, '.');
+  } else if (lastComma !== -1 && /,\d{1,2}$/.test(cleaned)) {
+    // Lone comma followed by 1-2 digits is an EU decimal comma: "19,99"
+    cleaned = cleaned.replace(',', '.');
+  } else {
+    // Remaining commas are thousands separators: "1,299"
+    cleaned = cleaned.replaceAll(',', '');
+  }
+  return Number(cleaned);
+}
 
 export function parsePriceToCents(
   raw: string | number | null | undefined,
 ): number | null {
   if (raw == null) return null;
 
-  let value: number;
-  if (typeof raw === 'number') {
-    value = raw;
-  } else {
-    let cleaned = raw.replace(/[^\d.,]/g, '');
-    if (!cleaned) return null;
-    const lastDot = cleaned.lastIndexOf('.');
-    const lastComma = cleaned.lastIndexOf(',');
-    if (lastDot !== -1 && lastComma !== -1) {
-      // Both separators present: the last one is the decimal separator.
-      // "1,299.99" → 1299.99; "1.299,00" → 1299.00
-      const decimal = lastDot > lastComma ? '.' : ',';
-      const thousands = decimal === '.' ? ',' : '.';
-      cleaned = cleaned
-        .split(thousands)
-        .join('')
-        .replace(decimal, '.');
-    } else if (lastComma !== -1 && /,\d{1,2}$/.test(cleaned)) {
-      // Lone comma followed by 1-2 digits is an EU decimal comma: "19,99"
-      cleaned = cleaned.replace(',', '.');
-    } else {
-      // Remaining commas are thousands separators: "1,299"
-      cleaned = cleaned.replace(/,/g, '');
-    }
-    value = Number(cleaned);
-  }
-
+  const value = typeof raw === 'number' ? raw : priceStringToNumber(raw);
   if (!Number.isFinite(value) || value <= 0) return null;
   const cents = Math.round(value * 100);
   if (cents <= 0 || cents > MAX_PRICE_CENTS) return null;
@@ -129,38 +124,48 @@ function readProductImage(image: unknown): string | null {
   return null;
 }
 
+// Flatten a parsed JSON-LD document into candidate nodes, unwrapping arrays
+// and @graph containers.
+function collectJsonLdCandidates(parsed: unknown): unknown[] {
+  const candidates: unknown[] = [];
+  for (const node of Array.isArray(parsed) ? parsed : [parsed]) {
+    candidates.push(node);
+    if (typeof node === 'object' && node !== null) {
+      const graph = (node as Record<string, unknown>)['@graph'];
+      if (Array.isArray(graph)) candidates.push(...graph);
+    }
+  }
+  return candidates;
+}
+
+// Prefer the first Product node that carries a price; fall back to any.
+function productFromJsonLdScript(scriptText: string): JsonLdProduct | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(scriptText);
+  } catch {
+    return null;
+  }
+
+  let fallback: JsonLdProduct | null = null;
+  for (const node of collectJsonLdCandidates(parsed)) {
+    if (!isProductNode(node)) continue;
+    const name = typeof node.name === 'string' ? node.name.trim() : null;
+    const image = readProductImage(node.image);
+    const { price, currency } = readOffer(node.offers);
+    const product = { name: name || null, image, price, currency };
+    if (price != null) return product;
+    fallback ??= product;
+  }
+  return fallback;
+}
+
 function parseJsonLdProduct(root: HTMLElement): JsonLdProduct | null {
   for (const script of root.querySelectorAll(
     'script[type="application/ld+json"]',
   )) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(script.textContent);
-    } catch {
-      continue;
-    }
-
-    const candidates: unknown[] = [];
-    for (const node of Array.isArray(parsed) ? parsed : [parsed]) {
-      candidates.push(node);
-      if (typeof node === 'object' && node !== null) {
-        const graph = (node as Record<string, unknown>)['@graph'];
-        if (Array.isArray(graph)) candidates.push(...graph);
-      }
-    }
-
-    // Prefer the first Product node that carries a price; fall back to any.
-    let fallback: JsonLdProduct | null = null;
-    for (const node of candidates) {
-      if (!isProductNode(node)) continue;
-      const name = typeof node.name === 'string' ? node.name.trim() : null;
-      const image = readProductImage(node.image);
-      const { price, currency } = readOffer(node.offers);
-      const product = { name: name || null, image, price, currency };
-      if (price != null) return product;
-      fallback ??= product;
-    }
-    if (fallback) return fallback;
+    const product = productFromJsonLdScript(script.textContent);
+    if (product) return product;
   }
   return null;
 }
@@ -330,7 +335,7 @@ export function applyAmazonAdapter(
     const candidate =
       landing?.getAttribute('data-old-hires') ||
       landing?.getAttribute('src') ||
-      html.match(/"hiRes":"(https:[^"]+?)"/)?.[1] ||
+      /"hiRes":"(https:[^"]+?)"/.exec(html)?.[1] ||
       null;
     imageUrl = resolveAbsoluteUrl(candidate, baseUrl);
   }
@@ -378,17 +383,16 @@ export async function extractUrlMetadata(itemUrl: string): Promise<UnfurlResult>
 
   const hadStructuredData =
     structured.title != null || structured.priceCents != null;
+  let source: UrlMetadataSource = structured.source;
+  if (llm.title != null || llm.priceCents != null) {
+    source = hadStructuredData ? 'mixed' : 'llm';
+  }
   const merged: UrlMetadata = {
     title: structured.title ?? llm.title,
     imageUrl: structured.imageUrl, // the LLM never supplies images
     priceCents: structured.priceCents ?? llm.priceCents,
     currency: structured.currency ?? llm.currency,
-    source:
-      llm.title != null || llm.priceCents != null
-        ? hadStructuredData
-          ? 'mixed'
-          : 'llm'
-        : structured.source,
+    source,
   };
   // Keep the invariant: currency only ever accompanies a price.
   if (merged.priceCents == null) merged.currency = null;

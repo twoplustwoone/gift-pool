@@ -1619,9 +1619,9 @@ export async function getEnrichmentFunnel({
         llmAttempted: Number(unfurl?.llmAttempted ?? 0),
         llmRescued: Number(unfurl?.llmRescued ?? 0),
         avgDurationMs:
-          unfurl?.avgDurationMs != null
-            ? Math.round(Number(unfurl.avgDurationMs))
-            : null,
+          unfurl?.avgDurationMs == null
+            ? null
+            : Math.round(Number(unfurl.avgDurationMs)),
         itemsSaved: Number(saved?.itemsSaved ?? 0),
         itemsSavedEnriched: Number(saved?.itemsSavedEnriched ?? 0),
         itemsSavedWithPrice: Number(saved?.itemsSavedWithPrice ?? 0),

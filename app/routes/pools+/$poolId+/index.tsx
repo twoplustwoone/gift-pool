@@ -331,7 +331,7 @@ const ProposeIdeaForm = ({
 		form.update({ name: fields.url.name, value: item.url ?? '' })
 		form.update({
 			name: fields.estimatedPriceCents.name,
-			value: item.priceCents != null ? (item.priceCents / 100).toFixed(2) : '',
+			value: item.priceCents == null ? '' : (item.priceCents / 100).toFixed(2),
 		})
 	}
 
@@ -357,9 +357,9 @@ const ProposeIdeaForm = ({
 							{recipientWishlistItems.map(item => (
 								<option key={item.id} value={item.id}>
 									{item.title}
-									{item.priceCents != null
-										? ` — ${formatCents(item.priceCents, item.currency ?? 'USD')}`
-										: ''}
+									{item.priceCents == null
+										? ''
+										: ` — ${formatCents(item.priceCents, item.currency ?? 'USD')}`}
 								</option>
 							))}
 						</select>

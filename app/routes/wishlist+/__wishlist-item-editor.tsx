@@ -1323,6 +1323,28 @@ function EditorViewSection({
   );
 }
 
+function EnrichmentStatusLine({
+  isUnfurling,
+  showHint,
+}: Readonly<{ isUnfurling: boolean; showHint: boolean }>) {
+  if (isUnfurling) {
+    return (
+      <Text size="xs" className="flex items-center gap-1.5 text-muted-foreground">
+        <LuLoader className="h-3 w-3 animate-spin" aria-hidden />
+        Looking up link…
+      </Text>
+    );
+  }
+  if (showHint) {
+    return (
+      <Text size="xs" className="text-muted-foreground">
+        Filled from link — edit anything that looks off.
+      </Text>
+    );
+  }
+  return null;
+}
+
 function EditorFormSection({
   categories,
   DialogCloseComponent,
@@ -1492,20 +1514,11 @@ function EditorFormSection({
         onDismissSuggestion={() => setListLinkSuggestionDismissed(true)}
         showSuggestion={showListLinkSuggestion}
       />
-      {enrichment.isUnfurling ? (
-        <Text
-          size="xs"
-          className="flex items-center gap-1.5 text-muted-foreground"
-        >
-          <LuLoader className="h-3 w-3 animate-spin" aria-hidden />
-          Looking up link…
-        </Text>
-      ) : enrichment.showHint ? (
-        <Text size="xs" className="text-muted-foreground">
-          Filled from link — edit anything that looks off.
-        </Text>
-      ) : null}
-      {!isListLinkType ? (
+      <EnrichmentStatusLine
+        isUnfurling={enrichment.isUnfurling}
+        showHint={enrichment.showHint}
+      />
+      {isListLinkType ? null : (
         <Field
           className="w-full"
           labelProps={{ children: 'Price (optional)' }}
@@ -1520,7 +1533,7 @@ function EditorFormSection({
           }}
           errors={fields.price.errors}
         />
-      ) : null}
+      )}
       <TextareaField
         className="w-full"
         labelProps={{ children: fieldConfig.noteLabel }}
@@ -1799,7 +1812,7 @@ function buildInitialValues({
 }
 
 function formatPriceInputValue(priceCents: number | null | undefined) {
-  return priceCents != null ? (priceCents / 100).toFixed(2) : '';
+  return priceCents == null ? '' : (priceCents / 100).toFixed(2);
 }
 
 function getActionSubmissionValue(actionData: WishlistItemEditorActionData) {
@@ -1885,9 +1898,9 @@ function useSubmissionImageSync({
           url: nextValue?.url ?? initialValuesRef.current.url,
           note: nextValue?.note ?? initialValuesRef.current.note,
           price:
-            nextValue?.price != null
-              ? formatPriceInputValue(nextValue.price)
-              : initialValuesRef.current.price,
+            nextValue?.price == null
+              ? initialValuesRef.current.price
+              : formatPriceInputValue(nextValue.price),
           categoryId: nextValue?.categoryId ?? initialValuesRef.current.categoryId,
           type: nextValue?.type ?? initialValuesRef.current.type,
           hasImage:

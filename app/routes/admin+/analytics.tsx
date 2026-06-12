@@ -315,9 +315,9 @@ const EnrichmentSection = ({
           label="Success rate"
           value={`${pctOf(enrichment.successes, enrichment.attempts)}%`}
           delta={`${enrichment.successes.toLocaleString()} succeeded${
-            enrichment.avgDurationMs != null
-              ? ` · avg ${enrichment.avgDurationMs}ms`
-              : ''
+            enrichment.avgDurationMs == null
+              ? ''
+              : ` · avg ${enrichment.avgDurationMs}ms`
           }`}
         />
         <SummaryCard

@@ -45,6 +45,13 @@ export async function action({ request }: ActionFunctionArgs) {
       metadata.priceCents != null ||
       metadata.imageUrl != null);
 
+  let outcome: string;
+  if (!unfurl.ok) {
+    outcome = unfurl.outcome;
+  } else {
+    outcome = foundAnything ? 'success' : 'nothing_found';
+  }
+
   // Fires on success AND failure with an outcome discriminator — the admin
   // enrichment funnel and failure breakdown are both built from these rows.
   const { requestId } = await getRequestContext(request);
@@ -55,11 +62,7 @@ export async function action({ request }: ActionFunctionArgs) {
     requestId,
     properties: {
       host: new URL(url).hostname,
-      outcome: unfurl.ok
-        ? foundAnything
-          ? 'success'
-          : 'nothing_found'
-        : unfurl.outcome,
+      outcome,
       foundTitle: metadata?.title != null,
       foundPrice: metadata?.priceCents != null,
       foundImage: metadata?.imageUrl != null,

@@ -447,6 +447,38 @@ function WishlistNonOwnerExtras({
   );
 }
 
+// List link — "Visit" external link instead of a claim affordance. Routes
+// through /out when an item id is available so the click is tagged + counted.
+function ListLinkVisitSlot({
+  itemUrl,
+  itemId,
+}: {
+  itemUrl?: string | null;
+  itemId?: string;
+}) {
+  const safeUrl = itemUrl ? parseDisplayUrl(itemUrl) : null;
+  if (!safeUrl) {
+    return (
+      <LuChevronRight
+        className="h-5 w-5 flex-shrink-0 text-muted-foreground"
+        aria-hidden
+      />
+    );
+  }
+  return (
+    <a
+      href={itemId ? `/out?item=${itemId}` : safeUrl.href}
+      target="_blank"
+      rel="sponsored noopener noreferrer"
+      onClick={(event) => event.stopPropagation()}
+      className="pointer-events-auto flex flex-shrink-0 items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+    >
+      Visit
+      <LuExternalLink className="h-3 w-3" aria-hidden />
+    </a>
+  );
+}
+
 // Right-slot control for the non-owner row. Swaps between states:
 // list-link (visit external list), public-view (no claims),
 // already-claimed-by-someone-else (with an info popover explaining why),
@@ -482,27 +514,7 @@ function NonOwnerClaimSlot({
 }) {
   // List link — show "Visit list" external link instead of claim affordance.
   if (!allowClaims && isListLink) {
-    const safeUrl = itemUrl ? parseDisplayUrl(itemUrl) : null;
-    if (safeUrl) {
-      return (
-        <a
-          href={itemId ? `/out?item=${itemId}` : safeUrl.href}
-          target="_blank"
-          rel="sponsored noopener noreferrer"
-          onClick={(event) => event.stopPropagation()}
-          className="pointer-events-auto flex flex-shrink-0 items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-        >
-          Visit
-          <LuExternalLink className="h-3 w-3" aria-hidden />
-        </a>
-      );
-    }
-    return (
-      <LuChevronRight
-        className="h-5 w-5 flex-shrink-0 text-muted-foreground"
-        aria-hidden
-      />
-    );
+    return <ListLinkVisitSlot itemUrl={itemUrl} itemId={itemId} />;
   }
 
   // Public view (signed out on a shared link) — no claim affordance, just
@@ -900,7 +912,7 @@ function WishlistItemCardShell({
           ) : null}
           {priceCents != null || url ? (
             <div className="flex max-w-full flex-wrap items-center gap-1.5">
-              {priceCents != null ? (
+              {priceCents == null ? null : (
                 <Text
                   size="xs"
                   weight="medium"
@@ -909,7 +921,7 @@ function WishlistItemCardShell({
                 >
                   {formatCents(priceCents, currency ?? 'USD')}
                 </Text>
-              ) : null}
+              )}
               {url ? <WishlistItemUrlChip url={url} itemId={itemId} /> : null}
             </div>
           ) : null}

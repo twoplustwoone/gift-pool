@@ -396,6 +396,22 @@ async function createWishlistItem({
     },
   });
 }
+async function handleUpdateNote(formData: FormData, userId: string) {
+  const submission = parseWithZod(formData, { schema: UpdateNoteSchema });
+  if (submission.status !== 'success') {
+    return rrData(
+      { result: submission.reply() },
+      { status: submission.status === 'error' ? 400 : 200 },
+    );
+  }
+  await prisma.user.update({
+    select: { id: true },
+    where: { id: userId },
+    data: { wishlistNote: submission.value.note || null },
+  });
+  return rrData({ result: submission.reply(), intent: 'update-note' as const });
+}
+
 export async function action({ request }: ActionFunctionArgs) {
   const { requestId, sessionId } = await getRequestContext(request);
   const userId = await requireUserId(request);
@@ -403,19 +419,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const intentRaw = formData.get('intent');
 
   if (intentRaw === 'update-note') {
-    const submission = parseWithZod(formData, { schema: UpdateNoteSchema });
-    if (submission.status !== 'success') {
-      return rrData(
-        { result: submission.reply() },
-        { status: submission.status === 'error' ? 400 : 200 },
-      );
-    }
-    await prisma.user.update({
-      select: { id: true },
-      where: { id: userId },
-      data: { wishlistNote: submission.value.note || null },
-    });
-    return rrData({ result: submission.reply(), intent: 'update-note' as const });
+    return handleUpdateNote(formData, userId);
   }
 
   const intent = z
@@ -462,7 +466,7 @@ export async function action({ request }: ActionFunctionArgs) {
     nextImageSource,
     priceCents: price ?? null,
     // Never store a currency without a price.
-    currency: price != null ? (currency ?? 'USD') : null,
+    currency: price == null ? null : (currency ?? 'USD'),
   });
   const nextCategoryId = categoryId || null;
   const savedItem = wishlistItemId
