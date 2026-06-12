@@ -31,25 +31,6 @@ vi.mock('react-router', async () => {
   };
 });
 
-vi.mock('#app/components/ui/dialog.tsx', () => ({
-  Dialog: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  DialogClose: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DialogContent: ({ children }: { children: React.ReactNode }) => (
-    <div role="dialog">{children}</div>
-  ),
-  DialogFooter: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  DialogHeader: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  DialogTitle: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-}));
-
 vi.mock('#app/utils/auth.server.ts', () => ({
   getUserId: (...args: Array<unknown>) => getUserId(...args),
   requireUserId: (...args: Array<unknown>) => requireUserId(...args),
@@ -84,7 +65,7 @@ vi.mock('#app/utils/toast.server.ts', () => ({
   redirectWithToast: (...args: Array<unknown>) => redirectWithToast(...args),
 }));
 
-import JoinPoolPage, { action, loader } from './join.$code.tsx';
+import JoinPoolPage, { action, loader } from './pools_.join.$code.tsx';
 
 function createInvitePool(overrides: Record<string, unknown> = {}) {
   return {
@@ -100,7 +81,7 @@ function createInvitePool(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe('app/routes/pools+/join.$code.tsx', () => {
+describe('app/routes/pools_.join.$code.tsx', () => {
   beforeEach(() => {
     requireUserId.mockReset().mockResolvedValue('viewer-1');
     getUserId.mockReset().mockResolvedValue('viewer-1');
@@ -144,19 +125,40 @@ describe('app/routes/pools+/join.$code.tsx', () => {
     ).rejects.toMatchObject({ status: 404 });
   });
 
-  it('throws 404 for an invalid invite code', async () => {
+  it('returns the invalid state for an invalid invite code', async () => {
     findUnique.mockResolvedValueOnce(null);
 
-    await expect(
-      loader(
+    const result = await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { code: 'bogus' },
+        request: new Request('https://giftpool.app/pools/join/bogus'),
+      }),
+    );
+    expect(result).toEqual({ kind: 'invalid' });
+  });
+
+  it.each(['CANCELLED', 'DELIVERED'])(
+    'returns the invalid state for a %s pool (not the error boundary)',
+    async (status) => {
+      findUnique.mockResolvedValueOnce(createInvitePool({ status }));
+
+      const result = await loader(
         toLoaderArgs({
           context: {} as never,
-          params: { code: 'bogus' },
-          request: new Request('https://giftpool.app/pools/join/bogus'),
+          params: { code: 'invite-1' },
+          request: new Request('https://giftpool.app/pools/join/invite-1'),
         }),
-      ),
-    ).rejects.toMatchObject({ status: 404 });
-  });
+      );
+      expect(result).toEqual({ kind: 'invalid' });
+      expect(queueLogEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'invite_landed',
+          properties: { inviteType: 'pool', valid: false },
+        }),
+      );
+    },
+  );
 
   it('redirects existing contributors straight to the pool', async () => {
     isUserInPool.mockResolvedValueOnce(true);
@@ -204,12 +206,26 @@ describe('app/routes/pools+/join.$code.tsx', () => {
 
     expect(getRouteResultStatus(result)).toBe(200);
     await expect(getRouteResultData(result)).resolves.toEqual({
+      kind: 'ok',
       contributorCount: 2,
       occasionType: 'BIRTHDAY',
-      poolId: 'pool-1',
       poolTitle: 'Alex Birthday Pool',
       recipientLabel: 'Alex',
+      isAuthenticated: true,
     });
+  });
+
+  it('returns context (not a login redirect) for anonymous visitors', async () => {
+    getUserId.mockResolvedValue(null);
+    const result = await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { code: 'invite-1' },
+        request: new Request('https://giftpool.app/pools/join/invite-1'),
+      }),
+    );
+    expect(result).toMatchObject({ kind: 'ok', isAuthenticated: false });
+    expect(isUserInPool).not.toHaveBeenCalled();
   });
 
   it('joins the pool when the viewer is not already a contributor', async () => {
@@ -265,15 +281,13 @@ describe('app/routes/pools+/join.$code.tsx', () => {
 
     queueLogEvent.mockClear();
     findUnique.mockResolvedValueOnce(null);
-    await expect(
-      loader(
-        toLoaderArgs({
-          context: {} as never,
-          params: { code: 'bogus' },
-          request: new Request('https://giftpool.app/pools/join/bogus'),
-        }),
-      ),
-    ).rejects.toMatchObject({ status: 404 });
+    await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { code: 'bogus' },
+        request: new Request('https://giftpool.app/pools/join/bogus'),
+      }),
+    );
     expect(queueLogEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'invite_landed',
@@ -282,17 +296,18 @@ describe('app/routes/pools+/join.$code.tsx', () => {
     );
   });
 
-  it('renders the invite dialog', async () => {
+  it('renders the invite landing for authenticated visitors', async () => {
     const App = createRoutesStub([
       {
         path: '/pools/join/:code',
         HydrateFallback: () => null,
         loader: async () => ({
+          kind: 'ok',
           contributorCount: 2,
           occasionType: 'BIRTHDAY',
-          poolId: 'pool-1',
           poolTitle: 'Alex Birthday Pool',
           recipientLabel: 'Alex',
+          isAuthenticated: true,
         }),
         Component: JoinPoolPage,
       },
@@ -300,8 +315,9 @@ describe('app/routes/pools+/join.$code.tsx', () => {
 
     render(<App initialEntries={['/pools/join/invite-1']} />);
 
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText("You're invited to a pool 🎁")).toBeInTheDocument();
+    expect(
+      await screen.findByText("You're invited to a pool 🎁"),
+    ).toBeInTheDocument();
     expect(screen.getByText('Alex Birthday Pool')).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -309,7 +325,38 @@ describe('app/routes/pools+/join.$code.tsx', () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Maybe later' }),
+      screen.getByRole('button', { name: 'Join pool' }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Maybe later' }),
+    ).toBeInTheDocument();
+  });
+
+  it('renders signup-first CTAs for anonymous visitors', async () => {
+    const App = createRoutesStub([
+      {
+        path: '/pools/join/:code',
+        HydrateFallback: () => null,
+        loader: async () => ({
+          kind: 'ok',
+          contributorCount: 2,
+          occasionType: 'BIRTHDAY',
+          poolTitle: 'Alex Birthday Pool',
+          recipientLabel: 'Alex',
+          isAuthenticated: false,
+        }),
+        Component: JoinPoolPage,
+      },
+    ]);
+
+    render(<App initialEntries={['/pools/join/invite-1']} />);
+
+    const signup = await screen.findByRole('link', {
+      name: /create an account to continue/i,
+    });
+    expect(signup).toHaveAttribute(
+      'href',
+      '/signup?redirectTo=%2Fpools%2Fjoin%2Finvite-1',
+    );
   });
 });

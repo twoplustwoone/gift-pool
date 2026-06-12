@@ -6,7 +6,13 @@ import {
 } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
-import { type ActionFunctionArgs, Form, useActionData, useSearchParams  } from 'react-router';
+import {
+  type ActionFunctionArgs,
+  Form,
+  Link,
+  useActionData,
+  useSearchParams,
+} from 'react-router';
 import { HoneypotInputs } from 'remix-utils/honeypot/react';
 import { z } from 'zod';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
@@ -15,7 +21,7 @@ import { Spacer } from '#app/components/spacer.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { checkHoneypot } from '#app/utils/honeypot.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
-import { validateRequest } from './verify.server.ts';
+import { handleResend, validateRequest } from './verify.server.ts';
 
 export const handle: SEOHandle = {
   getSitemapEntries: () => null,
@@ -39,6 +45,9 @@ export const VerifySchema = z.object({
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   await checkHoneypot(formData);
+  if (formData.get('intent') === 'resend') {
+    return handleResend(request, formData);
+  }
   return validateRequest(request, formData);
 }
 
@@ -50,12 +59,21 @@ const VerifyRoute = () => {
     searchParams.get(typeQueryParam),
   );
   const type = parseWithZoddType.success ? parseWithZoddType.data : null;
+  const target = searchParams.get(targetQueryParam);
 
   const checkEmail = (
     <>
       <h1 className="text-h1">Check your email</h1>
       <p className="mt-3 text-body-md text-muted-foreground">
-        We've sent you a code to verify your email address.
+        {/* Echo the address: a typo'd email otherwise means waiting forever
+            for a code that never comes, with no clue why. */}
+        We've sent a code to{' '}
+        {target ? (
+          <span className="font-medium text-foreground">{target}</span>
+        ) : (
+          'your email address'
+        )}
+        .
       </p>
     </>
   );
@@ -77,7 +95,9 @@ const VerifyRoute = () => {
   const [form, fields] = useForm<z.input<typeof VerifySchema>>({
     id: 'verify-form',
     constraint: getZodConstraint(VerifySchema),
-    lastResult: actionData?.result as unknown as SubmissionResult<string[]>,
+    lastResult: (actionData && 'result' in actionData
+      ? actionData.result
+      : undefined) as unknown as SubmissionResult<string[]>,
     onValidate({ formData }) {
       return parseWithZod(formData, { schema: VerifySchema }) as any;
     },
@@ -139,6 +159,53 @@ const VerifyRoute = () => {
             </StatusButton>
           </Form>
         </div>
+        {type === 'onboarding' ? (
+          <div className="mt-4 space-y-2 text-center text-sm text-muted-foreground">
+            {actionData && 'resent' in actionData && actionData.resent ? (
+              <p className="text-foreground">
+                Code re-sent — give it a minute and check spam too.
+              </p>
+            ) : (
+              <Form method="POST">
+                <HoneypotInputs />
+                <input type="hidden" name="intent" value="resend" />
+                <input type="hidden" name={typeQueryParam} value="onboarding" />
+                <input
+                  type="hidden"
+                  name={targetQueryParam}
+                  value={target ?? ''}
+                />
+                <input
+                  type="hidden"
+                  name={redirectToQueryParam}
+                  value={searchParams.get(redirectToQueryParam) ?? ''}
+                />
+                <span>Didn't get it? </span>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  Resend code
+                </button>
+              </Form>
+            )}
+            <p>
+              <Link
+                to={`/signup${
+                  searchParams.get(redirectToQueryParam)
+                    ? `?redirectTo=${encodeURIComponent(
+                        searchParams.get(redirectToQueryParam)!,
+                      )}`
+                    : ''
+                }`}
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                Wrong email? Start over
+              </Link>
+            </p>
+          </div>
+        ) : null}
       </div>
     </main>
   );

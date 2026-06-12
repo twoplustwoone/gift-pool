@@ -2,8 +2,6 @@
  * @vitest-environment jsdom
  */
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import React from 'react';
 import { createRoutesStub } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,25 +18,6 @@ const acceptFriendInvite = vi.fn();
 const requireFriendInvitationNotExpired = vi.fn();
 const redirectWithToast = vi.fn();
 const queueLogEvent = vi.fn();
-
-vi.mock('#app/components/ui/dialog.tsx', () => ({
-  Dialog: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  DialogClose: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DialogContent: ({ children }: { children: React.ReactNode }) => (
-    <div role="dialog">{children}</div>
-  ),
-  DialogFooter: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  DialogHeader: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  DialogTitle: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-}));
 
 vi.mock('#app/utils/auth.server.ts', () => ({
   getUserId: (...args: Array<unknown>) => getUserId(...args),
@@ -70,7 +49,7 @@ vi.mock('#app/utils/toast.server.ts', () => ({
 import AcceptFriendInvitePage, {
   action,
   loader,
-} from './friends.accept.$code.tsx';
+} from './friends_.accept.$code.tsx';
 
 beforeEach(() => {
   requireUserId.mockReset().mockResolvedValue('viewer-1');
@@ -95,7 +74,7 @@ beforeEach(() => {
 });
 
 describe('/friends/accept/:code route', () => {
-  it('redirects when the code is missing or self-authored', async () => {
+  it('redirects when the code is missing', async () => {
     const missingCode = await loader(
       toLoaderArgs({
         context: {} as never,
@@ -105,7 +84,53 @@ describe('/friends/accept/:code route', () => {
     );
     expect(missingCode).toBeInstanceOf(Response);
     expect((missingCode as Response).status).toBe(302);
+  });
 
+  it('returns inviter context for authenticated recipients', async () => {
+    const result = await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { code: 'abc' },
+        request: new Request('https://giftpool.app/friends/accept/abc'),
+      }),
+    );
+    expect(result).toEqual({
+      kind: 'ok',
+      isOwnInvite: false,
+      isAuthenticated: true,
+      inviter: {
+        id: 'creator-1',
+        image: null,
+        name: 'Taylor',
+        username: 'taylor',
+      },
+    });
+  });
+
+  it('returns context (not a login redirect) for anonymous recipients', async () => {
+    getUserId.mockResolvedValue(null);
+    const result = await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { code: 'abc' },
+        request: new Request('https://giftpool.app/friends/accept/abc'),
+      }),
+    );
+    expect(result).toMatchObject({ kind: 'ok', isAuthenticated: false });
+    expect(queueLogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'invite_landed',
+        visitorId: 'visitor-1',
+        properties: {
+          inviteType: 'friend',
+          valid: true,
+          inviterId: 'creator-1',
+        },
+      }),
+    );
+  });
+
+  it('flags own-invite views instead of silently redirecting', async () => {
     requireFriendInvitationNotExpired.mockResolvedValueOnce({
       createdBy: {
         id: 'viewer-1',
@@ -115,35 +140,37 @@ describe('/friends/accept/:code route', () => {
       },
       createdById: 'viewer-1',
     });
-    const selfInvite = await loader(
+    const result = await loader(
       toLoaderArgs({
         context: {} as never,
         params: { code: 'abc' },
         request: new Request('https://giftpool.app/friends/accept/abc'),
       }),
     );
-    expect(selfInvite).toBeInstanceOf(Response);
-    expect((selfInvite as Response).status).toBe(302);
+    expect(result).toMatchObject({ kind: 'ok', isOwnInvite: true });
   });
 
-  it('loads inviter data and accepts invites', async () => {
-    const loadResult = await loader(
+  it('returns the invalid state (not a throw) for dead links and logs it', async () => {
+    requireFriendInvitationNotExpired.mockRejectedValueOnce(
+      new Response('Invalid or expired invite link.', { status: 400 }),
+    );
+    const result = await loader(
       toLoaderArgs({
         context: {} as never,
-        params: { code: 'abc' },
-        request: new Request('https://giftpool.app/friends/accept/abc'),
+        params: { code: 'expired' },
+        request: new Request('https://giftpool.app/friends/accept/expired'),
       }),
     );
-    expect(getRouteResultStatus(loadResult)).toBe(200);
-    expect(await getRouteResultData(loadResult)).toEqual({
-      inviter: {
-        id: 'creator-1',
-        image: null,
-        name: 'Taylor',
-        username: 'taylor',
-      },
-    });
+    expect(result).toEqual({ kind: 'invalid' });
+    expect(queueLogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'invite_landed',
+        properties: { inviteType: 'friend', valid: false },
+      }),
+    );
+  });
 
+  it('accepts invites via the action', async () => {
     const actionResult = await action(
       toActionArgs({
         context: {} as never,
@@ -159,47 +186,6 @@ describe('/friends/accept/:code route', () => {
       description: 'Friend added.',
       type: 'success',
     });
-  });
-
-  it('logs invite_landed for valid and dead invite links', async () => {
-    await loader(
-      toLoaderArgs({
-        context: {} as never,
-        params: { code: 'abc' },
-        request: new Request('https://giftpool.app/friends/accept/abc'),
-      }),
-    );
-    expect(queueLogEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'invite_landed',
-        visitorId: 'visitor-1',
-        properties: {
-          inviteType: 'friend',
-          valid: true,
-          inviterId: 'creator-1',
-        },
-      }),
-    );
-
-    queueLogEvent.mockClear();
-    requireFriendInvitationNotExpired.mockRejectedValueOnce(
-      new Response('Invalid or expired invite link.', { status: 400 }),
-    );
-    await expect(
-      loader(
-        toLoaderArgs({
-          context: {} as never,
-          params: { code: 'expired' },
-          request: new Request('https://giftpool.app/friends/accept/expired'),
-        }),
-      ),
-    ).rejects.toMatchObject({ status: 400 });
-    expect(queueLogEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'invite_landed',
-        properties: { inviteType: 'friend', valid: false },
-      }),
-    );
   });
 
   it('returns a 400 payload for an invalid invite action', async () => {
@@ -218,12 +204,15 @@ describe('/friends/accept/:code route', () => {
     });
   });
 
-  it('renders the accept invite UI', async () => {
+  it('renders signup-first CTAs for anonymous recipients', async () => {
     const App = createRoutesStub([
       {
         Component: AcceptFriendInvitePage,
         HydrateFallback: () => null,
         loader: async () => ({
+          kind: 'ok',
+          isOwnInvite: false,
+          isAuthenticated: false,
           inviter: {
             id: 'creator-1',
             image: null,
@@ -235,21 +224,60 @@ describe('/friends/accept/:code route', () => {
       },
     ]);
 
-    (
-      console.error as unknown as {
-        mockImplementation: (fn: () => void) => void;
-      }
-    ).mockImplementation(() => {});
     render(<App initialEntries={['/friends/accept/abc']} />);
 
-    expect(await screen.findAllByText('Accept Friend Request')).toHaveLength(2);
-    expect(screen.getAllByText('@taylor')).toHaveLength(2);
     expect(
-      screen.getAllByRole('button', { name: 'Accept' }).length,
-    ).toBeGreaterThan(0);
-
-    await userEvent.click(
-      screen.getAllByRole('button', { name: 'Cancel' })[0]!,
+      await screen.findByText('Taylor wants to be your friend'),
+    ).toBeInTheDocument();
+    const signup = screen.getByRole('link', {
+      name: /create an account to continue/i,
+    });
+    expect(signup).toHaveAttribute(
+      'href',
+      '/signup?redirectTo=%2Ffriends%2Faccept%2Fabc',
     );
+    expect(screen.getByRole('link', { name: /log in/i })).toBeInTheDocument();
+  });
+
+  it('renders the accept button for authenticated recipients', async () => {
+    const App = createRoutesStub([
+      {
+        Component: AcceptFriendInvitePage,
+        HydrateFallback: () => null,
+        loader: async () => ({
+          kind: 'ok',
+          isOwnInvite: false,
+          isAuthenticated: true,
+          inviter: {
+            id: 'creator-1',
+            image: null,
+            name: 'Taylor',
+            username: 'taylor',
+          },
+        }),
+        path: '/friends/accept/:code',
+      },
+    ]);
+
+    render(<App initialEntries={['/friends/accept/abc']} />);
+
+    expect(
+      await screen.findByRole('button', { name: 'Accept' }),
+    ).toBeInTheDocument();
+  });
+
+  it('renders the expired state for dead links', async () => {
+    const App = createRoutesStub([
+      {
+        Component: AcceptFriendInvitePage,
+        HydrateFallback: () => null,
+        loader: async () => ({ kind: 'invalid' }),
+        path: '/friends/accept/:code',
+      },
+    ]);
+
+    render(<App initialEntries={['/friends/accept/dead']} />);
+
+    expect(await screen.findByText('Invite link expired')).toBeInTheDocument();
   });
 });

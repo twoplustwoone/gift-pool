@@ -8,6 +8,7 @@ import { twoFAVerificationType } from '#app/routes/settings+/profile.two-factor.
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { sendEmail } from '#app/utils/email.server.ts';
 import { getDomainUrl } from '#app/utils/misc.tsx';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
@@ -73,16 +74,24 @@ export async function prepareVerification({
   request,
   type,
   target,
+  redirectTo: postVerificationRedirectTo,
 }: {
   period: number;
   request: Request;
   type: VerificationTypes;
   target: string;
+  /**
+   * Where the user should land AFTER the whole verification flow completes
+   * (e.g. the invite page that sent them to signup). Carried through the
+   * verify URL and the emailed magic link.
+   */
+  redirectTo?: string;
 }) {
   const verifyUrl = getRedirectToUrl({
     request,
     type,
     target,
+    redirectTo: postVerificationRedirectTo,
   });
   const redirectTo = new URL(verifyUrl.toString());
   const { otp, ...verificationConfig } = generateTOTP({
@@ -156,6 +165,36 @@ export async function isCodeValid({
   if (!result) return false;
   return true;
 }
+// Re-send the onboarding verification email (June 2026 audit: the verify
+// screen was a hard wall when the email was delayed or spam-foldered).
+// Scoped to `onboarding` — other types have different emails and flows.
+// The /verify path sits on the strongest rate-limit tier, which bounds abuse.
+export async function handleResend(request: Request, body: FormData) {
+  const type = body.get(typeQueryParam);
+  const target = body.get(targetQueryParam);
+  const redirectTo = body.get(redirectToQueryParam);
+  if (type !== 'onboarding' || typeof target !== 'string' || !target) {
+    return data({ error: 'Cannot resend this code.' }, { status: 400 });
+  }
+  const { SignupEmail } = await import('#app/emails/signup-email.tsx');
+  const { verifyUrl, otp } = await prepareVerification({
+    period: 10 * 60,
+    request,
+    type: 'onboarding',
+    target,
+    redirectTo: typeof redirectTo === 'string' ? redirectTo : undefined,
+  });
+  const response = await sendEmail({
+    to: target,
+    subject: `Welcome to GiftPool!`,
+    react: SignupEmail({ onboardingUrl: verifyUrl.toString(), otp }),
+  });
+  if (response.status === 'success') {
+    return data({ resent: true as const });
+  }
+  return data({ error: response.error.message }, { status: 500 });
+}
+
 export async function validateRequest(
   request: Request,
   body: URLSearchParams | FormData,

@@ -10,7 +10,11 @@ import {
   data,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
-  type MetaFunction, Form, Link, useActionData, useSearchParams 
+  type MetaFunction,
+  Form,
+  Link,
+  useActionData,
+  useSearchParams,
 } from 'react-router';
 import { HoneypotInputs } from 'remix-utils/honeypot/react';
 import { z } from 'zod';
@@ -21,14 +25,17 @@ import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { login, requireAnonymous } from '#app/utils/auth.server.ts';
 import { checkHoneypot } from '#app/utils/honeypot.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
-import { PasswordSchema, UsernameSchema } from '#app/utils/user-validation.ts';
+import { UsernameSchema } from '#app/utils/user-validation.ts';
 import { handleNewSession } from './login.server.ts';
 export const handle: SEOHandle = {
   getSitemapEntries: () => null,
 };
 const LoginFormSchema = z.object({
   username: UsernameSchema,
-  password: PasswordSchema,
+  // Presence-only on login: signup's min-length rule must not lock out
+  // accounts whose password predates a stricter policy (June 2026 audit).
+  // Whether the password is RIGHT is the server's job, not the schema's.
+  password: z.string({ required_error: 'Password is required' }),
   redirectTo: z.string().optional(),
   remember: z.boolean().optional(),
 });

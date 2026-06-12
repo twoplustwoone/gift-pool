@@ -1,23 +1,14 @@
-import { useEffect } from 'react';
 import {
   type ActionFunctionArgs,
   data,
   redirect,
   type LoaderFunctionArgs,
-  Form,
-  useActionData,
   useLoaderData,
-  useNavigate,
 } from 'react-router';
-import { Button } from '#app/components/ui/button.tsx';
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#app/components/ui/dialog.tsx';
+  InviteLanding,
+  InviteLandingInvalid,
+} from '#app/components/invite-landing.tsx';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { getUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
@@ -26,15 +17,23 @@ import {
   requireInvitationNotExpired,
   submitJoinRequest,
 } from '#app/utils/group-invitations.server.ts';
-import { requireUserIdNotInGroup } from '#app/utils/groups.server.ts';
+import {
+  isUserInGroup,
+  requireUserIdNotInGroup,
+} from '#app/utils/groups.server.ts';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
+
+// NOTE the `groups_.` break-out filename: this route must NOT nest under
+// the auth-gated /groups layout — anonymous invite recipients need to see
+// the invitation context (and dead-link state) before being asked to sign
+// up. The join POST still requires auth.
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { code } = params;
   if (!code) {
     return redirect('/groups');
   }
-  // Funnel entry: fired before the auth gate so anonymous landings (the
+  // Funnel entry: fired before any gate so anonymous landings (the
   // drop-off we want to measure) are captured, and on dead links too.
   const { requestId, visitorId } = await getRequestContext(request);
   const userId = await getUserId(request);
@@ -42,14 +41,17 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   try {
     invitation = await requireInvitationNotExpired(code);
   } catch (error) {
-    queueLogEvent({
-      name: 'invite_landed',
-      userId,
-      source: 'server',
-      requestId,
-      visitorId,
-      properties: { inviteType: 'group', valid: false },
-    });
+    if (error instanceof Response && error.status < 500) {
+      queueLogEvent({
+        name: 'invite_landed',
+        userId,
+        source: 'server',
+        requestId,
+        visitorId,
+        properties: { inviteType: 'group', valid: false },
+      });
+      return { kind: 'invalid' as const };
+    }
     throw error;
   }
   queueLogEvent({
@@ -64,10 +66,18 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       giftGroupId: invitation.giftGroupId,
     },
   });
-  await requireUserIdNotInGroup(request, invitation.giftGroupId);
+  if (userId && (await isUserInGroup(userId, invitation.giftGroupId))) {
+    return redirect(`/groups/${invitation.giftGroupId}`);
+  }
+  const memberCount = await prisma.usersInGiftGroups.count({
+    where: { giftGroupId: invitation.giftGroupId },
+  });
   return {
-    giftGroupId: invitation.giftGroup.id,
+    kind: 'ok' as const,
     giftGroupName: invitation.giftGroup.name,
+    memberCount,
+    requireApproval: invitation.requireApproval,
+    isAuthenticated: userId != null,
   };
 }
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -122,42 +132,32 @@ export async function action({ request, params }: ActionFunctionArgs) {
   });
 }
 const JoinGroupPage = () => {
-  const { giftGroupName } = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
-  const navigate = useNavigate();
-  useEffect(() => {
-    if (actionData?.error) {
-    }
-  }, [actionData]);
+  const loaderData = useLoaderData<typeof loader>();
+  if (loaderData.kind === 'invalid') {
+    return <InviteLandingInvalid />;
+  }
+  const { giftGroupName, memberCount, requireApproval, isAuthenticated } =
+    loaderData;
   return (
-    <div className="flex flex-col items-center justify-center">
-      <Dialog open>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Join Group</DialogTitle>
-          </DialogHeader>
-          <p>
-            You were invited to join the group{' '}
-            <span className="font-extrabold">{giftGroupName}</span>! 🎉
-          </p>
-          <DialogFooter className="flex-row justify-end gap-2 sm:gap-2">
-            <DialogClose asChild>
-              <Button
-                onClick={() => navigate('/groups')}
-                variant={'secondary'}
-                type="button"
-                className="min-w-28"
-              >
-                Cancel
-              </Button>
-            </DialogClose>
-            <Form method="post" className="inline-block">
-              <Button className="min-w-28">Join Group</Button>
-            </Form>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+    <InviteLanding
+      title={`Join ${giftGroupName}`}
+      isAuthenticated={isAuthenticated}
+      acceptLabel={requireApproval ? 'Request to join' : 'Join Group'}
+      cancelTo="/groups"
+    >
+      <p>
+        You were invited to join{' '}
+        <span className="font-semibold text-foreground">{giftGroupName}</span> —
+        a gift group with {memberCount}{' '}
+        {memberCount === 1 ? 'member' : 'members'}. 🎉
+      </p>
+      <p>
+        Group members can see each other&apos;s birthdays and team up on gifts.
+      </p>
+      {requireApproval ? (
+        <p>The group owner approves new members before they join.</p>
+      ) : null}
+    </InviteLanding>
   );
 };
 export default JoinGroupPage;

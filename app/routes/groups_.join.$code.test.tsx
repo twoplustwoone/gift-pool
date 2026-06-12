@@ -1,6 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
+import { render, screen } from '@testing-library/react';
+import { createRoutesStub } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { toActionArgs, toLoaderArgs } from '#tests/route-module-test-utils.ts';
@@ -12,6 +14,8 @@ const requireUserIdNotInGroup = vi.fn();
 const addUserToGroup = vi.fn();
 const submitJoinRequest = vi.fn();
 const invitationUpdate = vi.fn();
+const isUserInGroup = vi.fn();
+const memberCount = vi.fn();
 const redirectWithToast = vi.fn();
 const queueLogEvent = vi.fn();
 
@@ -25,6 +29,9 @@ vi.mock('#app/utils/db.server.ts', () => ({
     groupInvitation: {
       update: (...args: Array<unknown>) => invitationUpdate(...args),
     },
+    usersInGiftGroups: {
+      count: (...args: Array<unknown>) => memberCount(...args),
+    },
   },
 }));
 
@@ -36,6 +43,7 @@ vi.mock('#app/utils/group-invitations.server.ts', () => ({
 }));
 
 vi.mock('#app/utils/groups.server.ts', () => ({
+  isUserInGroup: (...args: Array<unknown>) => isUserInGroup(...args),
   requireUserIdNotInGroup: (...args: Array<unknown>) =>
     requireUserIdNotInGroup(...args),
 }));
@@ -56,7 +64,7 @@ vi.mock('#app/utils/request-context.server.ts', () => ({
   })),
 }));
 
-import { action, loader } from './join.$code.tsx';
+import JoinGroupPage, { action, loader } from './groups_.join.$code.tsx';
 
 function createInvitation(overrides: Record<string, unknown> = {}) {
   return {
@@ -80,6 +88,8 @@ describe('app/routes/groups+/join.$code.tsx', () => {
     addUserToGroup.mockReset().mockResolvedValue(undefined);
     submitJoinRequest.mockReset().mockResolvedValue(undefined);
     invitationUpdate.mockReset().mockResolvedValue(undefined);
+    isUserInGroup.mockReset().mockResolvedValue(false);
+    memberCount.mockReset().mockResolvedValue(4);
     queueLogEvent.mockReset().mockReturnValue({ eventId: 'evt-1' });
     redirectWithToast.mockReset().mockReturnValue(
       new Response(null, {
@@ -110,8 +120,11 @@ describe('app/routes/groups+/join.$code.tsx', () => {
       }),
     );
     expect(result).toEqual({
-      giftGroupId: 'group-1',
+      kind: 'ok',
       giftGroupName: 'Birthday Crew',
+      memberCount: 4,
+      requireApproval: false,
+      isAuthenticated: true,
     });
     expect(queueLogEvent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -126,24 +139,51 @@ describe('app/routes/groups+/join.$code.tsx', () => {
     );
   });
 
-  it('logs invite_landed with valid:false for dead links', async () => {
+  it('returns the invalid state and logs invite_landed for dead links', async () => {
     requireInvitationNotExpired.mockRejectedValueOnce(
       new Response('Invalid or expired invite link.', { status: 400 }),
     );
-    await expect(
-      loader(
-        toLoaderArgs({
-          context: {} as never,
-          params: { code: 'expired' },
-          request: new Request('https://giftpool.app/groups/join/expired'),
-        }),
-      ),
-    ).rejects.toMatchObject({ status: 400 });
+    const result = await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { code: 'expired' },
+        request: new Request('https://giftpool.app/groups/join/expired'),
+      }),
+    );
+    expect(result).toEqual({ kind: 'invalid' });
     expect(queueLogEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'invite_landed',
         properties: { inviteType: 'group', valid: false },
       }),
+    );
+  });
+
+  it('returns context (not a login redirect) for anonymous visitors', async () => {
+    getUserId.mockResolvedValue(null);
+    const result = await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { code: 'invite-1' },
+        request: new Request('https://giftpool.app/groups/join/invite-1'),
+      }),
+    );
+    expect(result).toMatchObject({ kind: 'ok', isAuthenticated: false });
+    expect(requireUserIdNotInGroup).not.toHaveBeenCalled();
+  });
+
+  it('redirects members straight to the group', async () => {
+    isUserInGroup.mockResolvedValueOnce(true);
+    const result = await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { code: 'invite-1' },
+        request: new Request('https://giftpool.app/groups/join/invite-1'),
+      }),
+    );
+    expect((result as Response).status).toBe(302);
+    expect((result as Response).headers.get('Location')).toBe(
+      '/groups/group-1',
     );
   });
 
@@ -194,5 +234,75 @@ describe('app/routes/groups+/join.$code.tsx', () => {
     expect(queueLogEvent).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: 'group_joined' }),
     );
+  });
+
+  it('renders signup-first CTAs for anonymous visitors', async () => {
+    const App = createRoutesStub([
+      {
+        Component: JoinGroupPage,
+        HydrateFallback: () => null,
+        loader: async () => ({
+          kind: 'ok',
+          giftGroupName: 'Birthday Crew',
+          memberCount: 4,
+          requireApproval: false,
+          isAuthenticated: false,
+        }),
+        path: '/groups/join/:code',
+      },
+    ]);
+
+    render(<App initialEntries={['/groups/join/invite-1']} />);
+
+    expect(await screen.findByText('Join Birthday Crew')).toBeInTheDocument();
+    expect(screen.getByText(/4 members/)).toBeInTheDocument();
+    const signup = screen.getByRole('link', {
+      name: /create an account to continue/i,
+    });
+    expect(signup).toHaveAttribute(
+      'href',
+      '/signup?redirectTo=%2Fgroups%2Fjoin%2Finvite-1',
+    );
+  });
+
+  it('renders the join button and approval note for authenticated visitors', async () => {
+    const App = createRoutesStub([
+      {
+        Component: JoinGroupPage,
+        HydrateFallback: () => null,
+        loader: async () => ({
+          kind: 'ok',
+          giftGroupName: 'Birthday Crew',
+          memberCount: 4,
+          requireApproval: true,
+          isAuthenticated: true,
+        }),
+        path: '/groups/join/:code',
+      },
+    ]);
+
+    render(<App initialEntries={['/groups/join/invite-1']} />);
+
+    expect(
+      await screen.findByRole('button', { name: 'Request to join' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/approves new members before they join/),
+    ).toBeInTheDocument();
+  });
+
+  it('renders the expired state for dead links', async () => {
+    const App = createRoutesStub([
+      {
+        Component: JoinGroupPage,
+        HydrateFallback: () => null,
+        loader: async () => ({ kind: 'invalid' }),
+        path: '/groups/join/:code',
+      },
+    ]);
+
+    render(<App initialEntries={['/groups/join/dead']} />);
+
+    expect(await screen.findByText('Invite link expired')).toBeInTheDocument();
   });
 });

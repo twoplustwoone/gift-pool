@@ -167,6 +167,15 @@ Uses Conform + Zod for validation with honeypot spam protection.
 - **Affiliate**: outbound product links route through `/out?item=<id>` / `/out?idea=<id>` (`rel="sponsored"`) — the route accepts only DB ids (never URLs, so no open redirect), looks up the stored URL, applies tags via the registry in `affiliate.server.ts` (Amazon via optional `AMAZON_AFFILIATE_TAG`), logs `wishlist_link_clicked`, and 302s. Rendered pages never contain affiliate tags. Disclosure lives on /support#affiliate, /about, and a footer line on wishlist + pool surfaces.
 - **Tests**: leave `ANTHROPIC_API_KEY` unset in CI (LLM path disabled by design); `tests/mocks/anthropic.ts` is the MSW safety net if a key leaks into the env.
 
+### Invite landings
+
+Invite links (friend / group / pool) land on the shared `InviteLanding` page (`app/components/invite-landing.tsx`), rendered BEFORE any auth gate — most recipients are new users, so anonymous visitors see the invitation context with "Create account" primary and "Log in" secondary (both carrying `redirectTo`), and dead links get a friendly expired state instead of a login wall.
+
+- The three routes use break-out filenames (`friends_.accept.$code.tsx`, `groups_.join.$code.tsx`, `pools_.join.$code.tsx`) so they DON'T nest under the auth-gated section layouts. Don't move them back inside `groups+`/`pools+` or rename away the `_`.
+- Loaders are anonymous-safe and return a `kind: 'ok' | 'invalid'` union; the join/accept POST still requires auth (`requireUserId` in the action). Pool recipient privacy (404, indistinguishable from a bad code) applies to authenticated recipients only.
+- `redirectTo` survives the whole signup chain: signup action → `prepareVerification({ redirectTo })` → verify URL/email link → onboarding `handleVerification` forwards it → onboarding action `safeRedirect`s. The verify screen (onboarding type) echoes the target email and offers resend (`intent=resend` → `handleResend`) + start-over.
+- Login's password field is presence-only validation — never reapply signup's min-length rule to login (it locks out accounts predating a stricter policy).
+
 ### Side effects off the action response
 
 Mutation handlers should return after committing the primary change; anything the user doesn't need to block on runs afterwards.

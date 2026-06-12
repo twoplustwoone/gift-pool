@@ -1,21 +1,13 @@
 import {
-  data,
   redirect,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
-  Form,
   useLoaderData,
-  useNavigate,
 } from 'react-router';
-import { Button } from '#app/components/ui/button.tsx';
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#app/components/ui/dialog.tsx';
+  InviteLanding,
+  InviteLandingInvalid,
+} from '#app/components/invite-landing.tsx';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
@@ -51,53 +43,63 @@ async function requireValidInvite(code: string) {
     pool.status === POOL_STATUS.CANCELLED ||
     pool.status === POOL_STATUS.DELIVERED
   ) {
-    throw data({ error: 'This pool is no longer active.' }, { status: 410 });
+    // A real Response (not `data()`, which returns DataWithResponseInit and
+    // would slip past the loader's `instanceof Response` dead-link catch) —
+    // finished pools are the most common dead invite link.
+    throw new Response('This pool is no longer active.', { status: 410 });
   }
 
   return pool;
 }
 
+// NOTE the `pools_.` break-out filename: this route must NOT nest under the
+// auth-gated /pools layout — anonymous invite recipients need to see the
+// invitation context (and dead-link state) before being asked to sign up.
+// The join POST still requires auth.
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { code } = params;
   if (!code) return redirect('/pools');
 
-  // Funnel entry: fired before the auth gate so anonymous landings (the
+  // Funnel entry: fired before any gate so anonymous landings (the
   // drop-off we want to measure) are captured, and on dead links too.
   const { requestId, visitorId } = await getRequestContext(request);
-  const maybeUserId = await getUserId(request);
+  const userId = await getUserId(request);
   let pool;
   try {
     pool = await requireValidInvite(code);
   } catch (error) {
-    queueLogEvent({
-      name: 'invite_landed',
-      userId: maybeUserId,
-      source: 'server',
-      requestId,
-      visitorId,
-      properties: { inviteType: 'pool', valid: false },
-    });
+    if (error instanceof Response && error.status < 500) {
+      queueLogEvent({
+        name: 'invite_landed',
+        userId,
+        source: 'server',
+        requestId,
+        visitorId,
+        properties: { inviteType: 'pool', valid: false },
+      });
+      return { kind: 'invalid' as const };
+    }
     throw error;
   }
   queueLogEvent({
     name: 'invite_landed',
-    userId: maybeUserId,
+    userId,
     source: 'server',
     requestId,
     visitorId,
     properties: { inviteType: 'pool', valid: true, poolId: pool.id },
   });
 
-  const userId = await requireUserId(request);
-
-  // Privacy: if they're the recipient, 404 — indistinguishable from an
-  // invalid code. A redirect would be a signal that the code is valid.
-  if (pool.recipientUserId === userId) {
+  // Privacy: if a logged-in viewer is the recipient, 404 — indistinguishable
+  // from an invalid code. A redirect would be a signal that the code is
+  // valid. (Anonymous viewers can't be identified; an invite link in the
+  // recipient's hands is already a leak by whoever shared it.)
+  if (userId && pool.recipientUserId === userId) {
     throw new Response('Not Found', { status: 404 });
   }
 
   // Already a contributor — just send them to the pool
-  if (await isUserInPool(userId, pool.id)) {
+  if (userId && (await isUserInPool(userId, pool.id))) {
     return redirect(`/pools/${pool.id}`);
   }
 
@@ -108,11 +110,12 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     'someone special';
 
   return {
-    poolId: pool.id,
+    kind: 'ok' as const,
     poolTitle: pool.title,
     occasionType: pool.occasionType as OccasionType,
     recipientLabel,
     contributorCount: pool._count.contributors,
+    isAuthenticated: userId != null,
   };
 }
 
@@ -131,8 +134,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
   const alreadyIn = await isUserInPool(userId, pool.id);
   if (!alreadyIn) {
     // addContributor (not a bare poolContributor.create) so the join shows
-    // up in the pool activity feed and fires pool_contributor_joined —
-    // the inline create here previously skipped both.
+    // up in the pool activity feed and fires pool_contributor_joined.
     await addContributor(pool.id, userId);
   }
 
@@ -143,50 +145,37 @@ export async function action({ params, request }: ActionFunctionArgs) {
 }
 
 const JoinPoolPage = () => {
-  const { poolTitle, occasionType, recipientLabel, contributorCount } =
-    useLoaderData<typeof loader>();
-  const navigate = useNavigate();
+  const loaderData = useLoaderData<typeof loader>();
+  if (loaderData.kind === 'invalid') {
+    return <InviteLandingInvalid />;
+  }
+  const {
+    poolTitle,
+    occasionType,
+    recipientLabel,
+    contributorCount,
+    isAuthenticated,
+  } = loaderData;
 
   return (
-    <div className="flex flex-col items-center justify-center">
-      <Dialog open>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>You're invited to a pool 🎁</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <p>
-              <span className="font-semibold text-foreground">{poolTitle}</span>
-            </p>
-            <p>
-              {OCCASION_TYPE_LABELS[occasionType]} for{' '}
-              <span className="font-medium text-foreground">
-                {recipientLabel}
-              </span>
-            </p>
-            <p>
-              {contributorCount}{' '}
-              {contributorCount === 1 ? 'contributor' : 'contributors'} so far
-            </p>
-          </div>
-          <DialogFooter className="flex-row justify-end gap-2 sm:gap-2">
-            <DialogClose asChild>
-              <Button
-                onClick={() => navigate('/pools')}
-                variant="secondary"
-                type="button"
-                className="min-w-28"
-              >
-                Maybe later
-              </Button>
-            </DialogClose>
-            <Form method="post" className="inline-block">
-              <Button className="min-w-28">Join pool</Button>
-            </Form>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+    <InviteLanding
+      title="You're invited to a pool 🎁"
+      isAuthenticated={isAuthenticated}
+      acceptLabel="Join pool"
+      cancelTo="/pools"
+    >
+      <p>
+        <span className="font-semibold text-foreground">{poolTitle}</span>
+      </p>
+      <p>
+        {OCCASION_TYPE_LABELS[occasionType]} for{' '}
+        <span className="font-medium text-foreground">{recipientLabel}</span>
+      </p>
+      <p>
+        {contributorCount}{' '}
+        {contributorCount === 1 ? 'contributor' : 'contributors'} so far
+      </p>
+    </InviteLanding>
   );
 };
 
