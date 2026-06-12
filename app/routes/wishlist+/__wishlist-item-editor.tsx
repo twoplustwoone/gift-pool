@@ -534,7 +534,13 @@ function useWishlistItemEditorMode(
     if (trackedOpenRef.current) return;
     if (mode !== 'create' && mode !== 'edit') return;
     trackedOpenRef.current = true;
-    track('wishlist_editor_opened', { mode });
+    track('wishlist_editor_opened', {
+      mode,
+      // Distinguishes mobile from desktop opens — the June 2026 audit found
+      // the mobile FAB hidden behind the feedback widget, so mobile opens
+      // are the recovery signal to watch. 640px matches Tailwind's sm.
+      viewport: window.innerWidth < 640 ? 'mobile' : 'desktop',
+    });
   }, [open, mode]);
 
   return {
