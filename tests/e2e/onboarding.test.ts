@@ -5,7 +5,9 @@ import { readEmail } from '#tests/mocks/utils.ts';
 import { createUser, expect, test as base } from '#tests/playwright-utils.ts';
 
 const URL_REGEX = /(?<url>https?:\/\/[^\s$.?#].[^\s]*)/;
-const CODE_REGEX = /Here's your verification code: (?<code>\d+)/;
+// `\s*` so the code matches whether the email renders it inline (reset
+// password) or on its own line (signup's prominent code block).
+const CODE_REGEX = /Here's your verification code:\s*(?<code>\d+)/;
 function extractUrl(text: string) {
   const match = text.match(URL_REGEX);
   return match?.groups?.url;

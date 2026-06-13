@@ -6,7 +6,9 @@ import { prisma } from '#app/utils/db.server.ts';
 import { readEmail } from '#tests/mocks/utils.ts';
 import { expect, test, createUser, waitFor } from '#tests/playwright-utils.ts';
 
-const CODE_REGEX = /Here's your verification code: (?<code>\d+)/;
+// `\s*` so the code matches whether the email renders it inline or on its
+// own line (signup's prominent code block).
+const CODE_REGEX = /Here's your verification code:\s*(?<code>\d+)/;
 
 const dismissInstallPrompt = async (page: Page) => {
   const notNow = page.getByRole('button', { name: /not now/i });
