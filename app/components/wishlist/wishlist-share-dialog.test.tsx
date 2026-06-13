@@ -137,11 +137,19 @@ describe('WishlistShareDialog', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /revoke$/i })).toBeInTheDocument();
     });
+    // The "are you sure" warning is idle-state noise until the user actually
+    // starts revoking.
+    expect(
+      screen.queryByText(/revoking disables this link/i),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /revoke$/i }));
     await waitFor(() => {
       expect(
         screen.getByRole('button', { name: /revoke link/i }),
       ).toBeInTheDocument();
     });
+    expect(
+      screen.getByText(/revoking disables this link/i),
+    ).toBeInTheDocument();
   });
 });
