@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRoutesStub } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -100,9 +100,7 @@ describe('verify route UI', () => {
       // via its effect cleanup) and drain the queue while jsdom is still alive,
       // so no stray timer fires post-teardown ("window is not defined").
       unmount();
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
     } finally {
       requestSubmit.mockRestore();
     }
