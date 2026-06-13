@@ -22,25 +22,17 @@ export const FeedbackReceivedEmail = ({
   return (
     <E.Html lang="en" dir="ltr">
       <E.Container>
-        <h1>
-          <E.Text>New {FEEDBACK_TYPE_LABELS[type]} feedback</E.Text>
-        </h1>
-        <p>
-          <E.Text>
-            From: {username ? `@${username}` : 'Anonymous'}
-            {fromEmail ? ` (${fromEmail})` : ''}
-          </E.Text>
-        </p>
-        {pageUrl ? (
-          <p>
-            <E.Text>Submitted from: {pageUrl}</E.Text>
-          </p>
-        ) : null}
-        <hr />
-        <p>
-          <E.Text>{message}</E.Text>
-        </p>
-        <hr />
+        <E.Heading as="h1">
+          New {FEEDBACK_TYPE_LABELS[type]} feedback
+        </E.Heading>
+        <E.Text>
+          From: {username ? `@${username}` : 'Anonymous'}
+          {fromEmail ? ` (${fromEmail})` : ''}
+        </E.Text>
+        {pageUrl ? <E.Text>Submitted from: {pageUrl}</E.Text> : null}
+        <E.Hr />
+        <E.Text>{message}</E.Text>
+        <E.Hr />
         <E.Link href={adminUrl}>Open in admin →</E.Link>
       </E.Container>
     </E.Html>

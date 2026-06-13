@@ -5,7 +5,9 @@ import { readEmail } from '#tests/mocks/utils.ts';
 import { createUser, expect, test as base } from '#tests/playwright-utils.ts';
 
 const URL_REGEX = /(?<url>https?:\/\/[^\s$.?#].[^\s]*)/;
-const CODE_REGEX = /Here's your verification code: (?<code>\d+)/;
+// `\s*` so the code matches whether the email renders it inline (reset
+// password) or on its own line (signup's prominent code block).
+const CODE_REGEX = /Here's your verification code:\s*(?<code>\d+)/;
 function extractUrl(text: string) {
   const match = text.match(URL_REGEX);
   return match?.groups?.url;
@@ -123,8 +125,8 @@ test('onboarding with a short code', async ({ page, getOnboardingData }) => {
   const codeMatch = email.text.match(CODE_REGEX);
   const code = codeMatch?.groups?.code;
   invariant(code, 'Onboarding code not found');
+  // The verify form auto-submits once the sixth digit lands — no Submit click.
   await page.getByRole('textbox', { name: /code/i }).fill(code);
-  await page.getByRole('button', { name: /submit/i }).click();
 
   await expect(page).toHaveURL(`/onboarding`);
 });
@@ -224,8 +226,8 @@ test('reset password with a short code', async ({ page, insertNewUser }) => {
   const codeMatch = email.text.match(CODE_REGEX);
   const code = codeMatch?.groups?.code;
   invariant(code, 'Reset Password code not found');
+  // The verify form auto-submits once the sixth digit lands — no Submit click.
   await page.getByRole('textbox', { name: /code/i }).fill(code);
-  await page.getByRole('button', { name: /submit/i }).click();
 
   await expect(page).toHaveURL(`/reset-password`);
 });

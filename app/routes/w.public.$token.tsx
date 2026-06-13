@@ -9,6 +9,10 @@ import {
   useLoaderData,
 } from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
+import {
+  ShareConversionBanner,
+  ShareConversionCard,
+} from '#app/components/share-conversion.tsx';
 import { Wishlist, type WishlistUser } from '#app/components/wishlist';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { getUserId } from '#app/utils/auth.server.ts';
@@ -216,7 +220,14 @@ const PublicWishlistRoute = () => {
       updatedAt: new Date(item.updatedAt),
     })),
   };
-  return <Wishlist isOwner={false} user={user} isPublicView />;
+  const ownerName = user.name ?? user.username;
+  return (
+    <>
+      <ShareConversionBanner ownerName={ownerName} />
+      <Wishlist isOwner={false} user={user} isPublicView />
+      <ShareConversionCard />
+    </>
+  );
 };
 export default PublicWishlistRoute;
 export const ErrorBoundary = () => {

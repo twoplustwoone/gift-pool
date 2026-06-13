@@ -152,9 +152,11 @@ function PublicLinkCard({
             value={publicLink}
             onClick={(event) => event.currentTarget.select()}
           />
-          <p className="text-[11px] text-muted-foreground">
-            Revoking disables this link immediately. Are you sure?
-          </p>
+          {confirmingRevoke ? (
+            <p className="text-[11px] text-muted-foreground">
+              Revoking disables this link immediately. Are you sure?
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="mt-3 space-y-3">

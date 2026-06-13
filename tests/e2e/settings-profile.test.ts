@@ -6,7 +6,9 @@ import { prisma } from '#app/utils/db.server.ts';
 import { readEmail } from '#tests/mocks/utils.ts';
 import { expect, test, createUser, waitFor } from '#tests/playwright-utils.ts';
 
-const CODE_REGEX = /Here's your verification code: (?<code>\d+)/;
+// `\s*` so the code matches whether the email renders it inline or on its
+// own line (signup's prominent code block).
+const CODE_REGEX = /Here's your verification code:\s*(?<code>\d+)/;
 
 const dismissInstallPrompt = async (page: Page) => {
   const notNow = page.getByRole('button', { name: /not now/i });
@@ -139,8 +141,8 @@ test('Users can change their email address', async ({ page, login }) => {
   const codeMatch = email.text.match(CODE_REGEX);
   const code = codeMatch?.groups?.code;
   invariant(code, 'Onboarding code not found');
+  // The verify form auto-submits once the sixth digit lands — no Submit click.
   await page.getByRole('textbox', { name: /code/i }).fill(code);
-  await page.getByRole('button', { name: /submit/i }).click();
   await expect(page.getByText(/email changed/i)).toBeVisible();
 
   const updatedUser = await prisma.user.findUnique({

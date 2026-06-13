@@ -6,6 +6,7 @@ import { Button } from '#app/components/ui/button';
 import { TopNavItem } from '#app/components/ui/topNavItem';
 import { UserDropdown } from '#app/components/user-dropdown';
 import { ThemeSwitch } from '#app/routes/resources+/theme-switch';
+import { track } from '#app/utils/analytics.client.ts';
 import { useRequestInfo } from '#app/utils/request-info';
 import { useOptionalUser } from '#app/utils/user';
 
@@ -51,9 +52,21 @@ export const TopNav = () => {
           {user ? (
             <UserDropdown />
           ) : (
-            <Button asChild size="lg">
-              <Link to="/login">Log In</Link>
-            </Button>
+            <>
+              <Button asChild size="lg" variant="ghost">
+                <Link to="/login">Log In</Link>
+              </Button>
+              <Button asChild size="lg">
+                <Link
+                  to="/signup"
+                  onClick={() =>
+                    track('home_cta_clicked', { cta: 'nav_signup' })
+                  }
+                >
+                  Sign up
+                </Link>
+              </Button>
+            </>
           )}
         </div>
       </div>

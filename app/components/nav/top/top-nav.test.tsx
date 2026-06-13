@@ -8,6 +8,11 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 const useOptionalUser = vi.fn();
 const useRequestInfo = vi.fn();
+const track = vi.fn();
+
+vi.mock('#app/utils/analytics.client.ts', () => ({
+  track: (...args: Array<unknown>) => track(...args),
+}));
 
 vi.mock('#app/components/logo', () => ({
   Logo: () => <div>GiftPool</div>,
@@ -72,6 +77,7 @@ describe('<TopNav />', () => {
   afterEach(() => {
     useOptionalUser.mockReset();
     useRequestInfo.mockReset();
+    track.mockReset();
   });
 
   test('renders all primary links for authenticated users', () => {
@@ -84,9 +90,10 @@ describe('<TopNav />', () => {
     expect(screen.getByText('Theme light')).toBeInTheDocument();
     expect(screen.getByText('User menu')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Log In' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Sign up' })).not.toBeInTheDocument();
   });
 
-  test('renders logged-out navigation with a login link', () => {
+  test('renders logged-out navigation with signup and login links', () => {
     renderTopNav(null);
 
     expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
@@ -94,8 +101,22 @@ describe('<TopNav />', () => {
       'href',
       '/login',
     );
+    expect(screen.getByRole('link', { name: 'Sign up' })).toHaveAttribute(
+      'href',
+      '/signup',
+    );
     expect(screen.queryByRole('link', { name: 'Pools' })).not.toBeInTheDocument();
     expect(screen.queryByText('Notifications')).not.toBeInTheDocument();
     expect(screen.queryByText('User menu')).not.toBeInTheDocument();
+  });
+
+  test('tracks the nav signup click', () => {
+    renderTopNav(null);
+
+    screen.getByRole('link', { name: 'Sign up' }).click();
+
+    expect(track).toHaveBeenCalledWith('home_cta_clicked', {
+      cta: 'nav_signup',
+    });
   });
 });

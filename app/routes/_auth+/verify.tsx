@@ -134,6 +134,15 @@ const VerifyRoute = () => {
                   ...getInputProps(fields[codeQueryParam], { type: 'text' }),
                   autoComplete: 'one-time-code',
                   autoFocus: true,
+                  // Submit as soon as the sixth digit lands (typed or
+                  // pasted) — the Submit button stays as a fallback.
+                  onComplete: () => {
+                    if (isPending) return;
+                    const formElement = document.getElementById(form.id);
+                    if (formElement instanceof HTMLFormElement) {
+                      formElement.requestSubmit();
+                    }
+                  },
                 }}
                 errors={fields[codeQueryParam].errors}
               />
