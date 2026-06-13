@@ -1,15 +1,6 @@
-import {
-  DndContext,
-  closestCenter,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  rectSortingStrategy,
-} from '@dnd-kit/sortable';
-import {
-  type UserImage,
-  type User,
-} from '@prisma/client';
+import { DndContext, closestCenter } from '@dnd-kit/core';
+import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
+import { type UserImage, type User } from '@prisma/client';
 import {
   type FormEvent,
   useCallback,
@@ -42,11 +33,8 @@ import { useWishlistItemMutations } from './hooks/use-wishlist-item-mutations';
 import { useWishlistReorder } from './hooks/use-wishlist-reorder';
 import { useWishlistStatusUpdate } from './hooks/use-wishlist-status-update';
 import { PastEducationCallout, PastWishlistItems } from './past-wishlist-items';
-import {
-  SortableShell,
-  WishlistCategoryCard,
-} from './wishlist-category-card';
-import  { type WishlistCategory } from './wishlist-category-state';
+import { SortableShell, WishlistCategoryCard } from './wishlist-category-card';
+import { type WishlistCategory } from './wishlist-category-state';
 import { WishlistHeader } from './wishlist-header';
 import {
   categoryKeyFromId,
@@ -129,10 +117,7 @@ type WishlistActiveViewProps = Readonly<{
   handleDragEnd: (event: any) => void;
   handleDragOver: (event: any) => void;
   handleDragStart: (event: any) => void;
-  handleStatusChange: (
-    itemId: string,
-    status: any,
-  ) => boolean | void;
+  handleStatusChange: (itemId: string, status: any) => boolean | void;
   isCategoryReorderMode: boolean;
   isItemReorderMode: boolean;
   isOwner: boolean;
@@ -190,7 +175,9 @@ type WishlistCategorySectionsProps = Readonly<{
   startItemReorderMode: () => void;
 }>;
 
-function isWishlistItem(value: WishlistItem | undefined): value is WishlistItem {
+function isWishlistItem(
+  value: WishlistItem | undefined,
+): value is WishlistItem {
   return Boolean(value);
 }
 
@@ -297,10 +284,7 @@ function useWishlistUiState(
   };
 }
 
-function WishlistViewToggle({
-  onChange,
-  view,
-}: WishlistViewToggleProps) {
+function WishlistViewToggle({ onChange, view }: WishlistViewToggleProps) {
   return (
     <div className="inline-flex w-full max-w-md rounded-full bg-muted p-1 text-sm">
       <button
@@ -346,7 +330,8 @@ function WishlistReorderBanner({
             Reorder mode
           </Text>
           <Text size="xs" className="text-emerald-800">
-            Drag handles to move {isCategoryReorderMode ? 'categories' : 'items'}.
+            Drag handles to move{' '}
+            {isCategoryReorderMode ? 'categories' : 'items'}.
           </Text>
         </div>
         <div className="flex items-center gap-2">
@@ -416,7 +401,9 @@ function CategoryReorderList({
         </div>
       ) : null}
       <SortableContext
-        items={customCategories.map((category) => toCategoryDragId(category.id))}
+        items={customCategories.map((category) =>
+          toCategoryDragId(category.id),
+        )}
         strategy={rectSortingStrategy}
       >
         {customCategories.map((category) => (
@@ -489,11 +476,14 @@ function WishlistEmptyState({
       {isOwner ? (
         <p className="text-center text-base text-slate-500">
           Looks like you don't have any items in your wishlist yet!
-          {archivedItemsCount ? ' Past items are available in the Past items tab.' : ''}
+          {archivedItemsCount
+            ? ' Past items are available in the Past items tab.'
+            : ''}
         </p>
       ) : (
         <p className="text-center text-base text-slate-500">
-          {displayName} doesn't have any active items in their wishlist right now!
+          {displayName} doesn't have any active items in their wishlist right
+          now!
           {archivedItemsCount
             ? ' Their past items are available in the Past items tab.'
             : ''}
@@ -510,10 +500,7 @@ function DeleteCategoryDialog({
   pendingDeleteCategory,
 }: DeleteCategoryDialogProps) {
   return (
-    <Dialog
-      open={pendingDeleteCategory !== null}
-      onOpenChange={onOpenChange}
-    >
+    <Dialog open={pendingDeleteCategory !== null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Delete category</DialogTitle>
@@ -524,7 +511,11 @@ function DeleteCategoryDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2">
-          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
           <Button
@@ -569,7 +560,9 @@ function WishlistCategorySections({
 }: WishlistCategorySectionsProps) {
   const renderCategoryCard = useCallback(
     (
-      category: { id: string; name: string; order: number } | { id: null; name: string; order: number },
+      category:
+        | { id: string; name: string; order: number }
+        | { id: null; name: string; order: number },
       categoryKey: string,
       isEditing: boolean,
     ) => (
@@ -581,7 +574,9 @@ function WishlistCategorySections({
         canReorder={canReorder}
         isItemReorderMode={isItemReorderMode}
         isCategoryReorderMode={isCategoryReorderMode}
-        isCollapsed={isItemReorderMode ? false : Boolean(collapsed[categoryKey])}
+        isCollapsed={
+          isItemReorderMode ? false : Boolean(collapsed[categoryKey])
+        }
         isEditing={isEditing && !isCategoryReorderMode && !isItemReorderMode}
         isCategoryDropHighlighted={
           isItemReorderMode &&
@@ -589,7 +584,11 @@ function WishlistCategorySections({
           activeItemCategoryKey !== categoryKey
         }
         dragState={dragState}
-        itemsForCategory={getItemsForCategory(category.id, itemById, itemIdsByCategoryKey)}
+        itemsForCategory={getItemsForCategory(
+          category.id,
+          itemById,
+          itemIdsByCategoryKey,
+        )}
         itemIds={itemIdsByCategoryKey[categoryKey] ?? []}
         optimisticCategories={optimisticCategories}
         actionFetcher={actionFetcher}
@@ -780,9 +779,14 @@ function getItemsForCategory(
     .filter(isWishlistItem);
 }
 
-function useWishlistViewParam(searchParams: URLSearchParams, setSearchParams: ReturnType<typeof useSearchParams>[1]) {
+function useWishlistViewParam(
+  searchParams: URLSearchParams,
+  setSearchParams: ReturnType<typeof useSearchParams>[1],
+) {
   const initialView =
-    searchParams.get('view') === 'past' ? ('past' as const) : ('wishlist' as const);
+    searchParams.get('view') === 'past'
+      ? ('past' as const)
+      : ('wishlist' as const);
   const [view, setView] = useState<WishlistView>(initialView);
 
   const handleViewChange = useCallback(
@@ -837,6 +841,18 @@ export const Wishlist = ({
     toggleCategoryCollapse,
   } = useWishlistUiState(quickAddEditorRef);
 
+  // Deep link from the dashboard: /wishlist?add=1 opens the add-item editor
+  // immediately instead of making the user find the Add button a second
+  // time (June 2026 audit). Param is consumed so refresh doesn't re-open.
+  useEffect(() => {
+    if (!isOwner || searchParams.get('add') !== '1') return;
+    openQuickAdd(null);
+    const params = new URLSearchParams(searchParams);
+    params.delete('add');
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // actionFetcher shared by rename form and delete dialog
   const actionFetcher = useFetcher();
   useWishlistActionFetcherReset(actionFetcher, setEditingId);
@@ -846,12 +862,17 @@ export const Wishlist = ({
 
   // --- Hooks ---
 
-  const { items, setItems, showEducation, markEducationSeen, handleStatusChange } =
-    useWishlistStatusUpdate({
-      serverItems: user.wishlistItems,
-      userId: user.id,
-      onViewChange: handleViewChange,
-    });
+  const {
+    items,
+    setItems,
+    showEducation,
+    markEducationSeen,
+    handleStatusChange,
+  } = useWishlistStatusUpdate({
+    serverItems: user.wishlistItems,
+    userId: user.id,
+    onViewChange: handleViewChange,
+  });
 
   const { optimisticCategories, handleCategoryMutationResult } =
     useWishlistCategoryMutations({
@@ -860,11 +881,10 @@ export const Wishlist = ({
       serverCategories: user.wishlistCategories,
     });
 
-  const { activeItems, archivedItems } =
-    useWishlistItemMutations({
-      items,
-      userId: user.id,
-    });
+  const { activeItems, archivedItems } = useWishlistItemMutations({
+    items,
+    userId: user.id,
+  });
 
   // --- Derived values ---
 
@@ -939,9 +959,7 @@ export const Wishlist = ({
   const isReorderMode = canReorder && reorderMode !== 'off';
 
   const activeItemId =
-    dragging?.type === 'item'
-      ? dragging.dragId.replace(/^item:/, '')
-      : null;
+    dragging?.type === 'item' ? dragging.dragId.replace(/^item:/, '') : null;
   const activeItemCategoryKey = activeItemId
     ? categoryKeyFromId(itemById.get(activeItemId)?.categoryId ?? null)
     : null;
@@ -952,11 +970,14 @@ export const Wishlist = ({
     (category): category is { id: string; name: string; order: number } =>
       category.id !== null,
   );
-  const handleDeleteDialogOpenChange = useCallback((open: boolean) => {
-    if (!open) {
-      setPendingDeleteCategory(null);
-    }
-  }, [setPendingDeleteCategory]);
+  const handleDeleteDialogOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        setPendingDeleteCategory(null);
+      }
+    },
+    [setPendingDeleteCategory],
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-x-clip">
