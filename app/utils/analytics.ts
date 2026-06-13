@@ -64,6 +64,10 @@ export const ANALYTIC_EVENT_NAMES = [
   'group_joined',
   // Funnel entry for wishlist_item_added — measures open-then-abandon.
   'wishlist_editor_opened',
+  // Public share page CTA clicks (`placement: banner|footer_card`). Sits
+  // between wishlist_share_viewed and signup_submitted in the share-reach
+  // funnel; anonymous visitors fire it, so NOT user-required.
+  'share_cta_clicked',
 ] as const;
 
 export type AnalyticEventName = (typeof ANALYTIC_EVENT_NAMES)[number];
