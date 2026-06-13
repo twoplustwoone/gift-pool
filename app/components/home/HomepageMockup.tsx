@@ -1,3 +1,4 @@
+import { Heart } from 'lucide-react';
 import * as React from 'react';
 
 type HomepageMockupProps = {
@@ -5,7 +6,9 @@ type HomepageMockupProps = {
   className?: string;
 };
 
-// Lightweight, responsive placeholder illustration with accessible alt text
+// Decorative product preview for the marketing hero. Real text instead of
+// skeleton bars — placeholder bars read as failed-to-load content. The whole
+// mockup is one labeled image; the content inside is hidden from AT.
 export const HomepageMockup: React.FC<HomepageMockupProps> = ({
   alt,
   className,
@@ -17,50 +20,51 @@ export const HomepageMockup: React.FC<HomepageMockupProps> = ({
         aria-label={alt}
         className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-border bg-gradient-to-br from-muted to-background"
       >
-        <svg
-          viewBox="0 0 400 300"
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-full w-full"
+        <div
           aria-hidden="true"
+          className="flex h-full w-full select-none flex-col justify-center gap-3 p-4 sm:p-6"
         >
-          <defs>
-            <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="hsl(var(--muted))" />
-              <stop offset="100%" stopColor="hsl(var(--background))" />
-            </linearGradient>
-          </defs>
-          <rect width="400" height="300" fill="url(#g1)" />
+          <div className="rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="truncate text-sm font-semibold">
+                Dad&rsquo;s 60th Birthday
+              </p>
+              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                Open
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              $135 of $180 · 5 chipping in
+            </p>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className="h-full w-3/4 rounded-full bg-primary" />
+            </div>
+          </div>
 
-          {/* Pool card 1 — Open */}
-          <rect x="24" y="24" width="352" height="70" rx="10" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-          {/* Title text line */}
-          <rect x="44" y="40" width="140" height="10" rx="5" fill="hsl(var(--foreground))" opacity="0.75" />
-          {/* Sub text line */}
-          <rect x="44" y="57" width="90" height="7" rx="3.5" fill="hsl(var(--muted-foreground))" opacity="0.5" />
-          {/* Contributor count */}
-          <rect x="44" y="74" width="60" height="6" rx="3" fill="hsl(var(--muted-foreground))" opacity="0.35" />
-          {/* "Open" status badge */}
-          <rect x="292" y="36" width="60" height="20" rx="10" fill="#d1fae5" />
-          <rect x="304" y="42" width="36" height="8" rx="4" fill="#065f46" opacity="0.7" />
-
-          {/* Pool card 2 — Decided */}
-          <rect x="24" y="110" width="352" height="70" rx="10" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-          <rect x="44" y="126" width="120" height="10" rx="5" fill="hsl(var(--foreground))" opacity="0.75" />
-          <rect x="44" y="143" width="80" height="7" rx="3.5" fill="hsl(var(--muted-foreground))" opacity="0.5" />
-          <rect x="44" y="160" width="60" height="6" rx="3" fill="hsl(var(--muted-foreground))" opacity="0.35" />
-          {/* "Decided" status badge */}
-          <rect x="284" y="122" width="68" height="20" rx="10" fill="#dbeafe" />
-          <rect x="296" y="128" width="44" height="8" rx="4" fill="#1e40af" opacity="0.7" />
-
-          {/* Pool card 3 — Voting */}
-          <rect x="24" y="196" width="352" height="70" rx="10" fill="hsl(var(--card))" stroke="hsl(var(--border))" />
-          <rect x="44" y="212" width="160" height="10" rx="5" fill="hsl(var(--foreground))" opacity="0.75" />
-          <rect x="44" y="229" width="100" height="7" rx="3.5" fill="hsl(var(--muted-foreground))" opacity="0.5" />
-          <rect x="44" y="246" width="60" height="6" rx="3" fill="hsl(var(--muted-foreground))" opacity="0.35" />
-          {/* "Voting" status badge */}
-          <rect x="288" y="208" width="64" height="20" rx="10" fill="#ede9fe" />
-          <rect x="300" y="214" width="40" height="8" rx="4" fill="#5b21b6" opacity="0.7" />
-        </svg>
+          <div className="rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Heart className="h-4 w-4 shrink-0 text-primary" />
+                <p className="truncate text-sm font-medium">
+                  Espresso grinder
+                </p>
+              </div>
+              <p className="text-sm text-muted-foreground">$89</p>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Heart className="h-4 w-4 shrink-0 text-primary" />
+                <p className="truncate text-sm font-medium">
+                  Trail running shoes
+                </p>
+              </div>
+              <p className="text-sm text-muted-foreground">$140</p>
+            </div>
+            <p className="ml-6 mt-1 text-xs text-muted-foreground">
+              Claimed by Sofia
+            </p>
+          </div>
+        </div>
       </div>
       <figcaption id="home-mockup-caption" className="sr-only">
         {alt}
