@@ -123,8 +123,8 @@ test('onboarding with a short code', async ({ page, getOnboardingData }) => {
   const codeMatch = email.text.match(CODE_REGEX);
   const code = codeMatch?.groups?.code;
   invariant(code, 'Onboarding code not found');
+  // The verify form auto-submits once the sixth digit lands — no Submit click.
   await page.getByRole('textbox', { name: /code/i }).fill(code);
-  await page.getByRole('button', { name: /submit/i }).click();
 
   await expect(page).toHaveURL(`/onboarding`);
 });
@@ -224,8 +224,8 @@ test('reset password with a short code', async ({ page, insertNewUser }) => {
   const codeMatch = email.text.match(CODE_REGEX);
   const code = codeMatch?.groups?.code;
   invariant(code, 'Reset Password code not found');
+  // The verify form auto-submits once the sixth digit lands — no Submit click.
   await page.getByRole('textbox', { name: /code/i }).fill(code);
-  await page.getByRole('button', { name: /submit/i }).click();
 
   await expect(page).toHaveURL(`/reset-password`);
 });

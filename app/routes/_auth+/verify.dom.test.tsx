@@ -1,7 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createRoutesStub } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -82,6 +83,20 @@ describe('verify route UI', () => {
       target: 'x@example.com',
       redirectTo: '/wishlist',
     });
+  });
+
+  it('auto-submits once the sixth digit lands', async () => {
+    const requestSubmit = vi
+      .spyOn(HTMLFormElement.prototype, 'requestSubmit')
+      .mockImplementation(() => {});
+    try {
+      renderVerify({ search: '?type=onboarding&target=x%40example.com' });
+      const codeInput = await screen.findByRole('textbox', { name: /code/i });
+      await userEvent.type(codeInput, '123456');
+      await waitFor(() => expect(requestSubmit).toHaveBeenCalled());
+    } finally {
+      requestSubmit.mockRestore();
+    }
   });
 
   it('hides the recovery affordances for non-onboarding types', async () => {

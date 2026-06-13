@@ -41,11 +41,10 @@ test('Users can add 2FA to their account and use it when logging in', async ({
   await page.getByRole('textbox', { name: /password/i }).fill(password);
   await page.getByRole('button', { name: /log in/i }).click();
 
+  // The /verify 2FA challenge auto-submits once the sixth digit lands.
   await page
     .getByRole('textbox', { name: /code/i })
     .fill(generateTOTP(options).otp);
-
-  await page.getByRole('button', { name: /submit/i }).click();
 
   await expect(
     page.getByRole('link', { name: user.name ?? user.username }),
@@ -80,10 +79,10 @@ test('Users can disable 2FA after enabling it', async ({ page, login }) => {
   // verify doesn't count, so we get bounced to /verify first. Re-enter the
   // TOTP, then the disable page loads for real.
   await expect(page).toHaveURL(/\/verify\?type=2fa/);
+  // The /verify 2FA challenge auto-submits once the sixth digit lands.
   await page
     .getByRole('textbox', { name: /code/i })
     .fill(generateTOTP(options).otp);
-  await page.getByRole('button', { name: /submit/i }).click();
   await expect(page).toHaveURL(/\/settings\/profile\/two-factor\/disable$/);
 
   // ── useDoubleCheck gates the action button: first click flips the label

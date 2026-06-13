@@ -139,8 +139,8 @@ test('Users can change their email address', async ({ page, login }) => {
   const codeMatch = email.text.match(CODE_REGEX);
   const code = codeMatch?.groups?.code;
   invariant(code, 'Onboarding code not found');
+  // The verify form auto-submits once the sixth digit lands — no Submit click.
   await page.getByRole('textbox', { name: /code/i }).fill(code);
-  await page.getByRole('button', { name: /submit/i }).click();
   await expect(page.getByText(/email changed/i)).toBeVisible();
 
   const updatedUser = await prisma.user.findUnique({
