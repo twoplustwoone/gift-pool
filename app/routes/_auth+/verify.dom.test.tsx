@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRoutesStub } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -89,11 +89,20 @@ describe('verify route UI', () => {
     const requestSubmit = vi
       .spyOn(HTMLFormElement.prototype, 'requestSubmit')
       .mockImplementation(() => {});
+    const { unmount } = renderVerify({
+      search: '?type=onboarding&target=x%40example.com',
+    });
     try {
-      renderVerify({ search: '?type=onboarding&target=x%40example.com' });
       const codeInput = await screen.findByRole('textbox', { name: /code/i });
       await userEvent.type(codeInput, '123456');
       await waitFor(() => expect(requestSubmit).toHaveBeenCalled());
+      // input-otp schedules selection-mirroring timers; unmount (clears them
+      // via its effect cleanup) and drain the queue while jsdom is still alive,
+      // so no stray timer fires post-teardown ("window is not defined").
+      unmount();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
     } finally {
       requestSubmit.mockRestore();
     }
