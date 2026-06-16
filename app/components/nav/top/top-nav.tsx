@@ -49,7 +49,11 @@ export const TopNav = () => {
 
         <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
           {user ? <NotificationBell /> : null}
-          <FeedbackWidget />
+          {/* Logged-in only: for logged-out visitors the cluster also holds the
+              full-size Log In + Sign up CTAs, and a third control overflows the
+              fixed header on narrow phones. Anonymous feedback still lives on
+              /support. */}
+          {user ? <FeedbackWidget /> : null}
           <ThemeSwitch userPreference={requestInfo.userPrefs.theme} />
           {user ? (
             <UserDropdown />
