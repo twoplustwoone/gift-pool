@@ -4,7 +4,7 @@ import {
   data,
   redirect,
   type ActionFunctionArgs,
-  type LoaderFunctionArgs, Link, useFetcher, useLoaderData 
+  type LoaderFunctionArgs, Link, useFetcher, useLoaderData, useRevalidator
 } from 'react-router';
 import { Button } from '#app/components/ui/button.tsx';
 import { Checkbox } from '#app/components/ui/checkbox.tsx';
@@ -579,6 +579,12 @@ function getPreferenceKey(
 function PushStatusBanner({
   push,
 }: Readonly<{ push: ReturnType<typeof useWebPush> }>) {
+  const revalidator = useRevalidator();
+  // After enabling/disabling push the server flips pushEnabled on the prefs
+  // rows; revalidate so the per-type push checkboxes reflect the new state.
+  const revalidate = () => {
+    void revalidator.revalidate();
+  };
   const className =
     'flex flex-col gap-2 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between';
 
@@ -617,7 +623,7 @@ function PushStatusBanner({
           variant="ghost"
           disabled={push.isBusy}
           onClick={() => {
-            void push.unsubscribe();
+            void push.unsubscribe().then(revalidate);
           }}
         >
           Turn off on this device
@@ -636,7 +642,7 @@ function PushStatusBanner({
         type="button"
         disabled={push.isBusy}
         onClick={() => {
-          void push.subscribe();
+          void push.subscribe().then(revalidate);
         }}
       >
         Enable push notifications

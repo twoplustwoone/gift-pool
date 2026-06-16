@@ -51,7 +51,19 @@ export const useWebPush = () => {
     try {
       const registration = await navigator.serviceWorker.ready;
       const existing = await registration.pushManager.getSubscription();
-      setStatus(existing ? 'subscribed' : 'default');
+      if (existing) {
+        // Re-register the endpoint with the server so the row exists for the
+        // current user (covers shared devices and prior failed POSTs). No
+        // enableAll — this must not clobber the user's per-type push choices.
+        await fetch(SUBSCRIBE_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: existing.toJSON() }),
+        }).catch(() => {});
+        setStatus('subscribed');
+      } else {
+        setStatus('default');
+      }
     } catch {
       setStatus('default');
     }
@@ -87,7 +99,11 @@ export const useWebPush = () => {
       const response = await fetch(SUBSCRIBE_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subscription.toJSON()),
+        // enableAll: this is an explicit opt-in, so turn push on for all types.
+        body: JSON.stringify({
+          subscription: subscription.toJSON(),
+          enableAll: true,
+        }),
       });
       if (!response.ok) {
         setStatus('default');
