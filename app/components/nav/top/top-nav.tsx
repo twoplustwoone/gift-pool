@@ -1,5 +1,6 @@
 import { type LucideIcon, Gift, Heart, Home, UserCheck, Users } from 'lucide-react';
 import { Link } from 'react-router';
+import { FeedbackWidget } from '#app/components/feedback/feedback-widget.tsx';
 import { Logo } from '#app/components/logo';
 import { NotificationBell } from '#app/components/notifications/notification-bell.tsx';
 import { Button } from '#app/components/ui/button';
@@ -48,6 +49,11 @@ export const TopNav = () => {
 
         <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
           {user ? <NotificationBell /> : null}
+          {/* Logged-in only: for logged-out visitors the cluster also holds the
+              full-size Log In + Sign up CTAs, and a third control overflows the
+              fixed header on narrow phones. Anonymous feedback still lives on
+              /support. */}
+          {user ? <FeedbackWidget /> : null}
           <ThemeSwitch userPreference={requestInfo.userPrefs.theme} />
           {user ? (
             <UserDropdown />

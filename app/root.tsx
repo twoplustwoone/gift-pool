@@ -31,7 +31,6 @@ import { z } from 'zod';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx';
-import { FeedbackWidget } from './components/feedback/feedback-widget.tsx';
 import { FriendsRouteSkeleton } from './components/friends/friends-route-skeleton.tsx';
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
@@ -477,7 +476,6 @@ const App = () => {
 
             <Footer />
           </div>
-          <FeedbackWidget />
           <EpicProgress />
           <EpicToaster closeButton position="top-center" theme={theme} />
         </NotificationsProvider>
