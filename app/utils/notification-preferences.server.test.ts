@@ -50,7 +50,11 @@ describe('notification preferences', () => {
       user.id,
       NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
     );
-    expect(preference).toEqual({ inAppEnabled: true, emailEnabled: true });
+    expect(preference).toEqual({
+      inAppEnabled: true,
+      emailEnabled: true,
+      pushEnabled: false,
+    });
   });
 
   it('persists preference changes with audit log entries', async () => {
@@ -234,6 +238,7 @@ describe('notification preferences', () => {
     expect(prefs.get(NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED)).toEqual({
       inAppEnabled: false,
       emailEnabled: false,
+      pushEnabled: false,
     });
     // Missing types come back with registry defaults.
     for (const type of Object.values(NOTIFICATION_TYPES)) {

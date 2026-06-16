@@ -21,6 +21,7 @@ export const en = {
     menuItem: 'Notifications',
     friendRequest: {
       message: '{{name}} sent you a friend request',
+      pushTitle: 'New friend request',
       fallbackName: 'Someone',
       accept: 'Accept',
       reject: 'Reject',
@@ -29,6 +30,7 @@ export const en = {
     },
     friendRequestAccepted: {
       message: '{{name}} accepted your friend request',
+      pushTitle: 'Friend request accepted',
       fallbackName: 'Someone',
     },
     upcomingBirthday: {

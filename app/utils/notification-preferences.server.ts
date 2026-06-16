@@ -1,5 +1,6 @@
 import { prisma } from '#app/utils/db.server.ts';
 import {
+  channelToColumn,
   DEFAULT_NOTIFICATION_PREFERENCES,
   NOTIFICATION_CHANNELS,
   NOTIFICATION_TYPES,
@@ -23,6 +24,7 @@ export function notificationPreferenceDefaultsFor(userId: string) {
     type,
     inAppEnabled: defaultForType(type).inAppEnabled,
     emailEnabled: defaultForType(type).emailEnabled,
+    pushEnabled: defaultForType(type).pushEnabled,
     createdAt: now,
     updatedAt: now,
   }));
@@ -53,6 +55,7 @@ export async function ensureNotificationPreferencesForUser(
           type,
           inAppEnabled: defaultForType(type).inAppEnabled,
           emailEnabled: defaultForType(type).emailEnabled,
+          pushEnabled: defaultForType(type).pushEnabled,
           createdAt: now,
           updatedAt: now,
         },
@@ -64,16 +67,22 @@ export async function ensureNotificationPreferencesForUser(
 export async function getNotificationPreferences(userId: string) {
   const prefs = await prisma.userNotificationPreference.findMany({
     where: { userId },
-    select: { type: true, inAppEnabled: true, emailEnabled: true },
+    select: {
+      type: true,
+      inAppEnabled: true,
+      emailEnabled: true,
+      pushEnabled: true,
+    },
   });
   const map = new Map<
     NotificationType,
-    { inAppEnabled: boolean; emailEnabled: boolean }
+    { inAppEnabled: boolean; emailEnabled: boolean; pushEnabled: boolean }
   >();
   for (const pref of prefs) {
     map.set(pref.type as NotificationType, {
       inAppEnabled: pref.inAppEnabled,
       emailEnabled: pref.emailEnabled,
+      pushEnabled: pref.pushEnabled,
     });
   }
   // Fill in defaults for any type that doesn't yet have a row. This replaces
@@ -92,7 +101,7 @@ export async function getNotificationPreferenceForChannels(
 ) {
   const pref = await prisma.userNotificationPreference.findUnique({
     where: { userId_type: { userId, type } },
-    select: { inAppEnabled: true, emailEnabled: true },
+    select: { inAppEnabled: true, emailEnabled: true, pushEnabled: true },
   });
   if (!pref) {
     const defaults = defaultForType(type);
@@ -108,11 +117,10 @@ export async function setNotificationPreference(
   enabled: boolean,
   source: string,
 ) {
-  const column =
-    channel === NOTIFICATION_CHANNELS.EMAIL ? 'emailEnabled' : 'inAppEnabled';
+  const column = channelToColumn(channel);
   const existing = await prisma.userNotificationPreference.findUnique({
     where: { userId_type: { userId, type } },
-    select: { inAppEnabled: true, emailEnabled: true },
+    select: { inAppEnabled: true, emailEnabled: true, pushEnabled: true },
   });
   const defaults = defaultForType(type);
   const previousValue = existing?.[column] ?? defaults[column];
@@ -133,6 +141,8 @@ export async function setNotificationPreference(
           column === 'inAppEnabled' ? enabled : defaults.inAppEnabled,
         emailEnabled:
           column === 'emailEnabled' ? enabled : defaults.emailEnabled,
+        pushEnabled:
+          column === 'pushEnabled' ? enabled : defaults.pushEnabled,
       },
     });
 

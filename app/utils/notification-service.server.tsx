@@ -9,15 +9,15 @@ import {
   createPreferenceToken,
   getPreferenceManagementUrl,
 } from '#app/utils/notification-preference-token.server.ts';
+import { translate } from '#app/utils/i18n.tsx';
 import { getNotificationPreferenceForChannels } from '#app/utils/notification-preferences.server.ts';
 import {
   NOTIFICATION_TYPES,
   type NotificationPayload,
   type NotificationType,
-  type NotificationChannel,
   type FriendRelationshipSnapshot,
-  NOTIFICATION_CHANNELS,
 } from '#app/utils/notification-registry.ts';
+import { sendWebPush } from '#app/utils/web-push.server.ts';
 
 const appName = 'GiftPool';
 
@@ -98,6 +98,17 @@ async function notifyFriendRequestReceived(
   if (prefs.emailEnabled) {
     await sendFriendRequestReceivedEmail(options);
   }
+
+  if (prefs.pushEnabled) {
+    await sendWebPush(userId, {
+      title: translate('en', 'notifications.friendRequest.pushTitle'),
+      body: translate('en', 'notifications.friendRequest.message', {
+        name: payload.actorDisplayName,
+      }),
+      url: '/friends#incoming-requests',
+      tag: `friend-request:${payload.friendRequestId}:received`,
+    });
+  }
 }
 
 async function notifyFriendRequestAccepted(
@@ -139,6 +150,17 @@ async function notifyFriendRequestAccepted(
 
   if (prefs.emailEnabled) {
     await sendFriendRequestAcceptedEmail(options);
+  }
+
+  if (prefs.pushEnabled) {
+    await sendWebPush(userId, {
+      title: translate('en', 'notifications.friendRequestAccepted.pushTitle'),
+      body: translate('en', 'notifications.friendRequestAccepted.message', {
+        name: payload.actorDisplayName,
+      }),
+      url: '/friends',
+      tag: `friend-request:${payload.friendRequestId}:accepted`,
+    });
   }
 }
 
@@ -252,10 +274,4 @@ async function buildManagePreferencesUrl(
 ) {
   const token = await createPreferenceToken({ userId, type });
   return getPreferenceManagementUrl(token);
-}
-
-export function channelToColumn(channel: NotificationChannel) {
-  return channel === NOTIFICATION_CHANNELS.EMAIL
-    ? 'emailEnabled'
-    : 'inAppEnabled';
 }

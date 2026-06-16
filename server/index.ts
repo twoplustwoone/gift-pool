@@ -88,8 +88,18 @@ if (viteDevServer) {
   );
 
   // Everything else (like favicon.ico) is cached for an hour. You may want to be
-  // more aggressive with this caching.
-  app.use(express.static('build/client', { maxAge: '1h' }));
+  // more aggressive with this caching. The service worker is an exception: keep
+  // it uncached so SW updates propagate promptly on the next visit.
+  app.use(
+    express.static('build/client', {
+      maxAge: '1h',
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('sw.js')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    }),
+  );
 }
 
 app.get(['/img/*', '/favicons/*'], (_req, res) => {
@@ -135,6 +145,8 @@ app.use(
         'font-src': ["'self'"],
         'frame-src': ["'self'"],
         'img-src': ["'self'", 'data:'],
+        'manifest-src': ["'self'"],
+        'worker-src': ["'self'"],
         'script-src': [
           "'strict-dynamic'",
           "'self'",

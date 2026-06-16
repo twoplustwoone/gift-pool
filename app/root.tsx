@@ -35,6 +35,7 @@ import { FriendsRouteSkeleton } from './components/friends/friends-route-skeleto
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
 import { NotificationsProvider } from './components/notifications/notifications-context.tsx';
+import { NotificationPolling } from './components/notifications/notification-polling.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
 import { PwaInstallBanner } from './components/pwa-install-banner.tsx';
 import { SiteFooter } from './components/site-footer.tsx';
@@ -438,6 +439,7 @@ const App = () => {
         <NotificationsProvider
           initialUnreadCount={data.notifications?.unreadCount ?? 0}
         >
+          {data.notifications ? <NotificationPolling /> : null}
           <div className="flex max-h-[100dvh] min-h-[100dvh] flex-col overflow-hidden">
             {showPwaInstallBanner ? (
               <div ref={bannerRef}>

@@ -42,6 +42,11 @@ export const ANALYTIC_EVENT_NAMES = [
   // Outcome-coded (like wishlist_unfurl_completed): fires on success AND
   // failure with `kind` + `success` properties.
   'notification_action_completed',
+  // Web Push opt-in funnel.
+  'push_subscribed',
+  'push_unsubscribed',
+  'push_permission_denied',
+  'push_prompt_dismissed',
   'wishlist_item_removed',
   'wishlist_item_undo_clicked',
   'wishlist_item_undo_expired',
@@ -99,6 +104,10 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   'notification_clicked',
   'notifications_marked_all_read',
   'notification_action_completed',
+  'push_subscribed',
+  'push_unsubscribed',
+  'push_permission_denied',
+  'push_prompt_dismissed',
   'wishlist_item_removed',
   'wishlist_item_undo_clicked',
   'wishlist_item_undo_expired',

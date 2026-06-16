@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  detectManualInstallPlatform,
+  isStandalone,
+  type ManualInstallPlatform,
+} from '#app/utils/pwa.ts';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -14,44 +19,8 @@ export type InstallOutcome =
   | 'unavailable'
   | 'error'
   | 'manual';
-export type ManualInstallPlatform = 'ios-safari' | 'ios-chrome';
+export type { ManualInstallPlatform };
 export type InstallCapability = 'prompt' | 'manual' | 'unsupported';
-
-const isStandalone = () => {
-  if (typeof window === 'undefined') return false;
-  const mediaQueryList = window.matchMedia?.('(display-mode: standalone)');
-  const navigatorStandalone = (
-    window.navigator as Navigator & {
-      standalone?: boolean;
-    }
-  ).standalone;
-  return Boolean(mediaQueryList?.matches || navigatorStandalone);
-};
-
-const detectManualInstallPlatform = (): ManualInstallPlatform | null => {
-  if (typeof window === 'undefined') return null;
-  if (isStandalone()) return null;
-
-  const userAgent = window.navigator.userAgent.toLowerCase();
-  const isIos = /iphone|ipad|ipod/.test(userAgent);
-  if (!isIos) return null;
-
-  if (userAgent.includes('crios')) {
-    return 'ios-chrome';
-  }
-
-  const isSafari =
-    userAgent.includes('safari') &&
-    !userAgent.includes('fxios') &&
-    !userAgent.includes('edgios') &&
-    !userAgent.includes('opios');
-
-  if (isSafari) {
-    return 'ios-safari';
-  }
-
-  return null;
-};
 
 const DISMISS_STORAGE_KEY = 'pwa-install-banner-dismissed';
 
