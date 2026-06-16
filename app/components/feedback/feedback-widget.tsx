@@ -35,18 +35,18 @@ export const FeedbackWidget = () => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {/* Trigger sits bottom-LEFT on mobile: the bottom-right thumb corner
-          belongs to page-level primary actions (the wishlist add-item FAB
-          rendered at the same spot and this widget covered it — June 2026
-          audit P0). */}
+      {/* Lives in the top-bar cluster next to the bell/theme/avatar — a
+          secondary-weight icon, not a floating FAB. A floating button at the
+          bottom collided with the wishlist add-item FAB and overlapped the
+          bottom nav on iOS (June 2026 audit). Styling mirrors NotificationBell
+          so the cluster icons sit uniformly. */}
       <DialogTrigger asChild>
         <button
           type="button"
           aria-label="Give feedback"
-          className="fixed bottom-20 left-4 z-50 flex h-12 items-center gap-2 rounded-full bg-primary px-4 text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 sm:bottom-6 sm:left-auto sm:right-6"
+          className="bg-surface-muted relative inline-flex size-10 items-center justify-center rounded-full border border-transparent text-foreground shadow-sm outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
         >
           <LuMessageSquarePlus className="h-5 w-5" aria-hidden />
-          <span className="hidden text-sm font-medium sm:inline">Feedback</span>
         </button>
       </DialogTrigger>
       <DialogContent>
