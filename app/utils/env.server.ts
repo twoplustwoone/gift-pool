@@ -22,6 +22,13 @@ const schema = z.object({
   // Optional: enables the Claude Haiku fallback for product-page metadata
   // extraction. When unset, enrichment is structured-data only.
   ANTHROPIC_API_KEY: z.string().optional(),
+  // Optional: Web Push (VAPID) keys. Generate with `npx web-push
+  // generate-vapid-keys`. When unset (dev/CI), push send is a no-op and the
+  // subscribe UI hides itself. Only VAPID_PUBLIC_KEY is exposed to the client.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  // Contact URI for the push service (e.g. "mailto:you@example.com").
+  VAPID_SUBJECT: z.string().optional(),
   // If you plan to use GitHub auth, remove the default:
   GITHUB_CLIENT_ID: z.string().default('MOCK_GITHUB_CLIENT_ID'),
   GITHUB_CLIENT_SECRET: z.string().default('MOCK_GITHUB_CLIENT_SECRET'),
@@ -62,6 +69,9 @@ export function getPublicEnv() {
     MODE: process.env.NODE_ENV,
     SENTRY_DSN: process.env.SENTRY_DSN,
     ALLOW_INDEXING: process.env.ALLOW_INDEXING,
+    // Public VAPID key — the client needs it to subscribe to push. Safe to
+    // expose; the private key stays server-side.
+    VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
   };
 }
 

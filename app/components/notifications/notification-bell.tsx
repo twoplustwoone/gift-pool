@@ -24,6 +24,7 @@ import {
 } from '#app/utils/i18n.tsx';
 import { cn } from '#app/utils/misc.tsx';
 import { useNotificationsStore } from './notifications-context.tsx';
+import { PushNudge } from './push-nudge.tsx';
 
 interface NotificationActionPayload {
   kind: string;
@@ -676,6 +677,7 @@ export const NotificationBell = () => {
             </Tooltip>
           </TooltipProvider>
         </div>
+        <PushNudge />
         {error ? (
           <div className="px-4 py-3 text-sm text-destructive">{error}</div>
         ) : null}

@@ -27,11 +27,13 @@ const loaderDataSnapshot = {
     {
       emailEnabled: true,
       inAppEnabled: true,
+      pushEnabled: true,
       type: 'FRIEND_REQUEST_RECEIVED',
     },
     {
       emailEnabled: true,
       inAppEnabled: true,
+      pushEnabled: false,
       type: 'FRIEND_REQUEST_ACCEPTED',
     },
   ],
@@ -70,8 +72,21 @@ vi.mock('react-router', async () => {
       };
     },
     useLoaderData: () => loaderDataSnapshot,
+    useRevalidator: () => ({ revalidate: vi.fn(), state: 'idle' }),
   };
 });
+
+const webPushState = {
+  status: 'unsupported' as string,
+  isBusy: false,
+  subscribe: vi.fn().mockResolvedValue(true),
+  unsubscribe: vi.fn().mockResolvedValue(true),
+  refresh: vi.fn(),
+};
+
+vi.mock('#app/hooks/use-web-push.ts', () => ({
+  useWebPush: () => webPushState,
+}));
 
 vi.mock('#app/utils/auth.server.ts', () => ({
   getUserId: (...args: Array<unknown>) => getUserId(...args),
@@ -140,17 +155,22 @@ beforeEach(() => {
   disableFetcherState.state = 'idle';
   disableFetcherState.submit.mockReset();
   useFetcherCallCount = 0;
+  webPushState.status = 'unsupported';
+  webPushState.subscribe.mockClear();
+  webPushState.unsubscribe.mockClear();
 
   loaderDataSnapshot.isAuthenticated = true;
   loaderDataSnapshot.preferences = [
     {
       emailEnabled: true,
       inAppEnabled: true,
+      pushEnabled: true,
       type: 'FRIEND_REQUEST_RECEIVED',
     },
     {
       emailEnabled: true,
       inAppEnabled: true,
+      pushEnabled: false,
       type: 'FRIEND_REQUEST_ACCEPTED',
     },
   ];
@@ -466,5 +486,45 @@ describe('settings notifications route component', () => {
       ).toBe(true);
     });
     expect(disableFetcherState.submit).toHaveBeenCalledTimes(1);
+  });
+
+  describe('push column', () => {
+    it('shows the Push column and "on" banner when subscribed', () => {
+      webPushState.status = 'subscribed';
+      renderRoute();
+      expect(
+        screen.getByRole('columnheader', { name: 'Push' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/push notifications are on for this device/i),
+      ).toBeInTheDocument();
+    });
+
+    it('offers the enable button when push is available but off', () => {
+      webPushState.status = 'default';
+      renderRoute();
+      expect(
+        screen.getByRole('button', { name: /enable push notifications/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('guides iOS users to install first', () => {
+      webPushState.status = 'ios-needs-install';
+      renderRoute();
+      expect(
+        screen.getByText(/add giftpool to your home screen/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: /how to install/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('hides the Push column entirely when unsupported', () => {
+      webPushState.status = 'unsupported';
+      renderRoute();
+      expect(
+        screen.queryByRole('columnheader', { name: 'Push' }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

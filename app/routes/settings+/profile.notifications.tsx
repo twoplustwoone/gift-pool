@@ -4,7 +4,7 @@ import {
   data,
   redirect,
   type ActionFunctionArgs,
-  type LoaderFunctionArgs, Link, useFetcher, useLoaderData 
+  type LoaderFunctionArgs, Link, useFetcher, useLoaderData, useRevalidator
 } from 'react-router';
 import { Button } from '#app/components/ui/button.tsx';
 import { Checkbox } from '#app/components/ui/checkbox.tsx';
@@ -18,7 +18,9 @@ import {
   getNotificationPreferences,
   setNotificationPreference,
 } from '#app/utils/notification-preferences.server.ts';
+import { useWebPush } from '#app/hooks/use-web-push.ts';
 import {
+  channelToColumn,
   DEFAULT_NOTIFICATION_PREFERENCES,
   NOTIFICATION_CHANNELS,
   NOTIFICATION_TYPES,
@@ -99,6 +101,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     {
       inAppEnabled: boolean;
       emailEnabled: boolean;
+      pushEnabled: boolean;
     }
   >();
   if (preferencesMap) {
@@ -115,6 +118,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       type,
       inAppEnabled: pref.inAppEnabled,
       emailEnabled: pref.emailEnabled,
+      pushEnabled: pref.pushEnabled,
     })),
   };
 }
@@ -173,6 +177,7 @@ type NotificationPreferenceState = Record<
   {
     inAppEnabled: boolean;
     emailEnabled: boolean;
+    pushEnabled: boolean;
   }
 >;
 type PreferenceKey = `${NotificationType}:${NotificationChannel}`;
@@ -182,6 +187,12 @@ type PreferencesActionResult = {
 };
 const NotificationsSettingsRoute = () => {
   const data = useLoaderData<typeof loader>();
+  const push = useWebPush();
+  const pushColumnVisible =
+    data.isAuthenticated &&
+    push.status !== 'unsupported' &&
+    push.status !== 'loading';
+  const columnCount = pushColumnVisible ? 5 : 4;
   const toggleFetcher = useFetcher<PreferencesActionResult>();
   const disableEmailFetcher = useFetcher<PreferencesActionResult>();
   const [preferences, setPreferences] =
@@ -387,6 +398,10 @@ const NotificationsSettingsRoute = () => {
         </div>
       )}
 
+      {data.isAuthenticated && push.status !== 'unsupported' ? (
+        <PushStatusBanner push={push} />
+      ) : null}
+
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -395,19 +410,20 @@ const NotificationsSettingsRoute = () => {
               <th className="px-4 py-3">Description</th>
               <th className="px-4 py-3">In-app</th>
               <th className="px-4 py-3">Email</th>
+              {pushColumnVisible ? <th className="px-4 py-3">Push</th> : null}
             </tr>
           </thead>
           <tbody>
             {preferenceGroups.map((group) => (
               <React.Fragment key={group.id}>
                 <tr className="bg-muted/60">
-                  <td className="px-4 py-3 font-semibold" colSpan={4}>
+                  <td className="px-4 py-3 font-semibold" colSpan={columnCount}>
                     {group.title}
                   </td>
                 </tr>
                 {group.description ? (
                   <tr className="bg-muted/40 text-xs text-muted-foreground">
-                    <td className="px-4 pb-2" colSpan={4}>
+                    <td className="px-4 pb-2" colSpan={columnCount}>
                       {group.description}
                     </td>
                   </tr>
@@ -419,6 +435,9 @@ const NotificationsSettingsRoute = () => {
                   );
                   const pendingEmail = pendingKeys.has(
                     getPreferenceKey(item.type, NOTIFICATION_CHANNELS.EMAIL),
+                  );
+                  const pendingPush = pendingKeys.has(
+                    getPreferenceKey(item.type, NOTIFICATION_CHANNELS.WEB_PUSH),
                   );
                   const disableToggles = item.disabled || !data.isAuthenticated;
                   return (
@@ -459,6 +478,28 @@ const NotificationsSettingsRoute = () => {
                           }
                         />
                       </td>
+                      {pushColumnVisible ? (
+                        <td className="px-4 py-3">
+                          <PreferenceCheckbox
+                            checked={pref.pushEnabled}
+                            label="Enable push"
+                            // Push toggles only act once the device is
+                            // subscribed; otherwise use the banner above.
+                            disabled={
+                              disableToggles ||
+                              push.status !== 'subscribed' ||
+                              pendingPush
+                            }
+                            onChange={() =>
+                              handleToggle(
+                                item.type,
+                                NOTIFICATION_CHANNELS.WEB_PUSH,
+                                pref.pushEnabled,
+                              )
+                            }
+                          />
+                        </td>
+                      ) : null}
                     </tr>
                   );
                 })}
@@ -488,6 +529,7 @@ const DEFAULT_CHANNEL_FALLBACK: Record<
   {
     inAppEnabled: boolean;
     emailEnabled: boolean;
+    pushEnabled: boolean;
   }
 > = Object.fromEntries(
   Object.entries(DEFAULT_NOTIFICATION_PREFERENCES).map(([key, value]) => [
@@ -499,6 +541,7 @@ const DEFAULT_CHANNEL_FALLBACK: Record<
   {
     inAppEnabled: boolean;
     emailEnabled: boolean;
+    pushEnabled: boolean;
   }
 >;
 const PREFERENCE_TYPES = preferenceGroups.flatMap((group) =>
@@ -509,6 +552,7 @@ function buildPreferenceState(
     type: NotificationType;
     inAppEnabled: boolean;
     emailEnabled: boolean;
+    pushEnabled: boolean;
   }>,
 ): NotificationPreferenceState {
   const next = {
@@ -518,20 +562,93 @@ function buildPreferenceState(
     next[pref.type] = {
       inAppEnabled: pref.inAppEnabled,
       emailEnabled: pref.emailEnabled,
+      pushEnabled: pref.pushEnabled,
     };
   }
   return next;
 }
 function getChannelField(channel: NotificationChannel) {
-  return channel === NOTIFICATION_CHANNELS.IN_APP
-    ? 'inAppEnabled'
-    : 'emailEnabled';
+  return channelToColumn(channel);
 }
 function getPreferenceKey(
   type: NotificationType,
   channel: NotificationChannel,
 ): PreferenceKey {
   return `${type}:${channel}`;
+}
+function PushStatusBanner({
+  push,
+}: Readonly<{ push: ReturnType<typeof useWebPush> }>) {
+  const revalidator = useRevalidator();
+  // After enabling/disabling push the server flips pushEnabled on the prefs
+  // rows; revalidate so the per-type push checkboxes reflect the new state.
+  const revalidate = () => {
+    void revalidator.revalidate();
+  };
+  const className =
+    'flex flex-col gap-2 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between';
+
+  if (push.status === 'ios-needs-install') {
+    return (
+      <div className={className}>
+        <span className="text-muted-foreground">
+          Add GiftPool to your home screen to turn on push notifications.
+        </span>
+        <Link className="font-medium underline" to="/pwa-install">
+          How to install
+        </Link>
+      </div>
+    );
+  }
+
+  if (push.status === 'denied') {
+    return (
+      <div className={className}>
+        <span className="text-muted-foreground">
+          Push notifications are blocked. Enable them for this site in your
+          browser settings, then reload.
+        </span>
+      </div>
+    );
+  }
+
+  if (push.status === 'subscribed') {
+    return (
+      <div className={className}>
+        <span className="text-muted-foreground">
+          Push notifications are on for this device.
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={push.isBusy}
+          onClick={() => {
+            void push.unsubscribe().then(revalidate);
+          }}
+        >
+          Turn off on this device
+        </Button>
+      </div>
+    );
+  }
+
+  // status === 'default'
+  return (
+    <div className={className}>
+      <span className="text-muted-foreground">
+        Get notified on this device even when GiftPool isn&apos;t open.
+      </span>
+      <Button
+        type="button"
+        disabled={push.isBusy}
+        onClick={() => {
+          void push.subscribe().then(revalidate);
+        }}
+      >
+        Enable push notifications
+      </Button>
+    </div>
+  );
 }
 function PreferenceCheckbox({
   checked,

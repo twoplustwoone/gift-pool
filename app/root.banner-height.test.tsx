@@ -74,6 +74,10 @@ vi.mock('./components/notifications/notifications-context.tsx', () => ({
   ),
 }));
 
+vi.mock('./components/notifications/notification-polling.tsx', () => ({
+  NotificationPolling: () => null,
+}));
+
 vi.mock('./components/progress-bar.tsx', () => ({
   EpicProgress: () => <div />,
 }));

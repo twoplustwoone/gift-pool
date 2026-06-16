@@ -19,6 +19,7 @@ const defaultNotificationPreferenceRows = Object.values(NOTIFICATION_TYPES).map(
     type,
     inAppEnabled: DEFAULT_NOTIFICATION_PREFERENCES[type].inAppEnabled,
     emailEnabled: DEFAULT_NOTIFICATION_PREFERENCES[type].emailEnabled,
+    pushEnabled: DEFAULT_NOTIFICATION_PREFERENCES[type].pushEnabled,
   }),
 );
 

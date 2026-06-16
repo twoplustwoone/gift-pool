@@ -35,6 +35,7 @@ import { FriendsRouteSkeleton } from './components/friends/friends-route-skeleto
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
 import { TopBar } from './components/nav/top-bar.tsx';
 import { NotificationsProvider } from './components/notifications/notifications-context.tsx';
+import { NotificationPolling } from './components/notifications/notification-polling.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
 import { PwaInstallBanner } from './components/pwa-install-banner.tsx';
 import { SiteFooter } from './components/site-footer.tsx';
@@ -52,6 +53,7 @@ import {
 } from './utils/chunk-error.client.ts';
 import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx';
 import { prisma } from './utils/db.server.ts';
+import { getEnv } from './utils/env.server.ts';
 import { honeypot } from './utils/honeypot.server.ts';
 import { I18nProvider, getLocaleFromRequest } from './utils/i18n.tsx';
 import { combineHeaders, getDomainUrl } from './utils/misc.tsx';
@@ -199,11 +201,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
         },
         locale,
       },
-      ENV: {
-        MODE: process.env.NODE_ENV,
-        SENTRY_DSN: process.env.SENTRY_DSN,
-        ALLOW_INDEXING: process.env.ALLOW_INDEXING,
-      },
+      // Use getEnv() so every public var (incl. VAPID_PUBLIC_KEY) reaches the
+      // client — hardcoding the keys here silently drops new public env vars.
+      ENV: getEnv(),
       toast,
       notifications: {
         unreadCount,
@@ -438,6 +438,7 @@ const App = () => {
         <NotificationsProvider
           initialUnreadCount={data.notifications?.unreadCount ?? 0}
         >
+          {data.notifications ? <NotificationPolling /> : null}
           <div className="flex max-h-[100dvh] min-h-[100dvh] flex-col overflow-hidden">
             {showPwaInstallBanner ? (
               <div ref={bannerRef}>

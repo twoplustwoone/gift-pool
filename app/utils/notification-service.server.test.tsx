@@ -18,6 +18,11 @@ vi.mock('#app/utils/email.server.ts', () => ({
     .mockResolvedValue({ status: 'success', data: { id: 'mock-email' } }),
 }));
 
+const sendWebPush = vi.fn().mockResolvedValue(undefined);
+vi.mock('#app/utils/web-push.server.ts', () => ({
+  sendWebPush: (...args: Array<unknown>) => sendWebPush(...args),
+}));
+
 async function createUser(
   overrides: Partial<{ email: string; username: string; name: string }> = {},
 ) {
@@ -42,6 +47,7 @@ describe('notification service', () => {
 
   afterEach(async () => {
     emailMock.mockClear();
+    sendWebPush.mockClear();
     await prisma.notificationPreferenceAudit.deleteMany();
     await prisma.userNotificationPreference.deleteMany();
     await prisma.notification.deleteMany();
@@ -126,5 +132,71 @@ describe('notification service', () => {
     });
 
     expect(emailMock).not.toHaveBeenCalled();
+  });
+
+  it('sends a web push when the push preference is enabled', async () => {
+    const recipient = await createUser();
+    const actor = await createUser();
+    await ensureNotificationPreferencesForUser(recipient.id);
+
+    await setNotificationPreference(
+      recipient.id,
+      NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
+      NOTIFICATION_CHANNELS.WEB_PUSH,
+      true,
+      'test',
+    );
+
+    const friendRequest = await prisma.friendRequest.create({
+      data: { fromUserId: actor.id, toUserId: recipient.id, status: 'PENDING' },
+      select: { id: true },
+    });
+
+    await notifyUser({
+      userId: recipient.id,
+      type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
+      payload: {
+        friendRequestId: friendRequest.id,
+        actorUserId: actor.id,
+        actorDisplayName: actor.name ?? actor.username,
+        actorUsername: actor.username,
+        actorAvatarId: null,
+        recipientUserId: recipient.id,
+      },
+      sourceIdentifier: 'test-source-push-on',
+    });
+
+    expect(sendWebPush).toHaveBeenCalledTimes(1);
+    expect(sendWebPush).toHaveBeenCalledWith(
+      recipient.id,
+      expect.objectContaining({ url: '/friends#incoming-requests' }),
+    );
+  });
+
+  it('does not send a web push when the push preference is off (default)', async () => {
+    const recipient = await createUser();
+    const actor = await createUser();
+    await ensureNotificationPreferencesForUser(recipient.id);
+
+    const friendRequest = await prisma.friendRequest.create({
+      data: { fromUserId: actor.id, toUserId: recipient.id, status: 'PENDING' },
+      select: { id: true },
+    });
+
+    await notifyUser({
+      userId: recipient.id,
+      type: NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED,
+      payload: {
+        friendRequestId: friendRequest.id,
+        actorUserId: actor.id,
+        actorDisplayName: actor.name ?? actor.username,
+        actorUsername: actor.username,
+        actorAvatarId: null,
+        recipientUserId: recipient.id,
+      },
+      sourceIdentifier: 'test-source-push-off',
+    });
+
+    expect(sendWebPush).not.toHaveBeenCalled();
   });
 });
