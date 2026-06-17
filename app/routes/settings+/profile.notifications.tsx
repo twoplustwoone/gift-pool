@@ -402,7 +402,7 @@ const NotificationsSettingsRoute = () => {
         <PushStatusBanner push={push} />
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border border-border">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -664,7 +664,7 @@ function PreferenceCheckbox({
   return (
     <label
       className={cn(
-        'flex items-center gap-2 text-sm',
+        'flex items-center justify-center text-sm',
         disabled && 'opacity-50',
       )}
     >
@@ -675,7 +675,9 @@ function PreferenceCheckbox({
           if (!disabled) onChange();
         }}
       />
-      <span>{label}</span>
+      {/* The column header already names the channel — keep the per-row label
+          for screen readers only so the table fits narrow viewports. */}
+      <span className="sr-only">{label}</span>
     </label>
   );
 }

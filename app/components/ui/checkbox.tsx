@@ -25,11 +25,15 @@ const Checkbox = React.forwardRef<
     <CheckboxPrimitive.Indicator
       className={cn('flex items-center justify-center text-current')}
     >
-      <svg viewBox="0 0 8 8">
+      {/* Explicit size — without it the SVG has no intrinsic dimensions and the
+          checkmark renders invisibly, leaving a bare filled square. */}
+      <svg viewBox="0 0 8 8" className="h-3 w-3" aria-hidden>
         <path
           d="M1,4 L3,6 L7,2"
-          stroke="currentcolor"
-          strokeWidth="1"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
           fill="none"
         />
       </svg>
