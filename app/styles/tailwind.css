@@ -139,6 +139,18 @@
 
     --pool-badge-foreground: 0 0% 100%;
   }
+
+  /* iOS renders native date/time inputs at an intrinsic width that ignores
+     `width: 100%`, overflowing narrow containers, and centers the value.
+     Let them shrink and left-align so they match the other text inputs. */
+  input[type='date'],
+  input[type='datetime-local'],
+  input[type='time'] {
+    min-width: 0;
+  }
+  input::-webkit-date-and-time-value {
+    text-align: left;
+  }
 }
 
 @layer utilities {
