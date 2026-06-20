@@ -62,6 +62,7 @@ model User {
   poolActivities               PoolActivity[]                @relation("PoolActivity_Actor")
   poolMessages                 PoolMessage[]
   feedback                     Feedback[]
+  consents                     Consent[]
 }
 
 model Friendship {
@@ -569,6 +570,29 @@ model AnalyticsEvent {
 // -----------------------------------------------------------------------------
 // Auth & identity
 // -----------------------------------------------------------------------------
+
+// Records a user's affirmative acceptance of the legal documents at signup.
+// One row is written per acceptance, in the same transaction as user creation,
+// so an account can never exist without its consent record. Additive only —
+// existing users predating this table simply have no row, and the app must not
+// gate them for its absence.
+model Consent {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // e.g. "TOS_AND_PRIVACY" (see LEGAL_DOCUMENT_TYPE in app/utils/legal.ts)
+  documentType String
+  // Policy version accepted (see CURRENT_LEGAL_VERSION in app/utils/legal.ts)
+  version      String
+  // User self-attested they are at least 13 years old. Self-attestation only —
+  // we never collect a date of birth.
+  ageAffirmed  Boolean
+  acceptedAt   DateTime @default(now())
+  // Optional, for evidentiary strength. Null when not readily available.
+  ipAddress    String?
+
+  @@index([userId])
+}
 
 model Address {
   id        String   @id @default(cuid())

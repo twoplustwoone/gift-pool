@@ -32,6 +32,7 @@ import {
 import { prisma } from '#app/utils/db.server.ts';
 import { checkHoneypot } from '#app/utils/honeypot.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
+import { CURRENT_LEGAL_VERSION } from '#app/utils/legal.ts';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { authSessionStorage } from '#app/utils/session.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
@@ -42,14 +43,19 @@ import {
 } from '#app/utils/user-validation.ts';
 import { verifySessionStorage } from '#app/utils/verification.server.ts';
 export const onboardingEmailSessionKey = 'onboardingEmail';
-const SignupFormSchema = z
+export const SignupFormSchema = z
   .object({
     username: UsernameSchema,
     name: NameSchema,
-    agreeToTermsOfServiceAndPrivacyPolicy: z.boolean({
-      required_error:
-        'You must agree to the terms of service and privacy policy',
-    }),
+    agreeToTermsOfServiceAndPrivacyPolicy: z
+      .boolean({
+        required_error:
+          'You must agree to the terms of service and privacy policy, and confirm you are at least 13 years old',
+      })
+      .refine((val) => val === true, {
+        message:
+          'You must agree to the terms of service and privacy policy, and confirm you are at least 13 years old',
+      }),
     remember: z.boolean().optional(),
     redirectTo: z.string().optional(),
   })
@@ -74,6 +80,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
   const email = await requireOnboardingEmail(request);
   const { requestId, visitorId } = await getRequestContext(request);
+  // Captured for evidentiary strength on the consent record. Best-effort —
+  // null when no proxy header is present (e.g. local dev).
+  const ipAddress =
+    request.headers.get('fly-client-ip') ??
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    null;
   const formData = await request.formData();
   await checkHoneypot(formData);
   const submission = await parseWithZod(formData, {
@@ -102,8 +114,18 @@ export async function action({ request }: ActionFunctionArgs) {
             session: null,
           };
         const session = await signup({
-          ...data,
           email,
+          username: data.username,
+          name: data.name,
+          password: data.password,
+          consent: {
+            version: CURRENT_LEGAL_VERSION,
+            // The single clickwrap checkbox covers both the legal agreement
+            // and the 13+ self-attestation, so a successful submission means
+            // both were affirmed.
+            ageAffirmed: data.agreeToTermsOfServiceAndPrivacyPolicy,
+            ipAddress,
+          },
         });
         return {
           ...data,
@@ -284,6 +306,7 @@ const OnboardingRoute = () => {
                   >
                     Privacy Policy
                   </Link>
+                  , and I confirm I am at least 13 years old
                 </>
               ),
             }}
@@ -294,7 +317,7 @@ const OnboardingRoute = () => {
               // The visual label's link text doesn't reach the accessible
               // name (it reads "I agree to the and" to screen readers).
               'aria-label':
-                'I agree to the Terms of Service and Privacy Policy',
+                'I agree to the Terms of Service and Privacy Policy, and I confirm I am at least 13 years old',
             }}
             errors={fields.agreeToTermsOfServiceAndPrivacyPolicy.errors}
           />
