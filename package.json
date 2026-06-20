@@ -114,7 +114,7 @@
     "lucide-react": "^0.577.0",
     "morgan": "^1.10.0",
     "nanoid": "^3.3.7",
-    "node-html-parser": "^6.1.13",
+    "node-html-parser": "^7.0.0",
     "prisma": "^5.17.0",
     "qrcode": "^1.5.3",
     "react": "^18.3.1",
