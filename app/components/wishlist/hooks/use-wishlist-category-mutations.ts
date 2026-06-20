@@ -105,8 +105,16 @@ export const useWishlistCategoryMutations = ({
           settledMutations: settledCategoryMutationList,
         }),
         pendingMutations: pendingCategoryMutations,
+        // A create whose result has already settled is represented by its real
+        // category; skip its optimistic placeholder so it doesn't render twice.
+        settledClientMutationIds: new Set(settledCategoryMutations.keys()),
       }),
-    [orderedCategories, pendingCategoryMutations, settledCategoryMutationList],
+    [
+      orderedCategories,
+      pendingCategoryMutations,
+      settledCategoryMutationList,
+      settledCategoryMutations,
+    ],
   );
 
   const handleCategoryMutationResult = useCallback(

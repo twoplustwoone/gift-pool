@@ -36,14 +36,21 @@ const sortAndRedensifyCategories = (categories: WishlistCategory[]) =>
 export const applyPendingCategoryMutations = ({
   categories,
   pendingMutations,
+  settledClientMutationIds,
 }: {
   categories: WishlistCategory[];
   pendingMutations: PendingCategoryMutation[];
+  // clientMutationIds of creates that already returned a server result. Their
+  // real category is present via applySettledCategoryMutations, so re-inserting
+  // the optimistic placeholder here would render the category twice during the
+  // window before loader revalidation prunes the settled mutation.
+  settledClientMutationIds?: ReadonlySet<string>;
 }) => {
   let next = [...categories];
 
   for (const mutation of pendingMutations) {
     if (mutation.type === 'create') {
+      if (settledClientMutationIds?.has(mutation.clientMutationId)) continue;
       const optimisticId = `optimistic-category:${mutation.clientMutationId}`;
       if (next.some((category) => category.id === optimisticId)) continue;
       next.push({
