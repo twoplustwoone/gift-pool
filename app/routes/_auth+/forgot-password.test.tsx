@@ -40,7 +40,6 @@ const location = {
   pathname: '/forgot-password',
   search: '',
   state: null,
-  unstable_mask: undefined,
 } satisfies Location;
 
 function renderRoute() {
