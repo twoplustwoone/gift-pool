@@ -13,14 +13,16 @@ type RouteArgs = {
 export function toActionArgs(args: RouteArgs): ActionFunctionArgs<any> {
   return {
     ...args,
-    unstable_pattern: '',
+    url: new URL(args.request.url),
+    pattern: '',
   } as ActionFunctionArgs<any>;
 }
 
 export function toLoaderArgs(args: RouteArgs): LoaderFunctionArgs<any> {
   return {
     ...args,
-    unstable_pattern: '',
+    url: new URL(args.request.url),
+    pattern: '',
   } as LoaderFunctionArgs<any>;
 }
 

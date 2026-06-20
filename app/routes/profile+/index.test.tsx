@@ -73,7 +73,6 @@ const location = {
   pathname: '/me',
   search: '',
   state: null,
-  unstable_mask: undefined,
 } satisfies Location;
 
 function renderRoute() {
