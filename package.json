@@ -49,7 +49,7 @@
     "/server-build"
   ],
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.104.1",
+    "@anthropic-ai/sdk": "^0.105.0",
     "@conform-to/react": "^1.1.5",
     "@conform-to/zod": "^1.1.5",
     "@dnd-kit/core": "^6.3.1",
