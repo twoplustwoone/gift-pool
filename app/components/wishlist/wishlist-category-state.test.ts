@@ -127,6 +127,39 @@ describe('wishlist category state', () => {
     ]);
   });
 
+  it('does not render a create twice while its settled result and pending fetcher overlap', () => {
+    // The create has returned a server result (settled adds the real category),
+    // but the in-flight fetcher's formData still produces a pending create with
+    // the same clientMutationId until loader revalidation. Without dedup this
+    // window renders the category twice. See wishlist.test.ts drag-reorder.
+    const settledCategories = applySettledCategoryMutations({
+      categories: [],
+      settledMutations: [
+        {
+          ok: true,
+          intent: 'create',
+          clientMutationId: 'create-books',
+          category: booksCategory,
+        },
+      ],
+    });
+
+    const categories = applyPendingCategoryMutations({
+      categories: settledCategories,
+      pendingMutations: [
+        {
+          type: 'create',
+          clientMutationId: 'create-books',
+          name: 'Books',
+          order: 0,
+        },
+      ],
+      settledClientMutationIds: new Set(['create-books']),
+    });
+
+    expect(categories.map((category) => category.name)).toEqual(['Books']);
+  });
+
   it('overlapping successful creates do not collapse to the earlier result', () => {
     const categories = applySettledCategoryMutations({
       categories: [],
