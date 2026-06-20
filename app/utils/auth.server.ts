@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { redirect } from 'react-router';
 import { safeRedirect } from 'remix-utils/safe-redirect';
 import { prisma } from './db.server.ts';
+import { LEGAL_DOCUMENT_TYPE } from './legal.ts';
 import { combineHeaders } from './misc.tsx';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
@@ -120,14 +121,23 @@ export async function signup({
   username,
   password,
   name,
+  consent,
 }: {
   email: User['email'];
   username: User['username'];
   name: User['name'];
   password: string;
+  consent: {
+    version: string;
+    ageAffirmed: boolean;
+    ipAddress?: string | null;
+  };
 }) {
   const hashedPassword = await getPasswordHash(password);
 
+  // The consent row is created as a nested write under the user, so it lands in
+  // the same transaction as user creation — an account can never exist without
+  // its acceptance record.
   const session = await prisma.session.create({
     data: {
       expirationDate: getSessionExpirationDate(),
@@ -144,6 +154,14 @@ export async function signup({
           },
           notificationPreferences: {
             create: defaultNotificationPreferenceRows,
+          },
+          consents: {
+            create: {
+              documentType: LEGAL_DOCUMENT_TYPE,
+              version: consent.version,
+              ageAffirmed: consent.ageAffirmed,
+              ipAddress: consent.ipAddress ?? null,
+            },
           },
         },
       },
