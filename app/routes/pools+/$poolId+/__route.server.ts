@@ -276,7 +276,10 @@ const UpdateDetailsSchema = PoolIdSchema.extend({
 		Object.values(OCCASION_TYPE) as [OccasionType, ...OccasionType[]],
 	),
 	eventDate: z.string().optional(),
-	decisionMode: z.enum(['ORGANIZER_PICKS', 'VOTE']),
+	// Optional: the editor disables (and so omits) this control once the pool is
+	// past OPEN, and the handler only applies it while OPEN anyway. Requiring it
+	// would block title/occasion/date edits on VOTING/DECIDED/PURCHASED pools.
+	decisionMode: z.enum(['ORGANIZER_PICKS', 'VOTE']).optional(),
 })
 
 const ActionSchema = ProposeIdeaSchema.or(DeleteIdeaSchema)
@@ -577,7 +580,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			}
 			// The gift-selection method only changes cleanly before a vote is
 			// called — once VOTING/DECIDED, switching modes is ambiguous.
-			if (pool.status === POOL_STATUS.OPEN) {
+			if (pool.status === POOL_STATUS.OPEN && v.decisionMode) {
 				updates.decisionMode = v.decisionMode
 			}
 			await updatePool(poolId, userId, updates)

@@ -1035,9 +1035,10 @@ describe('pool detail route action — update-pool-details', () => {
     );
   });
 
-  it('ignores a gift-selection method change once the pool is past OPEN', async () => {
-    // createPool defaults to VOTING.
-    await action(
+  it('saves details for a past-OPEN pool even when decisionMode is omitted', async () => {
+    // createPool defaults to VOTING. The editor disables the method select past
+    // OPEN, so the browser omits decisionMode entirely — this must still save.
+    const result = await action(
       toActionArgs({
         context: {} as never,
         params: { poolId: 'pool-1' },
@@ -1046,11 +1047,11 @@ describe('pool detail route action — update-pool-details', () => {
           poolId: 'pool-1',
           title: 'Updated title',
           occasionType: 'BIRTHDAY',
-          decisionMode: 'VOTE',
         }),
       }),
     );
 
+    expect(getRouteResultStatus(result)).toBe(200);
     expect(updatePool).toHaveBeenCalledWith(
       'pool-1',
       'viewer-1',

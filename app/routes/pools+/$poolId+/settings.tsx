@@ -81,6 +81,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		giftGroupId: pool.giftGroupId,
 		status: pool.status,
 	};
+	// Contributor access is already enforced by the parent `_layout` loader
+	// (non-contributors get 404 there), so anyone reaching this loader is a
+	// contributor — the same guard the shared action relies on. This narrows
+	// it further to managers (organizer / group admin).
 	if (!(await canManagePool(userId, poolForPerms))) {
 		throw new Response('Not Found', { status: 404 });
 	}
@@ -102,7 +106,9 @@ const PoolDetailsSchema = z.object({
 		Object.values(OCCASION_TYPE) as [OccasionType, ...OccasionType[]],
 	),
 	eventDate: z.string().optional(),
-	decisionMode: z.enum(['ORGANIZER_PICKS', 'VOTE']),
+	// Optional because the select is disabled (and omitted) once the pool is
+	// past OPEN — see the matching note on the server UpdateDetailsSchema.
+	decisionMode: z.enum(['ORGANIZER_PICKS', 'VOTE']).optional(),
 });
 
 function toDateInputValue(value: Date | string | null | undefined) {
