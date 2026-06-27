@@ -6,6 +6,7 @@ export const extendedTheme = {
     input: {
       DEFAULT: 'hsl(var(--input))',
       invalid: 'hsl(var(--input-invalid))',
+      bg: 'hsl(var(--input-bg))',
     },
     ring: {
       DEFAULT: 'hsl(var(--ring))',
