@@ -4,9 +4,14 @@ import {
   data,
   redirect,
   type ActionFunctionArgs,
-  type LoaderFunctionArgs, Link, useFetcher, useLoaderData, useRevalidator
+  type LoaderFunctionArgs,
+  Link,
+  useFetcher,
+  useLoaderData,
+  useRevalidator,
 } from 'react-router';
 import { Button } from '#app/components/ui/button.tsx';
+import { Card } from '#app/components/ui/card.tsx';
 import { Checkbox } from '#app/components/ui/checkbox.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts';
@@ -82,8 +87,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     throw redirect('/login?redirectTo=/settings/profile/notifications');
   }
   const canReadPreferences =
-    (userId && userId === targetUserId) ||
-    tokenPayload?.uid === targetUserId;
+    (userId && userId === targetUserId) || tokenPayload?.uid === targetUserId;
   // Settings page is the only place users directly manage their preferences.
   // Materialize rows here so downstream writes (`setNotificationPreference`,
   // `disableEmailForAll`) always see persisted rows, and so UI optimistic
@@ -126,8 +130,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const intent = formData.get('intent');
   const requestIdValue = formData.get('requestId');
-  const requestId =
-    typeof requestIdValue === 'string' ? requestIdValue : null;
+  const requestId = typeof requestIdValue === 'string' ? requestIdValue : null;
   const userId = await requireUserId(request);
   if (intent === 'toggle') {
     const type = formData.get('type');
@@ -384,142 +387,153 @@ const NotificationsSettingsRoute = () => {
         </p>
       </div>
 
-      {data.isAuthenticated ? null : (
-        <div className="rounded-md border border-dashed border-muted-foreground/50 bg-muted px-4 py-3 text-sm text-muted-foreground">
-          <p>You are viewing notification preferences with a one-time link.</p>
-          <p>
-            <Link
-              className="underline"
-              to={`/login?redirectTo=/settings/profile/notifications`}
-            >
-              Sign in to update your preferences.
-            </Link>
-          </p>
-        </div>
-      )}
+      <Card padding="lg" className="space-y-6">
+        {data.isAuthenticated ? null : (
+          <div className="rounded-md border border-dashed border-muted-foreground/50 bg-muted px-4 py-3 text-sm text-muted-foreground">
+            <p>
+              You are viewing notification preferences with a one-time link.
+            </p>
+            <p>
+              <Link
+                className="underline"
+                to={`/login?redirectTo=/settings/profile/notifications`}
+              >
+                Sign in to update your preferences.
+              </Link>
+            </p>
+          </div>
+        )}
 
-      {data.isAuthenticated && push.status !== 'unsupported' ? (
-        <PushStatusBanner push={push} />
-      ) : null}
+        {data.isAuthenticated && push.status !== 'unsupported' ? (
+          <PushStatusBanner push={push} />
+        ) : null}
 
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3">Notification</th>
-              <th className="px-4 py-3">Description</th>
-              <th className="px-4 py-3">In-app</th>
-              <th className="px-4 py-3">Email</th>
-              {pushColumnVisible ? <th className="px-4 py-3">Push</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {preferenceGroups.map((group) => (
-              <React.Fragment key={group.id}>
-                <tr className="bg-muted/60">
-                  <td className="px-4 py-3 font-semibold" colSpan={columnCount}>
-                    {group.title}
-                  </td>
-                </tr>
-                {group.description ? (
-                  <tr className="bg-muted/40 text-xs text-muted-foreground">
-                    <td className="px-4 pb-2" colSpan={columnCount}>
-                      {group.description}
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3">Notification</th>
+                <th className="px-4 py-3">Description</th>
+                <th className="px-4 py-3">In-app</th>
+                <th className="px-4 py-3">Email</th>
+                {pushColumnVisible ? <th className="px-4 py-3">Push</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {preferenceGroups.map((group) => (
+                <React.Fragment key={group.id}>
+                  <tr className="bg-muted/60">
+                    <td
+                      className="px-4 py-3 font-semibold"
+                      colSpan={columnCount}
+                    >
+                      {group.title}
                     </td>
                   </tr>
-                ) : null}
-                {group.items.map((item) => {
-                  const pref = preferences[item.type];
-                  const pendingInApp = pendingKeys.has(
-                    getPreferenceKey(item.type, NOTIFICATION_CHANNELS.IN_APP),
-                  );
-                  const pendingEmail = pendingKeys.has(
-                    getPreferenceKey(item.type, NOTIFICATION_CHANNELS.EMAIL),
-                  );
-                  const pendingPush = pendingKeys.has(
-                    getPreferenceKey(item.type, NOTIFICATION_CHANNELS.WEB_PUSH),
-                  );
-                  const disableToggles = item.disabled || !data.isAuthenticated;
-                  return (
-                    <tr key={item.type} className="even:bg-muted/10">
-                      <td className="px-4 py-3 font-medium">{item.label}</td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {item.description}
+                  {group.description ? (
+                    <tr className="bg-muted/40 text-xs text-muted-foreground">
+                      <td className="px-4 pb-2" colSpan={columnCount}>
+                        {group.description}
                       </td>
-                      <td className="px-4 py-3">
-                        <PreferenceCheckbox
-                          checked={pref.inAppEnabled}
-                          label="Enable in-app"
-                          disabled={disableToggles || pendingInApp}
-                          onChange={() =>
-                            handleToggle(
-                              item.type,
-                              NOTIFICATION_CHANNELS.IN_APP,
-                              pref.inAppEnabled,
-                            )
-                          }
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <PreferenceCheckbox
-                          checked={pref.emailEnabled}
-                          label="Enable email"
-                          disabled={
-                            disableToggles ||
-                            (!item.emailDefault && item.disabled) ||
-                            pendingEmail
-                          }
-                          onChange={() =>
-                            handleToggle(
-                              item.type,
-                              NOTIFICATION_CHANNELS.EMAIL,
-                              pref.emailEnabled,
-                            )
-                          }
-                        />
-                      </td>
-                      {pushColumnVisible ? (
+                    </tr>
+                  ) : null}
+                  {group.items.map((item) => {
+                    const pref = preferences[item.type];
+                    const pendingInApp = pendingKeys.has(
+                      getPreferenceKey(item.type, NOTIFICATION_CHANNELS.IN_APP),
+                    );
+                    const pendingEmail = pendingKeys.has(
+                      getPreferenceKey(item.type, NOTIFICATION_CHANNELS.EMAIL),
+                    );
+                    const pendingPush = pendingKeys.has(
+                      getPreferenceKey(
+                        item.type,
+                        NOTIFICATION_CHANNELS.WEB_PUSH,
+                      ),
+                    );
+                    const disableToggles =
+                      item.disabled || !data.isAuthenticated;
+                    return (
+                      <tr key={item.type} className="even:bg-muted/10">
+                        <td className="px-4 py-3 font-medium">{item.label}</td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {item.description}
+                        </td>
                         <td className="px-4 py-3">
                           <PreferenceCheckbox
-                            checked={pref.pushEnabled}
-                            label="Enable push"
-                            // Push toggles only act once the device is
-                            // subscribed; otherwise use the banner above.
-                            disabled={
-                              disableToggles ||
-                              push.status !== 'subscribed' ||
-                              pendingPush
-                            }
+                            checked={pref.inAppEnabled}
+                            label="Enable in-app"
+                            disabled={disableToggles || pendingInApp}
                             onChange={() =>
                               handleToggle(
                                 item.type,
-                                NOTIFICATION_CHANNELS.WEB_PUSH,
-                                pref.pushEnabled,
+                                NOTIFICATION_CHANNELS.IN_APP,
+                                pref.inAppEnabled,
                               )
                             }
                           />
                         </td>
-                      ) : null}
-                    </tr>
-                  );
-                })}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                        <td className="px-4 py-3">
+                          <PreferenceCheckbox
+                            checked={pref.emailEnabled}
+                            label="Enable email"
+                            disabled={
+                              disableToggles ||
+                              (!item.emailDefault && item.disabled) ||
+                              pendingEmail
+                            }
+                            onChange={() =>
+                              handleToggle(
+                                item.type,
+                                NOTIFICATION_CHANNELS.EMAIL,
+                                pref.emailEnabled,
+                              )
+                            }
+                          />
+                        </td>
+                        {pushColumnVisible ? (
+                          <td className="px-4 py-3">
+                            <PreferenceCheckbox
+                              checked={pref.pushEnabled}
+                              label="Enable push"
+                              // Push toggles only act once the device is
+                              // subscribed; otherwise use the banner above.
+                              disabled={
+                                disableToggles ||
+                                push.status !== 'subscribed' ||
+                                pendingPush
+                              }
+                              onChange={() =>
+                                handleToggle(
+                                  item.type,
+                                  NOTIFICATION_CHANNELS.WEB_PUSH,
+                                  pref.pushEnabled,
+                                )
+                              }
+                            />
+                          </td>
+                        ) : null}
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-      {data.isAuthenticated ? (
-        <Button
-          type="button"
-          variant="ghost"
-          className="text-sm"
-          disabled={disableEmailFetcher.state !== 'idle'}
-          onClick={handleDisableAllEmail}
-        >
-          Turn off all email notifications
-        </Button>
-      ) : null}
+        {data.isAuthenticated ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-sm"
+            disabled={disableEmailFetcher.state !== 'idle'}
+            onClick={handleDisableAllEmail}
+          >
+            Turn off all email notifications
+          </Button>
+        ) : null}
+      </Card>
     </div>
   );
 };
