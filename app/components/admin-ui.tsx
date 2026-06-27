@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { Card } from '#app/components/ui/card.tsx';
+import { Section } from '#app/components/ui/section.tsx';
 import { cn } from '#app/utils/misc.tsx';
 
 export const SummaryCard = ({
@@ -23,12 +24,7 @@ export const SummaryCard = ({
   const toneClass = TONE_CLASSES[tone];
 
   return (
-    <Card
-      className={cn(
-        'flex flex-col gap-1.5 p-4 shadow-sm',
-        toneClass,
-      )}
-    >
+    <Card className={cn('flex flex-col gap-1.5 p-4 shadow-sm', toneClass)}>
       <span className="text-sm font-medium text-muted-foreground">{label}</span>
       <span className="text-3xl font-semibold tabular-nums tracking-tight">
         {typeof value === 'number' ? value.toLocaleString() : value}
@@ -47,6 +43,10 @@ export const SummaryCard = ({
   );
 };
 
+/**
+ * Admin section card. Thin alias over the shared {@link Section} primitive so
+ * admin and product screens share one containment rule (R1.2/R1.3).
+ */
 export const SectionCard = ({
   title,
   description,
@@ -60,18 +60,14 @@ export const SectionCard = ({
   children: ReactNode;
   className?: string;
 }) => (
-  <Card className={cn('border-border/60 bg-card p-4 shadow-sm', className)}>
-    <div className="mb-3 flex items-start justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold leading-tight">{title}</h2>
-        {description ? (
-          <p className="text-sm text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
-    </div>
+  <Section
+    title={title}
+    description={description}
+    action={action}
+    className={className}
+  >
     {children}
-  </Card>
+  </Section>
 );
 
 export const EmptyRow = ({ children }: { children: ReactNode }) => (
