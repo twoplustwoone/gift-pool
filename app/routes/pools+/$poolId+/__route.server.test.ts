@@ -33,6 +33,7 @@ const proposeIdea = vi.fn();
 const removeContributor = vi.fn();
 const updateContribution = vi.fn();
 const updateFinalPrice = vi.fn();
+const updatePool = vi.fn();
 const poolFindUnique = vi.fn();
 const giftIdeaFindFirst = vi.fn();
 const ideaVoteFindUnique = vi.fn();
@@ -107,6 +108,7 @@ vi.mock('#app/utils/pool.server.ts', () => ({
   removeContributor: (...args: Array<unknown>) => removeContributor(...args),
   updateContribution: (...args: Array<unknown>) => updateContribution(...args),
   updateFinalPrice: (...args: Array<unknown>) => updateFinalPrice(...args),
+  updatePool: (...args: Array<unknown>) => updatePool(...args),
 }));
 
 vi.mock('#app/utils/toast.server.ts', () => ({
@@ -183,6 +185,7 @@ beforeEach(() => {
   removeContributor.mockReset().mockResolvedValue(undefined);
   updateContribution.mockReset().mockResolvedValue(undefined);
   updateFinalPrice.mockReset().mockResolvedValue(undefined);
+  updatePool.mockReset().mockResolvedValue({ id: 'pool-1' });
   giftIdeaFindFirst.mockReset();
   ideaVoteFindUnique.mockReset().mockResolvedValue(null);
   wishlistItemFindMany.mockReset().mockResolvedValue([]);
@@ -998,5 +1001,102 @@ describe('pool detail route action', () => {
       title: 'Pool deleted',
       type: 'success',
     });
+  });
+});
+
+describe('pool detail route action — update-pool-details', () => {
+  it('updates details and the gift-selection method while the pool is OPEN', async () => {
+    poolFindUnique.mockResolvedValue(createPool({ status: 'OPEN' }));
+
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'update-pool-details',
+          poolId: 'pool-1',
+          title: 'Updated title',
+          occasionType: 'WEDDING',
+          eventDate: '2026-05-01',
+          decisionMode: 'VOTE',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    expect(updatePool).toHaveBeenCalledWith(
+      'pool-1',
+      'viewer-1',
+      expect.objectContaining({
+        title: 'Updated title',
+        occasionType: 'WEDDING',
+        decisionMode: 'VOTE',
+      }),
+    );
+  });
+
+  it('ignores a gift-selection method change once the pool is past OPEN', async () => {
+    // createPool defaults to VOTING.
+    await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          intent: 'update-pool-details',
+          poolId: 'pool-1',
+          title: 'Updated title',
+          occasionType: 'BIRTHDAY',
+          decisionMode: 'VOTE',
+        }),
+      }),
+    );
+
+    expect(updatePool).toHaveBeenCalledWith(
+      'pool-1',
+      'viewer-1',
+      expect.not.objectContaining({ decisionMode: expect.anything() }),
+    );
+  });
+
+  it('rejects detail edits from non-managers', async () => {
+    canManagePool.mockResolvedValue(false);
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            intent: 'update-pool-details',
+            poolId: 'pool-1',
+            title: 'Updated title',
+            occasionType: 'BIRTHDAY',
+            decisionMode: 'VOTE',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 403 } });
+    expect(updatePool).not.toHaveBeenCalled();
+  });
+
+  it('rejects detail edits once the pool is closed', async () => {
+    poolFindUnique.mockResolvedValue(createPool({ status: 'CANCELLED' }));
+
+    await expect(
+      action(
+        toActionArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: createFormRequest({
+            intent: 'update-pool-details',
+            poolId: 'pool-1',
+            title: 'Updated title',
+            occasionType: 'BIRTHDAY',
+            decisionMode: 'VOTE',
+          }),
+        }),
+      ),
+    ).rejects.toMatchObject({ init: { status: 400 } });
+    expect(updatePool).not.toHaveBeenCalled();
   });
 });

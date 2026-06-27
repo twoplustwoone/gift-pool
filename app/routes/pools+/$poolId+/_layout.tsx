@@ -1,4 +1,4 @@
-import { LuGift, LuUsers } from 'react-icons/lu'
+import { LuGift, LuSettings, LuUsers } from 'react-icons/lu'
 import { Link, Outlet, useLoaderData } from 'react-router'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Stack, Text } from '#app/components/ui-kit'
@@ -22,7 +22,7 @@ const statusColors: Record<PoolStatus, string> = {
 }
 
 const PoolLayout = () => {
-	const { pool } = useLoaderData<typeof routeLoader>()
+	const { pool, canManage } = useLoaderData<typeof routeLoader>()
 
 	const status = pool.status as PoolStatus
 	const occasion = pool.occasionType as OccasionType
@@ -46,11 +46,22 @@ const PoolLayout = () => {
 				title={pool.title}
 				subtitle={`${OCCASION_TYPE_LABELS[occasion]} for ${recipientLabel}`}
 			>
-				<span
-					className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColors[status]}`}
-				>
-					{POOL_STATUS_LABELS[status]}
-				</span>
+				<div className="flex shrink-0 items-center gap-2">
+					<span
+						className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColors[status]}`}
+					>
+						{POOL_STATUS_LABELS[status]}
+					</span>
+					{canManage && (
+						<Link
+							to="settings"
+							aria-label="Pool settings"
+							className="text-muted-foreground hover:text-foreground"
+						>
+							<LuSettings className="h-5 w-5" />
+						</Link>
+					)}
+				</div>
 			</PageHeader>
 
 			{/* Content */}

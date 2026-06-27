@@ -8,7 +8,6 @@ import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import {
 	LuCheck,
-	LuClipboard,
 	LuLink,
 	LuPackage,
 	LuThumbsUp,
@@ -26,6 +25,7 @@ import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
 import { Input } from '#app/components/ui/input.tsx'
+import { SystemLabel } from '#app/components/ui/system-label.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
 import { Flex, Stack, Text } from '#app/components/ui-kit'
 import { formatCents } from '#app/utils/pool-contributions.ts'
@@ -630,11 +630,7 @@ const ContributorsList = ({
 											<span className={isMe ? 'font-semibold' : ''}>
 												{getUserDisplayName(c.user)}
 											</span>
-											{isMe && (
-												<span className="rounded bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
-													you
-												</span>
-											)}
+											{isMe && <SystemLabel>you</SystemLabel>}
 										</div>
 										{(isOrganizer || isPurchaser || isDeliverer) && (
 											<div className="mt-0.5 flex flex-wrap gap-1">
@@ -780,76 +776,15 @@ const AssignRolesSection = ({
 	)
 }
 
-// Invite link section
-const InviteSection = ({
-	poolId,
-	inviteUrl,
-}: {
-	poolId: string
-	inviteUrl: string | null
-}) => {
-	const fetcher = useFetcher()
-	const freshUrl =
-		fetcher.data && 'inviteUrl' in (fetcher.data as object)
-			? (fetcher.data as { inviteUrl: string }).inviteUrl
-			: inviteUrl
-
-	const copyToClipboard = () => {
-		if (freshUrl) void navigator.clipboard.writeText(freshUrl)
-	}
-
-	return (
-		<Card className="p-4">
-			<Stack gap={3}>
-				<SectionHeading>Invite contributors</SectionHeading>
-				<p className="text-xs text-muted-foreground">
-					Anyone with this link can join as a contributor.
-				</p>
-				{freshUrl ? (
-					<Flex gap={2}>
-						<Input value={freshUrl} readOnly className="flex-1 text-xs" />
-						<Button
-							type="button"
-							size="sm"
-							variant="outline"
-							onClick={copyToClipboard}
-							className="gap-1.5 shrink-0"
-						>
-							<LuClipboard size={13} /> Copy
-						</Button>
-					</Flex>
-				) : (
-					<fetcher.Form method="post">
-						<input type="hidden" name="intent" value="generate-invite" />
-						<input type="hidden" name="poolId" value={poolId} />
-						<Button
-							type="submit"
-							size="sm"
-							variant="outline"
-							className="gap-1.5"
-							disabled={fetcher.state !== 'idle'}
-						>
-							<LuLink size={13} />
-							Generate invite link
-						</Button>
-					</fetcher.Form>
-				)}
-			</Stack>
-		</Card>
-	)
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const PoolIndex = () => {
 	const {
 		pool,
 		viewer,
-		isOrganizer,
 		canManage,
 		myVoteIdeaId,
 		contributionBreakdown,
-		inviteUrl,
 		recipientWishlistItems,
 	} = useRouteLoaderData<typeof routeLoader>(
 		'routes/pools+/$poolId+/_layout',
@@ -861,9 +796,7 @@ const PoolIndex = () => {
 	const isDecided = status === POOL_STATUS.DECIDED
 	const isPurchased = status === POOL_STATUS.PURCHASED
 	const isDelivered = status === POOL_STATUS.DELIVERED
-	const isCancelled = status === POOL_STATUS.CANCELLED
 	const isActive = isOpen || isVoting
-	const isCompleted = isDelivered || isCancelled
 
 	const chosenIdea = pool.ideas.find(i => i.id === pool.chosenIdeaId) ?? null
 	const isPurchaser = viewer?.userId === pool.purchaserId
@@ -1050,52 +983,8 @@ const PoolIndex = () => {
 				/>
 			)}
 
-			{/* ── Invite link (active pools, managers only) ── */}
-			{canManage && isActive && (
-				<InviteSection poolId={pool.id} inviteUrl={inviteUrl} />
-			)}
-
-			{/* ── Danger zone (organizer only) ── */}
-			{isOrganizer && !isCompleted && (
-				<Card className="border-destructive/40 bg-destructive/5 p-4">
-					<Stack gap={3}>
-						<SectionHeading>Danger zone</SectionHeading>
-						<Text size="sm" className="text-muted-foreground">
-							These actions are destructive. Double-check before proceeding.
-						</Text>
-						<Flex gap={2} wrap="wrap">
-							{/* Cancel pool lives here — less drastic than delete but still destructive */}
-							{isActive && (
-								<Form
-									method="post"
-									onSubmit={e => {
-										if (!confirm('Cancel this pool?')) e.preventDefault()
-									}}
-								>
-									<input type="hidden" name="intent" value="cancel-pool" />
-									<input type="hidden" name="poolId" value={pool.id} />
-									<Button type="submit" size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/5">
-										Cancel pool
-									</Button>
-								</Form>
-							)}
-							<Form
-								method="post"
-								onSubmit={e => {
-									if (!confirm('Delete this pool? This cannot be undone.'))
-										e.preventDefault()
-								}}
-							>
-								<input type="hidden" name="intent" value="delete-pool" />
-								<input type="hidden" name="poolId" value={pool.id} />
-								<Button type="submit" variant="destructive" size="sm">
-									Delete pool
-								</Button>
-							</Form>
-						</Flex>
-					</Stack>
-				</Card>
-			)}
+			{/* Inviting contributors and the danger zone (cancel / delete) now
+			    live on the pool settings page, reached from the header. */}
 		</Stack>
 	)
 }
