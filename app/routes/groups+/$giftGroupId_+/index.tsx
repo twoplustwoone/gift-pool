@@ -740,7 +740,7 @@ const InlineBudgetEditor = ({
               name="dollars"
               defaultValue={dollars}
               inputMode="decimal"
-              className="border-input bg-input pl-5 text-foreground"
+              className="border-input bg-input-bg pl-5 text-foreground"
               onFocus={handleFocusSelectAll}
               onMouseUp={handleMouseUpPreserve}
             />
@@ -820,7 +820,7 @@ const InlineBudgetEditor = ({
           name="dollars"
           defaultValue={dollars}
           inputMode="decimal"
-          className="w-28 border-input bg-input pl-5 text-foreground"
+          className="w-28 border-input bg-input-bg pl-5 text-foreground"
           aria-label="Your budget"
           onFocus={handleFocusSelectAll}
           onMouseUp={handleMouseUpPreserve}
