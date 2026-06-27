@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#app/components/ui/select.tsx';
+import { SystemLabel } from '#app/components/ui/system-label.tsx';
 // import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Textarea } from '#app/components/ui/textarea.tsx';
 import { prisma } from '#app/utils/db.server.ts';
@@ -567,9 +568,9 @@ const GroupSettingsRoute = () => {
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <Avatar size="s" image={m.user.image} user={m.user} />
                   <div className="min-w-0">
-                    <div className="truncate font-medium">
-                      {m.user.username}
-                      {isViewer ? ' (You)' : ''}
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <span className="truncate">{m.user.username}</span>
+                      {isViewer ? <SystemLabel>you</SystemLabel> : null}
                     </div>
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
                       <RoleBadge role={m.role} />

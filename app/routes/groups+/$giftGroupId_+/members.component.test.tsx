@@ -149,10 +149,9 @@ describe('Members tab — PoolActionForMember per row', () => {
 
   it("hides the pool action on the viewer's own row", () => {
     render(<GroupMembersRoute />);
-    // Viewer's row shows "viewer (You)" — confirm presence by partial match.
-    expect(
-      screen.getByText((_, el) => el?.textContent === 'viewer (You)'),
-    ).toBeInTheDocument();
+    // Viewer's row shows the username plus a system "you" label.
+    expect(screen.getByText('viewer')).toBeInTheDocument();
+    expect(screen.getByText('you')).toBeInTheDocument();
     // Total pool action links = 1 (only Marco's "View pool").
     const allLinks = screen.getAllByRole('link');
     const poolLinks = allLinks.filter((link) =>

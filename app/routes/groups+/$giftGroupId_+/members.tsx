@@ -15,6 +15,7 @@ import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
+import { SystemLabel } from '#app/components/ui/system-label.tsx';
 import { type loader as routeLoader } from './__route.server';
 import { applyPendingSettingsMemberMutations } from './__route.shared';
 
@@ -127,9 +128,9 @@ const GroupMembersRoute = () => {
               >
                 <Avatar size="s" image={m.user.image} user={m.user} />
                 <div>
-                  <div className="font-medium">
-                    {m.user.username}
-                    {isViewer ? ' (You)' : ''}
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <span>{m.user.username}</span>
+                    {isViewer ? <SystemLabel>you</SystemLabel> : null}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {birthday
