@@ -1,5 +1,5 @@
-import { LuUsers } from 'react-icons/lu';
-import { NavLink, Outlet, useLoaderData } from 'react-router';
+import { LuSettings, LuUsers } from 'react-icons/lu';
+import { Link, NavLink, Outlet, useLoaderData } from 'react-router';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { PageHeader } from '#app/components/page-header.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
@@ -11,8 +11,7 @@ import { type loader as routeLoader } from './__route.server';
 export { loader, action } from './__route.server';
 
 const GroupLayout = () => {
-  const { giftGroup, viewer, canSettings } =
-    useLoaderData<typeof routeLoader>();
+  const { giftGroup, viewer } = useLoaderData<typeof routeLoader>();
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -23,12 +22,23 @@ const GroupLayout = () => {
         title={giftGroup.name}
         subtitle={`${giftGroup.groupMembers.length} ${giftGroup.groupMembers.length === 1 ? 'member' : 'members'}`}
       >
-        <RoleBadge role={viewer.role as GroupRole} />
+        <div className="flex shrink-0 items-center gap-2">
+          <RoleBadge role={viewer.role as GroupRole} />
+          {/* Settings is reachable by every member — it's where your own
+              group preferences live, not just admin controls (P7.5). */}
+          <Link
+            to={`/groups/${giftGroup.id}/settings`}
+            aria-label="Group settings"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <LuSettings className="h-5 w-5" />
+          </Link>
+        </div>
       </PageHeader>
       <main className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl p-3 sm:p-6">
           <Stack gap={6}>
-            <TabBar giftGroupId={giftGroup.id} canSettings={canSettings} />
+            <TabBar giftGroupId={giftGroup.id} />
             <Outlet />
           </Stack>
         </div>
@@ -39,28 +49,16 @@ const GroupLayout = () => {
 
 export default GroupLayout;
 
-const TabBar = ({
-  giftGroupId,
-  canSettings,
-}: {
-  giftGroupId: string;
-  canSettings: boolean;
-}) => {
+const TabBar = ({ giftGroupId }: { giftGroupId: string }) => {
+  // Settings is intentionally NOT a tab — it's reached from the header gear.
   const tabs = [
     { to: `/groups/${giftGroupId}`, label: 'Overview', end: true },
     { to: `/groups/${giftGroupId}/members`, label: 'Members' },
-    ...(canSettings
-      ? ([
-          { to: `/groups/${giftGroupId}/settings`, label: 'Settings' },
-        ] as const)
-      : ([] as const)),
     { to: `/groups/${giftGroupId}/activity`, label: 'Activity' },
   ] as const;
 
-  const colsClass = canSettings ? 'grid-cols-4' : 'grid-cols-3';
-
   return (
-    <div className={`grid w-full ${colsClass} rounded-full bg-muted p-1`}>
+    <div className="grid w-full grid-cols-3 rounded-full bg-muted p-1">
       {tabs.map((t) => (
         <NavLink
           key={t.to}
