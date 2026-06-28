@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -91,6 +91,15 @@ function renderHub() {
   );
 }
 
+// Screens open in read mode (R5.1); editing is a deliberate step. These helpers
+// reveal the underlying forms so the form-population assertions can run.
+function editProfile() {
+  fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }));
+}
+function editPrivacy() {
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+}
+
 describe('<SettingsProfileHub />', () => {
   it('renders the Settings header and all card sections', () => {
     renderHub();
@@ -118,8 +127,19 @@ describe('<SettingsProfileHub />', () => {
     ).toBeInTheDocument();
   });
 
+  it('opens the Profile card in read mode showing current values', () => {
+    renderHub();
+    // Read mode: values shown as text, no editable inputs yet.
+    expect(screen.getByText('wade')).toBeInTheDocument();
+    expect(screen.getByText('Mercenary with a mouth.')).toBeInTheDocument();
+    expect(
+      document.querySelector('input[name="username"]'),
+    ).not.toBeInTheDocument();
+  });
+
   it('populates the bio and birthday fields from loader data', () => {
     const { container } = renderHub();
+    editProfile();
     const bio = container.querySelector(
       'textarea[name="bio"]',
     ) as HTMLTextAreaElement;
@@ -133,6 +153,7 @@ describe('<SettingsProfileHub />', () => {
 
   it('renders all four birthday visibility options with FRIENDS selected by default', () => {
     const { container } = renderHub();
+    editPrivacy();
     const radios = container.querySelectorAll<HTMLInputElement>(
       'input[name="birthdayVisibility"]',
     );
@@ -148,6 +169,7 @@ describe('<SettingsProfileHub />', () => {
   it('reflects a non-default birthdayVisibility from loader data', () => {
     loaderDataSnapshot.user.birthdayVisibility = 'NOBODY';
     const { container } = renderHub();
+    editPrivacy();
     const radios = container.querySelectorAll<HTMLInputElement>(
       'input[name="birthdayVisibility"]',
     );
@@ -160,6 +182,7 @@ describe('<SettingsProfileHub />', () => {
 
   it('populates the username + name form from loader data', () => {
     const { container } = renderHub();
+    editProfile();
     const username = container.querySelector(
       'input[name="username"]',
     ) as HTMLInputElement;

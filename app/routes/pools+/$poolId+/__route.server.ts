@@ -6,7 +6,11 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { canViewWishlistOf } from '#app/utils/friends.server.ts'
 import { dollarsToCents } from '#app/utils/price.ts'
-import { POOL_STATUS } from '#app/utils/pool-constants.ts'
+import {
+	OCCASION_TYPE,
+	POOL_STATUS,
+	type OccasionType,
+} from '#app/utils/pool-constants.ts'
 import {
 	canManagePool,
 	isPoolOrganizer,
@@ -34,6 +38,8 @@ import {
 	removeContributor,
 	updateContribution,
 	updateFinalPrice,
+	updatePool,
+	type UpdatePoolInput,
 } from '#app/utils/pool.server.ts'
 import { getRequestContext } from '#app/utils/request-context.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
@@ -155,6 +161,7 @@ enum Intent {
 	LeavePool = 'leave-pool',
 	CancelPool = 'cancel-pool',
 	DeletePool = 'delete-pool',
+	UpdateDetails = 'update-pool-details',
 }
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -262,6 +269,19 @@ const DeletePoolSchema = PoolIdSchema.extend({
 	intent: z.literal(Intent.DeletePool),
 })
 
+const UpdateDetailsSchema = PoolIdSchema.extend({
+	intent: z.literal(Intent.UpdateDetails),
+	title: z.string().min(1, 'Give the pool a title').max(200),
+	occasionType: z.enum(
+		Object.values(OCCASION_TYPE) as [OccasionType, ...OccasionType[]],
+	),
+	eventDate: z.string().optional(),
+	// Optional: the editor disables (and so omits) this control once the pool is
+	// past OPEN, and the handler only applies it while OPEN anyway. Requiring it
+	// would block title/occasion/date edits on VOTING/DECIDED/PURCHASED pools.
+	decisionMode: z.enum(['ORGANIZER_PICKS', 'VOTE']).optional(),
+})
+
 const ActionSchema = ProposeIdeaSchema.or(DeleteIdeaSchema)
 	.or(CastVoteSchema)
 	.or(CallVoteSchema)
@@ -279,6 +299,7 @@ const ActionSchema = ProposeIdeaSchema.or(DeleteIdeaSchema)
 	.or(LeavePoolSchema)
 	.or(CancelPoolSchema)
 	.or(DeletePoolSchema)
+	.or(UpdateDetailsSchema)
 
 // ─── Action ───────────────────────────────────────────────────────────────────
 
@@ -539,6 +560,31 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				title: 'Pool deleted',
 				description: 'The pool has been deleted.',
 			})
+		}
+
+		case Intent.UpdateDetails: {
+			if (!(await canManagePool(userId, poolForPerms))) {
+				throw data({ error: 'Not allowed.' }, { status: 403 })
+			}
+			// Pool details are editable until the pool closes out.
+			if (
+				pool.status === POOL_STATUS.DELIVERED ||
+				pool.status === POOL_STATUS.CANCELLED
+			) {
+				throw data({ error: 'This pool is closed.' }, { status: 400 })
+			}
+			const updates: UpdatePoolInput = {
+				title: v.title,
+				occasionType: v.occasionType,
+				eventDate: v.eventDate ? new Date(v.eventDate) : null,
+			}
+			// The gift-selection method only changes cleanly before a vote is
+			// called — once VOTING/DECIDED, switching modes is ambiguous.
+			if (pool.status === POOL_STATUS.OPEN && v.decisionMode) {
+				updates.decisionMode = v.decisionMode
+			}
+			await updatePool(poolId, userId, updates)
+			return data(submission.reply())
 		}
 	}
 }

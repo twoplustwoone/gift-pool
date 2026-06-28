@@ -169,7 +169,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     );
   }
 
-  it('renders the active voting UI, contribution editor, and invite tools', async () => {
+  it('renders the active voting UI and contribution editor', async () => {
     renderRoute();
 
     expect(screen.getByText('Organizer controls')).toBeInTheDocument();
@@ -189,15 +189,16 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     await userEvent.clear(input);
     await userEvent.type(input, '45');
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+  });
 
-    await userEvent.click(screen.getByRole('button', { name: /copy/i }));
-    expect(clipboardWriteText).toHaveBeenCalledWith(
-      'https://giftpool.app/pools/join/invite-1',
-    );
-
-    expect(screen.getByText('Danger zone')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancel pool' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete pool' })).toBeInTheDocument();
+  it('moves invite tools and the danger zone off the main page (now on settings)', () => {
+    renderRoute();
+    // These live on /pools/:id/settings now, reached from the header gear.
+    expect(screen.queryByRole('button', { name: /copy/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Danger zone')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Delete pool' }),
+    ).not.toBeInTheDocument();
   });
 
   it('prefills the propose form from a picked wishlist item', async () => {

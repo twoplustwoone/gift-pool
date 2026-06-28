@@ -7,7 +7,7 @@ import {
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   data as rrData,
   Link,
@@ -17,6 +17,11 @@ import {
   type LoaderFunctionArgs,
 } from 'react-router';
 import { z } from 'zod';
+import {
+  EditableSection,
+  ReadField,
+  useExitOnSubmitSuccess,
+} from '#app/components/editable-section.tsx';
 import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -31,13 +36,11 @@ import { authSessionStorage } from '#app/utils/session.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import {
   BIO_MAX_LENGTH,
-  BIRTHDAY_VISIBILITY_VALUES,
   BioSchema,
   BirthdaySchema,
   BirthdayVisibilitySchema,
   NameSchema,
   UsernameSchema,
-  WISHLIST_VISIBILITY_VALUES,
   WishlistVisibilitySchema,
   type BirthdayVisibility,
   type WishlistVisibility,
@@ -190,9 +193,37 @@ function toDateInputValue(value: Date | string | null | undefined) {
   return date.toISOString().slice(0, 10);
 }
 
+function ProfilePhotoButton({
+  onOpenPhoto,
+}: Readonly<{ onOpenPhoto: () => void }>) {
+  const data = useLoaderData<typeof loader>();
+  return (
+    <button
+      type="button"
+      onClick={onOpenPhoto}
+      className="group relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      aria-label="Change profile photo"
+    >
+      <Avatar
+        size="l"
+        className="max-h-40 max-w-40 sm:max-h-52 sm:max-w-52"
+        image={
+          data.user.image ? { id: data.user.image.id, altText: null } : null
+        }
+        user={{ name: data.user.name, username: data.user.username }}
+      />
+      <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-foreground/0 text-transparent transition group-hover:bg-foreground/40 group-hover:text-background group-focus-visible:bg-foreground/40 group-focus-visible:text-background">
+        <Icon name="camera" className="h-6 w-6" />
+      </span>
+    </button>
+  );
+}
+
 function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof profileUpdateAction>();
+  const [editing, setEditing] = useState(false);
+  const stopEditing = useCallback(() => setEditing(false), []);
   const [form, fields] = useForm<z.input<typeof ProfileFormSchema>>({
     id: 'edit-profile',
     constraint: getZodConstraint(ProfileFormSchema),
@@ -208,34 +239,42 @@ function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
     },
   });
 
-  return (
-    <Card padding="lg" className="flex flex-col gap-5">
-      <SectionHeading
-        title="Profile"
-        description="How you appear to friends across GiftPool."
-      />
+  // Leave edit mode once the save lands so we drop back to the read view.
+  useExitOnSubmitSuccess({
+    state: fetcher.state,
+    success: form.status === 'success',
+    onExit: stopEditing,
+  });
 
+  const birthdayDisplay = data.user.birthday
+    ? new Date(data.user.birthday).toLocaleDateString()
+    : 'Not set';
+
+  return (
+    <EditableSection
+      title="Profile"
+      description="How you appear to friends across GiftPool."
+      editLabel="Edit profile"
+      editing={editing}
+      onEdit={() => setEditing(true)}
+      read={
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:gap-5">
+          <ProfilePhotoButton onOpenPhoto={onOpenPhoto} />
+          <div className="grid w-full flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
+            <ReadField label="Username" value={data.user.username} />
+            <ReadField label="Name" value={data.user.name || 'Not set'} />
+            <ReadField
+              label="Bio"
+              value={data.user.bio || 'No bio yet'}
+              className="sm:col-span-2"
+            />
+            <ReadField label="Birthday" value={birthdayDisplay} />
+          </div>
+        </div>
+      }
+    >
       <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:gap-5">
-        <button
-          type="button"
-          onClick={onOpenPhoto}
-          className="group relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          aria-label="Change profile photo"
-        >
-          <Avatar
-            size="l"
-            className="max-h-40 max-w-40 sm:max-h-52 sm:max-w-52"
-            image={
-              data.user.image
-                ? { id: data.user.image.id, altText: null }
-                : null
-            }
-            user={{ name: data.user.name, username: data.user.username }}
-          />
-          <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-foreground/0 text-transparent transition group-hover:bg-foreground/40 group-hover:text-background group-focus-visible:bg-foreground/40 group-focus-visible:text-background">
-            <Icon name="camera" className="h-6 w-6" />
-          </span>
-        </button>
+        <ProfilePhotoButton onOpenPhoto={onOpenPhoto} />
 
         <fetcher.Form
           method="POST"
@@ -286,7 +325,10 @@ function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
             errors={fields.birthday.errors}
           />
           <ErrorList errors={form.errors} id={form.errorId} />
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={stopEditing}>
+              Cancel
+            </Button>
             <StatusButton
               type="submit"
               name="intent"
@@ -300,7 +342,7 @@ function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
           </div>
         </fetcher.Form>
       </div>
-    </Card>
+    </EditableSection>
   );
 }
 
@@ -401,13 +443,13 @@ function VisibilityRadioGroup<T extends string>({
   name,
   options,
   selected,
-  onSubmit,
+  onChange,
 }: {
   legend: string;
   name: string;
   options: ReadonlyArray<{ value: T; label: string; description: string }>;
   selected: T;
-  onSubmit: (value: T) => void;
+  onChange: (value: T) => void;
 }) {
   return (
     <fieldset className="flex flex-col gap-3">
@@ -429,7 +471,7 @@ function VisibilityRadioGroup<T extends string>({
               name={name}
               value={option.value}
               checked={isSelected}
-              onChange={(event) => onSubmit(event.currentTarget.value as T)}
+              onChange={(event) => onChange(event.currentTarget.value as T)}
               className="h-4 w-4 shrink-0 accent-primary"
             />
             <span className="flex flex-col gap-0.5">
@@ -447,9 +489,18 @@ function VisibilityRadioGroup<T extends string>({
   );
 }
 
+function privacyLabel<T extends string>(
+  options: ReadonlyArray<{ value: T; label: string }>,
+  value: T,
+): string {
+  return options.find((option) => option.value === value)?.label ?? value;
+}
+
 function PrivacyCard() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof privacyUpdateAction>();
+  const [editing, setEditing] = useState(false);
+  const stopEditing = useCallback(() => setEditing(false), []);
 
   const currentBirthday =
     (data.user.birthdayVisibility as BirthdayVisibility | undefined) ??
@@ -458,52 +509,82 @@ function PrivacyCard() {
     (data.user.wishlistVisibility as WishlistVisibility | undefined) ??
     'FRIENDS';
 
-  // Optimistic reflection: while the fetcher is in-flight we show the
-  // pending values from its formData instead of waiting for revalidation.
-  const pendingBirthday = fetcher.formData?.get('birthdayVisibility');
-  const pendingWishlist = fetcher.formData?.get('wishlistVisibility');
+  // Draft selections — changing a visibility setting is deliberate now (R5.2):
+  // radios update local state and nothing persists until Save is pressed.
+  const [draftBirthday, setDraftBirthday] =
+    useState<BirthdayVisibility>(currentBirthday);
+  const [draftWishlist, setDraftWishlist] =
+    useState<WishlistVisibility>(currentWishlist);
 
-  const selectedBirthday =
-    typeof pendingBirthday === 'string' &&
-    (BIRTHDAY_VISIBILITY_VALUES as readonly string[]).includes(pendingBirthday)
-      ? (pendingBirthday as BirthdayVisibility)
-      : currentBirthday;
+  const saved = Boolean((fetcher.data as { ok?: boolean } | undefined)?.ok);
+  useExitOnSubmitSuccess({
+    state: fetcher.state,
+    success: saved,
+    onExit: stopEditing,
+  });
 
-  const selectedWishlist =
-    typeof pendingWishlist === 'string' &&
-    (WISHLIST_VISIBILITY_VALUES as readonly string[]).includes(pendingWishlist)
-      ? (pendingWishlist as WishlistVisibility)
-      : currentWishlist;
+  function startEditing() {
+    setDraftBirthday(currentBirthday);
+    setDraftWishlist(currentWishlist);
+    setEditing(true);
+  }
 
-  function submitPrivacy(patch: Partial<{ birthdayVisibility: BirthdayVisibility; wishlistVisibility: WishlistVisibility }>) {
+  function savePrivacy() {
     const formData = new FormData();
     formData.set('intent', privacyUpdateActionIntent);
-    formData.set('birthdayVisibility', patch.birthdayVisibility ?? selectedBirthday);
-    formData.set('wishlistVisibility', patch.wishlistVisibility ?? selectedWishlist);
+    formData.set('birthdayVisibility', draftBirthday);
+    formData.set('wishlistVisibility', draftWishlist);
     void fetcher.submit(formData, { method: 'POST' });
   }
 
   return (
-    <Card padding="lg" className="flex flex-col gap-5">
-      <SectionHeading
-        title="Privacy"
-        description="Control who can see personal details on your profile."
-      />
-      <VisibilityRadioGroup
-        legend="Birthday visibility"
-        name="birthdayVisibility"
-        options={BIRTHDAY_PRIVACY_OPTIONS}
-        selected={selectedBirthday}
-        onSubmit={(value) => submitPrivacy({ birthdayVisibility: value })}
-      />
-      <VisibilityRadioGroup
-        legend="Wishlist visibility"
-        name="wishlistVisibility"
-        options={WISHLIST_PRIVACY_OPTIONS}
-        selected={selectedWishlist}
-        onSubmit={(value) => submitPrivacy({ wishlistVisibility: value })}
-      />
-    </Card>
+    <EditableSection
+      title="Privacy"
+      description="Control who can see personal details on your profile."
+      editing={editing}
+      onEdit={startEditing}
+      read={
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <ReadField
+            label="Birthday visibility"
+            value={privacyLabel(BIRTHDAY_PRIVACY_OPTIONS, currentBirthday)}
+          />
+          <ReadField
+            label="Wishlist visibility"
+            value={privacyLabel(WISHLIST_PRIVACY_OPTIONS, currentWishlist)}
+          />
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-5">
+        <VisibilityRadioGroup
+          legend="Birthday visibility"
+          name="birthdayVisibility"
+          options={BIRTHDAY_PRIVACY_OPTIONS}
+          selected={draftBirthday}
+          onChange={setDraftBirthday}
+        />
+        <VisibilityRadioGroup
+          legend="Wishlist visibility"
+          name="wishlistVisibility"
+          options={WISHLIST_PRIVACY_OPTIONS}
+          selected={draftWishlist}
+          onChange={setDraftWishlist}
+        />
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={stopEditing}>
+            Cancel
+          </Button>
+          <StatusButton
+            type="button"
+            onClick={savePrivacy}
+            status={fetcher.state !== 'idle' ? 'pending' : 'idle'}
+          >
+            Save privacy
+          </StatusButton>
+        </div>
+      </div>
+    </EditableSection>
   );
 }
 
@@ -722,7 +803,7 @@ async function privacyUpdateAction({ userId, formData }: ProfileActionArgs) {
       wishlistVisibility: submission.value.wishlistVisibility,
     },
   });
-  return { result: submission.reply() };
+  return { result: submission.reply(), ok: true };
 }
 
 async function signOutOfSessionsAction({ request, userId }: ProfileActionArgs) {

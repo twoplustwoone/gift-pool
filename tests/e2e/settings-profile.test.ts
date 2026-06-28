@@ -24,12 +24,15 @@ test('Users can update their basic info', async ({ page, login }) => {
 
   const newUserData = createUser();
 
+  // The Profile card opens in read mode (R5.1) — enter edit mode first.
+  await page.getByRole('button', { name: /edit profile/i }).click();
+
   await page.getByRole('textbox', { name: /^name/i }).fill(newUserData.name);
   await page
     .getByRole('textbox', { name: /^username/i })
     .fill(newUserData.username);
 
-  await page.getByRole('button', { name: /^save/i }).click();
+  await page.getByRole('button', { name: /^save changes/i }).click();
 });
 
 test('Users can update their password', async ({ page, login }) => {
