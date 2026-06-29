@@ -16,5 +16,8 @@ describe('PrivacyRoute', () => {
     expect(screen.getByText(/third-party services/i)).toBeInTheDocument();
     expect(screen.getByText(/cookies and sessions/i)).toBeInTheDocument();
     expect(screen.getByText(/data retention/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/normalized browser, device, viewport/i),
+    ).toBeInTheDocument();
   });
 });

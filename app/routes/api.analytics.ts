@@ -1,10 +1,14 @@
 import { type Prisma } from '@prisma/client';
 import { data, type ActionFunctionArgs } from 'react-router';
 import { z } from 'zod';
-import { logEvent } from '#app/utils/analytics.server.ts';
+import {
+  logClientEnvironmentObservation,
+  logEvent,
+} from '#app/utils/analytics.server.ts';
 import {
   type AnalyticEventName,
   ANALYTIC_EVENT_NAMES,
+  CLIENT_ENVIRONMENT_EVENT_NAME,
   USER_REQUIRED_EVENTS,
 } from '#app/utils/analytics.ts';
 import { getUserId } from '#app/utils/auth.server.ts';
@@ -19,6 +23,32 @@ const AnalyticsEventSchema = z.object({
   sessionId: z.string().optional(),
   eventId: z.string().optional(),
 });
+
+const ClientEnvironmentPropertiesSchema = z
+  .object({
+    browserFamily: z.string().min(1).max(40),
+    browserMajor: z.number().int().min(0).max(999).nullable(),
+    osFamily: z.string().min(1).max(40),
+    deviceType: z.enum(['mobile', 'tablet', 'desktop', 'unknown']),
+    viewportBucket: z.enum(['mobile', 'tablet', 'desktop', 'unknown']),
+    displayMode: z.enum([
+      'browser',
+      'fullscreen',
+      'minimal-ui',
+      'standalone',
+      'window-controls-overlay',
+    ]),
+    isStandalone: z.boolean(),
+    serviceWorkerSupported: z.boolean(),
+    notificationPermission: z.enum([
+      'default',
+      'denied',
+      'granted',
+      'unsupported',
+    ]),
+    observedAt: z.string().datetime(),
+  })
+  .strict();
 export async function loader() {
   return data(
     {
@@ -85,6 +115,40 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     );
   }
+
+  if (payload.name === CLIENT_ENVIRONMENT_EVENT_NAME) {
+    const properties = ClientEnvironmentPropertiesSchema.safeParse(
+      payload.properties,
+    );
+    if (!properties.success) {
+      return data(
+        {
+          error: 'Invalid environment payload',
+          details: properties.error.flatten(),
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+    const event = await logClientEnvironmentObservation({
+      userId,
+      requestId: payload.requestId ?? contextRequestId,
+      sessionId: sessionId ?? payload.sessionId ?? null,
+      visitorId,
+      properties: properties.data as Prisma.InputJsonValue,
+    });
+    return data(
+      {
+        ok: true,
+        eventId: event.eventId,
+      },
+      {
+        headers: applyRequestIdHeader(null, contextRequestId),
+      },
+    );
+  }
+
   const event = await logEvent({
     name: payload.name as AnalyticEventName,
     userId,

@@ -4,7 +4,14 @@ import { captureException } from '@sentry/react-router';
 import {
   ANALYTIC_EVENT_SET,
   ANALYTIC_EVENT_NAMES,
+  CLIENT_ENVIRONMENT_EVENT_NAME,
   type AnalyticEventName,
+  type AnalyticsExplorerDays,
+  type AnalyticsExplorerEventFilter,
+  type AnalyticsExplorerGroupBy,
+  type AnalyticsExplorerResult,
+  type AnalyticsExplorerSeriesRow,
+  PWA_ANALYTIC_EVENT_NAMES,
   USER_REQUIRED_EVENTS,
 } from './analytics.ts';
 import { prisma } from './db.server.ts';
@@ -25,6 +32,15 @@ type LogEventInput = {
   createdAt?: Date;
 };
 
+type LogClientEnvironmentInput = {
+  userId?: string | null;
+  requestId?: string | null;
+  sessionId?: string | null;
+  visitorId: string;
+  properties: Prisma.InputJsonValue;
+  createdAt?: Date;
+};
+
 function serializeProperties(properties?: Prisma.InputJsonValue | null) {
   if (typeof properties === 'undefined' || properties === null) return null;
   try {
@@ -39,6 +55,13 @@ function assertValidEventName(name: string): asserts name is AnalyticEventName {
   if (!ANALYTIC_EVENT_SET.has(name)) {
     throw new Error(`Invalid analytics event name: ${name}`);
   }
+}
+
+export function getClientEnvironmentEventId(
+  visitorId: string,
+  date = new Date(),
+) {
+  return `client-environment:${visitorId}:${formatDateKey(date)}`;
 }
 
 function isUniqueEventIdError(error: unknown) {
@@ -159,6 +182,60 @@ export async function logEvent({
   }
 }
 
+export async function logClientEnvironmentObservation({
+  userId,
+  requestId,
+  sessionId,
+  visitorId,
+  properties,
+  createdAt,
+}: LogClientEnvironmentInput) {
+  const resolvedCreatedAt = createdAt ?? new Date();
+  const eventId = getClientEnvironmentEventId(visitorId, resolvedCreatedAt);
+  const serializedProperties = serializeProperties(properties);
+
+  const updateExisting = async () => {
+    const existing = await prisma.analyticsEvent.findUnique({
+      where: { eventId },
+    });
+    if (!existing) return null;
+    return prisma.analyticsEvent.update({
+      where: { eventId },
+      data: {
+        userId: userId ?? existing.userId,
+        requestId: requestId ?? existing.requestId,
+        sessionId: sessionId ?? existing.sessionId,
+        visitorId,
+        properties: serializedProperties ?? existing.properties,
+      },
+    });
+  };
+
+  const updated = await updateExisting();
+  if (updated) return updated;
+
+  try {
+    return await prisma.analyticsEvent.create({
+      data: {
+        eventId,
+        name: CLIENT_ENVIRONMENT_EVENT_NAME,
+        userId: userId ?? null,
+        source: 'client',
+        requestId: requestId ?? null,
+        sessionId: sessionId ?? null,
+        visitorId,
+        properties: serializedProperties,
+        createdAt: resolvedCreatedAt,
+      },
+    });
+  } catch (error) {
+    if (!isUniqueEventIdError(error)) throw error;
+    const recovered = await updateExisting();
+    if (recovered) return recovered;
+    throw error;
+  }
+}
+
 /**
  * Fire `logEvent` without awaiting the DB write. Pre-generates `eventId`
  * synchronously so action handlers and loaders can echo it back to the
@@ -192,10 +269,288 @@ export type AnalyticsCounts = {
   eventsLast30Days: Array<{ name: AnalyticEventName; count: number }>;
 };
 
+export type EnvironmentBreakdownRow = {
+  label: string;
+  count: number;
+  percent: number;
+};
+
+export type EnvironmentAnalytics = {
+  totalObservations: number;
+  uniqueVisitors: number;
+  standaloneObservations: number;
+  browserObservations: number;
+  standalonePercent: number;
+  browsers: EnvironmentBreakdownRow[];
+  operatingSystems: EnvironmentBreakdownRow[];
+  deviceTypes: EnvironmentBreakdownRow[];
+  viewportBuckets: EnvironmentBreakdownRow[];
+  displayModes: EnvironmentBreakdownRow[];
+  pwaFunnel: EnvironmentBreakdownRow[];
+};
+
 const DAY_MS = 1000 * 60 * 60 * 24;
 
 function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function parseProperties(properties: string | null) {
+  if (!properties) return null;
+  try {
+    return JSON.parse(properties) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function increment(map: Map<string, number>, value: unknown) {
+  const label =
+    typeof value === 'string' && value.length > 0 ? value : 'Unknown';
+  map.set(label, (map.get(label) ?? 0) + 1);
+}
+
+function getBrowserLabel(properties: Record<string, unknown> | null) {
+  const family =
+    typeof properties?.browserFamily === 'string' &&
+    properties.browserFamily.length > 0
+      ? properties.browserFamily
+      : 'Unknown';
+  const major =
+    typeof properties?.browserMajor === 'number' &&
+    Number.isFinite(properties.browserMajor)
+      ? Math.trunc(properties.browserMajor)
+      : null;
+  return major === null || family === 'Unknown' ? family : `${family} ${major}`;
+}
+
+function getExplorerGroupLabel(
+  groupBy: AnalyticsExplorerGroupBy,
+  event: {
+    name: string;
+    source: string;
+    properties: string | null;
+  },
+) {
+  const properties = parseProperties(event.properties);
+  switch (groupBy) {
+    case 'event':
+      return event.name;
+    case 'source':
+      return event.source;
+    case 'browser':
+      return getBrowserLabel(properties);
+    case 'os':
+      return properties?.osFamily;
+    case 'device':
+      return properties?.deviceType;
+    case 'viewport':
+      return properties?.viewportBucket;
+    case 'displayMode':
+      return properties?.displayMode;
+    case 'standalone':
+      if (properties?.isStandalone === true) return 'Standalone';
+      if (properties?.isStandalone === false) return 'Browser';
+      return 'Unknown';
+  }
+}
+
+function getPropertiesPreview(properties: string | null) {
+  if (!properties) return '—';
+  const parsed = parseProperties(properties);
+  if (!parsed) return 'Invalid JSON';
+  const preview = JSON.stringify(parsed);
+  return preview.length > 240 ? `${preview.slice(0, 240)}...` : preview;
+}
+
+function toBreakdownRows(
+  map: Map<string, number>,
+  total: number,
+): EnvironmentBreakdownRow[] {
+  return [...map.entries()]
+    .map(([label, count]) => ({
+      label,
+      count,
+      percent: total > 0 ? Math.round((count / total) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+const PWA_FUNNEL_LABELS: Array<{
+  name: (typeof PWA_ANALYTIC_EVENT_NAMES)[number];
+  label: string;
+}> = [
+  { name: 'pwa_prompt_available', label: 'Prompt available' },
+  { name: 'pwa_install_clicked', label: 'Install clicked' },
+  { name: 'pwa_install_accepted', label: 'Install accepted' },
+  { name: 'pwa_install_dismissed', label: 'Install dismissed' },
+  { name: 'pwa_appinstalled', label: 'App installed' },
+  { name: 'pwa_launched_standalone', label: 'Standalone launches' },
+];
+
+export async function getEnvironmentAnalytics({
+  days = 30,
+  now = new Date(),
+}: {
+  days?: number;
+  now?: Date;
+} = {}): Promise<EnvironmentAnalytics> {
+  const startOfToday = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+  const since = new Date(startOfToday.getTime() - DAY_MS * (days - 1));
+  const names = [
+    CLIENT_ENVIRONMENT_EVENT_NAME,
+    ...PWA_ANALYTIC_EVENT_NAMES,
+  ] as Array<AnalyticEventName>;
+
+  const events = await prisma.analyticsEvent.findMany({
+    where: {
+      name: { in: names },
+      createdAt: { gte: since },
+    },
+    select: {
+      eventId: true,
+      name: true,
+      userId: true,
+      visitorId: true,
+      properties: true,
+    },
+  });
+
+  const browserCounts = new Map<string, number>();
+  const osCounts = new Map<string, number>();
+  const deviceCounts = new Map<string, number>();
+  const viewportCounts = new Map<string, number>();
+  const displayModeCounts = new Map<string, number>();
+  const uniqueVisitors = new Set<string>();
+  const pwaCounts = new Map<AnalyticEventName, number>();
+  let totalObservations = 0;
+  let standaloneObservations = 0;
+
+  for (const event of events) {
+    if (event.name !== CLIENT_ENVIRONMENT_EVENT_NAME) {
+      const name = event.name as AnalyticEventName;
+      pwaCounts.set(name, (pwaCounts.get(name) ?? 0) + 1);
+      continue;
+    }
+
+    totalObservations += 1;
+    uniqueVisitors.add(event.visitorId ?? event.userId ?? event.eventId);
+    const properties = parseProperties(event.properties);
+    increment(browserCounts, getBrowserLabel(properties));
+    increment(osCounts, properties?.osFamily);
+    increment(deviceCounts, properties?.deviceType);
+    increment(viewportCounts, properties?.viewportBucket);
+    increment(displayModeCounts, properties?.displayMode);
+    if (properties?.isStandalone === true) {
+      standaloneObservations += 1;
+    }
+  }
+
+  const browserObservations = totalObservations - standaloneObservations;
+
+  return {
+    totalObservations,
+    uniqueVisitors: uniqueVisitors.size,
+    standaloneObservations,
+    browserObservations,
+    standalonePercent:
+      totalObservations > 0
+        ? Math.round((standaloneObservations / totalObservations) * 100)
+        : 0,
+    browsers: toBreakdownRows(browserCounts, totalObservations),
+    operatingSystems: toBreakdownRows(osCounts, totalObservations),
+    deviceTypes: toBreakdownRows(deviceCounts, totalObservations),
+    viewportBuckets: toBreakdownRows(viewportCounts, totalObservations),
+    displayModes: toBreakdownRows(displayModeCounts, totalObservations),
+    pwaFunnel: PWA_FUNNEL_LABELS.map(({ name, label }) => ({
+      label,
+      count: pwaCounts.get(name) ?? 0,
+      percent: 0,
+    })),
+  };
+}
+
+export async function getAnalyticsExplorer({
+  days = 30,
+  eventName = 'all',
+  groupBy = 'event',
+  now = new Date(),
+  limit = 50,
+}: {
+  days?: AnalyticsExplorerDays;
+  eventName?: AnalyticsExplorerEventFilter;
+  groupBy?: AnalyticsExplorerGroupBy;
+  now?: Date;
+  limit?: number;
+} = {}): Promise<AnalyticsExplorerResult> {
+  const startOfToday = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+  const since = new Date(startOfToday.getTime() - DAY_MS * (days - 1));
+
+  const events = await prisma.analyticsEvent.findMany({
+    where: {
+      createdAt: { gte: since },
+      ...(eventName === 'all' ? {} : { name: eventName }),
+    },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      eventId: true,
+      name: true,
+      source: true,
+      userId: true,
+      visitorId: true,
+      properties: true,
+      createdAt: true,
+    },
+  });
+
+  const seriesCounts = new Map<string, number>();
+  const breakdownCounts = new Map<string, number>();
+  const uniqueUsers = new Set<string>();
+  const uniqueVisitors = new Set<string>();
+
+  for (const event of events) {
+    const dayKey = formatDateKey(event.createdAt);
+    seriesCounts.set(dayKey, (seriesCounts.get(dayKey) ?? 0) + 1);
+    increment(breakdownCounts, getExplorerGroupLabel(groupBy, event));
+    if (event.userId) uniqueUsers.add(event.userId);
+    if (event.visitorId) uniqueVisitors.add(event.visitorId);
+  }
+
+  const series: AnalyticsExplorerSeriesRow[] = [];
+  for (
+    let date = new Date(since);
+    date <= startOfToday;
+    date = new Date(date.getTime() + DAY_MS)
+  ) {
+    const key = formatDateKey(date);
+    series.push({ date: key, count: seriesCounts.get(key) ?? 0 });
+  }
+
+  return {
+    days,
+    eventName,
+    groupBy,
+    totalEvents: events.length,
+    uniqueUsers: uniqueUsers.size,
+    uniqueVisitors: uniqueVisitors.size,
+    series,
+    breakdown: toBreakdownRows(breakdownCounts, events.length),
+    recentEvents: events.slice(0, limit).map((event) => ({
+      id: event.id,
+      eventId: event.eventId,
+      name: event.name,
+      source: event.source,
+      createdAt: event.createdAt.toISOString(),
+      userId: event.userId,
+      visitorId: event.visitorId,
+      propertiesPreview: getPropertiesPreview(event.properties),
+    })),
+  };
 }
 
 export async function getAnalyticsCounts(

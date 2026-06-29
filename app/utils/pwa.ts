@@ -3,16 +3,39 @@
 
 export type ManualInstallPlatform = 'ios-safari' | 'ios-chrome';
 
+export type PwaDisplayMode =
+  | 'browser'
+  | 'fullscreen'
+  | 'minimal-ui'
+  | 'standalone'
+  | 'window-controls-overlay';
+
+const DISPLAY_MODES: Array<PwaDisplayMode> = [
+  'fullscreen',
+  'standalone',
+  'minimal-ui',
+  'window-controls-overlay',
+];
+
+export const getDisplayMode = (): PwaDisplayMode => {
+  if (typeof window === 'undefined') return 'browser';
+  for (const mode of DISPLAY_MODES) {
+    if (window.matchMedia?.(`(display-mode: ${mode})`).matches) {
+      return mode;
+    }
+  }
+  return 'browser';
+};
+
 /** True when the app is running as an installed PWA (home-screen / standalone). */
 export const isStandalone = (): boolean => {
   if (typeof window === 'undefined') return false;
-  const mediaQueryList = window.matchMedia?.('(display-mode: standalone)');
   const navigatorStandalone = (
     window.navigator as Navigator & {
       standalone?: boolean;
     }
   ).standalone;
-  return Boolean(mediaQueryList?.matches || navigatorStandalone);
+  return Boolean(getDisplayMode() === 'standalone' || navigatorStandalone);
 };
 
 /** Detect iOS browsers that require a manual "Add to Home Screen" flow. */

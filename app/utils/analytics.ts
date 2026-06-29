@@ -1,3 +1,14 @@
+export const CLIENT_ENVIRONMENT_EVENT_NAME = 'client_environment_observed';
+
+export const PWA_ANALYTIC_EVENT_NAMES = [
+  'pwa_prompt_available',
+  'pwa_install_clicked',
+  'pwa_install_accepted',
+  'pwa_install_dismissed',
+  'pwa_appinstalled',
+  'pwa_launched_standalone',
+] as const;
+
 export const ANALYTIC_EVENT_NAMES = [
   'user_registered',
   'user_logged_in',
@@ -73,11 +84,67 @@ export const ANALYTIC_EVENT_NAMES = [
   // between wishlist_share_viewed and signup_submitted in the share-reach
   // funnel; anonymous visitors fire it, so NOT user-required.
   'share_cta_clicked',
+  // Browser/device/PWA environment snapshot. Anonymous-capable and deduped
+  // daily by visitor id in analytics.server.ts.
+  CLIENT_ENVIRONMENT_EVENT_NAME,
+  ...PWA_ANALYTIC_EVENT_NAMES,
 ] as const;
 
 export type AnalyticEventName = (typeof ANALYTIC_EVENT_NAMES)[number];
 
 export const ANALYTIC_EVENT_SET = new Set<string>(ANALYTIC_EVENT_NAMES);
+
+export const ANALYTICS_EXPLORER_DAY_OPTIONS = [7, 30, 90] as const;
+export type AnalyticsExplorerDays =
+  (typeof ANALYTICS_EXPLORER_DAY_OPTIONS)[number];
+
+export const ANALYTICS_EXPLORER_GROUP_BY_OPTIONS = [
+  'event',
+  'source',
+  'browser',
+  'os',
+  'device',
+  'viewport',
+  'displayMode',
+  'standalone',
+] as const;
+export type AnalyticsExplorerGroupBy =
+  (typeof ANALYTICS_EXPLORER_GROUP_BY_OPTIONS)[number];
+export type AnalyticsExplorerEventFilter = AnalyticEventName | 'all';
+
+export type AnalyticsExplorerSeriesRow = {
+  date: string;
+  count: number;
+};
+
+export type AnalyticsExplorerBreakdownRow = {
+  label: string;
+  count: number;
+  percent: number;
+};
+
+export type AnalyticsExplorerRecentEvent = {
+  id: string;
+  eventId: string;
+  name: string;
+  source: string;
+  createdAt: string;
+  userId: string | null;
+  visitorId: string | null;
+  propertiesPreview: string;
+};
+
+export type AnalyticsExplorerResult = {
+  days: AnalyticsExplorerDays;
+  eventName: AnalyticsExplorerEventFilter;
+  groupBy: AnalyticsExplorerGroupBy;
+  totalEvents: number;
+  uniqueUsers: number;
+  uniqueVisitors: number;
+  series: AnalyticsExplorerSeriesRow[];
+  breakdown: AnalyticsExplorerBreakdownRow[];
+  recentEvents: AnalyticsExplorerRecentEvent[];
+};
 
 export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   'user_registered',

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { loader } from '#app/routes/admin+/analytics.tsx';
-import { logEvent } from '#app/utils/analytics.server.ts';
+import {
+  logClientEnvironmentObservation,
+  logEvent,
+} from '#app/utils/analytics.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { createUser } from '#tests/db-utils.ts';
 import {
@@ -78,6 +81,24 @@ describe('/admin/analytics loader', () => {
       sessionId: null,
       createdAt: new Date(now.getTime() - 2 * DAY_MS),
     });
+    await logClientEnvironmentObservation({
+      visitorId: '11111111-1111-4111-8111-111111111111',
+      requestId: 'req-env',
+      sessionId: null,
+      properties: {
+        browserFamily: 'Chrome',
+        browserMajor: 120,
+        osFamily: 'macOS',
+        deviceType: 'desktop',
+        viewportBucket: 'desktop',
+        displayMode: 'browser',
+        isStandalone: false,
+        serviceWorkerSupported: true,
+        notificationPermission: 'default',
+        observedAt: now.toISOString(),
+      },
+      createdAt: now,
+    });
 
     const response = await loader(
       toLoaderArgs({
@@ -88,7 +109,10 @@ describe('/admin/analytics loader', () => {
     );
 
     expect(getRouteResultStatus(response)).toBe(200);
-    const data = await getRouteResultData<{ analytics: any }>(response);
+    const data = await getRouteResultData<{
+      analytics: any;
+      environment: any;
+    }>(response);
     expect(data.analytics.totalUsers).toBe(2);
     expect(data.analytics.dau).toBe(1);
     expect(data.analytics.wau).toBe(2);
@@ -111,5 +135,11 @@ describe('/admin/analytics loader', () => {
     );
     expect(event7?.count).toBe(1);
     expect(event30?.count).toBe(1);
+    expect(data.environment.totalObservations).toBe(1);
+    expect(data.environment.browsers[0]).toMatchObject({
+      label: 'Chrome 120',
+      count: 1,
+      percent: 100,
+    });
   });
 });
