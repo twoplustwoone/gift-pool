@@ -4,6 +4,7 @@ import {
   isStandalone,
   type ManualInstallPlatform,
 } from '#app/utils/pwa.ts';
+import { trackPwaLifecycleEvent } from '#app/utils/client-environment.ts';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -65,10 +66,12 @@ export const usePwaInstallPrompt = () => {
       setInstallEvent(event as BeforeInstallPromptEvent);
       setIsDismissed(false);
       setManualPlatform(null);
+      trackPwaLifecycleEvent('pwa_prompt_available');
     };
 
     const handleAppInstalled = () => {
       updateInstallationState();
+      trackPwaLifecycleEvent('pwa_appinstalled');
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -120,14 +123,17 @@ export const usePwaInstallPrompt = () => {
 
     setIsPrompting(true);
     try {
+      trackPwaLifecycleEvent('pwa_install_clicked');
       await installEvent.prompt();
       const choiceResult = await installEvent.userChoice;
       setInstallEvent(null);
       if (choiceResult.outcome === 'accepted') {
         setIsInstalled(true);
+        trackPwaLifecycleEvent('pwa_install_accepted');
         return 'accepted';
       }
       setIsDismissed(true);
+      trackPwaLifecycleEvent('pwa_install_dismissed');
       return 'dismissed';
     } catch (error) {
       console.error('Failed to prompt for PWA installation', error);

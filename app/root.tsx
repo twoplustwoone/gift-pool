@@ -52,6 +52,7 @@ import {
   reloadOnceForChunkError,
 } from './utils/chunk-error.client.ts';
 import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx';
+import { trackClientEnvironmentOncePerDay } from './utils/client-environment.ts';
 import { prisma } from './utils/db.server.ts';
 import { getEnv } from './utils/env.server.ts';
 import { honeypot } from './utils/honeypot.server.ts';
@@ -299,6 +300,9 @@ const App = () => {
     promptInstall,
     shouldShowBanner: showPwaInstallBanner,
   } = usePwaInstallPrompt();
+  useEffect(() => {
+    void trackClientEnvironmentOncePerDay();
+  }, []);
   const handleInstallClick = useCallback(async () => {
     if (installCapability !== 'prompt') {
       return 'unavailable' as const;

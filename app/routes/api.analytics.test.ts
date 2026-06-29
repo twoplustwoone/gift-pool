@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { toActionArgs } from '#tests/route-module-test-utils.ts';
 
 const getUserId = vi.fn();
+const logClientEnvironmentObservation = vi.fn();
 const logEvent = vi.fn();
 
 vi.mock('#app/utils/auth.server.ts', () => ({
@@ -13,6 +14,8 @@ vi.mock('#app/utils/auth.server.ts', () => ({
 }));
 
 vi.mock('#app/utils/analytics.server.ts', () => ({
+  logClientEnvironmentObservation: (...args: Array<unknown>) =>
+    logClientEnvironmentObservation(...args),
   logEvent: (...args: Array<unknown>) => logEvent(...args),
 }));
 
@@ -44,6 +47,9 @@ function postEvent(body: Record<string, unknown>) {
 describe('/api/analytics', () => {
   beforeEach(() => {
     getUserId.mockReset().mockResolvedValue(null);
+    logClientEnvironmentObservation.mockReset().mockResolvedValue({
+      eventId: 'client-environment-1',
+    });
     logEvent.mockReset().mockResolvedValue({ eventId: 'evt-1' });
   });
 
@@ -95,5 +101,55 @@ describe('/api/analytics', () => {
         visitorId: 'visitor-1',
       }),
     );
+  });
+
+  it('accepts normalized client environment observations anonymously', async () => {
+    const result = await postEvent({
+      name: 'client_environment_observed',
+      properties: {
+        browserFamily: 'Safari',
+        browserMajor: 17,
+        osFamily: 'iOS',
+        deviceType: 'mobile',
+        viewportBucket: 'mobile',
+        displayMode: 'browser',
+        isStandalone: false,
+        serviceWorkerSupported: true,
+        notificationPermission: 'default',
+        observedAt: '2026-06-29T17:00:00.000Z',
+      },
+    });
+    expect(result.init?.status ?? 200).toBe(200);
+    expect(logClientEnvironmentObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: null,
+        requestId: 'req-1',
+        sessionId: null,
+        visitorId: 'visitor-1',
+      }),
+    );
+    expect(logEvent).not.toHaveBeenCalled();
+  });
+
+  it('rejects client environment observations with raw user-agent payloads', async () => {
+    const result = await postEvent({
+      name: 'client_environment_observed',
+      properties: {
+        browserFamily: 'Chrome',
+        browserMajor: 126,
+        osFamily: 'Windows',
+        deviceType: 'desktop',
+        viewportBucket: 'desktop',
+        displayMode: 'browser',
+        isStandalone: false,
+        serviceWorkerSupported: true,
+        notificationPermission: 'default',
+        observedAt: '2026-06-29T17:00:00.000Z',
+        userAgent: 'Mozilla/5.0',
+      },
+    });
+    expect(result.init?.status).toBe(400);
+    expect(logClientEnvironmentObservation).not.toHaveBeenCalled();
+    expect(logEvent).not.toHaveBeenCalled();
   });
 });

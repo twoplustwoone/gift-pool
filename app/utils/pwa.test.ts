@@ -2,7 +2,12 @@
  * @vitest-environment jsdom
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { detectManualInstallPlatform, isIos, isStandalone } from './pwa.ts';
+import {
+  detectManualInstallPlatform,
+  getDisplayMode,
+  isIos,
+  isStandalone,
+} from './pwa.ts';
 
 const setUserAgent = (ua: string) => {
   Object.defineProperty(window.navigator, 'userAgent', {
@@ -17,10 +22,23 @@ afterEach(() => {
 });
 
 describe('pwa detection', () => {
+  it('returns the active PWA display mode', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query === '(display-mode: minimal-ui)',
+      })),
+    );
+
+    expect(getDisplayMode()).toBe('minimal-ui');
+  });
+
   it('isStandalone reflects the display-mode media query', () => {
     vi.stubGlobal(
       'matchMedia',
-      vi.fn().mockReturnValue({ matches: true }),
+      vi.fn((query: string) => ({
+        matches: query === '(display-mode: standalone)',
+      })),
     );
     expect(isStandalone()).toBe(true);
   });
@@ -50,7 +68,12 @@ describe('pwa detection', () => {
   });
 
   it('returns null platform when already installed (standalone)', () => {
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }));
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query === '(display-mode: standalone)',
+      })),
+    );
     setUserAgent('Mozilla/5.0 (iPhone) Safari/604.1');
     expect(detectManualInstallPlatform()).toBeNull();
   });

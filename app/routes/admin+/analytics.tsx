@@ -1,4 +1,4 @@
-import { type LoaderFunctionArgs, useLoaderData } from 'react-router';
+import { Link, type LoaderFunctionArgs, useLoaderData } from 'react-router';
 import {
   EmptyRow,
   SectionCard,
@@ -8,7 +8,9 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import {
   type AnalyticsCounts,
+  type EnvironmentAnalytics,
   getAnalyticsCounts,
+  getEnvironmentAnalytics,
 } from '#app/utils/analytics.server.ts';
 import {
   type DropOffFunnels,
@@ -47,6 +49,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     enrichmentFailures,
     linkClicks,
     smartLinks,
+    environment,
   ] = await Promise.all([
     getAnalyticsCounts(),
     getActivationFunnel({ cohortStart: thirtyDaysAgo, cohortEnd: now }),
@@ -57,6 +60,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     getEnrichmentFailures({ days: 30 }),
     getLinkClickStats({ days: 30 }),
     getSmartLinkAdoption({ days: 30 }),
+    getEnvironmentAnalytics({ days: 30 }),
   ]);
 
   return {
@@ -69,6 +73,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     enrichmentFailures,
     linkClicks,
     smartLinks,
+    environment,
   };
 }
 
@@ -190,15 +195,24 @@ const AnalyticsRoute = () => {
     enrichmentFailures,
     linkClicks,
     smartLinks,
+    environment,
   } = useLoaderData<typeof loader>();
   return (
     <div className="space-y-8">
-      <div className="space-y-1">
-        <h1 className="text-xl font-semibold">Analytics</h1>
-        <p className="text-muted-foreground">
-          Usage metrics, activation funnel, retention, and notification
-          opt-outs.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold">Analytics</h1>
+          <p className="text-muted-foreground">
+            Usage metrics, activation funnel, retention, and notification
+            opt-outs.
+          </p>
+        </div>
+        <Link
+          to="/admin/analytics/explorer"
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          Open explorer
+        </Link>
       </div>
 
       {/* --- DAU/WAU/MAU --- */}
@@ -263,6 +277,13 @@ const AnalyticsRoute = () => {
         )}
       </SectionCard>
 
+      <SectionCard
+        title="Environment"
+        description="Last 30 days. Daily visitor snapshots by browser, device, OS, and PWA launch mode."
+      >
+        <EnvironmentSection environment={environment} />
+      </SectionCard>
+
       {/* --- link enrichment & affiliate health --- */}
       <SectionCard
         title="Link enrichment & affiliate"
@@ -297,6 +318,112 @@ const AnalyticsRoute = () => {
 
 const pctOf = (count: number, total: number) =>
   total > 0 ? Math.round((count / total) * 100) : 0;
+
+// ---------------------------------------------------------------------------
+// Browser/device/PWA environment
+// ---------------------------------------------------------------------------
+
+const BreakdownTable = ({
+  title,
+  rows,
+  showPercent = true,
+}: {
+  title: string;
+  rows: EnvironmentAnalytics['browsers'];
+  showPercent?: boolean;
+}) => (
+  <div className="overflow-hidden rounded-md border border-border/50">
+    <div className="bg-muted/40 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      {title}
+    </div>
+    <table className="min-w-full divide-y divide-border/60">
+      <tbody className="divide-y divide-border/60">
+        {rows.length === 0 ? (
+          <tr>
+            <td className="px-4 py-3 text-sm text-muted-foreground">
+              No observations yet.
+            </td>
+          </tr>
+        ) : (
+          rows.map((row) => (
+            <tr key={`${title}-${row.label}`}>
+              <td className="px-4 py-2 text-sm font-medium">{row.label}</td>
+              <td className="px-4 py-2 text-right text-sm tabular-nums">
+                {row.count.toLocaleString()}
+                {showPercent ? ` (${row.percent}%)` : null}
+              </td>
+            </tr>
+          ))
+        )}
+      </tbody>
+    </table>
+  </div>
+);
+
+const EnvironmentSection = ({
+  environment,
+}: {
+  environment: EnvironmentAnalytics;
+}) => {
+  const hasData =
+    environment.totalObservations > 0 ||
+    environment.pwaFunnel.some((row) => row.count > 0);
+
+  if (!hasData) {
+    return (
+      <EmptyRow>
+        No environment observations yet — they start recording from this deploy.
+      </EmptyRow>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          label="Environment snapshots"
+          value={environment.totalObservations}
+          delta={`${environment.uniqueVisitors.toLocaleString()} unique visitors`}
+        />
+        <SummaryCard
+          label="Browser launches"
+          value={environment.browserObservations}
+          delta={`${100 - environment.standalonePercent}% of snapshots`}
+        />
+        <SummaryCard
+          label="Standalone launches"
+          value={environment.standaloneObservations}
+          delta={`${environment.standalonePercent}% of snapshots`}
+        />
+        <SummaryCard
+          label="Install funnel events"
+          value={environment.pwaFunnel
+            .reduce((sum, row) => sum + row.count, 0)
+            .toLocaleString()}
+        />
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <BreakdownTable title="Browsers" rows={environment.browsers} />
+        <BreakdownTable title="Devices" rows={environment.deviceTypes} />
+        <BreakdownTable
+          title="Operating systems"
+          rows={environment.operatingSystems}
+        />
+        <BreakdownTable title="Display modes" rows={environment.displayModes} />
+        <BreakdownTable
+          title="Viewport buckets"
+          rows={environment.viewportBuckets}
+        />
+        <BreakdownTable
+          title="PWA funnel"
+          rows={environment.pwaFunnel}
+          showPercent={false}
+        />
+      </section>
+    </div>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Drop-off funnels

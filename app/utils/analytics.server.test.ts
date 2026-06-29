@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import { createUser } from '#tests/db-utils.ts';
-import { logEvent, queueLogEvent } from './analytics.server.ts';
+import {
+  getAnalyticsExplorer,
+  getClientEnvironmentEventId,
+  getEnvironmentAnalytics,
+  logClientEnvironmentObservation,
+  logEvent,
+  queueLogEvent,
+} from './analytics.server.ts';
 
 describe('logEvent deduplication', () => {
   it('dedupes identical eventIds', async () => {
@@ -154,5 +161,265 @@ describe('logEvent deduplication', () => {
         eventId: 'event-fk',
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe('client environment analytics', () => {
+  it('upserts one environment observation per visitor per day', async () => {
+    const user = await prisma.user.create({ data: createUser() });
+    const createdAt = new Date('2026-06-29T12:00:00.000Z');
+    const visitorId = '11111111-1111-4111-8111-111111111111';
+
+    const first = await logClientEnvironmentObservation({
+      visitorId,
+      requestId: 'req-anon',
+      sessionId: null,
+      properties: {
+        browserFamily: 'Safari',
+        browserMajor: 17,
+        osFamily: 'iOS',
+        deviceType: 'mobile',
+        viewportBucket: 'mobile',
+        displayMode: 'browser',
+        isStandalone: false,
+        serviceWorkerSupported: true,
+        notificationPermission: 'default',
+        observedAt: createdAt.toISOString(),
+      },
+      createdAt,
+    });
+
+    const second = await logClientEnvironmentObservation({
+      userId: user.id,
+      visitorId,
+      requestId: 'req-user',
+      sessionId: 'session-user',
+      properties: {
+        browserFamily: 'Safari',
+        browserMajor: 17,
+        osFamily: 'iOS',
+        deviceType: 'mobile',
+        viewportBucket: 'mobile',
+        displayMode: 'standalone',
+        isStandalone: true,
+        serviceWorkerSupported: true,
+        notificationPermission: 'granted',
+        observedAt: createdAt.toISOString(),
+      },
+      createdAt,
+    });
+
+    expect(second.id).toBe(first.id);
+    expect(second.userId).toBe(user.id);
+    expect(second.requestId).toBe('req-user');
+    expect(second.sessionId).toBe('session-user');
+    expect(
+      await prisma.analyticsEvent.count({
+        where: { eventId: getClientEnvironmentEventId(visitorId, createdAt) },
+      }),
+    ).toBe(1);
+    expect(JSON.parse(second.properties ?? '{}')).toMatchObject({
+      displayMode: 'standalone',
+      isStandalone: true,
+    });
+  });
+
+  it('aggregates environment observations and PWA funnel events', async () => {
+    const now = new Date('2026-06-29T12:00:00.000Z');
+    await Promise.all([
+      logClientEnvironmentObservation({
+        visitorId: '11111111-1111-4111-8111-111111111111',
+        properties: {
+          browserFamily: 'Chrome',
+          browserMajor: 126,
+          osFamily: 'Windows',
+          deviceType: 'desktop',
+          viewportBucket: 'desktop',
+          displayMode: 'browser',
+          isStandalone: false,
+          serviceWorkerSupported: true,
+          notificationPermission: 'default',
+          observedAt: now.toISOString(),
+        },
+        createdAt: now,
+      }),
+      logClientEnvironmentObservation({
+        visitorId: '22222222-2222-4222-8222-222222222222',
+        properties: {
+          browserFamily: 'Safari',
+          browserMajor: 17,
+          osFamily: 'iOS',
+          deviceType: 'mobile',
+          viewportBucket: 'mobile',
+          displayMode: 'standalone',
+          isStandalone: true,
+          serviceWorkerSupported: true,
+          notificationPermission: 'granted',
+          observedAt: now.toISOString(),
+        },
+        createdAt: now,
+      }),
+      logEvent({
+        name: 'pwa_prompt_available',
+        source: 'client',
+        visitorId: '11111111-1111-4111-8111-111111111111',
+        createdAt: now,
+      }),
+    ]);
+
+    const analytics = await getEnvironmentAnalytics({ now });
+
+    expect(analytics.totalObservations).toBe(2);
+    expect(analytics.uniqueVisitors).toBe(2);
+    expect(analytics.standaloneObservations).toBe(1);
+    expect(analytics.standalonePercent).toBe(50);
+    expect(analytics.browsers).toEqual(
+      expect.arrayContaining([
+        { label: 'Chrome 126', count: 1, percent: 50 },
+        { label: 'Safari 17', count: 1, percent: 50 },
+      ]),
+    );
+    expect(
+      analytics.pwaFunnel.find((row) => row.label === 'Prompt available')
+        ?.count,
+    ).toBe(1);
+  });
+});
+
+describe('analytics explorer', () => {
+  it('aggregates matching events by source and date', async () => {
+    const user = await prisma.user.create({ data: createUser() });
+    const now = new Date('2026-06-29T12:00:00.000Z');
+
+    await logEvent({
+      name: 'wishlist_viewed',
+      userId: user.id,
+      source: 'server',
+      visitorId: 'visitor-one',
+      createdAt: now,
+    });
+    await logEvent({
+      name: 'wishlist_viewed',
+      userId: user.id,
+      source: 'client',
+      visitorId: 'visitor-one',
+      createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+    });
+    await logEvent({
+      name: 'wishlist_item_added',
+      userId: user.id,
+      source: 'client',
+      visitorId: 'visitor-two',
+      createdAt: now,
+    });
+
+    const explorer = await getAnalyticsExplorer({
+      now,
+      days: 7,
+      eventName: 'wishlist_viewed',
+      groupBy: 'source',
+    });
+
+    expect(explorer.totalEvents).toBe(2);
+    expect(explorer.uniqueUsers).toBe(1);
+    expect(explorer.uniqueVisitors).toBe(1);
+    expect(explorer.series).toHaveLength(7);
+    expect(explorer.breakdown).toEqual(
+      expect.arrayContaining([
+        { label: 'client', count: 1, percent: 50 },
+        { label: 'server', count: 1, percent: 50 },
+      ]),
+    );
+    expect(
+      explorer.series.find((row) => row.date === '2026-06-29')?.count,
+    ).toBe(1);
+  });
+
+  it('groups environment observations by browser and tolerates malformed JSON', async () => {
+    const now = new Date('2026-06-29T12:00:00.000Z');
+    await logClientEnvironmentObservation({
+      visitorId: '11111111-1111-4111-8111-111111111111',
+      properties: {
+        browserFamily: 'Chrome',
+        browserMajor: 126,
+        osFamily: 'Windows',
+        deviceType: 'desktop',
+        viewportBucket: 'desktop',
+        displayMode: 'browser',
+        isStandalone: false,
+        serviceWorkerSupported: true,
+        notificationPermission: 'default',
+        observedAt: now.toISOString(),
+      },
+      createdAt: now,
+    });
+    await prisma.analyticsEvent.create({
+      data: {
+        eventId: 'malformed-properties-event',
+        name: 'client_environment_observed',
+        source: 'client',
+        visitorId: '22222222-2222-4222-8222-222222222222',
+        properties: '{not-json',
+        createdAt: now,
+      },
+    });
+
+    const explorer = await getAnalyticsExplorer({
+      now,
+      days: 7,
+      eventName: 'client_environment_observed',
+      groupBy: 'browser',
+      limit: 5,
+    });
+
+    expect(explorer.totalEvents).toBe(2);
+    expect(explorer.breakdown).toEqual(
+      expect.arrayContaining([
+        { label: 'Chrome 126', count: 1, percent: 50 },
+        { label: 'Unknown', count: 1, percent: 50 },
+      ]),
+    );
+    expect(
+      explorer.recentEvents.some(
+        (event) => event.propertiesPreview === 'Invalid JSON',
+      ),
+    ).toBe(true);
+  });
+
+  it('limits recent rows without limiting aggregate counts', async () => {
+    const user = await prisma.user.create({ data: createUser() });
+    const now = new Date('2026-06-29T12:00:00.000Z');
+
+    await Promise.all(
+      Array.from({ length: 55 }, (_, index) =>
+        logEvent({
+          name: 'wishlist_viewed',
+          userId: user.id,
+          source: 'client',
+          visitorId: `visitor-${index}`,
+          createdAt: now,
+        }),
+      ),
+    );
+
+    const explorer = await getAnalyticsExplorer({
+      now,
+      days: 7,
+      eventName: 'wishlist_viewed',
+      groupBy: 'source',
+      limit: 3,
+    });
+
+    expect(explorer.totalEvents).toBe(55);
+    expect(explorer.uniqueVisitors).toBe(55);
+    expect(explorer.recentEvents).toHaveLength(3);
+    expect(explorer.breakdown).toContainEqual({
+      label: 'client',
+      count: 55,
+      percent: 100,
+    });
+    expect(
+      explorer.series.find((row) => row.date === '2026-06-29')?.count,
+    ).toBe(55);
   });
 });

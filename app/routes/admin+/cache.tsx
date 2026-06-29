@@ -1,20 +1,33 @@
 import { invariantResponse } from '@epic-web/invariant';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
+import { type ReactNode } from 'react';
 import {
-  redirect,
-  type LoaderFunctionArgs,
-  type ActionFunctionArgs,
+  LuDatabase,
+  LuExternalLink,
+  LuHardDrive,
+  LuSearch,
+  LuServer,
+  LuTrash2,
+} from 'react-icons/lu';
+import {
   Form,
   Link,
+  redirect,
+  type ActionFunctionArgs,
+  type LoaderFunctionArgs,
   useFetcher,
   useLoaderData,
   useSearchParams,
   useSubmit,
 } from 'react-router';
+import {
+  EmptyRow,
+  SectionCard,
+  SummaryCard,
+} from '#app/components/admin-ui.tsx';
 import { GeneralErrorBoundary } from '#app/components/error-boundary';
-import { Field } from '#app/components/forms.tsx';
-import { Spacer } from '#app/components/spacer.tsx';
 import { Button } from '#app/components/ui/button.tsx';
+import { Input } from '#app/components/ui/input.tsx';
 import {
   cache,
   getAllCacheKeys,
@@ -26,11 +39,13 @@ import {
   getAllInstances,
   getInstanceInfo,
 } from '#app/utils/litefs.server.ts';
-import { useDebounce, useDoubleCheck } from '#app/utils/misc.tsx';
+import { cn, useDebounce, useDoubleCheck } from '#app/utils/misc.tsx';
 import { requireUserWithRole } from '#app/utils/permissions.server.ts';
+
 export const handle: SEOHandle = {
   getSitemapEntries: () => null,
 };
+
 export async function loader({ request }: LoaderFunctionArgs) {
   await requireUserWithRole(request, 'admin');
   const searchParams = new URL(request.url).searchParams;
@@ -61,6 +76,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     currentInstanceInfo,
   };
 }
+
 export async function action({ request }: ActionFunctionArgs) {
   await requireUserWithRole(request, 'admin');
   const formData = await request.formData();
@@ -89,6 +105,7 @@ export async function action({ request }: ActionFunctionArgs) {
     success: true,
   };
 }
+
 const CacheAdminRoute = () => {
   const data = useLoaderData<typeof loader>();
   const [searchParams] = useSearchParams();
@@ -96,146 +113,263 @@ const CacheAdminRoute = () => {
   const query = searchParams.get('query') ?? '';
   const limit = searchParams.get('limit') ?? '100';
   const instance = searchParams.get('instance') ?? data.instance;
+  const sqliteCount = data.cacheKeys.sqlite.length;
+  const lruCount = data.cacheKeys.lru.length;
+  const totalCount = sqliteCount + lruCount;
+  const selectedRegion = data.instances[instance] ?? 'unknown region';
+  const selectedIsPrimary =
+    instance === data.currentInstanceInfo.primaryInstance;
+  const selectedIsCurrent =
+    instance === data.currentInstanceInfo.currentInstance;
   const handleFormChange = useDebounce((form: HTMLFormElement) => {
     Promise.resolve(submit(form)).catch(() => {});
   }, 400);
+
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Cache Admin</h1>
-      <Spacer size="2xs" />
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-xl font-semibold">Cache</h1>
+        <p className="text-muted-foreground">
+          Inspect and clear instance-local LRU entries plus the
+          LiteFS-replicated SQLite cache.
+        </p>
+      </div>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          label="Entries shown"
+          value={totalCount}
+          delta={query ? `matching "${query}"` : `limited to ${limit}`}
+        />
+        <SummaryCard
+          label="LRU entries"
+          value={lruCount}
+          delta="instance-local memory"
+        />
+        <SummaryCard
+          label="SQLite entries"
+          value={sqliteCount}
+          delta="replicated persistent cache"
+        />
+        <SummaryCard
+          label="Selected instance"
+          value={instance}
+          delta={[
+            selectedRegion,
+            selectedIsCurrent ? 'current' : null,
+            selectedIsPrimary ? 'primary' : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        />
+      </section>
+
       <Form
         method="get"
-        className="flex flex-col gap-4"
-        onChange={(e) => handleFormChange(e.currentTarget)}
+        className="rounded-lg border border-border/70 bg-card p-4 shadow-sm"
+        onChange={(event) => handleFormChange(event.currentTarget)}
       >
-        <div className="flex-1">
-          <div className="flex flex-1 gap-4">
-            <button
-              type="submit"
-              className="flex h-16 items-center justify-center"
-            >
-              🔎
-            </button>
-            <Field
-              className="flex-1"
-              labelProps={{
-                children: 'Search',
-              }}
-              inputProps={{
-                type: 'search',
-                name: 'query',
-                defaultValue: query,
-              }}
-            />
-            <div className="flex h-16 w-14 items-center text-lg font-medium text-muted-foreground">
-              <span title="Total results shown">
-                {data.cacheKeys.sqlite.length + data.cacheKeys.lru.length}
-              </span>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_140px_minmax(220px,280px)_auto] lg:items-end">
+          <label className="space-y-2">
+            <span className="text-sm font-medium">Search key</span>
+            <div className="relative">
+              <LuSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                type="search"
+                name="query"
+                defaultValue={query}
+                placeholder="admin:analytics, user id, route..."
+              />
             </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <Field
-            labelProps={{
-              children: 'Limit',
-            }}
-            inputProps={{
-              name: 'limit',
-              defaultValue: limit,
-              type: 'number',
-              step: '1',
-              min: '1',
-              max: '10000',
-              placeholder: 'results limit',
-            }}
-          />
-          <select name="instance" defaultValue={instance}>
-            {Object.entries(data.instances).map(([inst, region]) => (
-              <option key={inst} value={inst}>
-                {[
-                  inst,
-                  `(${region})`,
-                  inst === data.currentInstanceInfo.currentInstance
-                    ? '(current)'
-                    : '',
-                  inst === data.currentInstanceInfo.primaryInstance
-                    ? ' (primary)'
-                    : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              </option>
-            ))}
-          </select>
+          </label>
+
+          <label className="space-y-2">
+            <span className="text-sm font-medium">Limit</span>
+            <Input
+              name="limit"
+              defaultValue={limit}
+              type="number"
+              step="1"
+              min="1"
+              max="10000"
+            />
+          </label>
+
+          <label className="space-y-2">
+            <span className="text-sm font-medium">Instance</span>
+            <select
+              name="instance"
+              defaultValue={instance}
+              className="flex h-10 w-full rounded-md border border-input bg-input-bg px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              {Object.entries(data.instances).map(([inst, region]) => (
+                <option key={inst} value={inst}>
+                  {[
+                    inst,
+                    `(${region})`,
+                    inst === data.currentInstanceInfo.currentInstance
+                      ? '(current)'
+                      : '',
+                    inst === data.currentInstanceInfo.primaryInstance
+                      ? '(primary)'
+                      : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <Button type="submit" className="gap-2">
+            <LuSearch className="h-4 w-4" />
+            Search
+          </Button>
         </div>
       </Form>
-      <Spacer size="2xs" />
-      <div className="flex flex-col gap-4">
-        <h2 className="text-h2">LRU Cache:</h2>
-        {data.cacheKeys.lru.map((key) => (
-          <CacheKeyRow
-            key={key}
-            cacheKey={key}
-            instance={instance}
-            type="lru"
-          />
-        ))}
-      </div>
-      <Spacer size="3xs" />
-      <div className="flex flex-col gap-4">
-        <h2 className="text-h2">SQLite Cache:</h2>
-        {data.cacheKeys.sqlite.map((key) => (
-          <CacheKeyRow
-            key={key}
-            cacheKey={key}
-            instance={instance}
-            type="sqlite"
-          />
-        ))}
-      </div>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <CacheKeySection
+          title="LRU cache"
+          description="Fast in-memory entries. These are local to the selected app instance."
+          icon={<LuHardDrive className="h-4 w-4" />}
+          keys={data.cacheKeys.lru}
+          instance={instance}
+          type="lru"
+        />
+        <CacheKeySection
+          title="SQLite cache"
+          description="Persistent cache entries replicated by LiteFS."
+          icon={<LuDatabase className="h-4 w-4" />}
+          keys={data.cacheKeys.sqlite}
+          instance={instance}
+          type="sqlite"
+        />
+      </section>
     </div>
   );
 };
 export default CacheAdminRoute;
+
+const CacheKeySection = ({
+  title,
+  description,
+  icon,
+  keys,
+  instance,
+  type,
+}: {
+  title: string;
+  description: string;
+  icon: ReactNode;
+  keys: Array<string>;
+  instance: string;
+  type: 'sqlite' | 'lru';
+}) => (
+  <SectionCard
+    title={title}
+    description={description}
+    action={
+      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+        {icon}
+        {keys.length.toLocaleString()}
+      </span>
+    }
+  >
+    {keys.length === 0 ? (
+      <EmptyRow>No {title.toLowerCase()} entries match this filter.</EmptyRow>
+    ) : (
+      <div className="divide-y divide-border/60 overflow-hidden rounded-md border border-border/60">
+        {keys.map((key) => (
+          <CacheKeyRow
+            key={key}
+            cacheKey={key}
+            instance={instance}
+            type={type}
+          />
+        ))}
+      </div>
+    )}
+  </SectionCard>
+);
+
 const CacheKeyRow = ({
   cacheKey,
   instance,
   type,
 }: {
   cacheKey: string;
-  instance?: string;
+  instance: string;
   type: 'sqlite' | 'lru';
 }) => {
   const fetcher = useFetcher<typeof action>();
   const dc = useDoubleCheck();
   const encodedKey = encodeURIComponent(cacheKey);
-  const valuePage = `/admin/cache/${type}/${encodedKey}?instance=${instance}`;
+  const valuePage = `/admin/cache/${type}/${encodedKey}?instance=${encodeURIComponent(
+    instance,
+  )}`;
+  const isDeleting = fetcher.state !== 'idle';
+
   return (
-    <div className="flex items-center gap-2 font-mono">
-      <fetcher.Form method="POST">
-        <input type="hidden" name="cacheKey" value={cacheKey} />
-        <input type="hidden" name="instance" value={instance} />
-        <input type="hidden" name="type" value={type} />
-        <Button
-          size="sm"
-          variant="secondary"
-          {...dc.getButtonProps({
-            type: 'submit',
-          })}
+    <div className="grid gap-3 bg-card px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <div className="min-w-0 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
+              type === 'sqlite'
+                ? 'bg-sky-100 text-sky-900 dark:bg-sky-950/40 dark:text-sky-200'
+                : 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200',
+            )}
+          >
+            {type === 'sqlite' ? (
+              <LuDatabase className="h-3.5 w-3.5" />
+            ) : (
+              <LuServer className="h-3.5 w-3.5" />
+            )}
+            {type.toUpperCase()}
+          </span>
+          <span className="text-xs text-muted-foreground">{instance}</span>
+        </div>
+        <Link
+          reloadDocument
+          to={valuePage}
+          className="block truncate font-mono text-sm font-medium hover:underline"
+          title={cacheKey}
         >
-          {fetcher.state === 'idle'
-            ? dc.doubleCheck
-              ? 'You sure?'
-              : 'Delete'
-            : 'Deleting...'}
+          {cacheKey}
+        </Link>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button asChild variant="outline" size="sm" className="gap-2">
+          <Link reloadDocument to={valuePage}>
+            <LuExternalLink className="h-4 w-4" />
+            View
+          </Link>
         </Button>
-      </fetcher.Form>
-      <Link reloadDocument to={valuePage}>
-        {cacheKey}
-      </Link>
+        <fetcher.Form method="POST">
+          <input type="hidden" name="cacheKey" value={cacheKey} />
+          <input type="hidden" name="instance" value={instance} />
+          <input type="hidden" name="type" value={type} />
+          <Button
+            size="sm"
+            variant={dc.doubleCheck ? 'destructive' : 'secondary'}
+            className="gap-2"
+            {...dc.getButtonProps({
+              type: 'submit',
+            })}
+          >
+            <LuTrash2 className="h-4 w-4" />
+            {isDeleting ? 'Deleting...' : dc.doubleCheck ? 'Confirm' : 'Delete'}
+          </Button>
+        </fetcher.Form>
+      </div>
     </div>
   );
 };
+
 export const ErrorBoundary = () => {
   return (
     <GeneralErrorBoundary
