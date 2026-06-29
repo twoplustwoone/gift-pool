@@ -385,4 +385,41 @@ describe('analytics explorer', () => {
       ),
     ).toBe(true);
   });
+
+  it('limits recent rows without limiting aggregate counts', async () => {
+    const user = await prisma.user.create({ data: createUser() });
+    const now = new Date('2026-06-29T12:00:00.000Z');
+
+    await Promise.all(
+      Array.from({ length: 55 }, (_, index) =>
+        logEvent({
+          name: 'wishlist_viewed',
+          userId: user.id,
+          source: 'client',
+          visitorId: `visitor-${index}`,
+          createdAt: now,
+        }),
+      ),
+    );
+
+    const explorer = await getAnalyticsExplorer({
+      now,
+      days: 7,
+      eventName: 'wishlist_viewed',
+      groupBy: 'source',
+      limit: 3,
+    });
+
+    expect(explorer.totalEvents).toBe(55);
+    expect(explorer.uniqueVisitors).toBe(55);
+    expect(explorer.recentEvents).toHaveLength(3);
+    expect(explorer.breakdown).toContainEqual({
+      label: 'client',
+      count: 55,
+      percent: 100,
+    });
+    expect(
+      explorer.series.find((row) => row.date === '2026-06-29')?.count,
+    ).toBe(55);
+  });
 });

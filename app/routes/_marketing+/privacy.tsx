@@ -45,9 +45,10 @@ const PrivacyRoute = () => {
             invite link), these events are associated with a random first-party
             visitor identifier instead. We do not use third-party analytics or
             advertising trackers. We also collect normalized browser, device,
-            viewport, operating system, and PWA install/display-mode details so
-            we can understand how people access the app. We do not collect full
-            user-agent strings for this analytics view.
+            viewport, operating system, PWA install/display-mode, and browser
+            notification permission state details so we can understand how
+            people access the app. We do not collect full user-agent strings for
+            this analytics view.
           </p>
 
           <h3 className="mt-4 text-body-md font-semibold text-foreground">

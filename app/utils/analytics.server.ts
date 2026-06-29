@@ -324,34 +324,74 @@ function getBrowserLabel(properties: Record<string, unknown> | null) {
   return major === null || family === 'Unknown' ? family : `${family} ${major}`;
 }
 
-function getExplorerGroupLabel(
-  groupBy: AnalyticsExplorerGroupBy,
-  event: {
-    name: string;
-    source: string;
-    properties: string | null;
-  },
+function getAnalyticsExplorerWhereSql(
+  since: Date,
+  eventName: AnalyticsExplorerEventFilter,
 ) {
-  const properties = parseProperties(event.properties);
+  return Prisma.sql`
+    createdAt >= ${since.getTime()}
+    ${eventName === 'all' ? Prisma.empty : Prisma.sql`AND name = ${eventName}`}
+  `;
+}
+
+function getJsonTextGroupSql(path: string) {
+  return Prisma.sql`
+    CASE
+      WHEN json_valid(properties)
+        THEN COALESCE(NULLIF(json_extract(properties, ${path}), ''), 'Unknown')
+      ELSE 'Unknown'
+    END
+  `;
+}
+
+function getBrowserGroupSql() {
+  return Prisma.sql`
+    CASE
+      WHEN json_valid(properties) THEN
+        CASE
+          WHEN NULLIF(json_extract(properties, '$.browserFamily'), '') IS NULL
+            THEN 'Unknown'
+          WHEN json_extract(properties, '$.browserFamily') = 'Unknown'
+            THEN 'Unknown'
+          WHEN typeof(json_extract(properties, '$.browserMajor')) IN ('integer', 'real')
+            THEN json_extract(properties, '$.browserFamily') || ' ' || CAST(CAST(json_extract(properties, '$.browserMajor') AS INTEGER) AS TEXT)
+          ELSE json_extract(properties, '$.browserFamily')
+        END
+      ELSE 'Unknown'
+    END
+  `;
+}
+
+function getStandaloneGroupSql() {
+  return Prisma.sql`
+    CASE
+      WHEN json_valid(properties) AND json_extract(properties, '$.isStandalone') = 1
+        THEN 'Standalone'
+      WHEN json_valid(properties) AND json_extract(properties, '$.isStandalone') = 0
+        THEN 'Browser'
+      ELSE 'Unknown'
+    END
+  `;
+}
+
+function getExplorerGroupSql(groupBy: AnalyticsExplorerGroupBy) {
   switch (groupBy) {
     case 'event':
-      return event.name;
+      return Prisma.sql`COALESCE(NULLIF(name, ''), 'Unknown')`;
     case 'source':
-      return event.source;
+      return Prisma.sql`COALESCE(NULLIF(source, ''), 'Unknown')`;
     case 'browser':
-      return getBrowserLabel(properties);
+      return getBrowserGroupSql();
     case 'os':
-      return properties?.osFamily;
+      return getJsonTextGroupSql('$.osFamily');
     case 'device':
-      return properties?.deviceType;
+      return getJsonTextGroupSql('$.deviceType');
     case 'viewport':
-      return properties?.viewportBucket;
+      return getJsonTextGroupSql('$.viewportBucket');
     case 'displayMode':
-      return properties?.displayMode;
+      return getJsonTextGroupSql('$.displayMode');
     case 'standalone':
-      if (properties?.isStandalone === true) return 'Standalone';
-      if (properties?.isStandalone === false) return 'Browser';
-      return 'Unknown';
+      return getStandaloneGroupSql();
   }
 }
 
@@ -489,38 +529,74 @@ export async function getAnalyticsExplorer({
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
   );
   const since = new Date(startOfToday.getTime() - DAY_MS * (days - 1));
+  const requestedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 50;
+  const safeLimit = Math.max(1, Math.min(requestedLimit, 100));
+  const whereSql = getAnalyticsExplorerWhereSql(since, eventName);
+  const groupSql = getExplorerGroupSql(groupBy);
 
-  const events = await prisma.analyticsEvent.findMany({
-    where: {
-      createdAt: { gte: since },
-      ...(eventName === 'all' ? {} : { name: eventName }),
-    },
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      eventId: true,
-      name: true,
-      source: true,
-      userId: true,
-      visitorId: true,
-      properties: true,
-      createdAt: true,
-    },
-  });
+  const [totalRows, seriesRows, breakdownRows, recentEvents] =
+    await Promise.all([
+      prisma.$queryRaw<
+        Array<{
+          totalEvents: bigint | number | null;
+          uniqueUsers: bigint | number | null;
+          uniqueVisitors: bigint | number | null;
+        }>
+      >`
+        SELECT
+          COUNT(*) AS totalEvents,
+          COUNT(DISTINCT userId) AS uniqueUsers,
+          COUNT(DISTINCT visitorId) AS uniqueVisitors
+        FROM AnalyticsEvent
+        WHERE ${whereSql}
+      `,
+      prisma.$queryRaw<
+        Array<{ date: string | null; count: bigint | number | null }>
+      >`
+        SELECT date(createdAt / 1000, 'unixepoch') AS date, COUNT(*) AS count
+        FROM AnalyticsEvent
+        WHERE ${whereSql}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `,
+      prisma.$queryRaw<
+        Array<{ label: string | null; count: bigint | number | null }>
+      >`
+        SELECT ${groupSql} AS label, COUNT(*) AS count
+        FROM AnalyticsEvent
+        WHERE ${whereSql}
+        GROUP BY 1
+        ORDER BY count DESC, label ASC
+      `,
+      prisma.analyticsEvent.findMany({
+        where: {
+          createdAt: { gte: since },
+          ...(eventName === 'all' ? {} : { name: eventName }),
+        },
+        orderBy: { createdAt: 'desc' },
+        take: safeLimit,
+        select: {
+          id: true,
+          eventId: true,
+          name: true,
+          source: true,
+          userId: true,
+          visitorId: true,
+          properties: true,
+          createdAt: true,
+        },
+      }),
+    ]);
 
-  const seriesCounts = new Map<string, number>();
-  const breakdownCounts = new Map<string, number>();
-  const uniqueUsers = new Set<string>();
-  const uniqueVisitors = new Set<string>();
-
-  for (const event of events) {
-    const dayKey = formatDateKey(event.createdAt);
-    seriesCounts.set(dayKey, (seriesCounts.get(dayKey) ?? 0) + 1);
-    increment(breakdownCounts, getExplorerGroupLabel(groupBy, event));
-    if (event.userId) uniqueUsers.add(event.userId);
-    if (event.visitorId) uniqueVisitors.add(event.visitorId);
-  }
-
+  const totals = totalRows[0];
+  const totalEvents = Number(totals?.totalEvents ?? 0);
+  const seriesCounts = new Map(
+    seriesRows
+      .filter((row): row is { date: string; count: bigint | number | null } =>
+        Boolean(row.date),
+      )
+      .map((row) => [row.date, Number(row.count ?? 0)]),
+  );
   const series: AnalyticsExplorerSeriesRow[] = [];
   for (
     let date = new Date(since);
@@ -535,12 +611,19 @@ export async function getAnalyticsExplorer({
     days,
     eventName,
     groupBy,
-    totalEvents: events.length,
-    uniqueUsers: uniqueUsers.size,
-    uniqueVisitors: uniqueVisitors.size,
+    totalEvents,
+    uniqueUsers: Number(totals?.uniqueUsers ?? 0),
+    uniqueVisitors: Number(totals?.uniqueVisitors ?? 0),
     series,
-    breakdown: toBreakdownRows(breakdownCounts, events.length),
-    recentEvents: events.slice(0, limit).map((event) => ({
+    breakdown: breakdownRows.map((row) => {
+      const count = Number(row.count ?? 0);
+      return {
+        label: row.label ?? 'Unknown',
+        count,
+        percent: totalEvents > 0 ? Math.round((count / totalEvents) * 100) : 0,
+      };
+    }),
+    recentEvents: recentEvents.map((event) => ({
       id: event.id,
       eventId: event.eventId,
       name: event.name,

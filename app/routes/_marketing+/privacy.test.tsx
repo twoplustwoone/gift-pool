@@ -19,5 +19,8 @@ describe('PrivacyRoute', () => {
     expect(
       screen.getByText(/normalized browser, device, viewport/i),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/browser notification permission state/i),
+    ).toBeInTheDocument();
   });
 });
