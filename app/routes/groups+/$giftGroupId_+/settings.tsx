@@ -456,8 +456,6 @@ const GroupSettingsRoute = () => {
   const canDemote = optimisticViewerRole === 'OWNER';
   const canRemove =
     optimisticViewerRole === 'OWNER' || optimisticViewerRole === 'ADMIN';
-  const canBan =
-    optimisticViewerRole === 'OWNER' || optimisticViewerRole === 'ADMIN';
   return (
     <div className="space-y-6">
       {/* Your preferences — visible & editable by every member (P7.5) */}
@@ -496,7 +494,7 @@ const GroupSettingsRoute = () => {
           <div className="rounded-2xl border bg-card p-4 sm:p-6">
             <div className="mb-1 text-lg font-semibold">Member Actions</div>
             <div className="mb-4 text-sm text-muted-foreground">
-              Promote or demote admins, remove or ban members
+              Promote or demote admins, remove members
             </div>
             <ul className="divide-y divide-border rounded-md border">
               {optimisticMembers.map((m: any) => {
@@ -515,9 +513,6 @@ const GroupSettingsRoute = () => {
                         </div>
                         <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
                           <RoleBadge role={m.role} />
-                          {m.bannedUntil ? (
-                            <span className="text-destructive">Banned</span>
-                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -577,9 +572,7 @@ const GroupSettingsRoute = () => {
                       <MemberActions
                         giftGroupId={giftGroup.id}
                         memberUserId={m.userId}
-                        bannedUntil={m.bannedUntil}
                         canRemove={canRemove && !isViewer}
-                        canBan={canBan && !isViewer}
                       />
                     </div>
                   </li>
@@ -757,15 +750,11 @@ const SettingsCard = ({
 const MemberActions = ({
   giftGroupId,
   memberUserId,
-  bannedUntil,
   canRemove,
-  canBan,
 }: {
   giftGroupId: string;
   memberUserId: string;
-  bannedUntil: string | null;
   canRemove: boolean;
-  canBan: boolean;
 }) => {
   const fetcher = useFetcher<typeof action>();
   const settingsAction = `/groups/${giftGroupId}/settings`;
@@ -782,38 +771,6 @@ const MemberActions = ({
           >
             Remove
           </Button>
-        </fetcher.Form>
-      )}
-      {canBan && (
-        <fetcher.Form method="post" action={settingsAction}>
-          <input type="hidden" name="giftGroupId" value={giftGroupId} />
-          <input type="hidden" name="memberUserId" value={memberUserId} />
-          {bannedUntil ? (
-            <Button
-              name="intent"
-              value={SettingsIntent.MemberBan}
-              variant="secondary"
-            >
-              Unban
-            </Button>
-          ) : (
-            <>
-              <input
-                type="hidden"
-                name="until"
-                value={new Date(
-                  Date.now() + 1000 * 60 * 60 * 24 * 7,
-                ).toISOString()}
-              />
-              <Button
-                name="intent"
-                value={SettingsIntent.MemberBan}
-                variant="secondary"
-              >
-                Ban 7 days
-              </Button>
-            </>
-          )}
         </fetcher.Form>
       )}
     </div>

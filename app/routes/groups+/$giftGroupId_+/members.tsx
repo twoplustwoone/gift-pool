@@ -3,18 +3,16 @@ import { LuGift, LuPlus } from 'react-icons/lu';
 import {
   type LoaderFunctionArgs,
   Link,
-  useFetcher,
   useFetchers,
   useLoaderData,
   useRouteLoaderData,
 } from 'react-router';
 
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
+import { MemberActionsMenu } from '#app/components/groups/member-actions-menu.tsx';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
-import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
-import { Icon } from '#app/components/ui/icon.tsx';
 import { SystemLabel } from '#app/components/ui/system-label.tsx';
 import { type loader as routeLoader } from './__route.server';
 import { applyPendingSettingsMemberMutations } from './__route.shared';
@@ -69,7 +67,6 @@ const GroupMembersRoute = () => {
   const { giftGroup, viewer } = useRouteLoaderData<typeof routeLoader>(
     'routes/groups+/$giftGroupId_+/_layout',
   )!;
-  const fetcher = useFetcher();
   const fetchers = useFetchers();
   const settingsAction = `/groups/${giftGroup.id}/settings`;
   const optimisticMembers = useMemo(
@@ -93,10 +90,6 @@ const GroupMembersRoute = () => {
     optimisticMembers
       .filter((gm) => gm.user.id !== userId)
       .reduce((acc, gm) => acc + (gm.contributionCents ?? 0), 0);
-
-  const canOwner = optimisticViewerRole === 'OWNER';
-  const canAdmin =
-    optimisticViewerRole === 'OWNER' || optimisticViewerRole === 'ADMIN';
 
   return (
     <Card padding="lg">
@@ -151,138 +144,15 @@ const GroupMembersRoute = () => {
                 </div>
                 <RoleBadge role={m.role as any} />
 
-                {canOwner && !isViewer && (
-                  <div className="flex items-center gap-1">
-                    {m.role === 'MEMBER' ? (
-                      <fetcher.Form
-                        method="post"
-                        action={`/groups/${giftGroup.id}/settings`}
-                      >
-                        <input
-                          type="hidden"
-                          name="giftGroupId"
-                          value={giftGroup.id}
-                        />
-                        <input
-                          type="hidden"
-                          name="memberUserId"
-                          value={m.user.id}
-                        />
-                        <Button
-                          size="icon"
-                          variant="secondary"
-                          name="intent"
-                          value="member-promote-admin"
-                          aria-label="Promote to admin"
-                        >
-                          <Icon name="plus" />
-                        </Button>
-                      </fetcher.Form>
-                    ) : (
-                      <>
-                        <fetcher.Form
-                          method="post"
-                          action={`/groups/${giftGroup.id}/settings`}
-                        >
-                          <input
-                            type="hidden"
-                            name="giftGroupId"
-                            value={giftGroup.id}
-                          />
-                          <input
-                            type="hidden"
-                            name="memberUserId"
-                            value={m.user.id}
-                          />
-                          <Button
-                            size="icon"
-                            variant="secondary"
-                            name="intent"
-                            value="member-demote-member"
-                            aria-label="Demote to member"
-                          >
-                            <Icon name="reset" />
-                          </Button>
-                        </fetcher.Form>
-                        <fetcher.Form
-                          method="post"
-                          action={`/groups/${giftGroup.id}/settings`}
-                        >
-                          <input
-                            type="hidden"
-                            name="giftGroupId"
-                            value={giftGroup.id}
-                          />
-                          <input
-                            type="hidden"
-                            name="newOwnerUserId"
-                            value={m.user.id}
-                          />
-                          <Button
-                            size="icon"
-                            variant="secondary"
-                            name="intent"
-                            value="ownership-transfer"
-                            aria-label="Transfer ownership"
-                          >
-                            <Icon name="person" />
-                          </Button>
-                        </fetcher.Form>
-                      </>
-                    )}
-                    <fetcher.Form
-                      method="post"
-                      action={`/groups/${giftGroup.id}/settings`}
-                    >
-                      <input
-                        type="hidden"
-                        name="giftGroupId"
-                        value={giftGroup.id}
-                      />
-                      <input
-                        type="hidden"
-                        name="memberUserId"
-                        value={m.user.id}
-                      />
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        name="intent"
-                        value="member-remove"
-                        aria-label="Remove member"
-                      >
-                        <Icon name="trash" />
-                      </Button>
-                    </fetcher.Form>
-                  </div>
-                )}
-
-                {canAdmin && !canOwner && m.role === 'MEMBER' && !isViewer ? (
-                  <fetcher.Form
-                    method="post"
-                    action={`/groups/${giftGroup.id}/settings`}
-                  >
-                    <input
-                      type="hidden"
-                      name="giftGroupId"
-                      value={giftGroup.id}
-                    />
-                    <input
-                      type="hidden"
-                      name="memberUserId"
-                      value={m.user.id}
-                    />
-                    <Button
-                      size="icon"
-                      variant="destructive"
-                      name="intent"
-                      value="member-remove"
-                      aria-label="Remove member"
-                    >
-                      <Icon name="trash" />
-                    </Button>
-                  </fetcher.Form>
-                ) : null}
+                <MemberActionsMenu
+                  giftGroupId={giftGroup.id}
+                  viewerRole={optimisticViewerRole as GroupMemberRole}
+                  member={{ user: m.user, role: m.role as GroupMemberRole }}
+                  isViewer={isViewer}
+                  birthdayLabel={
+                    birthday ? `Birthday ${birthday.toLocaleDateString()}` : null
+                  }
+                />
 
                 {!isViewer ? (
                   <>
