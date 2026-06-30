@@ -43,7 +43,11 @@ const GroupLayout = () => {
       <main className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl p-3 sm:p-6">
           <Stack gap={6}>
-            <TabBar giftGroupId={giftGroup.id} />
+            {/* Tabs are retained on mobile/tablet; desktop collapses them
+                into the single dashboard rendered by the index route. */}
+            <div className="lg:hidden">
+              <TabBar giftGroupId={giftGroup.id} />
+            </div>
             <Outlet />
           </Stack>
         </div>
