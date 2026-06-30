@@ -1,5 +1,6 @@
 import { LuSettings, LuUsers } from 'react-icons/lu';
 import { Link, NavLink, Outlet, useLoaderData } from 'react-router';
+import { GroupAvatarCluster } from '#app/components/groups/group-avatar-cluster.tsx';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { PageHeader } from '#app/components/page-header.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
@@ -23,6 +24,10 @@ const GroupLayout = () => {
         subtitle={`${giftGroup.groupMembers.length} ${giftGroup.groupMembers.length === 1 ? 'member' : 'members'}`}
       >
         <div className="flex shrink-0 items-center gap-2">
+          <GroupAvatarCluster
+            members={giftGroup.groupMembers}
+            viewerId={viewer.userId}
+          />
           <RoleBadge role={viewer.role as GroupRole} />
           {/* Settings is reachable by every member — it's where your own
               group preferences live, not just admin controls (P7.5). */}
