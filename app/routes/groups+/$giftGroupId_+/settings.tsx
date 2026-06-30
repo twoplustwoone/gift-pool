@@ -385,8 +385,11 @@ export async function action({ request }: ActionFunctionArgs) {
         contributionCents: v.contributionCents
           ? Number.parseInt(v.contributionCents, 10)
           : undefined,
-        budgetVisibilityOverride: (v.budgetVisibilityOverride ??
-          'INHERIT') as any,
+        // Pass through as-is so this stays a partial update: the Overview
+        // budget editor submits only contributionCents, and must NOT reset a
+        // member's chosen visibility (ADMINS / ONLY_SELF) to INHERIT. An
+        // explicit 'INHERIT' from the preferences form still clears it.
+        budgetVisibilityOverride: v.budgetVisibilityOverride as any,
         // Explicit booleans so a member can turn sharing OFF, not just on.
         shareWishlist:
           v.shareWishlist === undefined
