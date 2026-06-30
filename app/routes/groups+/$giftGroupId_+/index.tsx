@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  LuActivity,
   LuAlarmClock,
   LuTriangleAlert,
   LuCake,
@@ -22,20 +23,14 @@ import {
   useLoaderData,
   useRouteLoaderData,
 } from 'react-router';
+import {
+  MembersList,
+  type MemberListEntry,
+} from '#app/components/groups/members-list.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from '#app/components/ui/dialog.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { Input } from '#app/components/ui/input.tsx';
-import { Label } from '#app/components/ui/label.tsx';
 import { Flex, Stack, Text } from '#app/components/ui-kit';
 import { track } from '#app/utils/analytics.client.ts';
 import {
@@ -46,6 +41,7 @@ import {
   type PoolSummary,
   type UpcomingOccasion,
 } from '#app/utils/group-overview.ts';
+import { type GroupRole } from '#app/utils/group-role.ts';
 import { cn, getUserImgSrc } from '#app/utils/misc.tsx';
 import {
   POOL_STATUS_LABELS,
@@ -110,29 +106,104 @@ const GiftGroupOverview = () => {
     typeof routeLoader
   >('routes/groups+/$giftGroupId_+/_layout')!;
 
+  const essentials = (
+    <GroupEssentialsCard
+      giftGroupId={giftGroup.id}
+      description={giftGroup.description}
+      contributionCents={viewer.contributionCents ?? 0}
+      inviteLink={inviteLink}
+      canInvite={canInvite}
+    />
+  );
+
   return (
-    <Stack gap={6}>
-      <ForYouSection
-        items={data.actionQueue}
-        nextOccasion={data.upcomingOccasions[0] ?? null}
-      />
-      <ActivePoolsSection
-        pools={data.activePools}
-        groupId={giftGroup.id}
-      />
-      <UpcomingOccasionsSection occasions={data.upcomingOccasions} />
-      <PastGiftsSection gifts={data.pastGifts} />
-      <GroupEssentialsCard
-        giftGroupId={giftGroup.id}
-        description={giftGroup.description}
-        contributionCents={viewer.contributionCents ?? 0}
-        inviteLink={inviteLink}
-        canInvite={canInvite}
-      />
-    </Stack>
+    // Desktop collapses the three tabs into one dashboard: a wide action
+    // feed on the left, a context rail (Members / Group info / Activity) on
+    // the right. Stays inside the existing max-w-6xl container — the page
+    // scrolls naturally, no independent-scroll columns. On mobile the rail
+    // simply flows under the feed and shows Group info only (Members and
+    // Activity remain their own tabs).
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-6">
+      <Stack gap={6}>
+        <ForYouSection
+          items={data.actionQueue}
+          nextOccasion={data.upcomingOccasions[0] ?? null}
+        />
+        <ActivePoolsSection pools={data.activePools} groupId={giftGroup.id} />
+        <UpcomingOccasionsSection occasions={data.upcomingOccasions} />
+        <PastGiftsSection gifts={data.pastGifts} />
+      </Stack>
+
+      <Stack gap={6} className="mt-6 lg:mt-0">
+        <div className="hidden lg:block">
+          <MembersRailCard
+            giftGroupId={giftGroup.id}
+            members={giftGroup.groupMembers}
+            viewerId={viewer.userId}
+            viewerRole={viewer.role as GroupRole}
+          />
+        </div>
+        {essentials}
+        <div className="hidden lg:block">
+          <ActivityRailCard />
+        </div>
+      </Stack>
+    </div>
   );
 };
 export default GiftGroupOverview;
+
+// ─── Desktop rail ────────────────────────────────────────────────────────────
+
+const MembersRailCard = ({
+  giftGroupId,
+  members,
+  viewerId,
+  viewerRole,
+}: {
+  giftGroupId: string;
+  members: ReadonlyArray<MemberListEntry>;
+  viewerId: string;
+  viewerRole: GroupRole;
+}) => (
+  <Card padding="lg">
+    <SectionHeader
+      title={`Members (${members.length})`}
+      trailing={
+        <Link
+          to={`/groups/${giftGroupId}/members`}
+          className="text-xs text-primary hover:underline"
+        >
+          Manage
+        </Link>
+      }
+    />
+    {/* Renders all members — no fixed-height scroll container. */}
+    <MembersList
+      giftGroupId={giftGroupId}
+      viewerRole={viewerRole}
+      viewerId={viewerId}
+      members={members}
+    />
+  </Card>
+);
+
+const ActivityRailCard = () => (
+  <Card padding="lg">
+    <SectionHeader title="Activity" />
+    <Stack gap={2} className="items-center px-2 py-4 text-center">
+      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <LuActivity size={20} />
+      </span>
+      <Text size="sm" weight="semibold">
+        No activity yet
+      </Text>
+      <Text size="xs" className="max-w-[14rem] text-muted-foreground">
+        New ideas, contributions and pool updates will show up here.
+      </Text>
+    </Stack>
+  </Card>
+);
 
 // ─── For You ─────────────────────────────────────────────────────────────────
 
@@ -697,97 +768,33 @@ const InlineBudgetEditor = ({
     e.preventDefault();
   };
 
-  const MobileEditor = (
-    <Dialog>
-      <DialogTrigger asChild>
-        {value > 0 ? (
-          <Button variant="ghost" size="sm">
-            ${dollars} <Icon name="pencil-1" className="ml-1" />
-          </Button>
-        ) : (
-          <Button size="sm">Set your budget</Button>
-        )}
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Set your budget</DialogTitle>
-        </DialogHeader>
-        <fetcher.Form
-          method="post"
-          action={`/groups/${giftGroupId}/settings`}
-          className="grid gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const input = e.currentTarget.querySelector(
-              'input[name="dollars"]',
-            ) as HTMLInputElement;
-            const next = Math.max(
-              0,
-              Math.round(Number.parseFloat(input.value || '0') * 100),
-            );
-            submit(next);
-          }}
-        >
-          <input type="hidden" name="intent" value="member-update-self" />
-          <input type="hidden" name="giftGroupId" value={giftGroupId} />
-          <Label htmlFor="budget-mobile">Amount</Label>
-          <div className="relative">
-            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
-              $
-            </span>
-            <Input
-              id="budget-mobile"
-              name="dollars"
-              defaultValue={dollars}
-              inputMode="decimal"
-              className="border-input bg-input-bg pl-5 text-foreground"
-              onFocus={handleFocusSelectAll}
-              onMouseUp={handleMouseUpPreserve}
-            />
-          </div>
-          <DialogFooter className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
-            <DialogClose asChild>
-              <Button type="button" variant="secondary">
-                Cancel
-              </Button>
-            </DialogClose>
-            <Button type="submit" disabled={pending}>
-              Save
-            </Button>
-          </DialogFooter>
-        </fetcher.Form>
-      </DialogContent>
-    </Dialog>
-  );
-
   if (!editing) {
+    // Read mode — a single inline affordance on all sizes (no modal for a
+    // single number; matches the PR 3 read→edit pattern).
     return (
       <div className="flex items-center gap-2">
-        <span className="sm:hidden">{MobileEditor}</span>
-        <span className="hidden items-center gap-2 sm:inline-flex">
-          {value > 0 ? (
-            <>
-              <span
-                className="text-base font-bold text-foreground"
-                data-testid="budget-amount"
-              >
-                ${dollars}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Edit your budget"
-                onClick={() => setEditing(true)}
-              >
-                <Icon name="pencil-1" />
-              </Button>
-            </>
-          ) : (
-            <Button size="sm" onClick={() => setEditing(true)}>
-              Set your budget
+        {value > 0 ? (
+          <>
+            <span
+              className="text-base font-bold text-foreground"
+              data-testid="budget-amount"
+            >
+              ${dollars}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Edit your budget"
+              onClick={() => setEditing(true)}
+            >
+              <Icon name="pencil-1" />
             </Button>
-          )}
-        </span>
+          </>
+        ) : (
+          <Button size="sm" onClick={() => setEditing(true)}>
+            Set your budget
+          </Button>
+        )}
       </div>
     );
   }
@@ -796,7 +803,7 @@ const InlineBudgetEditor = ({
     <fetcher.Form
       method="post"
       action={`/groups/${giftGroupId}/settings`}
-      className="hidden items-center gap-2 sm:flex"
+      className="flex items-center gap-2"
       onSubmit={(e) => {
         e.preventDefault();
         const input = e.currentTarget.querySelector(

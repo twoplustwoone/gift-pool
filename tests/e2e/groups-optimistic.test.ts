@@ -17,7 +17,7 @@ async function createGroupWithOwnerAndMember({
 
   const [owner, member] = await Promise.all([
     prisma.user.create({
-      select: { id: true, username: true },
+      select: { id: true, username: true, name: true },
       data: {
         ...ownerData,
         roles: { connect: { name: 'user' } },
@@ -25,7 +25,7 @@ async function createGroupWithOwnerAndMember({
       },
     }),
     prisma.user.create({
-      select: { id: true, username: true },
+      select: { id: true, username: true, name: true },
       data: {
         ...memberData,
         roles: { connect: { name: 'user' } },
@@ -88,21 +88,24 @@ test('members page shows optimistic role change before promote request resolves'
 
     await page.goto(`/groups/${groupId}/members`);
 
-    const memberRow = page.getByRole('listitem').filter({ hasText: member.username }).first();
-    const promoteButton = memberRow.getByRole('button', {
-      name: /promote to admin/i,
-    });
-    const demoteButton = memberRow.getByRole('button', {
-      name: /demote to member/i,
-    });
+    const memberDisplay = member.name ?? member.username;
+    const memberRow = page
+      .getByRole('listitem')
+      .filter({ hasText: memberDisplay })
+      .first();
 
-    await expect(promoteButton).toBeVisible();
-    await promoteButton.click();
+    // Open the row's three-dot menu (desktop dropdown) and choose Promote,
+    // then confirm — the action only fires after the confirmation step.
+    await memberRow.getByRole('button', { name: /actions for/i }).click();
+    await page.getByRole('menuitem', { name: /promote to admin/i }).click();
+    await page.getByRole('button', { name: 'Promote', exact: true }).click();
 
-    await expect(demoteButton).toBeVisible();
+    // The role flips optimistically to admin before the gated POST resolves.
+    const adminBadge = memberRow.getByText('admin', { exact: true });
+    await expect(adminBadge).toBeVisible();
 
     resolvePromoteGate();
-    await expect(demoteButton).toBeVisible();
+    await expect(adminBadge).toBeVisible();
   } finally {
     await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => {});
     await prisma.user
