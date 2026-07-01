@@ -9,8 +9,9 @@ import rateLimit from 'express-rate-limit';
 import getPort, { portNumbers } from 'get-port';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { type ServerBuild } from 'react-router';
+import { RouterContextProvider, type ServerBuild } from 'react-router';
 import { getCanonicalRedirectTarget } from './redirects.js';
+import { cspNonceContext, serverBuildContext } from './react-router-context.js';
 
 const MODE = process.env.NODE_ENV ?? 'development';
 const IS_PROD = MODE === 'production';
@@ -264,10 +265,12 @@ app.options('*', (_req, res) => {
 app.all(
   '*',
   createRequestHandler({
-    getLoadContext: (_: any, res: any) => ({
-      cspNonce: res.locals.cspNonce,
-      serverBuild: getBuild(),
-    }),
+    getLoadContext: (_: any, res: any) => {
+      const context = new RouterContextProvider();
+      context.set(cspNonceContext, res.locals.cspNonce);
+      context.set(serverBuildContext, getBuild());
+      return context;
+    },
     mode: MODE,
     build: async () => {
       const { error, build } = await getBuild();
