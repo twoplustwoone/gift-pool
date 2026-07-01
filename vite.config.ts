@@ -2,8 +2,8 @@ import path from 'path';
 import { reactRouter } from '@react-router/dev/vite';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 import { glob } from 'glob';
-import { defineConfig } from 'vite';
 import { envOnlyMacros } from 'vite-env-only';
+import { defineConfig } from 'vitest/config';
 
 const MODE = process.env.NODE_ENV;
 const IS_STORYBOOK = Boolean(process.env.STORYBOOK);
