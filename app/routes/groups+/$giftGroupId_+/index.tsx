@@ -121,29 +121,54 @@ const GiftGroupOverview = () => {
     // inside the existing max-w-6xl container — the page scrolls naturally,
     // no independent-scroll columns. On mobile the rail simply flows under
     // the feed and shows Group info only (Members remains its own tab).
-    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-6">
-      <Stack gap={6}>
-        <ForYouSection
-          items={data.actionQueue}
-          nextOccasion={data.upcomingOccasions[0] ?? null}
+    <>
+      {/* Mobile-only per-gift cap strip: a slim row directly under the tab bar
+          and above "For you". Desktop keeps the cap in the Group info rail card
+          (below), so this is hidden at lg+. */}
+      <Flex
+        justify="between"
+        align="center"
+        className="lg:hidden"
+        data-testid="mobile-cap-strip"
+      >
+        <Text size="xs" className="text-muted-foreground">
+          Your per-gift cap
+        </Text>
+        <InlineBudgetEditor
+          giftGroupId={giftGroup.id}
+          initialCents={viewer.contributionCents ?? 0}
+          editLabel="Edit your per-gift cap"
+          amountTestId=""
         />
-        <ActivePoolsSection pools={data.activePools} groupId={giftGroup.id} />
-        <UpcomingOccasionsSection occasions={data.upcomingOccasions} />
-        <PastGiftsSection gifts={data.pastGifts} />
-      </Stack>
+      </Flex>
 
-      <Stack gap={6} className="mt-6 lg:mt-0">
-        <div className="hidden lg:block">
-          <MembersRailCard
-            giftGroupId={giftGroup.id}
-            members={giftGroup.groupMembers}
-            viewerId={viewer.userId}
-            viewerRole={viewer.role as GroupRole}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-6">
+        <Stack gap={6}>
+          <ForYouSection
+            items={data.actionQueue}
+            nextOccasion={data.upcomingOccasions[0] ?? null}
           />
+          <ActivePoolsSection pools={data.activePools} groupId={giftGroup.id} />
+          <UpcomingOccasionsSection occasions={data.upcomingOccasions} />
+          <PastGiftsSection gifts={data.pastGifts} />
+        </Stack>
+
+        {/* Context rail — desktop only. On mobile the cap moves to the strip
+            above, invite moves to the header, and the description lives on the
+            settings screen, so the whole rail is hidden. */}
+        <div className="hidden lg:block">
+          <Stack gap={6}>
+            <MembersRailCard
+              giftGroupId={giftGroup.id}
+              members={giftGroup.groupMembers}
+              viewerId={viewer.userId}
+              viewerRole={viewer.role as GroupRole}
+            />
+            {essentials}
+          </Stack>
         </div>
-        {essentials}
-      </Stack>
-    </div>
+      </div>
+    </>
   );
 };
 export default GiftGroupOverview;
@@ -683,9 +708,13 @@ const SectionHeader = ({
 const InlineBudgetEditor = ({
   giftGroupId,
   initialCents,
+  editLabel = 'Edit your budget',
+  amountTestId = 'budget-amount',
 }: {
   giftGroupId: string;
   initialCents: number;
+  editLabel?: string;
+  amountTestId?: string;
 }) => {
   const fetcher = useFetcher<typeof settingsAction>();
   const [editing, setEditing] = useState(false);
@@ -759,14 +788,14 @@ const InlineBudgetEditor = ({
           <>
             <span
               className="text-base font-bold text-foreground"
-              data-testid="budget-amount"
+              data-testid={amountTestId || undefined}
             >
               ${dollars}
             </span>
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Edit your budget"
+              aria-label={editLabel}
               onClick={() => setEditing(true)}
             >
               <Icon name="pencil-1" />
