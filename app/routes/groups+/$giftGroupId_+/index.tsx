@@ -372,13 +372,13 @@ const PoolRow = ({ pool }: { pool: PoolSummary }) => {
             <Text weight="semibold" className="truncate">
               {pool.title}
             </Text>
-            <Text size="sm" className="text-muted-foreground">
+            <Text size="sm" className="truncate text-muted-foreground">
               {OCCASION_TYPE_LABELS[occasion]} for{' '}
               <span className="font-medium text-foreground">
                 {pool.recipientName}
               </span>
             </Text>
-            <Flex gap={2} align="center" className="mt-0.5">
+            <Flex gap={2} align="center" wrap="wrap" className="mt-0.5 min-w-0">
               <Text size="xs" className="text-muted-foreground">
                 {progressLabel}
               </Text>
@@ -448,7 +448,7 @@ const OccasionRow = ({ occasion }: { occasion: UpcomingOccasion }) => (
           alt=""
           className="h-8 w-8 shrink-0 rounded-full object-cover"
         />
-        <Stack gap={0} className="min-w-0">
+        <Stack gap={0} className="min-w-0 flex-1">
           <Text size="sm" weight="medium" className="truncate">
             {occasion.name}
           </Text>
@@ -520,11 +520,15 @@ const PastGiftRow = ({ gift }: { gift: PastGift }) => {
       <Card padding="sm" className="transition-shadow hover:shadow-md">
         <Flex justify="between" align="center" gap={3}>
           <Stack gap={0} className="min-w-0 flex-1">
-            <Flex gap={2} align="center">
-              <Text size="sm" weight="medium" className="truncate">
+            <Flex gap={2} align="center" className="min-w-0">
+              <Text
+                size="sm"
+                weight="medium"
+                className="min-w-0 flex-1 truncate"
+              >
                 {gift.recipientName}
               </Text>
-              <Text size="xs" className="text-muted-foreground">
+              <Text size="xs" className="shrink-0 text-muted-foreground">
                 · {OCCASION_TYPE_LABELS[gift.occasionType as OccasionType]}
               </Text>
             </Flex>
@@ -592,7 +596,7 @@ const GroupEssentialsCard = ({
       </Text>
       <Stack gap={3} className="mt-3">
         {description && (
-          <Text size="sm" className="text-muted-foreground">
+          <Text size="sm" className="break-words text-muted-foreground">
             {description}
           </Text>
         )}

@@ -201,6 +201,60 @@ test('members page keeps long member rows within mobile viewport', async ({
   }
 });
 
+// The group shell (`[data-testid="group-shell"]`) is a grid item in the app
+// shell. Without `min-w-0` it keeps its default `min-width: auto` and refuses
+// to shrink below its content's intrinsic width, overflowing its grid track —
+// the sideways scroll. Assert its rendered width never exceeds the viewport.
+const assertShellWithinViewport = async (page: Page) => {
+  const metrics = await page.getByTestId('group-shell').evaluate((el) => ({
+    shellWidth: Math.round(el.getBoundingClientRect().width),
+    viewportWidth: window.innerWidth,
+  }));
+  expect(metrics.shellWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1);
+};
+
+test('group tabs stay within the mobile viewport (no sideways scroll)', async ({
+  page,
+  login,
+}) => {
+  // An upcoming birthday drives the For-you action + Coming-up rows (each with
+  // a trailing button) that, with the Group-info card, pushed the group shell
+  // wider than the viewport before the min-w-0 fix.
+  const soon = new Date();
+  soon.setDate(soon.getDate() + 6);
+  const birthday = new Date(1990, soon.getMonth(), soon.getDate(), 12);
+  const { groupId, owner, member } = await createGroupWithOwnerAndMember({
+    memberUser: { name: 'Leonardo Bianchi', birthday },
+  });
+
+  try {
+    await login({ id: owner.id });
+
+    // Every group tab renders inside the same shell, so all are covered.
+    for (const path of ['', '/members', '/settings']) {
+      for (const width of [320, 375, 430]) {
+        await page.setViewportSize({ width, height: 812 });
+        await page.goto(`/groups/${groupId}${path}`);
+        await page.waitForLoadState('networkidle');
+        await assertShellWithinViewport(page);
+        await assertNoHorizontalOverflow(page);
+      }
+    }
+
+    // Desktop is unaffected — the shell fits its (wider) track with no overflow.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`/groups/${groupId}`);
+    await page.waitForLoadState('networkidle');
+    await assertShellWithinViewport(page);
+    await assertNoHorizontalOverflow(page);
+  } finally {
+    await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => {});
+    await prisma.user
+      .deleteMany({ where: { id: { in: [owner.id, member.id] } } })
+      .catch(() => {});
+  }
+});
+
 test('members page shows optimistic role change before promote request resolves', async ({
   page,
   login,
