@@ -65,6 +65,9 @@ export function getPostVerificationRedirectPath(request: Request) {
   } else if (pathname.endsWith('.data')) {
     pathname = pathname.slice(0, -'.data'.length);
   }
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    pathname = pathname.slice(0, -1);
+  }
 
   searchParams.delete('_data');
   searchParams.delete('_routes');
