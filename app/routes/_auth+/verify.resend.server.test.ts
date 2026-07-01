@@ -10,7 +10,11 @@ vi.mock('#app/utils/email.server.ts', () => ({
   sendEmail: (...args: Array<unknown>) => sendEmail(...args),
 }));
 
-import { handleResend, prepareVerification } from './verify.server.ts';
+import {
+  getPostVerificationRedirectPath,
+  handleResend,
+  prepareVerification,
+} from './verify.server.ts';
 
 function resendForm(entries: Record<string, string>) {
   const body = new FormData();
@@ -27,6 +31,46 @@ const request = () =>
 
 beforeEach(() => {
   sendEmail.mockReset().mockResolvedValue({ status: 'success' });
+});
+
+describe('getPostVerificationRedirectPath', () => {
+  it('preserves document route URLs', () => {
+    expect(
+      getPostVerificationRedirectPath(
+        new Request(
+          'https://giftpool.app/settings/profile/two-factor/disable?return=1',
+        ),
+      ),
+    ).toBe('/settings/profile/two-factor/disable?return=1');
+  });
+
+  it('normalizes React Router data route URLs', () => {
+    expect(
+      getPostVerificationRedirectPath(
+        new Request(
+          'https://giftpool.app/settings/profile/two-factor/disable.data?_routes=routes%2Fsettings%2B%2Fprofile.two-factor.disable',
+        ),
+      ),
+    ).toBe('/settings/profile/two-factor/disable');
+  });
+
+  it('normalizes React Router index data route URLs', () => {
+    expect(
+      getPostVerificationRedirectPath(
+        new Request(
+          'https://giftpool.app/settings/profile/_.data?index&_data=routes%2Fsettings%2B%2Fprofile.index',
+        ),
+      ),
+    ).toBe('/settings/profile');
+  });
+
+  it('normalizes the root data route URL', () => {
+    expect(
+      getPostVerificationRedirectPath(
+        new Request('https://giftpool.app/_root.data?_routes=root'),
+      ),
+    ).toBe('/');
+  });
 });
 
 describe('prepareVerification', () => {

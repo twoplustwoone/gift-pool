@@ -52,16 +52,40 @@ export function getRedirectToUrl({
   }
   return redirectToUrl;
 }
+
+export function getPostVerificationRedirectPath(request: Request) {
+  const reqUrl = new URL(request.url);
+  const searchParams = new URLSearchParams(reqUrl.search);
+  let pathname = reqUrl.pathname;
+
+  if (pathname === '/_root.data') {
+    pathname = '/';
+  } else if (pathname.endsWith('/_.data')) {
+    pathname = pathname.slice(0, -'_.data'.length);
+  } else if (pathname.endsWith('.data')) {
+    pathname = pathname.slice(0, -'.data'.length);
+  }
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    pathname = pathname.slice(0, -1);
+  }
+
+  searchParams.delete('_data');
+  searchParams.delete('_routes');
+  searchParams.delete('index');
+
+  const search = searchParams.toString();
+  return search ? `${pathname}?${search}` : pathname;
+}
+
 export async function requireRecentVerification(request: Request) {
   const userId = await requireUserId(request);
   const shouldReverify = await shouldRequestTwoFA(request);
   if (shouldReverify) {
-    const reqUrl = new URL(request.url);
     const redirectUrl = getRedirectToUrl({
       request,
       target: userId,
       type: twoFAVerificationType,
-      redirectTo: reqUrl.pathname + reqUrl.search,
+      redirectTo: getPostVerificationRedirectPath(request),
     });
     throw await redirectWithToast(redirectUrl.toString(), {
       title: 'Please Reverify',
