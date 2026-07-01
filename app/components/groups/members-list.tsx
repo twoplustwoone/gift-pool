@@ -41,7 +41,7 @@ function MemberRow({
   const birthdayLabel = formatBirthday(member.user.birthday);
 
   return (
-    <li className="relative flex items-center gap-3 px-2 py-2.5">
+    <li className="relative flex min-w-0 items-center gap-3 px-2 py-2.5">
       {/*
        * Whole-row click target navigates to the profile. The menu cell
        * below re-enables pointer events for itself (same isolation pattern
@@ -53,19 +53,24 @@ function MemberRow({
         className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       />
 
-      <div className="pointer-events-none flex min-w-0 flex-1 items-center gap-3">
+      <div className="pointer-events-none flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
         <Avatar
           size="s"
           className="!h-10 !w-10"
           image={member.user.image}
           user={member.user}
         />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate font-semibold text-foreground">
+        <div className="min-w-0 w-0 flex-1 overflow-hidden">
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className="block min-w-0 flex-1 truncate font-semibold text-foreground"
+              data-testid="member-display-name"
+            >
               {displayName}
             </span>
-            <RoleBadge role={role} />
+            <span className="shrink-0">
+              <RoleBadge role={role} />
+            </span>
             {isViewer ? <SystemLabel>you</SystemLabel> : null}
           </div>
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
