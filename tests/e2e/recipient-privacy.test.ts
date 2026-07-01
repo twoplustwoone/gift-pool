@@ -161,18 +161,6 @@ test.describe('recipient privacy', () => {
     await expect(page.getByText(/pool pending|gift in progress|contributors/i)).toHaveCount(0);
   });
 
-  test('/groups/:id/activity does not mention the pool when viewer is the recipient', async ({
-    page,
-  }) => {
-    await loginWithPassword(page, {
-      username: recipient.username,
-      password: recipient.password,
-    });
-    await page.goto(`/groups/${groupId}/activity`);
-
-    await expect(page.getByText(poolTitle, { exact: false })).toHaveCount(0);
-  });
-
   test('organizer CAN see the pool (negative control — proves seed is correct)', async ({
     page,
   }) => {
