@@ -1,15 +1,17 @@
 import { PassThrough } from 'node:stream';
 import { createReadableStreamFromReadable } from '@react-router/node';
 
-
 import * as Sentry from '@sentry/react-router';
 import chalk from 'chalk';
 import { isbot } from 'isbot';
 import { renderToPipeableStream } from 'react-dom/server';
-import { ServerRouter,
+import {
+  ServerRouter,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
-  type HandleDocumentRequestFunction } from 'react-router';
+  type HandleDocumentRequestFunction,
+} from 'react-router';
+import { cspNonceContext } from '../server/react-router-context.ts';
 import { getEnv, init } from './utils/env.server.ts';
 import { getInstanceInfo } from './utils/litefs.server.ts';
 import { NonceProvider } from './utils/nonce-provider.ts';
@@ -45,7 +47,7 @@ export default async function handleRequest(...args: DocRequestArgs) {
     ? 'onAllReady'
     : 'onShellReady';
 
-  const nonce = loadContext.cspNonce?.toString() ?? '';
+  const nonce = loadContext.get(cspNonceContext) ?? '';
   return new Promise((resolve, reject) => {
     let didError = false;
     // NOTE: this timing will only include things that are rendered in the shell
