@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  LuActivity,
   LuAlarmClock,
   LuTriangleAlert,
   LuCake,
@@ -117,12 +116,11 @@ const GiftGroupOverview = () => {
   );
 
   return (
-    // Desktop collapses the three tabs into one dashboard: a wide action
-    // feed on the left, a context rail (Members / Group info / Activity) on
-    // the right. Stays inside the existing max-w-6xl container — the page
-    // scrolls naturally, no independent-scroll columns. On mobile the rail
-    // simply flows under the feed and shows Group info only (Members and
-    // Activity remain their own tabs).
+    // Desktop collapses the tabs into one dashboard: a wide action feed on
+    // the left, a context rail (Members / Group info) on the right. Stays
+    // inside the existing max-w-6xl container — the page scrolls naturally,
+    // no independent-scroll columns. On mobile the rail simply flows under
+    // the feed and shows Group info only (Members remains its own tab).
     <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-6">
       <Stack gap={6}>
         <ForYouSection
@@ -144,9 +142,6 @@ const GiftGroupOverview = () => {
           />
         </div>
         {essentials}
-        <div className="hidden lg:block">
-          <ActivityRailCard />
-        </div>
       </Stack>
     </div>
   );
@@ -185,23 +180,6 @@ const MembersRailCard = ({
       viewerId={viewerId}
       members={members}
     />
-  </Card>
-);
-
-const ActivityRailCard = () => (
-  <Card padding="lg">
-    <SectionHeader title="Activity" />
-    <Stack gap={2} className="items-center px-2 py-4 text-center">
-      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <LuActivity size={20} />
-      </span>
-      <Text size="sm" weight="semibold">
-        No activity yet
-      </Text>
-      <Text size="xs" className="max-w-[14rem] text-muted-foreground">
-        New ideas, contributions and pool updates will show up here.
-      </Text>
-    </Stack>
   </Card>
 );
 

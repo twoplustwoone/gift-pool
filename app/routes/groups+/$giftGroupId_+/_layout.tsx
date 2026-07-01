@@ -87,11 +87,10 @@ const TabBar = ({ giftGroupId }: { giftGroupId: string }) => {
   const tabs = [
     { to: `/groups/${giftGroupId}`, label: 'Overview', end: true },
     { to: `/groups/${giftGroupId}/members`, label: 'Members' },
-    { to: `/groups/${giftGroupId}/activity`, label: 'Activity' },
   ] as const;
 
   return (
-    <div className="grid w-full grid-cols-3 rounded-full bg-muted p-1">
+    <div className="grid w-full grid-cols-2 rounded-full bg-muted p-1">
       {tabs.map((t) => (
         <NavLink
           key={t.to}
