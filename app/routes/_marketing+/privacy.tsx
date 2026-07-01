@@ -9,7 +9,7 @@ const PrivacyRoute = () => {
     <div className="container max-w-3xl pb-32 pt-20">
       <h1 className="text-h1">Privacy Policy</h1>
       <p className="mt-2 text-body-sm text-muted-foreground">
-        Last updated: June 12, 2026
+        Last updated: June 29, 2026
       </p>
 
       <div className="mt-10 space-y-8 text-body-md leading-relaxed text-muted-foreground">
@@ -44,7 +44,11 @@ const PrivacyRoute = () => {
             without an account (for example, opening a shared wishlist or an
             invite link), these events are associated with a random first-party
             visitor identifier instead. We do not use third-party analytics or
-            advertising trackers.
+            advertising trackers. We also collect normalized browser, device,
+            viewport, operating system, PWA install/display-mode, and browser
+            notification permission state details so we can understand how
+            people access the app. We do not collect full user-agent strings for
+            this analytics view.
           </p>
 
           <h3 className="mt-4 text-body-md font-semibold text-foreground">

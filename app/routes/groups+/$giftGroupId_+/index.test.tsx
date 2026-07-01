@@ -16,9 +16,33 @@ const loaderDataSnapshot = {
     description: 'Birthday planning',
     id: 'group-1',
     name: 'Family',
+    groupMembers: [
+      {
+        user: {
+          id: 'viewer-1',
+          username: 'ada',
+          name: 'Ada',
+          birthday: new Date('1990-12-10'),
+          image: null,
+        },
+        role: 'OWNER' as const,
+      },
+      {
+        user: {
+          id: 'marco',
+          username: 'marco',
+          name: 'Marco',
+          birthday: new Date('1992-07-04'),
+          image: null,
+        },
+        role: 'MEMBER' as const,
+      },
+    ],
   },
   inviteLink: 'https://giftpool.app/groups/join/invite-1' as string | null,
   viewer: {
+    userId: 'viewer-1',
+    role: 'OWNER' as const,
     contributionCents: 1500,
   },
 };
@@ -87,6 +111,23 @@ vi.mock('#app/components/ui/dialog.tsx', () => ({
   DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+// The members rail's full row (Radix menu + confirm dialog) is covered by
+// member-actions-menu.test / members.component.test — stub it here so this
+// overview test stays focused on the dashboard layout.
+vi.mock('#app/components/groups/members-list.tsx', () => ({
+  MembersList: ({
+    members,
+  }: {
+    members: Array<{ user: { id: string; name: string | null; username: string } }>;
+  }) => (
+    <ul data-testid="members-rail-list">
+      {members.map((m) => (
+        <li key={m.user.id}>{m.user.name ?? m.user.username}</li>
+      ))}
+    </ul>
+  ),
 }));
 
 import GroupsDetailOverview from './index.tsx';
@@ -400,5 +441,32 @@ describe('group detail overview route', () => {
     ).toBeInTheDocument();
     // P0 urgency badge
     expect(screen.getByText(/in 3 days/i)).toBeInTheDocument();
+  });
+
+  it('renders the desktop members rail with every member', () => {
+    render(<GroupsDetailOverview />);
+    expect(screen.getByText('Members (2)')).toBeInTheDocument();
+    const rail = screen.getByTestId('members-rail-list');
+    expect(rail).toHaveTextContent('Ada');
+    expect(rail).toHaveTextContent('Marco');
+    expect(
+      screen.getByRole('link', { name: 'Manage' }),
+    ).toHaveAttribute('href', '/groups/group-1/members');
+  });
+
+  it('edits the per-gift cap inline — no modal for a single number', async () => {
+    render(<GroupsDetailOverview />);
+    // Read mode shows the current cap.
+    expect(screen.getByTestId('budget-amount')).toHaveTextContent('$15.00');
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /edit your budget/i }),
+    );
+
+    // Edit reveals an inline input — not a dialog.
+    expect(
+      screen.getByRole('textbox', { name: /your budget/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

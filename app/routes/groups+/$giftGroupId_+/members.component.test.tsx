@@ -68,14 +68,6 @@ const layoutLoaderData = {
   viewer: { userId: 'viewer-1', role: 'OWNER' as const },
 };
 
-const overviewLoaderData: {
-  activePoolsByRecipient: Record<string, { id: string; title: string }>;
-} = {
-  activePoolsByRecipient: {
-    marco: { id: 'pool-1', title: "Marco's Birthday" },
-  },
-};
-
 vi.mock('react-router', async () => {
   const actual = await vi.importActual('react-router');
   return {
@@ -86,7 +78,7 @@ vi.mock('react-router', async () => {
       ...rest
     }: {
       to: string;
-      children: React.ReactNode;
+      children?: React.ReactNode;
     }) => (
       <a href={to} {...rest}>
         {children}
@@ -99,71 +91,57 @@ vi.mock('react-router', async () => {
       submit: vi.fn(),
     }),
     useFetchers: () => [],
-    useLoaderData: () => overviewLoaderData,
     useRouteLoaderData: () => layoutLoaderData,
   };
 });
 
-vi.mock('#app/components/friends/friend-action-button.tsx', () => ({
-  FriendActionButton: () => <div data-testid="friend-button" />,
-}));
-
 import GroupMembersRoute from './members.tsx';
 
-describe('Members tab — PoolActionForMember per row', () => {
-  it('shows "View pool" for members with an active pool', () => {
+describe('Members tab — reduced row', () => {
+  it('renders one row per member with name, role and birthday', () => {
     render(<GroupMembersRoute />);
-    const viewLink = screen.getByRole('link', { name: /^view pool$/i });
-    expect(viewLink).toHaveAttribute('href', '/pools/pool-1');
-    expect(viewLink).toHaveAttribute(
-      'title',
-      "View pool: Marco's Birthday",
-    );
-  });
-
-  it('omits the pool action for a member without a birthday and no active pool', () => {
-    render(<GroupMembersRoute />);
-    // Alex has no birthday and no active pool → no Start a pool link rendered.
-    // Marco's row provides the only "View pool" link — see other test.
-    const startLinks = screen.queryAllByRole('link', { name: /start a pool/i });
-    expect(startLinks).toHaveLength(0);
-  });
-
-  it('shows "Start a pool" for members with a birthday and no active pool', () => {
-    // Override the overview loader to remove the active pool entry — so
-    // Marco (who has a birthday) now needs a Start-a-pool CTA.
-    overviewLoaderData.activePoolsByRecipient = {};
-    try {
-      render(<GroupMembersRoute />);
-      const startLink = screen.getByRole('link', { name: /^start a pool$/i });
-      expect(startLink).toHaveAttribute(
-        'href',
-        '/pools/new?groupId=group-1&recipientId=marco',
-      );
-    } finally {
-      overviewLoaderData.activePoolsByRecipient = {
-        marco: { id: 'pool-1', title: "Marco's Birthday" },
-      };
-    }
-  });
-
-  it("hides the pool action on the viewer's own row", () => {
-    render(<GroupMembersRoute />);
-    // Viewer's row shows the username plus a system "you" label.
-    expect(screen.getByText('viewer')).toBeInTheDocument();
+    expect(screen.getByText('Group Members (3)')).toBeInTheDocument();
+    expect(screen.getByText('Marco')).toBeInTheDocument();
+    expect(screen.getByText('Alex')).toBeInTheDocument();
+    // Owner's own row carries a "you" system label.
     expect(screen.getByText('you')).toBeInTheDocument();
-    // Total pool action links = 1 (only Marco's "View pool").
-    const allLinks = screen.getAllByRole('link');
-    const poolLinks = allLinks.filter((link) =>
-      /^(start a pool|view pool)$/i.test((link.textContent ?? '').trim()),
-    );
-    expect(poolLinks).toHaveLength(1);
+    // Member with no birthday shows the empty state.
+    expect(screen.getByText('Birthday not set')).toBeInTheDocument();
   });
 
-  it('renders "gift budget" labels for non-viewer rows', () => {
+  it('links each row to the member profile', () => {
     render(<GroupMembersRoute />);
-    const labels = screen.getAllByText(/gift budget/i);
-    // 3 members → 3 rows → 3 labels
-    expect(labels.length).toBeGreaterThanOrEqual(3);
+    expect(
+      screen.getByRole('link', { name: /view marco's profile/i }),
+    ).toHaveAttribute('href', '/users/marco');
+  });
+
+  it('drops the budget, friend, pool and gift-history affordances', () => {
+    render(<GroupMembersRoute />);
+    expect(screen.queryByText(/gift budget/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /start a pool/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /view pool/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /gift history/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /add friend|friends/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('exposes a manager menu for the owner on other members only', () => {
+    render(<GroupMembersRoute />);
+    // Owner sees a menu on marco + alex (member rows), but not on their own
+    // row. Both desktop and mobile triggers share the aria-label, so each
+    // actionable member contributes two trigger buttons.
+    const marco = screen.getAllByRole('button', { name: /actions for marco/i });
+    expect(marco.length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole('button', { name: /actions for viewer/i }),
+    ).not.toBeInTheDocument();
   });
 });

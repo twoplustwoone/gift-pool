@@ -14,9 +14,14 @@ import {
   useActionData,
   useFetcher,
   useFetchers,
-  useLoaderData
+  useLoaderData,
 } from 'react-router';
 import { z } from 'zod';
+import {
+  EditableSection,
+  ReadField,
+  useExitOnSubmitSuccess,
+} from '#app/components/editable-section.tsx';
 import { ErrorList } from '#app/components/forms.tsx';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
@@ -58,7 +63,6 @@ import {
   updateOwnPreferences,
   deleteGiftGroup,
 } from '#app/utils/groups.server.ts';
-import { cn } from '#app/utils/misc.tsx';
 import { createToastHeaders } from '#app/utils/toast.server.ts';
 import { applyPendingSettingsMemberMutations } from './__route.shared';
 export async function loader({ params, request }: LoaderFunctionArgs) {
@@ -141,65 +145,20 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       url: getInviteLink(inv.code, request),
     })),
   };
-  const canManageInvites = await userHasGroupPermission(
-    userId,
-    groupId,
-    'manageInvites',
-  );
+  // Settings is reachable by every member (the gear links here for all roles),
+  // so these flags decide which admin sections render — not whether the page
+  // loads. A plain member sees only "Your preferences".
   const canManageSettings = await userHasGroupPermission(
     userId,
     groupId,
     'manageSettings',
   );
-  const canPromote = await userHasGroupPermission(
-    userId,
-    groupId,
-    'promoteAdmin',
-  );
-  const canDemote = await userHasGroupPermission(
-    userId,
-    groupId,
-    'demoteAdmin',
-  );
-  const canRemove = await userHasGroupPermission(
-    userId,
-    groupId,
-    'removeMember',
-  );
-  const canBan = await userHasGroupPermission(userId, groupId, 'banMember');
   const canLeave = await userHasGroupPermission(userId, groupId, 'leaveGroup');
-  const canTransfer = await userHasGroupPermission(
-    userId,
-    groupId,
-    'transferOwnership',
-  );
   const canDelete = await userHasGroupPermission(
     userId,
     groupId,
     'deleteGroup',
   );
-  const joinRequests = await prisma.joinRequest.findMany({
-    where: {
-      giftGroupId: groupId,
-      status: 'PENDING',
-    },
-    select: {
-      id: true,
-      user: {
-        select: {
-          id: true,
-          username: true,
-          name: true,
-          image: {
-            select: {
-              id: true,
-              altText: true,
-            },
-          },
-        },
-      },
-    },
-  });
   const viewerMemberRaw = await prisma.usersInGiftGroups.findUnique({
     where: {
       userId_giftGroupId: {
@@ -224,40 +183,18 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
         ) as GroupRole,
       } as const)
     : null;
-  const activities = await prisma.groupActivity.findMany({
-    where: {
-      giftGroupId: groupId,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-    take: 10,
-    select: {
-      id: true,
-      type: true,
-      payload: true,
-      createdAt: true,
-      actor: {
-        select: {
-          username: true,
-        },
-      },
-    },
-  });
+  // Non-managers must not receive other members' contribution / visibility /
+  // sharing settings or the admin roster — strip them so a member's payload
+  // carries only their own preferences (P7.5 privacy).
+  const giftGroupForViewer = canManageSettings
+    ? giftGroup
+    : { ...giftGroup, groupMembers: [], groupInvitations: [], reminders: [] };
   return {
-    giftGroup,
-    canManageInvites,
+    giftGroup: giftGroupForViewer,
     canManageSettings,
-    canPromote,
-    canDemote,
-    canRemove,
-    canBan,
-    canTransfer,
     canDelete,
     canLeave,
-    joinRequests,
     viewerMember,
-    activities,
   };
 }
 export enum SettingsIntent {
@@ -448,18 +385,31 @@ export async function action({ request }: ActionFunctionArgs) {
         contributionCents: v.contributionCents
           ? Number.parseInt(v.contributionCents, 10)
           : undefined,
-        budgetVisibilityOverride: (v.budgetVisibilityOverride ??
-          'INHERIT') as any,
-        shareWishlist: v.shareWishlist === 'on' ? true : undefined,
-        shareBirthday: v.shareBirthday === 'on' ? true : undefined,
+        // Pass through as-is so this stays a partial update: the Overview
+        // budget editor submits only contributionCents, and must NOT reset a
+        // member's chosen visibility (ADMINS / ONLY_SELF) to INHERIT. An
+        // explicit 'INHERIT' from the preferences form still clears it.
+        budgetVisibilityOverride: v.budgetVisibilityOverride as any,
+        // Explicit booleans so a member can turn sharing OFF, not just on.
+        shareWishlist:
+          v.shareWishlist === undefined
+            ? undefined
+            : v.shareWishlist === 'true',
+        shareBirthday:
+          v.shareBirthday === undefined
+            ? undefined
+            : v.shareBirthday === 'true',
       });
-      return data(submission.reply(), {
-        headers: await createToastHeaders({
-          type: 'success',
-          title: 'Saved',
-          description: 'Your preferences have been saved.',
-        }),
-      });
+      return data(
+        { ...submission.reply(), ok: true },
+        {
+          headers: await createToastHeaders({
+            type: 'success',
+            title: 'Saved',
+            description: 'Your preferences have been saved.',
+          }),
+        },
+      );
     }
     case SettingsIntent.DeleteGroup: {
       await deleteGiftGroup(request, {
@@ -482,7 +432,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 const GroupSettingsRoute = () => {
-  const { giftGroup, canDelete, canLeave, viewerMember } =
+  const { giftGroup, canManageSettings, canDelete, canLeave, viewerMember } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const fetchers = useFetchers();
@@ -509,183 +459,176 @@ const GroupSettingsRoute = () => {
   const canDemote = optimisticViewerRole === 'OWNER';
   const canRemove =
     optimisticViewerRole === 'OWNER' || optimisticViewerRole === 'ADMIN';
-  const canBan =
-    optimisticViewerRole === 'OWNER' || optimisticViewerRole === 'ADMIN';
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border bg-card p-4 sm:p-6">
-        <div className="mb-1 text-lg font-semibold">Group Settings</div>
-        <div className="mb-4 text-sm text-muted-foreground">
-          Configure how the group operates
-        </div>
-        <SettingsForm giftGroup={giftGroup} lastResult={actionData} />
-        <div className="my-4 h-px w-full bg-border" />
-        <RemindersSection giftGroup={giftGroup} />
-      </div>
-
-      {/* Member preferences (self) */}
+      {/* Your preferences — visible & editable by every member (P7.5) */}
       {viewerMember ? (
-        <div className="rounded-2xl border bg-card p-4 sm:p-6">
-          <div className="mb-1 text-lg font-semibold">Your Preferences</div>
-          <div className="mb-4 text-sm text-muted-foreground">
-            Control your budget visibility and sharing settings for this group
-          </div>
-          <MemberPreferencesForm
-            giftGroupId={giftGroup.id}
-            prefs={viewerMember}
-          />
-        </div>
+        <MemberPreferencesCard
+          giftGroupId={giftGroup.id}
+          prefs={viewerMember}
+        />
       ) : null}
 
-      {/* Transfer ownership */}
-      {canTransfer ? (
-        <div className="rounded-2xl border bg-card p-4 sm:p-6">
-          <div className="mb-1 text-lg font-semibold">Transfer Ownership</div>
-          <div className="mb-4 text-sm text-muted-foreground">
-            Make another admin the owner of this group
+      {/* Admin controls — a separate surface, only for managers */}
+      {canManageSettings ? (
+        <>
+          <SettingsCard giftGroup={giftGroup} lastResult={actionData} />
+          <div className="rounded-2xl border bg-card p-4 sm:p-6">
+            <RemindersSection giftGroup={giftGroup} />
           </div>
-          <TransferOwnershipForm
-            giftGroupId={giftGroup.id}
-            members={optimisticMembers}
-          />
-        </div>
-      ) : null}
 
-      {/* Member management */}
-      <div className="rounded-2xl border bg-card p-4 sm:p-6">
-        <div className="mb-1 text-lg font-semibold">Member Actions</div>
-        <div className="mb-4 text-sm text-muted-foreground">
-          Promote or demote admins, remove or ban members
-        </div>
-        <ul className="divide-y divide-border rounded-md border">
-          {optimisticMembers.map((m: any) => {
-            const isViewer = m.userId === viewerMember?.userId;
-            return (
-              <li
-                key={m.userId}
-                className="flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap"
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <Avatar size="s" image={m.user.image} user={m.user} />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 font-medium">
-                      <span className="truncate">{m.user.username}</span>
-                      {isViewer ? <SystemLabel>you</SystemLabel> : null}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                      <RoleBadge role={m.role} />
-                      {m.bannedUntil ? (
-                        <span className="text-destructive">Banned</span>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Promote / Demote (owner only) */}
-                  {canPromote && m.role === 'MEMBER' && !isViewer ? (
-                    <memberActionFetcher.Form
-                      method="post"
-                      action={settingsAction}
-                    >
-                      <input
-                        type="hidden"
-                        name="giftGroupId"
-                        value={giftGroup.id}
-                      />
-                      <input
-                        type="hidden"
-                        name="memberUserId"
-                        value={m.userId}
-                      />
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        name="intent"
-                        value={SettingsIntent.MemberPromoteAdmin}
-                      >
-                        Promote to Admin
-                      </Button>
-                    </memberActionFetcher.Form>
-                  ) : null}
-                  {canDemote && m.role === 'ADMIN' && !isViewer ? (
-                    <memberActionFetcher.Form
-                      method="post"
-                      action={settingsAction}
-                    >
-                      <input
-                        type="hidden"
-                        name="giftGroupId"
-                        value={giftGroup.id}
-                      />
-                      <input
-                        type="hidden"
-                        name="memberUserId"
-                        value={m.userId}
-                      />
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        name="intent"
-                        value={SettingsIntent.MemberDemoteMember}
-                      >
-                        Demote to Member
-                      </Button>
-                    </memberActionFetcher.Form>
-                  ) : null}
-
-                  <MemberActions
-                    giftGroupId={giftGroup.id}
-                    memberUserId={m.userId}
-                    bannedUntil={m.bannedUntil}
-                    canRemove={canRemove && !isViewer}
-                    canBan={canBan && !isViewer}
-                  />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      {canDelete ? (
-        <div className="rounded-2xl border bg-card p-4 sm:p-6">
-          <div className="rounded-md bg-destructive/10 p-4">
-            <div className="mb-1 font-semibold text-destructive">
-              Danger Zone
-            </div>
-            <div className="mb-3 text-sm text-destructive/80">
-              These actions cannot be undone. Please be careful. As the owner,
-              you can't leave directly — transfer ownership first or delete
-              the group.
-            </div>
-            <Form method="post" id="delete-group-form">
-              <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-              <input
-                type="hidden"
-                name="intent"
-                value={SettingsIntent.DeleteGroup}
+          {/* Transfer ownership */}
+          {canTransfer ? (
+            <div className="rounded-2xl border bg-card p-4 sm:p-6">
+              <div className="mb-1 text-lg font-semibold">
+                Transfer Ownership
+              </div>
+              <div className="mb-4 text-sm text-muted-foreground">
+                Make another admin the owner of this group
+              </div>
+              <TransferOwnershipForm
+                giftGroupId={giftGroup.id}
+                members={optimisticMembers}
               />
-            </Form>
-            <ConfirmDialog
-              title="Delete Group"
-              description={
-                <div>Type DELETE to confirm. This cannot be undone.</div>
-              }
-              confirmText="Delete"
-              requireText="DELETE"
-              onConfirm={() => {
-                const form = document.getElementById(
-                  'delete-group-form',
-                ) as HTMLFormElement;
-                form?.requestSubmit();
-              }}
-            >
-              <Button variant="destructive">
-                <Icon name="trash" className="mr-2" /> Delete Group
-              </Button>
-            </ConfirmDialog>
+            </div>
+          ) : null}
+
+          {/* Member management */}
+          <div className="rounded-2xl border bg-card p-4 sm:p-6">
+            <div className="mb-1 text-lg font-semibold">Member Actions</div>
+            <div className="mb-4 text-sm text-muted-foreground">
+              Promote or demote admins, remove members
+            </div>
+            <ul className="divide-y divide-border rounded-md border">
+              {optimisticMembers.map((m: any) => {
+                const isViewer = m.userId === viewerMember?.userId;
+                return (
+                  <li
+                    key={m.userId}
+                    className="flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap"
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <Avatar size="s" image={m.user.image} user={m.user} />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <span className="truncate">{m.user.username}</span>
+                          {isViewer ? <SystemLabel>you</SystemLabel> : null}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                          <RoleBadge role={m.role} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Promote / Demote (owner only) */}
+                      {canPromote && m.role === 'MEMBER' && !isViewer ? (
+                        <memberActionFetcher.Form
+                          method="post"
+                          action={settingsAction}
+                        >
+                          <input
+                            type="hidden"
+                            name="giftGroupId"
+                            value={giftGroup.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="memberUserId"
+                            value={m.userId}
+                          />
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            name="intent"
+                            value={SettingsIntent.MemberPromoteAdmin}
+                          >
+                            Promote to Admin
+                          </Button>
+                        </memberActionFetcher.Form>
+                      ) : null}
+                      {canDemote && m.role === 'ADMIN' && !isViewer ? (
+                        <memberActionFetcher.Form
+                          method="post"
+                          action={settingsAction}
+                        >
+                          <input
+                            type="hidden"
+                            name="giftGroupId"
+                            value={giftGroup.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="memberUserId"
+                            value={m.userId}
+                          />
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            name="intent"
+                            value={SettingsIntent.MemberDemoteMember}
+                          >
+                            Demote to Member
+                          </Button>
+                        </memberActionFetcher.Form>
+                      ) : null}
+
+                      <MemberActions
+                        giftGroupId={giftGroup.id}
+                        memberUserId={m.userId}
+                        canRemove={canRemove && !isViewer}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-        </div>
+
+          {canDelete ? (
+            <div className="rounded-2xl border bg-card p-4 sm:p-6">
+              <div className="rounded-md bg-destructive/10 p-4">
+                <div className="mb-1 font-semibold text-destructive">
+                  Danger Zone
+                </div>
+                <div className="mb-3 text-sm text-destructive/80">
+                  These actions cannot be undone. Please be careful. As the
+                  owner, you can't leave directly — transfer ownership first or
+                  delete the group.
+                </div>
+                <Form method="post" id="delete-group-form">
+                  <input
+                    type="hidden"
+                    name="giftGroupId"
+                    value={giftGroup.id}
+                  />
+                  <input
+                    type="hidden"
+                    name="intent"
+                    value={SettingsIntent.DeleteGroup}
+                  />
+                </Form>
+                <ConfirmDialog
+                  title="Delete Group"
+                  description={
+                    <div>Type DELETE to confirm. This cannot be undone.</div>
+                  }
+                  confirmText="Delete"
+                  requireText="DELETE"
+                  onConfirm={() => {
+                    const form = document.getElementById(
+                      'delete-group-form',
+                    ) as HTMLFormElement;
+                    form?.requestSubmit();
+                  }}
+                >
+                  <Button variant="destructive">
+                    <Icon name="trash" className="mr-2" /> Delete Group
+                  </Button>
+                </ConfirmDialog>
+              </div>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {canLeave ? (
@@ -721,16 +664,21 @@ const GroupSettingsRoute = () => {
   );
 };
 export default GroupSettingsRoute;
-const SettingsForm = ({
+const SettingsCard = ({
   giftGroup,
   lastResult,
 }: {
   giftGroup: any;
   lastResult: any;
 }) => {
+  const fetcher = useFetcher<typeof action>();
+  const [editing, setEditing] = React.useState(false);
+  const stopEditing = React.useCallback(() => setEditing(false), []);
   const [form] = useForm<z.input<typeof UpdateSettingsSchema>>({
     id: 'settings-form',
-    lastResult: lastResult as unknown as SubmissionResult<string[]>,
+    lastResult: (fetcher.data ?? lastResult) as unknown as SubmissionResult<
+      string[]
+    >,
     constraint: getZodConstraint(UpdateSettingsSchema),
     onValidate({ formData }) {
       return parseWithZod(formData, {
@@ -743,44 +691,73 @@ const SettingsForm = ({
       budgetVisibility: giftGroup.budgetVisibility,
     },
   });
+  useExitOnSubmitSuccess({
+    state: fetcher.state,
+    success: form.status === 'success',
+    onExit: stopEditing,
+  });
   return (
-    <Form method="post" {...getFormProps(form)} className="grid gap-3">
-      <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-      {/* keep budget visibility using hidden to satisfy schema */}
-      <input
-        type="hidden"
-        name="budgetVisibility"
-        value={giftGroup.budgetVisibility}
-      />
-      <Label htmlFor="name">Group Name</Label>
-      <Input name="name" defaultValue={giftGroup.name} />
-      <Label htmlFor="description">Description</Label>
-      <Textarea name="description" defaultValue={giftGroup.description ?? ''} />
-      <div className="flex items-center justify-end">
-        <Button
-          name="intent"
-          value={SettingsIntent.UpdateSettings}
-          type="submit"
-        >
-          Save
-        </Button>
-      </div>
-      <ErrorList errors={form.errors} id={form.errorId} />
-    </Form>
+    <EditableSection
+      title="Group settings"
+      description="Name and description for this group."
+      editing={editing}
+      onEdit={() => setEditing(true)}
+      read={
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <ReadField label="Name" value={giftGroup.name} />
+          <ReadField
+            label="Description"
+            value={giftGroup.description || 'No description'}
+            className="sm:col-span-2"
+          />
+        </div>
+      }
+    >
+      <fetcher.Form
+        method="post"
+        {...getFormProps(form)}
+        className="grid gap-3"
+      >
+        <input type="hidden" name="giftGroupId" value={giftGroup.id} />
+        {/* keep budget visibility using hidden to satisfy schema */}
+        <input
+          type="hidden"
+          name="budgetVisibility"
+          value={giftGroup.budgetVisibility}
+        />
+        <Label htmlFor="name">Group name</Label>
+        <Input id="name" name="name" defaultValue={giftGroup.name} />
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          name="description"
+          defaultValue={giftGroup.description ?? ''}
+        />
+        <div className="flex items-center justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={stopEditing}>
+            Cancel
+          </Button>
+          <Button
+            name="intent"
+            value={SettingsIntent.UpdateSettings}
+            type="submit"
+          >
+            Save
+          </Button>
+        </div>
+        <ErrorList errors={form.errors} id={form.errorId} />
+      </fetcher.Form>
+    </EditableSection>
   );
 };
 const MemberActions = ({
   giftGroupId,
   memberUserId,
-  bannedUntil,
   canRemove,
-  canBan,
 }: {
   giftGroupId: string;
   memberUserId: string;
-  bannedUntil: string | null;
   canRemove: boolean;
-  canBan: boolean;
 }) => {
   const fetcher = useFetcher<typeof action>();
   const settingsAction = `/groups/${giftGroupId}/settings`;
@@ -799,44 +776,10 @@ const MemberActions = ({
           </Button>
         </fetcher.Form>
       )}
-      {canBan && (
-        <fetcher.Form method="post" action={settingsAction}>
-          <input type="hidden" name="giftGroupId" value={giftGroupId} />
-          <input type="hidden" name="memberUserId" value={memberUserId} />
-          {bannedUntil ? (
-            <Button
-              name="intent"
-              value={SettingsIntent.MemberBan}
-              variant="secondary"
-            >
-              Unban
-            </Button>
-          ) : (
-            <>
-              <input
-                type="hidden"
-                name="until"
-                value={new Date(
-                  Date.now() + 1000 * 60 * 60 * 24 * 7,
-                ).toISOString()}
-              />
-              <Button
-                name="intent"
-                value={SettingsIntent.MemberBan}
-                variant="secondary"
-              >
-                Ban 7 days
-              </Button>
-            </>
-          )}
-        </fetcher.Form>
-      )}
     </div>
   );
 };
 const RemindersSection = ({ giftGroup }: { giftGroup: any }) => {
-  const [emailOn, setEmailOn] = React.useState<boolean>(true);
-  const [pushOn, setPushOn] = React.useState<boolean>(false);
   return (
     <div className="space-y-4">
       <div>
@@ -877,58 +820,6 @@ const RemindersSection = ({ giftGroup }: { giftGroup: any }) => {
           day thresholds
         </div>
       </div>
-      <div className="grid gap-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="font-medium">Email Reminders</div>
-            <div className="text-sm text-muted-foreground">
-              Send email notifications for upcoming birthdays
-            </div>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={emailOn}
-            onClick={() => setEmailOn((v) => !v)}
-            className={cn(
-              'h-6 w-11 rounded-full p-0.5 transition-colors',
-              emailOn ? 'bg-primary' : 'bg-muted',
-            )}
-          >
-            <span
-              className={cn(
-                'block h-5 w-5 rounded-full bg-background transition-transform',
-                emailOn ? 'translate-x-5' : 'translate-x-0',
-              )}
-            />
-          </button>
-        </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="font-medium">Push Notifications</div>
-            <div className="text-sm text-muted-foreground">
-              Send push notifications for upcoming birthdays
-            </div>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={pushOn}
-            onClick={() => setPushOn((v) => !v)}
-            className={cn(
-              'h-6 w-11 rounded-full p-0.5 transition-colors',
-              pushOn ? 'bg-primary' : 'bg-muted',
-            )}
-          >
-            <span
-              className={cn(
-                'block h-5 w-5 rounded-full bg-background transition-transform',
-                pushOn ? 'translate-x-5' : 'translate-x-0',
-              )}
-            />
-          </button>
-        </div>
-      </div>
       <ul className="space-y-1">
         {giftGroup.reminders.map((r: any) => (
           <li
@@ -957,74 +848,138 @@ const RemindersSection = ({ giftGroup }: { giftGroup: any }) => {
 
 // GiftPlansSection removed (unused)
 
-const MemberPreferencesForm = ({
+const BUDGET_VISIBILITY_LABELS: Record<string, string> = {
+  INHERIT: 'Inherit group setting',
+  EVERYONE: 'Everyone',
+  ADMINS: 'Admins',
+  ONLY_SELF: 'Only self',
+};
+
+// Every member can see and edit their own preferences here, regardless of role
+// (P7.5). Contribution stays on the group Overview's dollar editor; this card
+// owns budget visibility + what you share with the group.
+const MemberPreferencesCard = ({
   giftGroupId,
   prefs,
 }: {
   giftGroupId: string;
   prefs: any;
 }) => {
-  const [form] = useForm({
-    id: 'member-prefs',
-    defaultValue: {
-      contributionCents: String(prefs?.contributionCents ?? 0),
-      budgetVisibilityOverride: prefs?.budgetVisibilityOverride ?? 'INHERIT',
-      shareWishlist: prefs?.shareWishlist ? 'on' : '',
-      shareBirthday: prefs?.shareBirthday ? 'on' : '',
-    },
+  const fetcher = useFetcher<typeof action>();
+  const [editing, setEditing] = React.useState(false);
+  const stopEditing = React.useCallback(() => setEditing(false), []);
+  const currentVisibility = prefs?.budgetVisibilityOverride ?? 'INHERIT';
+  const [shareWishlist, setShareWishlist] = React.useState(
+    !!prefs?.shareWishlist,
+  );
+  const [shareBirthday, setShareBirthday] = React.useState(
+    !!prefs?.shareBirthday,
+  );
+
+  const startEditing = () => {
+    // Reset drafts to stored values each time we open the editor.
+    setShareWishlist(!!prefs?.shareWishlist);
+    setShareBirthday(!!prefs?.shareBirthday);
+    setEditing(true);
+  };
+
+  const saved = Boolean((fetcher.data as { ok?: boolean } | undefined)?.ok);
+  useExitOnSubmitSuccess({
+    state: fetcher.state,
+    success: saved,
+    onExit: stopEditing,
   });
+
   return (
-    <Form
-      method="post"
-      {...getFormProps(form)}
-      className="grid gap-2 rounded-md border p-3"
+    <EditableSection
+      title="Your preferences"
+      description="Your budget visibility and sharing settings for this group."
+      editing={editing}
+      onEdit={startEditing}
+      read={
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <ReadField
+            label="Budget visibility"
+            value={
+              BUDGET_VISIBILITY_LABELS[currentVisibility] ??
+              'Inherit group setting'
+            }
+          />
+          <ReadField
+            label="Share wishlist"
+            value={prefs?.shareWishlist ? 'Shared with group' : 'Hidden'}
+          />
+          <ReadField
+            label="Share birthday"
+            value={prefs?.shareBirthday ? 'Shared with group' : 'Hidden'}
+          />
+        </div>
+      }
     >
-      <input type="hidden" name="giftGroupId" value={giftGroupId} />
-      <input
-        type="hidden"
-        name="intent"
-        value={SettingsIntent.MemberUpdateSelf}
-      />
-      <Label>Contribution (USD cents)</Label>
-      <Input
-        name="contributionCents"
-        defaultValue={String(prefs?.contributionCents ?? 0)}
-      />
-      <Label>Budget visibility override</Label>
-      <Select
-        name="budgetVisibilityOverride"
-        defaultValue={prefs?.budgetVisibilityOverride ?? 'INHERIT'}
+      <fetcher.Form
+        method="post"
+        action={`/groups/${giftGroupId}/settings`}
+        className="grid gap-3"
       >
-        <SelectTrigger>
-          <SelectValue placeholder="Inherit group setting" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="INHERIT">Inherit group setting</SelectItem>
-          <SelectItem value="EVERYONE">Everyone</SelectItem>
-          <SelectItem value="ADMINS">Admins</SelectItem>
-          <SelectItem value="ONLY_SELF">Only self</SelectItem>
-        </SelectContent>
-      </Select>
-      <div className="flex items-center gap-2">
+        <input type="hidden" name="giftGroupId" value={giftGroupId} />
         <input
-          type="checkbox"
-          id="prefs-share-wishlist"
+          type="hidden"
+          name="intent"
+          value={SettingsIntent.MemberUpdateSelf}
+        />
+        {/* Controlled hidden inputs so unchecking persists `false` (the old
+            checkbox-only form could never turn sharing off). */}
+        <input
+          type="hidden"
           name="shareWishlist"
-          defaultChecked={!!prefs?.shareWishlist}
+          value={shareWishlist ? 'true' : 'false'}
         />
-        <Label htmlFor="prefs-share-wishlist">Share wishlist</Label>
-      </div>
-      <div className="flex items-center gap-2">
         <input
-          type="checkbox"
-          id="prefs-share-birthday"
+          type="hidden"
           name="shareBirthday"
-          defaultChecked={!!prefs?.shareBirthday}
+          value={shareBirthday ? 'true' : 'false'}
         />
-        <Label htmlFor="prefs-share-birthday">Share birthday</Label>
-      </div>
-      <Button type="submit">Save Preferences</Button>
-    </Form>
+        <div className="grid gap-1.5">
+          <Label htmlFor="budgetVisibilityOverride">Budget visibility</Label>
+          <Select
+            name="budgetVisibilityOverride"
+            defaultValue={currentVisibility}
+          >
+            <SelectTrigger id="budgetVisibilityOverride">
+              <SelectValue placeholder="Inherit group setting" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="INHERIT">Inherit group setting</SelectItem>
+              <SelectItem value="EVERYONE">Everyone</SelectItem>
+              <SelectItem value="ADMINS">Admins</SelectItem>
+              <SelectItem value="ONLY_SELF">Only self</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={shareWishlist}
+            onChange={(e) => setShareWishlist(e.currentTarget.checked)}
+          />
+          Share my wishlist with this group
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={shareBirthday}
+            onChange={(e) => setShareBirthday(e.currentTarget.checked)}
+          />
+          Share my birthday with this group
+        </label>
+        <div className="flex items-center justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={stopEditing}>
+            Cancel
+          </Button>
+          <Button type="submit">Save</Button>
+        </div>
+      </fetcher.Form>
+    </EditableSection>
   );
 };
 const TransferOwnershipForm = ({

@@ -14,6 +14,7 @@ const useHints = vi.fn();
 const usePwaInstallPrompt = vi.fn();
 const useToast = vi.fn();
 const setPrefetchCacheScope = vi.fn();
+const trackClientEnvironmentOncePerDay = vi.fn();
 
 vi.mock('react-router', async () => {
   const actual = await vi.importActual('react-router');
@@ -33,7 +34,9 @@ vi.mock('react-router', async () => {
 });
 
 vi.mock('remix-utils/honeypot/react', () => ({
-  HoneypotProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  HoneypotProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 vi.mock('sonner', () => ({
@@ -103,7 +106,8 @@ vi.mock('./components/wishlist/wishlist-route-skeleton.tsx', () => ({
 }));
 
 vi.mock('./hooks/use-pwa-install-prompt.ts', () => ({
-  usePwaInstallPrompt: (...args: Array<unknown>) => usePwaInstallPrompt(...args),
+  usePwaInstallPrompt: (...args: Array<unknown>) =>
+    usePwaInstallPrompt(...args),
 }));
 
 vi.mock('./utils/auth.server.ts', () => ({
@@ -122,6 +126,11 @@ vi.mock('./utils/client-hints.tsx', () => ({
   useHints: () => useHints(),
 }));
 
+vi.mock('./utils/client-environment.ts', () => ({
+  trackClientEnvironmentOncePerDay: (...args: Array<unknown>) =>
+    trackClientEnvironmentOncePerDay(...args),
+}));
+
 vi.mock('./utils/db.server.ts', () => ({
   prisma: {
     user: {
@@ -135,7 +144,9 @@ vi.mock('./utils/honeypot.server.ts', () => ({
 }));
 
 vi.mock('./utils/i18n.tsx', () => ({
-  I18nProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  I18nProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   getLocaleFromRequest: vi.fn(),
 }));
 
@@ -149,7 +160,8 @@ vi.mock('./utils/nonce-provider.ts', () => ({
 }));
 
 vi.mock('./utils/prefetch-cache.client.ts', () => ({
-  setPrefetchCacheScope: (...args: Array<unknown>) => setPrefetchCacheScope(...args),
+  setPrefetchCacheScope: (...args: Array<unknown>) =>
+    setPrefetchCacheScope(...args),
 }));
 
 vi.mock('./utils/request-context.server.ts', () => ({
@@ -217,6 +229,7 @@ beforeEach(() => {
   });
   useToast.mockReset();
   setPrefetchCacheScope.mockReset();
+  trackClientEnvironmentOncePerDay.mockReset();
 });
 
 describe('app/root.tsx', () => {

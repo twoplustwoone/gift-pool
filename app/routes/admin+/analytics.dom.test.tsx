@@ -98,6 +98,41 @@ const loaderDataSnapshot = {
     perDay: [{ day: '2026-03-13', clicks: 11, tagged: 7 }],
   },
   smartLinks: { proposed: 5, fromWishlist: 2, withPrice: 4 },
+  environment: {
+    totalObservations: 4,
+    uniqueVisitors: 3,
+    standaloneObservations: 1,
+    browserObservations: 3,
+    standalonePercent: 25,
+    browsers: [
+      { label: 'Chrome 120', count: 3, percent: 75 },
+      { label: 'Safari 17', count: 1, percent: 25 },
+    ],
+    operatingSystems: [
+      { label: 'macOS', count: 2, percent: 50 },
+      { label: 'iOS', count: 2, percent: 50 },
+    ],
+    deviceTypes: [
+      { label: 'desktop', count: 2, percent: 50 },
+      { label: 'mobile', count: 2, percent: 50 },
+    ],
+    viewportBuckets: [
+      { label: 'desktop', count: 2, percent: 50 },
+      { label: 'mobile', count: 2, percent: 50 },
+    ],
+    displayModes: [
+      { label: 'browser', count: 3, percent: 75 },
+      { label: 'standalone', count: 1, percent: 25 },
+    ],
+    pwaFunnel: [
+      { label: 'Prompt available', count: 2, percent: 0 },
+      { label: 'Install clicked', count: 1, percent: 0 },
+      { label: 'Install accepted', count: 1, percent: 0 },
+      { label: 'Install dismissed', count: 0, percent: 0 },
+      { label: 'App installed', count: 1, percent: 0 },
+      { label: 'Standalone launches', count: 1, percent: 0 },
+    ],
+  },
 };
 
 vi.mock('react-router', async () => {
@@ -114,6 +149,7 @@ vi.mock('#app/utils/permissions.server.ts', () => ({
 
 vi.mock('#app/utils/analytics.server.ts', () => ({
   getAnalyticsCounts: vi.fn(),
+  getEnvironmentAnalytics: vi.fn(),
 }));
 
 vi.mock('#app/utils/admin.server.ts', () => ({
@@ -142,6 +178,10 @@ describe('admin analytics page', () => {
     expect(
       screen.getByRole('heading', { name: 'Analytics' }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open explorer' })).toHaveAttribute(
+      'href',
+      '/admin/analytics/explorer',
+    );
   });
 
   it('renders DAU/WAU/MAU summary cards', () => {
@@ -214,6 +254,20 @@ describe('admin analytics page', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('friend request received')).toBeInTheDocument();
     expect(screen.getByText('upcoming birthday')).toBeInTheDocument();
+  });
+
+  it('renders the environment analytics section', () => {
+    renderAnalytics();
+    expect(
+      screen.getByRole('heading', { name: 'Environment' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Environment snapshots')).toBeInTheDocument();
+    expect(screen.getByText('Chrome 120')).toBeInTheDocument();
+    expect(screen.getByText('Safari 17')).toBeInTheDocument();
+    expect(screen.getByText('Prompt available')).toBeInTheDocument();
+    expect(screen.getAllByText('Standalone launches').length).toBeGreaterThan(
+      0,
+    );
   });
 
   it('renders the link enrichment & affiliate section', () => {
