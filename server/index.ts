@@ -11,7 +11,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { RouterContextProvider, type ServerBuild } from 'react-router';
 import { getCanonicalRedirectTarget } from './redirects.js';
-import { cspNonceContext, serverBuildContext } from './react-router-context.ts';
+import { cspNonceContext, serverBuildContext } from './react-router-context.js';
 
 const MODE = process.env.NODE_ENV ?? 'development';
 const IS_PROD = MODE === 'production';
