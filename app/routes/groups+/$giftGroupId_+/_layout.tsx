@@ -26,7 +26,14 @@ const GroupLayout = () => {
     location.pathname === `/groups/${giftGroup.id}/settings`;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    // min-w-0: this is a grid item in the app shell; without it the default
+    // `min-width: auto` keeps the whole group view from shrinking below its
+    // content's intrinsic width, overflowing the track (sideways scroll on
+    // mobile). Applies to every group tab since they all render inside here.
+    <div
+      className="flex h-full min-h-0 min-w-0 flex-col"
+      data-testid="group-shell"
+    >
       {isSettings ? (
         <PageHeader
           variant="detail"
