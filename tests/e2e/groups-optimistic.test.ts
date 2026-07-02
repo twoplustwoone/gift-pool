@@ -255,6 +255,64 @@ test('group tabs stay within the mobile viewport (no sideways scroll)', async ({
   }
 });
 
+test('mobile overview: header invite (owner only) + cap strip, no overflow', async ({
+  page,
+  login,
+}) => {
+  const { groupId, owner, member } = await createGroupWithOwnerAndMember({
+    // A long name stresses the tightest 320px header row (back arrow, group
+    // icon, name, member count, avatars, role badge, invite icon, gear).
+    ownerUser: { name: 'Maximiliano Featherstonehaugh' },
+  });
+
+  try {
+    // ── Owner: the icon-only Invite appears in the header on mobile ──────────
+    await login({ id: owner.id });
+    for (const width of [320, 375, 430]) {
+      await page.setViewportSize({ width, height: 812 });
+      await page.goto(`/groups/${groupId}`);
+      await page.waitForLoadState('networkidle');
+
+      await expect(
+        page.getByRole('button', { name: 'Invite to group' }),
+      ).toBeVisible();
+      // Cap strip is shown; the desktop "Group info" card is present in the DOM
+      // (hidden lg:block) but not visible on mobile.
+      await expect(page.getByTestId('mobile-cap-strip')).toBeVisible();
+      await expect(page.getByText('Group info')).toBeHidden();
+
+      await assertShellWithinViewport(page);
+      await assertNoHorizontalOverflow(page);
+    }
+
+    // ── Member: the invite control is not rendered at all ───────────────────
+    await login({ id: member.id });
+    await page.setViewportSize({ width: 320, height: 812 });
+    await page.goto(`/groups/${groupId}`);
+    await page.waitForLoadState('networkidle');
+    await expect(
+      page.getByRole('button', { name: 'Invite to group' }),
+    ).toHaveCount(0);
+
+    // ── Desktop owner: header invite is hidden; Group info rail is intact ────
+    await login({ id: owner.id });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`/groups/${groupId}`);
+    await page.waitForLoadState('networkidle');
+    // lg:hidden — present in DOM but not visible at desktop width.
+    await expect(
+      page.getByRole('button', { name: 'Invite to group' }),
+    ).toBeHidden();
+    await expect(page.getByTestId('mobile-cap-strip')).toBeHidden();
+    await expect(page.getByText('Group info')).toBeVisible();
+  } finally {
+    await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => {});
+    await prisma.user
+      .deleteMany({ where: { id: { in: [owner.id, member.id] } } })
+      .catch(() => {});
+  }
+});
+
 test('members page shows optimistic role change before promote request resolves', async ({
   page,
   login,

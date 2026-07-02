@@ -7,6 +7,7 @@ import {
   useLocation,
 } from 'react-router';
 import { GroupAvatarCluster } from '#app/components/groups/group-avatar-cluster.tsx';
+import { GroupInviteButton } from '#app/components/groups/group-invite-button.tsx';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { PageHeader } from '#app/components/page-header.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
@@ -18,7 +19,8 @@ import { type loader as routeLoader } from './__route.server';
 export { loader, action } from './__route.server';
 
 const GroupLayout = () => {
-  const { giftGroup, viewer } = useLoaderData<typeof routeLoader>();
+  const { giftGroup, viewer, canInvite, inviteLink } =
+    useLoaderData<typeof routeLoader>();
   const location = useLocation();
   // Settings is a distinct sub-page, not a tab: it gets its own header with a
   // back affordance to the group, and never shows the Overview/Members tab bar.
@@ -56,6 +58,17 @@ const GroupLayout = () => {
               viewerId={viewer.userId}
             />
             <RoleBadge role={viewer.role as GroupRole} />
+            {/* Invite — mobile only (desktop keeps it in the Group info rail
+                card). Rendered only for users who can invite; permission is also
+                enforced server-side in the create-invite-link action. */}
+            {canInvite ? (
+              <div className="lg:hidden">
+                <GroupInviteButton
+                  giftGroupId={giftGroup.id}
+                  inviteLink={inviteLink}
+                />
+              </div>
+            ) : null}
             {/* Settings is reachable by every member — it's where your own
                 group preferences live, not just admin controls (P7.5). */}
             <Link

@@ -469,6 +469,19 @@ const GroupSettingsRoute = () => {
         />
       ) : null}
 
+      {/* Group description — read-only for regular members. Managers edit it in
+          the SettingsCard below, so this only renders for non-managers. The
+          description no longer appears on the mobile Overview, so this keeps it
+          visible to everyone. */}
+      {!canManageSettings && giftGroup.description ? (
+        <div className="rounded-2xl border bg-card p-4 sm:p-6">
+          <div className="mb-1 text-lg font-semibold">About this group</div>
+          <p className="whitespace-pre-line break-words text-sm text-muted-foreground">
+            {giftGroup.description}
+          </p>
+        </div>
+      ) : null}
+
       {/* Admin controls — a separate surface, only for managers */}
       {canManageSettings ? (
         <>
