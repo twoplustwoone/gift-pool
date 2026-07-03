@@ -36,7 +36,11 @@ import {
   declineOccasion,
   getOccasionYear,
   getPersonSurfaceAccess,
+  loadOpenPoolsForRecipient,
+  loadPersonIdeation,
+  loadPersonWishlistSource,
   PERSON_SURFACE_OCCASION_TYPE,
+  proposeToPool,
   recordPoolOutcome,
   recordWishlistPurchaseOutcome,
   requirePersonSurfaceUnlock,
@@ -156,9 +160,6 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     id: g.id,
     name: g.name,
   }));
-  const wishlistPreview = canViewWishlist
-    ? profileData.wishlistPreview
-    : { items: [], totalCount: 0 };
 
   // ── Temporal state (spec §4) ──
   const upcoming = birthdayVisible ? getUpcomingBirthday(user.birthday) : null;
@@ -206,6 +207,24 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     budgetCents: circleBudgetCents(g, user.id),
   }));
 
+  // Budget line: the highest recipient-excluded circle ceiling, if any is > 0.
+  // Suppressed at 0 (earned-not-scaffolded — never "~$0").
+  const topBudget = [...organizeGroups]
+    .filter((g) => g.budgetCents > 0)
+    .sort((a, b) => b.budgetCents - a.budgetCents)[0];
+  const budgetLine = topBudget
+    ? { groupName: topBudget.name, cents: topBudget.budgetCents }
+    : null;
+
+  // ── Ideation block (circle-keyed reads, §7) ──
+  const [ideation, wishlistSource, openPools] = await Promise.all([
+    loadPersonIdeation(userId, user.id),
+    canViewWishlist
+      ? loadPersonWishlistSource(userId, user.id)
+      : Promise.resolve([]),
+    loadOpenPoolsForRecipient(userId, user.id),
+  ]);
+
   return {
     unlocked: true,
     user,
@@ -216,11 +235,14 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     canViewWishlist,
     mutualGroups,
     mutualFriends,
-    wishlistPreview,
     temporalState,
     occasion,
     declined,
     organizeGroups,
+    budgetLine,
+    wishlistSource,
+    ideation,
+    openPools,
   } as const;
 }
 
@@ -233,6 +255,7 @@ enum PersonIntent {
   UndoDecline = 'undo-decline',
   SoloCommit = 'solo-commit',
   RecordOutcome = 'record-outcome',
+  ProposeToPool = 'propose-to-pool',
 }
 
 const OptionalDollarAmountSchema = z.preprocess(
@@ -275,6 +298,16 @@ const RecordOutcomeSchema = z
     message: 'Missing target for outcome.',
   });
 
+const ProposeToPoolSchema = z.object({
+  intent: z.literal(PersonIntent.ProposeToPool),
+  poolId: z.string(),
+  name: z.string().min(1).max(200),
+  wishlistItemId: z.string().optional(),
+  giftListItemId: z.string().optional(),
+  url: z.string().optional(),
+  priceCents: OptionalDollarAmountSchema,
+});
+
 const PersonActionSchema = z.union([
   SaveIdeaSchema,
   AddNoteSchema,
@@ -282,6 +315,7 @@ const PersonActionSchema = z.union([
   UndoDeclineSchema,
   SoloCommitSchema,
   RecordOutcomeSchema,
+  ProposeToPoolSchema,
 ]);
 
 export async function action({ params, request }: ActionFunctionArgs) {
@@ -390,6 +424,21 @@ export async function action({ params, request }: ActionFunctionArgs) {
       }
       return data(submission.reply());
     }
+    case PersonIntent.ProposeToPool: {
+      await requirePersonSurfaceUnlock(userId, target.id);
+      await proposeToPool({
+        userId,
+        poolId: v.poolId,
+        targetUserId: target.id,
+        name: v.name,
+        wishlistItemId: v.wishlistItemId || null,
+        giftListItemId: v.giftListItemId || null,
+        url: v.url || null,
+        priceCents: v.priceCents ?? null,
+        requestId,
+      });
+      return data(submission.reply());
+    }
     default: {
       return data(submission.reply(), { status: 400 });
     }
@@ -424,11 +473,14 @@ const ProfileRoute = () => {
       canViewWishlist={data.canViewWishlist}
       mutualGroups={data.mutualGroups}
       mutualFriends={data.mutualFriends}
-      wishlistPreview={data.wishlistPreview}
       temporalState={data.temporalState}
       occasion={data.occasion}
       declined={data.declined}
       organizeGroups={data.organizeGroups}
+      budgetLine={data.budgetLine}
+      wishlistSource={data.wishlistSource}
+      ideation={data.ideation}
+      openPools={data.openPools}
     />
   );
 };

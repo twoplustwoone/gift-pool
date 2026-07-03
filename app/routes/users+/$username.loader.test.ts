@@ -137,7 +137,8 @@ test('friends can view the full profile details', async () => {
   expect(data.relationship.state).toBe('FRIENDS');
   expect(data).toHaveProperty('mutualGroups');
   expect(data).toHaveProperty('mutualFriends');
-  expect(data).toHaveProperty('wishlistPreview');
+  expect(data).toHaveProperty('ideation');
+  expect(data).toHaveProperty('wishlistSource');
 });
 
 test('viewing your own profile redirects to /me', async () => {

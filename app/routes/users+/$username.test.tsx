@@ -50,7 +50,15 @@ const baseUser = {
 const emptyBody = {
   mutualGroups: [],
   mutualFriends: [],
-  wishlistPreview: { items: [], totalCount: 0 },
+  budgetLine: null,
+  wishlistSource: [],
+  ideation: {
+    giftHistory: [],
+    proposedUnused: [],
+    notes: [],
+    savedIdeas: [],
+  },
+  openPools: [],
 };
 
 const unlockedBase = {

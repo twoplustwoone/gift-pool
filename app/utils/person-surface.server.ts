@@ -3,7 +3,8 @@ import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { getUpcomingBirthday } from '#app/utils/birthday.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getRelationshipDetails } from '#app/utils/friends.server.ts';
-import { createPool } from '#app/utils/pool.server.ts';
+import { POOL_STATUS } from '#app/utils/pool-constants.ts';
+import { createPool, proposeIdea } from '#app/utils/pool.server.ts';
 
 // The person surface is circle-private memory keyed to a viewer↔target pair.
 // This module owns the access gate, the write paths (Commit 1), and the
@@ -333,6 +334,219 @@ export async function recordWishlistPurchaseOutcome(input: {
     requestId: input.requestId,
     properties: { kind: 'wishlist', wishlistItemId, feedback },
   });
+}
+
+// ─── Ideation reads (Commit 4 — circle-keyed) ────────────────────────────────
+
+export type PersonIdeation = {
+  giftHistory: Array<{
+    id: string;
+    name: string;
+    year: number;
+    contributorCount: number;
+    priceCents: number | null;
+  }>;
+  proposedUnused: Array<{ id: string; name: string; year: number }>;
+  notes: Array<{ id: string; body: string }>;
+  savedIdeas: Array<{
+    id: string;
+    name: string;
+    url: string | null;
+    priceCents: number | null;
+    currency: string | null;
+  }>;
+};
+
+// Gift history + proposed-but-unused are visible only to a viewer who was in
+// the circle the memory came from (a contributor of the pool). Gift history is
+// PAST occasions only — the active cycle's pool must never show as "given" the
+// moment an idea is chosen: guard on eventDate < now, or (undated) a terminal
+// PURCHASED/DELIVERED status. Notes + saved ideas are private to the viewer.
+export async function loadPersonIdeation(
+  viewerId: string,
+  targetUserId: string,
+): Promise<PersonIdeation> {
+  const now = new Date();
+  const [historyPools, notes, savedIdeas] = await Promise.all([
+    prisma.pool.findMany({
+      where: {
+        recipientUserId: targetUserId,
+        chosenIdeaId: { not: null },
+        contributors: { some: { userId: viewerId } },
+        OR: [
+          { eventDate: { lt: now } },
+          {
+            eventDate: null,
+            status: { in: [POOL_STATUS.PURCHASED, POOL_STATUS.DELIVERED] },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        eventDate: true,
+        createdAt: true,
+        finalPriceCents: true,
+        chosenIdeaId: true,
+        chosenIdea: { select: { name: true } },
+        _count: { select: { contributors: true } },
+        ideas: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.personNote.findMany({
+      where: { authorId: viewerId, subjectUserId: targetUserId },
+      select: { id: true, body: true },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.giftListItem.findMany({
+      where: { ownerId: viewerId, targetUserId },
+      select: {
+        id: true,
+        name: true,
+        url: true,
+        priceCents: true,
+        currency: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  const giftHistory = historyPools.map((p) => ({
+    id: p.id,
+    name: p.chosenIdea?.name ?? 'Gift',
+    year: (p.eventDate ?? p.createdAt).getFullYear(),
+    contributorCount: p._count.contributors,
+    priceCents: p.finalPriceCents,
+  }));
+
+  const proposedUnused = historyPools.flatMap((p) =>
+    p.ideas
+      .filter((i) => i.id !== p.chosenIdeaId)
+      .map((i) => ({
+        id: i.id,
+        name: i.name,
+        year: (p.eventDate ?? p.createdAt).getFullYear(),
+      })),
+  );
+
+  return { giftHistory, proposedUnused, notes, savedIdeas };
+}
+
+export type PersonWishlistItem = {
+  id: string;
+  title: string;
+  url: string | null;
+  priceCents: number | null;
+  currency: string | null;
+  claimed: boolean;
+  claimedByViewer: boolean;
+};
+
+// The target's active wishlist as a gift source. Claim identity is never
+// exposed — only whether the item is claimed, and whether the VIEWER is the
+// claimer (for the self "I'm getting this" toggle).
+export async function loadPersonWishlistSource(
+  viewerId: string,
+  targetUserId: string,
+): Promise<PersonWishlistItem[]> {
+  const items = await prisma.wishlistItem.findMany({
+    where: { ownerId: targetUserId, status: 'ACTIVE' },
+    select: {
+      id: true,
+      title: true,
+      url: true,
+      priceCents: true,
+      currency: true,
+      purchase: { select: { purchasedById: true } },
+    },
+    orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
+  });
+  return items.map((i) => ({
+    id: i.id,
+    title: i.title,
+    url: i.url,
+    priceCents: i.priceCents,
+    currency: i.currency,
+    claimed: i.purchase != null,
+    claimedByViewer: i.purchase?.purchasedById === viewerId,
+  }));
+}
+
+// Open pools for this recipient that the viewer is a contributor of — the
+// "Propose to pool" resolver. 0 → route into Organize; 1 → propose directly;
+// 2+ → picker. Never dead-ends.
+export async function loadOpenPoolsForRecipient(
+  viewerId: string,
+  targetUserId: string,
+): Promise<Array<{ id: string; title: string }>> {
+  return prisma.pool.findMany({
+    where: {
+      recipientUserId: targetUserId,
+      status: POOL_STATUS.OPEN,
+      contributors: { some: { userId: viewerId } },
+    },
+    select: { id: true, title: true },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+// Propose an idea (from the wishlist or a saved GiftListItem) into an existing
+// open pool. Authorized: the pool must be OPEN, for this recipient, and the
+// viewer must be a contributor. Promoting a saved idea links it (giftListItemId)
+// rather than copying.
+export async function proposeToPool(input: {
+  userId: string;
+  poolId: string;
+  targetUserId: string;
+  name: string;
+  wishlistItemId?: string | null;
+  giftListItemId?: string | null;
+  url?: string | null;
+  priceCents?: number | null;
+  requestId?: string | null;
+}) {
+  const { userId, poolId, targetUserId, name } = input;
+  const pool = await prisma.pool.findUnique({
+    where: { id: poolId },
+    select: {
+      id: true,
+      status: true,
+      recipientUserId: true,
+      contributors: { where: { userId }, select: { userId: true } },
+    },
+  });
+  if (
+    !pool ||
+    pool.status !== POOL_STATUS.OPEN ||
+    pool.recipientUserId !== targetUserId ||
+    pool.contributors.length === 0
+  ) {
+    throw data({ error: 'Pool not found.' }, { status: 404 });
+  }
+
+  const idea = await proposeIdea({
+    poolId,
+    proposedById: userId,
+    name,
+    url: input.url ?? null,
+    estimatedPriceCents: input.priceCents ?? null,
+    wishlistItemId: input.wishlistItemId ?? null,
+    giftListItemId: input.giftListItemId ?? null,
+  });
+
+  queueLogEvent({
+    name: input.giftListItemId ? 'saved_idea_promoted' : 'pool_idea_proposed',
+    userId,
+    source: 'server',
+    requestId: input.requestId,
+    properties: {
+      poolId,
+      ideaId: idea.id,
+      fromWishlist: input.wishlistItemId != null,
+      fromSavedIdea: input.giftListItemId != null,
+    },
+  });
+  return idea;
 }
 
 export type { WriteContext };

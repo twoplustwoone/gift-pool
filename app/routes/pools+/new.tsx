@@ -143,6 +143,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const groupId = url.searchParams.get('groupId');
   const recipientId = url.searchParams.get('recipientId');
 
+  // Optional idea title prefill — the person surface's "Propose to pool" with
+  // no open pool routes here carrying the idea so it seeds the new pool.
+  const titlePrefill = url.searchParams.get('title') ?? '';
+
   if (!groupId || !recipientId) {
     const candidates = await fetchRecipientCandidates(userId);
     // Standalone prefill: the person surface can pass ?recipientId=<id> alone
@@ -155,6 +159,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       groupContext: null as GroupContext | null,
       candidates,
       preselectedRecipient,
+      titlePrefill,
     };
   }
 
@@ -185,6 +190,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       groupContext: null as GroupContext | null,
       candidates: [] as RecipientCandidate[],
       preselectedRecipient: null as RecipientCandidate | null,
+      titlePrefill,
     };
   }
 
@@ -194,6 +200,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       groupContext: null as GroupContext | null,
       candidates: [] as RecipientCandidate[],
       preselectedRecipient: null as RecipientCandidate | null,
+      titlePrefill,
     };
   }
 
@@ -205,6 +212,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       groupContext: null as GroupContext | null,
       candidates: [] as RecipientCandidate[],
       preselectedRecipient: null as RecipientCandidate | null,
+      titlePrefill,
     };
   }
 
@@ -233,6 +241,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     groupContext,
     candidates: [] as RecipientCandidate[],
     preselectedRecipient: null as RecipientCandidate | null,
+    titlePrefill,
   };
 }
 
@@ -426,7 +435,7 @@ export async function action({ request }: ActionFunctionArgs) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const NewPool = () => {
-  const { groupContext, candidates, preselectedRecipient } =
+  const { groupContext, candidates, preselectedRecipient, titlePrefill } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
@@ -443,6 +452,7 @@ const NewPool = () => {
       return parseWithZod(formData, { schema: CreatePoolSchema });
     },
     defaultValue: {
+      title: titlePrefill || undefined,
       occasionType: OCCASION_TYPE.BIRTHDAY,
       decisionMode: DECISION_MODE.ORGANIZER_PICKS,
     },

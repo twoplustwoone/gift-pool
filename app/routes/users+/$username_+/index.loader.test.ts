@@ -211,3 +211,122 @@ describe('person surface loader — access gate & visibility', () => {
     expect(result.birthdayVisible).toBe(true);
   });
 });
+
+async function createDecidedPool(opts: {
+  recipientId: string;
+  contributorIds: string[];
+  chosenName: string;
+  eventDate: Date | null;
+  status?: string;
+  otherIdeas?: string[];
+}) {
+  const organizerId = opts.contributorIds[0]!;
+  const pool = await prisma.pool.create({
+    data: {
+      title: opts.chosenName,
+      organizerId,
+      recipientUserId: opts.recipientId,
+      status: opts.status ?? 'DECIDED',
+      eventDate: opts.eventDate,
+      contributors: {
+        create: opts.contributorIds.map((userId) => ({ userId })),
+      },
+    },
+  });
+  const chosen = await prisma.giftIdea.create({
+    data: { poolId: pool.id, proposedById: organizerId, name: opts.chosenName },
+  });
+  for (const name of opts.otherIdeas ?? []) {
+    await prisma.giftIdea.create({
+      data: { poolId: pool.id, proposedById: organizerId, name },
+    });
+  }
+  await prisma.pool.update({
+    where: { id: pool.id },
+    data: { chosenIdeaId: chosen.id, finalPriceCents: 21000 },
+  });
+  return pool;
+}
+
+const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+
+describe('person surface loader — ideation reads (circle-keyed)', () => {
+  it('gift history is empty for a viewer who was not a contributor', async () => {
+    const viewer = await createUserRecord();
+    const target = await createUserRecord();
+    const other = await createUserRecord();
+    await makeFriends(viewer.id, target.id);
+    // Pool the viewer was NOT part of.
+    await createDecidedPool({
+      recipientId: target.id,
+      contributorIds: [other.id],
+      chosenName: 'Weber grill',
+      eventDate: daysAgo(30),
+    });
+
+    const result = (await runLoader(viewer.id, target.username)) as any;
+    expect(result.ideation.giftHistory).toEqual([]);
+    expect(result.ideation.proposedUnused).toEqual([]);
+  });
+
+  it('gift history includes a past decided pool the viewer contributed to', async () => {
+    const viewer = await createUserRecord();
+    const target = await createUserRecord();
+    await makeFriends(viewer.id, target.id);
+    await createDecidedPool({
+      recipientId: target.id,
+      contributorIds: [viewer.id],
+      chosenName: 'Weber grill',
+      eventDate: daysAgo(30),
+      otherIdeas: ['Espresso machine'],
+    });
+
+    const result = (await runLoader(viewer.id, target.username)) as any;
+    expect(result.ideation.giftHistory).toHaveLength(1);
+    expect(result.ideation.giftHistory[0].name).toBe('Weber grill');
+    // Proposed-but-unused excludes the chosen idea.
+    expect(result.ideation.proposedUnused.map((i: any) => i.name)).toEqual([
+      'Espresso machine',
+    ]);
+  });
+
+  it('excludes the active-cycle pool (future event date) from gift history', async () => {
+    const viewer = await createUserRecord();
+    const target = await createUserRecord();
+    await makeFriends(viewer.id, target.id);
+    await createDecidedPool({
+      recipientId: target.id,
+      contributorIds: [viewer.id],
+      chosenName: 'This year gift',
+      eventDate: soon(), // future → still mid-flight
+    });
+
+    const result = (await runLoader(viewer.id, target.username)) as any;
+    expect(result.ideation.giftHistory).toEqual([]);
+  });
+
+  it('notes and saved ideas are private to their author/owner', async () => {
+    const author = await createUserRecord();
+    const other = await createUserRecord();
+    const target = await createUserRecord();
+    await makeFriends(author.id, target.id);
+    await makeFriends(other.id, target.id);
+
+    await prisma.personNote.create({
+      data: { authorId: author.id, subjectUserId: target.id, body: 'secret' },
+    });
+    await prisma.giftListItem.create({
+      data: { ownerId: author.id, targetUserId: target.id, name: 'Shoes' },
+    });
+
+    // The author sees their own note + saved idea.
+    const authorResult = (await runLoader(author.id, target.username)) as any;
+    expect(authorResult.ideation.notes).toHaveLength(1);
+    expect(authorResult.ideation.savedIdeas).toHaveLength(1);
+
+    // Another viewer (also a friend of the target) sees neither.
+    const otherResult = (await runLoader(other.id, target.username)) as any;
+    expect(otherResult.ideation.notes).toEqual([]);
+    expect(otherResult.ideation.savedIdeas).toEqual([]);
+  });
+});

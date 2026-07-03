@@ -84,6 +84,7 @@ describe('app/routes/pools+/new.tsx', () => {
       groupContext: null,
       candidates: [],
       preselectedRecipient: null,
+      titlePrefill: '',
     });
     expect(requireUserId).toHaveBeenCalledWith(expect.any(Request));
   });

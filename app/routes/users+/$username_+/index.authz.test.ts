@@ -233,6 +233,73 @@ describe('person surface write authorization', () => {
     expect(await prisma.occasionDecline.count()).toBe(0);
   });
 
+  it('propose-to-pool rejects a viewer who is not a contributor of the pool', async () => {
+    const viewer = await createUserRecord();
+    const target = await createUserRecord();
+    const other = await createUserRecord();
+    await makeFriends(viewer.id, target.id);
+    // An OPEN pool the viewer is NOT part of.
+    const pool = await prisma.pool.create({
+      data: {
+        title: 'Their pool',
+        organizerId: other.id,
+        recipientUserId: target.id,
+        status: 'OPEN',
+        contributors: { create: [{ userId: other.id }] },
+      },
+    });
+    const cookie = await withSession(viewer.id);
+
+    expect(
+      await statusOf(
+        invoke(target.username, cookie, {
+          intent: 'propose-to-pool',
+          poolId: pool.id,
+          name: 'Espresso machine',
+        }),
+      ),
+    ).toBe(404);
+    expect(await prisma.giftIdea.count()).toBe(0);
+  });
+
+  it('propose-to-pool promotes a saved idea and links it (giftListItemId)', async () => {
+    const viewer = await createUserRecord();
+    const target = await createUserRecord();
+    await makeFriends(viewer.id, target.id);
+    const pool = await prisma.pool.create({
+      data: {
+        title: 'Our pool',
+        organizerId: viewer.id,
+        recipientUserId: target.id,
+        status: 'OPEN',
+        contributors: { create: [{ userId: viewer.id }] },
+      },
+    });
+    const saved = await prisma.giftListItem.create({
+      data: {
+        ownerId: viewer.id,
+        targetUserId: target.id,
+        name: 'Trail shoes',
+      },
+    });
+    const cookie = await withSession(viewer.id);
+
+    expect(
+      await statusOf(
+        invoke(target.username, cookie, {
+          intent: 'propose-to-pool',
+          poolId: pool.id,
+          name: 'Trail shoes',
+          giftListItemId: saved.id,
+        }),
+      ),
+    ).toBe(200);
+
+    const idea = await prisma.giftIdea.findFirstOrThrow();
+    expect(idea.poolId).toBe(pool.id);
+    expect(idea.giftListItemId).toBe(saved.id);
+  });
+
   it('record-outcome rejects a non-owner and accepts the pool organizer', async () => {
     const organizer = await createUserRecord();
     const target = await createUserRecord();
