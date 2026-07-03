@@ -330,3 +330,63 @@ describe('person surface loader — ideation reads (circle-keyed)', () => {
     expect(otherResult.ideation.savedIdeas).toEqual([]);
   });
 });
+
+// A birthday that fell a few days ago (within the 14-day post-occasion window).
+const daysAgoBirthday = (n: number) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - n);
+  // Store as noon UTC like real birthdays.
+  return new Date(Date.UTC(1990, d.getUTCMonth(), d.getUTCDate(), 12, 0, 0));
+};
+
+describe('person surface loader — post-occasion memory write', () => {
+  it('detects an unconfirmed pool-of-one solo intent within the window', async () => {
+    const viewer = await createUserRecord();
+    const target = await createUserRecord({ birthday: daysAgoBirthday(3) });
+    await makeFriends(viewer.id, target.id);
+    await prisma.pool.create({
+      data: {
+        title: 'Trail shoes',
+        organizerId: viewer.id,
+        recipientUserId: target.id,
+        contributors: { create: [{ userId: viewer.id }] },
+      },
+    });
+
+    const result = (await runLoader(viewer.id, target.username)) as any;
+    expect(result.temporalState).toBe('post-occasion');
+    expect(result.postOccasion.gift).toMatchObject({
+      kind: 'pool',
+      name: 'Trail shoes',
+    });
+  });
+
+  it('does not re-nag once the solo outcome is recorded/skipped', async () => {
+    const viewer = await createUserRecord();
+    const target = await createUserRecord({ birthday: daysAgoBirthday(3) });
+    await makeFriends(viewer.id, target.id);
+    await prisma.pool.create({
+      data: {
+        title: 'Trail shoes',
+        organizerId: viewer.id,
+        recipientUserId: target.id,
+        outcomeFeedback: 'SKIPPED',
+        contributors: { create: [{ userId: viewer.id }] },
+      },
+    });
+
+    const result = (await runLoader(viewer.id, target.username)) as any;
+    expect(result.temporalState).not.toBe('post-occasion');
+    expect(result.postOccasion).toBeNull();
+  });
+
+  it('does not trigger post-occasion for a viewer with no solo intent', async () => {
+    const viewer = await createUserRecord();
+    const target = await createUserRecord({ birthday: daysAgoBirthday(3) });
+    await makeFriends(viewer.id, target.id);
+
+    const result = (await runLoader(viewer.id, target.username)) as any;
+    expect(result.postOccasion).toBeNull();
+    expect(result.temporalState).toBe('cold');
+  });
+});

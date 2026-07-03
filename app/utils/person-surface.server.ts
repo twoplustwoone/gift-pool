@@ -1,10 +1,17 @@
 import { data } from 'react-router';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
-import { getUpcomingBirthday } from '#app/utils/birthday.ts';
+import {
+  formatBirthdayLabel,
+  getRecentBirthday,
+  getUpcomingBirthday,
+} from '#app/utils/birthday.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getRelationshipDetails } from '#app/utils/friends.server.ts';
 import { POOL_STATUS } from '#app/utils/pool-constants.ts';
 import { createPool, proposeIdea } from '#app/utils/pool.server.ts';
+
+// Post-occasion detection window (spec §4): 14 days after the occasion.
+export const POST_OCCASION_WINDOW_DAYS = 14;
 
 // The person surface is circle-private memory keyed to a viewer↔target pair.
 // This module owns the access gate, the write paths (Commit 1), and the
@@ -547,6 +554,102 @@ export async function proposeToPool(input: {
     },
   });
   return idea;
+}
+
+// ─── Post-occasion detection (Commit 5, spec §4) ─────────────────────────────
+
+export type PostOccasion = {
+  occasionLabel: string;
+  // The viewer's unconfirmed solo intent that needs a "did it land" answer.
+  gift: { kind: 'pool' | 'wishlist'; id: string; name: string };
+  // Set when a group pool for this recipient recorded automatically this cycle.
+  recordedGroupPoolName: string | null;
+};
+
+// Within 14 days after the occasion, only if the viewer has an unconfirmed
+// solo intent for it (pool-of-one or wishlist claim). Group pools record
+// automatically at their DECIDED transition; we only surface that note. Once a
+// solo intent is answered OR skipped (outcomeFeedback set), it's never
+// re-detected — no re-nag.
+export async function loadPostOccasion(
+  viewerId: string,
+  targetUserId: string,
+  birthday: Date | string | null | undefined,
+): Promise<PostOccasion | null> {
+  const recent = getRecentBirthday(birthday, POST_OCCASION_WINDOW_DAYS);
+  if (!recent) return null;
+
+  // Unconfirmed solo intents. Pool-of-one = organizer-solo pool (exactly one
+  // contributor) with no recorded outcome.
+  const soloPools = await prisma.pool.findMany({
+    where: {
+      organizerId: viewerId,
+      recipientUserId: targetUserId,
+      outcomeFeedback: null,
+    },
+    select: {
+      id: true,
+      title: true,
+      _count: { select: { contributors: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  const soloPool = soloPools.find((p) => p._count.contributors === 1);
+
+  let gift: PostOccasion['gift'] | null = null;
+  if (soloPool) {
+    gift = { kind: 'pool', id: soloPool.id, name: soloPool.title };
+  } else {
+    const claim = await prisma.wishlistPurchase.findFirst({
+      where: {
+        purchasedById: viewerId,
+        outcomeFeedback: null,
+        wishlistItem: { ownerId: targetUserId },
+      },
+      select: {
+        wishlistItemId: true,
+        wishlistItem: { select: { title: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (claim) {
+      gift = {
+        kind: 'wishlist',
+        id: claim.wishlistItemId,
+        name: claim.wishlistItem.title,
+      };
+    }
+  }
+  if (!gift) return null;
+
+  // Group pool (more than one contributor) decided for the just-passed cycle.
+  const windowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const groupPools = await prisma.pool.findMany({
+    where: {
+      recipientUserId: targetUserId,
+      chosenIdeaId: { not: null },
+      contributors: { some: { userId: viewerId } },
+      eventDate: { gte: windowStart, lt: new Date() },
+    },
+    select: {
+      chosenIdea: { select: { name: true } },
+      _count: { select: { contributors: true } },
+    },
+  });
+  const groupPool = groupPools.find((p) => p._count.contributors > 1);
+
+  const occasionLabel =
+    recent.daysSince === 0
+      ? 'was today'
+      : recent.daysSince === 1
+        ? 'was yesterday'
+        : `was ${formatBirthdayLabel(recent.date, -1)} · ${recent.daysSince} days ago`;
+
+  return {
+    occasionLabel,
+    gift,
+    recordedGroupPoolName: groupPool?.chosenIdea?.name ?? null,
+  };
 }
 
 export type { WriteContext };

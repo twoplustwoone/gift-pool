@@ -30,7 +30,17 @@ import { Textarea } from '#app/components/ui/textarea.tsx';
 import { type RelationshipState } from '#app/utils/friends.ts';
 import { formatCents } from '#app/utils/pool-contributions.ts';
 
-export type TemporalState = 'occasion-near' | 'cold' | 'declined';
+export type TemporalState =
+  | 'occasion-near'
+  | 'cold'
+  | 'declined'
+  | 'post-occasion';
+
+type PostOccasion = {
+  occasionLabel: string;
+  gift: { kind: 'pool' | 'wishlist'; id: string; name: string };
+  recordedGroupPoolName: string | null;
+};
 
 type Relationship = {
   state: RelationshipState;
@@ -102,6 +112,7 @@ export type PersonSurfaceViewData = {
     }>;
   };
   openPools: OpenPool[];
+  postOccasion: PostOccasion | null;
 };
 
 const tint = (token: 'gift' | 'pool', pct: number) =>
@@ -133,6 +144,18 @@ export function PersonSurface(data: PersonSurfaceViewData) {
   const displayName = data.user.name ?? data.user.username;
   const isOccasionNear = data.temporalState === 'occasion-near';
   const isDeclined = data.temporalState === 'declined';
+
+  if (data.temporalState === 'post-occasion' && data.postOccasion) {
+    return (
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-6 sm:py-10">
+        <PostOccasionFlow
+          user={data.user}
+          displayName={displayName}
+          postOccasion={data.postOccasion}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-6 sm:py-10">
@@ -1191,6 +1214,145 @@ function ProposeControl({
           </div>
         </DialogContent>
       </Dialog>
+    </>
+  );
+}
+
+// ─── Post-occasion memory write (§4, mock 1c) ─────────────────────────────────
+
+function PostOccasionFlow({
+  user,
+  displayName,
+  postOccasion,
+}: {
+  user: SurfaceUser;
+  displayName: string;
+  postOccasion: PostOccasion;
+}) {
+  const fetcher = useFetcher();
+  const { gift } = postOccasion;
+
+  const feedbackForm = (feedback: 'LOVED' | 'OKAY' | 'SKIPPED') => (
+    <fetcher.Form method="post">
+      <input type="hidden" name="intent" value="record-outcome" />
+      <input type="hidden" name="kind" value={gift.kind} />
+      <input
+        type="hidden"
+        name={gift.kind === 'pool' ? 'poolId' : 'wishlistItemId'}
+        value={gift.id}
+      />
+      <input type="hidden" name="feedback" value={feedback} />
+      {feedback === 'LOVED' ? (
+        <button
+          type="submit"
+          disabled={fetcher.state !== 'idle'}
+          className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-full bg-gift text-[13px] font-extrabold text-white hover:bg-gift/90"
+        >
+          <LuHeart size={15} />
+          They loved it
+        </button>
+      ) : feedback === 'OKAY' ? (
+        <button
+          type="submit"
+          disabled={fetcher.state !== 'idle'}
+          className="inline-flex h-10 items-center justify-center rounded-full border px-4 text-[13px] font-bold hover:bg-accent"
+        >
+          It was okay
+        </button>
+      ) : (
+        <button
+          type="submit"
+          disabled={fetcher.state !== 'idle'}
+          className="h-9 rounded-full px-4 text-[13px] font-bold text-muted-foreground hover:text-foreground"
+        >
+          Skip for now
+        </button>
+      )}
+    </fetcher.Form>
+  );
+
+  return (
+    <>
+      {/* quiet header */}
+      <div className="flex items-center gap-3.5 px-0.5 pt-1">
+        <Avatar
+          image={user.image ? { ...user.image, altText: null } : null}
+          user={user}
+          size={12}
+        />
+        <div className="min-w-0">
+          <div className="text-[17px] font-extrabold">
+            {displayName}'s birthday
+          </div>
+          <div className="mt-px text-xs font-semibold text-muted-foreground">
+            {postOccasion.occasionLabel}
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-1 mt-3 px-0.5">
+        <div className="text-lg font-extrabold tracking-tight">
+          How did it go?
+        </div>
+        <div className="mt-0.5 text-sm font-semibold text-muted-foreground">
+          Just one thing to confirm — then this rests.
+        </div>
+      </div>
+
+      {/* solo gift confirm */}
+      <div className="rounded-3xl border bg-card p-4">
+        <div className="flex items-center gap-2.5">
+          <span
+            className="flex h-10 w-10 flex-none items-center justify-center rounded-xl text-gift"
+            style={{ background: tint('gift', 0.12) }}
+          >
+            <LuUser size={20} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-extrabold">
+              Your gift · {gift.name}
+            </div>
+            <div className="mt-0.5 text-xs font-semibold text-muted-foreground">
+              You had this one covered on your own.
+            </div>
+          </div>
+        </div>
+        <div className="mb-2.5 mt-4 text-[13.5px] font-bold">Did it land?</div>
+        <div className="flex gap-2">
+          <div className="flex-1">{feedbackForm('LOVED')}</div>
+          {feedbackForm('OKAY')}
+        </div>
+      </div>
+
+      {/* group pool recorded automatically */}
+      {postOccasion.recordedGroupPoolName ? (
+        <div
+          className="flex items-center gap-2.5 rounded-2xl border p-3.5"
+          style={{
+            background: tint('pool', 0.08),
+            borderColor: tint('pool', 0.18),
+          }}
+        >
+          <span
+            className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-pool"
+            style={{ background: tint('pool', 0.16) }}
+          >
+            <LuCheck size={17} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[13.5px] font-extrabold">
+              The circle's pool — recorded
+            </div>
+            <div className="mt-px text-xs font-semibold text-muted-foreground">
+              {postOccasion.recordedGroupPoolName} · saved to memory
+              automatically
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* skippable — never re-nagged */}
+      <div className="mt-2 text-center">{feedbackForm('SKIPPED')}</div>
     </>
   );
 }

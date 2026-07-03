@@ -39,6 +39,7 @@ import {
   loadOpenPoolsForRecipient,
   loadPersonIdeation,
   loadPersonWishlistSource,
+  loadPostOccasion,
   PERSON_SURFACE_OCCASION_TYPE,
   proposeToPool,
   recordPoolOutcome,
@@ -191,8 +192,15 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       select: { id: true },
     })) != null;
 
-  const temporalState: TemporalState =
-    occasionNear && declined
+  // Post-occasion (within 14 days after, only with an unconfirmed solo intent)
+  // takes precedence — it's the memory-write moment.
+  const postOccasion = birthdayVisible
+    ? await loadPostOccasion(userId, user.id, user.birthday)
+    : null;
+
+  const temporalState: TemporalState = postOccasion
+    ? 'post-occasion'
+    : occasionNear && declined
       ? 'declined'
       : occasionNear
         ? 'occasion-near'
@@ -243,6 +251,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     wishlistSource,
     ideation,
     openPools,
+    postOccasion,
   } as const;
 }
 
@@ -481,6 +490,7 @@ const ProfileRoute = () => {
       wishlistSource={data.wishlistSource}
       ideation={data.ideation}
       openPools={data.openPools}
+      postOccasion={data.postOccasion}
     />
   );
 };

@@ -59,6 +59,7 @@ const emptyBody = {
     savedIdeas: [],
   },
   openPools: [],
+  postOccasion: null,
 };
 
 const unlockedBase = {
@@ -168,6 +169,36 @@ describe('/users/:username person surface component', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Only you can see this')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+  });
+
+  it('post-occasion state shows the did-it-land confirm + recorded note', async () => {
+    renderWith({
+      ...unlockedBase,
+      birthdayVisible: true,
+      temporalState: 'post-occasion',
+      occasion: null,
+      organizeGroups: [],
+      postOccasion: {
+        occasionLabel: 'was Aug 14 · a few days ago',
+        gift: { kind: 'pool', id: 'pool-1', name: 'Trail running shoes' },
+        recordedGroupPoolName: 'Weber pizza oven',
+      },
+    });
+
+    expect(await screen.findByText('How did it go?')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Your gift · Trail running shoes/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /They loved it/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'It was okay' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Skip for now' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Weber pizza oven/)).toBeInTheDocument();
   });
 
   it('builds route meta from data and params', () => {
