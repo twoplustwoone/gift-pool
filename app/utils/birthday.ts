@@ -42,6 +42,41 @@ export function getUpcomingBirthday(
   return { date: candidate, daysUntil };
 }
 
+export type RecentBirthday = {
+  date: Date;
+  daysSince: number;
+};
+
+// The most recent PAST occurrence of this birthday's month/day, if it fell
+// within the last `withinDays` days. Mirror of `getUpcomingBirthday` for the
+// post-occasion window. Returns null when missing/unparseable or outside the
+// window. Uses the same UTC month/day reading so the calendar date is
+// timezone-invariant. `daysSince === 0` means the birthday is today.
+export function getRecentBirthday(
+  birthday: Date | string | null | undefined,
+  withinDays: number,
+): RecentBirthday | null {
+  if (!birthday) return null;
+  const parsed = birthday instanceof Date ? birthday : new Date(birthday);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const candidate = new Date(
+    today.getFullYear(),
+    parsed.getUTCMonth(),
+    parsed.getUTCDate(),
+  );
+  // If this year's occurrence hasn't happened yet, step back to last year's.
+  if (candidate.getTime() > today.getTime()) {
+    candidate.setFullYear(candidate.getFullYear() - 1);
+  }
+  const daysSince = Math.round(
+    (today.getTime() - candidate.getTime()) / MS_PER_DAY,
+  );
+  if (daysSince < 0 || daysSince > withinDays) return null;
+  return { date: candidate, daysSince };
+}
+
 // Short human label — "Today!", "Tomorrow", or "Sep 12". The Date passed
 // in is already the local-timezone candidate constructed by
 // `getUpcomingBirthday`, so local-time formatting is correct here.

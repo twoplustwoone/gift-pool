@@ -1,11 +1,15 @@
+import { parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
 import {
+  type ActionFunctionArgs,
   type LoaderFunctionArgs,
+  data,
   redirect,
   useLoaderData,
   type MetaFunction,
   Link,
 } from 'react-router';
+import { z } from 'zod';
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { FriendGateCard } from '#app/components/friends/friend-gate-card.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -14,19 +18,32 @@ import { ProfileHeader } from '#app/components/users/profile-header.tsx';
 import { getUserProfileMeta } from '#app/components/users/user-profile-route.tsx';
 import { WishlistPreviewCard } from '#app/components/users/wishlist-preview-card.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
+import { canViewBirthday } from '#app/utils/birthday-visibility.server.ts';
 import {
   BIRTHDAY_VISIBILITY_DAYS,
   formatBirthdayLabel,
   getUpcomingBirthday,
 } from '#app/utils/birthday.ts';
-import { canViewBirthday } from '#app/utils/birthday-visibility.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getRelationshipDetails } from '#app/utils/friends.server.ts';
 import { type RelationshipState } from '#app/utils/friends.ts';
 import {
+  commitSoloGift,
+  createPersonNote,
+  declineOccasion,
+  getOccasionYear,
+  recordPoolOutcome,
+  recordWishlistPurchaseOutcome,
+  requirePersonSurfaceUnlock,
+  saveGiftListItem,
+  undoOccasionDecline,
+} from '#app/utils/person-surface.server.ts';
+import { dollarsToCents } from '#app/utils/price.ts';
+import {
   loadProfilePageData,
   type ProfilePageData,
 } from '#app/utils/profile-page.server.ts';
+import { getRequestContext } from '#app/utils/request-context.server.ts';
 
 type Relationship = {
   state: RelationshipState;
@@ -121,6 +138,178 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     profileData,
     birthdayVisible,
   } as const;
+}
+
+// ─── Write actions (person-surface memory) ──────────────────────────────────
+
+enum PersonIntent {
+  SaveIdea = 'save-idea',
+  AddNote = 'add-note',
+  DeclineOccasion = 'decline-occasion',
+  UndoDecline = 'undo-decline',
+  SoloCommit = 'solo-commit',
+  RecordOutcome = 'record-outcome',
+}
+
+const OptionalDollarAmountSchema = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.coerce.number().min(0).transform(dollarsToCents).optional(),
+);
+
+const SaveIdeaSchema = z.object({
+  intent: z.literal(PersonIntent.SaveIdea),
+  name: z.string().min(1, 'Give the idea a name').max(200),
+  url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+  priceCents: OptionalDollarAmountSchema,
+  currency: z.string().max(3).optional(),
+});
+const AddNoteSchema = z.object({
+  intent: z.literal(PersonIntent.AddNote),
+  body: z.string().min(1, 'Write something').max(1000),
+});
+const DeclineSchema = z.object({
+  intent: z.literal(PersonIntent.DeclineOccasion),
+});
+const UndoDeclineSchema = z.object({
+  intent: z.literal(PersonIntent.UndoDecline),
+});
+const SoloCommitSchema = z.object({
+  intent: z.literal(PersonIntent.SoloCommit),
+  // A pool-of-one has no chosenIdea; the name becomes the display name, so it
+  // is required (spec amendment: no nameless solo gift).
+  name: z.string().min(1, 'Name the gift').max(200),
+});
+const RecordOutcomeSchema = z
+  .object({
+    intent: z.literal(PersonIntent.RecordOutcome),
+    kind: z.enum(['pool', 'wishlist']),
+    feedback: z.enum(['LOVED', 'OKAY', 'SKIPPED']),
+    poolId: z.string().optional(),
+    wishlistItemId: z.string().optional(),
+  })
+  .refine((v) => (v.kind === 'pool' ? !!v.poolId : !!v.wishlistItemId), {
+    message: 'Missing target for outcome.',
+  });
+
+const PersonActionSchema = z.union([
+  SaveIdeaSchema,
+  AddNoteSchema,
+  DeclineSchema,
+  UndoDeclineSchema,
+  SoloCommitSchema,
+  RecordOutcomeSchema,
+]);
+
+export async function action({ params, request }: ActionFunctionArgs) {
+  const userId = await requireUserId(request);
+  const target = await prisma.user.findFirst({
+    where: { username: params.username },
+    select: { id: true, birthday: true },
+  });
+  invariantResponse(target, 'User not found', { status: 404 });
+  // The recipient must never act on this surface about themselves.
+  if (target.id === userId) {
+    throw data({ error: 'Not found.' }, { status: 404 });
+  }
+
+  const formData = await request.formData();
+  const submission = parseWithZod(formData, { schema: PersonActionSchema });
+  if (submission.status !== 'success') {
+    return data(submission.reply(), { status: 400 });
+  }
+  const v = submission.value;
+  const { requestId } = await getRequestContext(request);
+
+  switch (v.intent) {
+    case PersonIntent.SaveIdea: {
+      await requirePersonSurfaceUnlock(userId, target.id);
+      await saveGiftListItem({
+        ownerId: userId,
+        targetUserId: target.id,
+        name: v.name,
+        url: v.url || null,
+        priceCents: v.priceCents ?? null,
+        currency: v.currency ?? null,
+        requestId,
+      });
+      return data(submission.reply({ resetForm: true }));
+    }
+    case PersonIntent.AddNote: {
+      await requirePersonSurfaceUnlock(userId, target.id);
+      await createPersonNote({
+        authorId: userId,
+        subjectUserId: target.id,
+        body: v.body,
+        requestId,
+      });
+      return data(submission.reply({ resetForm: true }));
+    }
+    case PersonIntent.DeclineOccasion:
+    case PersonIntent.UndoDecline: {
+      await requirePersonSurfaceUnlock(userId, target.id);
+      const occasionYear = getOccasionYear(target.birthday);
+      if (occasionYear == null) {
+        return data(
+          submission.reply({
+            formErrors: ['No upcoming occasion to decline.'],
+          }),
+          { status: 400 },
+        );
+      }
+      if (v.intent === PersonIntent.DeclineOccasion) {
+        await declineOccasion({
+          userId,
+          targetUserId: target.id,
+          occasionYear,
+          requestId,
+        });
+      } else {
+        await undoOccasionDecline({
+          userId,
+          targetUserId: target.id,
+          occasionYear,
+          requestId,
+        });
+      }
+      return data(submission.reply());
+    }
+    case PersonIntent.SoloCommit: {
+      await requirePersonSurfaceUnlock(userId, target.id);
+      // Anchor the pool-of-one to the upcoming birthday so the post-occasion
+      // window and gift-history cycle guard line up.
+      const upcoming = getUpcomingBirthday(target.birthday);
+      await commitSoloGift({
+        organizerId: userId,
+        recipientUserId: target.id,
+        name: v.name,
+        eventDate: upcoming?.date ?? null,
+        requestId,
+      });
+      return data(submission.reply({ resetForm: true }));
+    }
+    case PersonIntent.RecordOutcome: {
+      // Authorized by ownership inside the helper (organizer / claimer).
+      if (v.kind === 'pool') {
+        await recordPoolOutcome({
+          userId,
+          poolId: v.poolId!,
+          feedback: v.feedback,
+          requestId,
+        });
+      } else {
+        await recordWishlistPurchaseOutcome({
+          userId,
+          wishlistItemId: v.wishlistItemId!,
+          feedback: v.feedback,
+          requestId,
+        });
+      }
+      return data(submission.reply());
+    }
+    default: {
+      return data(submission.reply(), { status: 400 });
+    }
+  }
 }
 
 const ProfileRoute = () => {

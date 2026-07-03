@@ -64,6 +64,13 @@ model User {
   poolMessages                 PoolMessage[]
   feedback                     Feedback[]
   consents                     Consent[]
+  // Person-surface memory relations
+  giftListItemsOwned           GiftListItem[]                @relation("GiftListItem_Owner")
+  giftListItemsAbout           GiftListItem[]                @relation("GiftListItem_Target")
+  personNotesAuthored          PersonNote[]                  @relation("PersonNote_Author")
+  personNotesAbout             PersonNote[]                  @relation("PersonNote_Subject")
+  occasionDeclines             OccasionDecline[]             @relation("OccasionDecline_User")
+  occasionDeclinesAbout        OccasionDecline[]             @relation("OccasionDecline_Target")
 }
 
 model Friendship {
@@ -321,6 +328,11 @@ model Pool {
   chosenIdeaId    String?  @unique
   finalPriceCents Int?
 
+  // Post-occasion "did it land" feedback. Valid values: LOVED | OKAY | SKIPPED
+  // (null = unanswered). SKIPPED records "never re-nag". Applies to group pools
+  // and solo pool-of-one alike.
+  outcomeFeedback String?
+
   // Invite code — for standalone pools or supplemental invites within a group
   inviteCode      String?  @unique
 
@@ -385,9 +397,14 @@ model GiftIdea {
   // Smart link — references a WishlistItem owned by the recipient
   wishlistItemId       String?
 
+  // Promotion link — set when this idea was promoted from a viewer's private
+  // GiftListItem. Links the promotion rather than copy-orphaning the item.
+  giftListItemId       String?
+
   pool                 Pool          @relation("Pool_Ideas", fields: [poolId], references: [id], onDelete: Cascade)
   proposedBy           User          @relation(fields: [proposedById], references: [id])
   wishlistItem         WishlistItem? @relation(fields: [wishlistItemId], references: [id], onDelete: SetNull)
+  giftListItem         GiftListItem? @relation(fields: [giftListItemId], references: [id], onDelete: SetNull)
 
   // Back-references
   chosenForPool        Pool?         @relation("Pool_ChosenIdea")
@@ -536,6 +553,9 @@ model WishlistPurchase {
   wishlistItemId String       @unique
   purchasedById  String
   createdAt      DateTime     @default(now())
+  // Post-occasion "did it land" feedback for a wishlist-claim solo intent.
+  // Valid values: LOVED | OKAY | SKIPPED (null = unanswered).
+  outcomeFeedback String?
   wishlistItem   WishlistItem @relation(fields: [wishlistItemId], references: [id], onDelete: Cascade)
   purchasedBy    User         @relation(fields: [purchasedById], references: [id], onDelete: Cascade)
 
@@ -549,6 +569,61 @@ model WishlistPublicShare {
   tokenHash String   @unique
   createdAt DateTime @default(now())
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+// -----------------------------------------------------------------------------
+// Person surface — circle-private memory (see docs/giftpool-person-surface-*.md)
+// -----------------------------------------------------------------------------
+
+// A gift idea saved for a person, with no pool attached. Private to the owner;
+// NEVER visible to targetUser. Promotable to a pool GiftIdea (which links back
+// via GiftIdea.giftListItemId rather than copying).
+model GiftListItem {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+  ownerId      String
+  targetUserId String
+  name         String
+  url          String?
+  priceCents   Int?
+  currency     String? // ISO-4217; only ever stored alongside a price
+  owner        User       @relation("GiftListItem_Owner", fields: [ownerId], references: [id], onDelete: Cascade)
+  targetUser   User       @relation("GiftListItem_Target", fields: [targetUserId], references: [id], onDelete: Cascade)
+  giftIdeas    GiftIdea[]
+
+  @@index([ownerId, targetUserId])
+}
+
+// A durable/fresh note the author keeps about a person. Private to the author
+// in v1; NEVER visible to subjectUser under any rule.
+model PersonNote {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  authorId      String
+  subjectUserId String
+  body          String
+  author        User     @relation("PersonNote_Author", fields: [authorId], references: [id], onDelete: Cascade)
+  subjectUser   User     @relation("PersonNote_Subject", fields: [subjectUserId], references: [id], onDelete: Cascade)
+
+  @@index([authorId, subjectUserId])
+}
+
+// A viewer explicitly sitting out one occasion instance. Private to the
+// decliner. Keyed per occasion instance (occasionType + year) so it
+// auto-resets next cycle. Never visible to any other user.
+model OccasionDecline {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  userId       String
+  targetUserId String
+  // Valid values: BIRTHDAY (v1 only)
+  occasionType String   @default("BIRTHDAY")
+  occasionYear Int
+  user         User     @relation("OccasionDecline_User", fields: [userId], references: [id], onDelete: Cascade)
+  targetUser   User     @relation("OccasionDecline_Target", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetUserId, occasionType, occasionYear])
+  @@index([userId])
 }
 
 // -----------------------------------------------------------------------------
