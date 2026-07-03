@@ -73,6 +73,7 @@ export async function action({ request }: ActionFunctionArgs) {
     create: {
       name,
       description,
+      createdById: userId,
       groupMembers: {
         create: {
           userId,
