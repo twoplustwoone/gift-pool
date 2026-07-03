@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
   LuCake,
   LuCheck,
@@ -12,7 +18,7 @@ import {
   LuUsers,
   LuX,
 } from 'react-icons/lu';
-import { Form, useFetcher, useNavigate } from 'react-router';
+import { Form, Link, useFetcher, useNavigate } from 'react-router';
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -214,16 +220,20 @@ function OccasionHeader({
           size={14}
         />
         <div className="min-w-0 flex-1">
-          <div className="text-xl font-extrabold leading-tight tracking-tight">
+          <h1 className="text-xl font-extrabold leading-tight tracking-tight">
             {displayName}
-          </div>
+          </h1>
           <div className="mt-0.5 text-sm font-semibold text-muted-foreground">
             @{user.username}
           </div>
         </div>
       </div>
       {occasion ? (
-        <div className="mt-4 flex items-center gap-2.5">
+        <div
+          className="mt-4 flex items-center gap-2.5"
+          role="group"
+          aria-label={`Birthday ${occasion.label}`}
+        >
           <span
             className="flex h-9 w-9 flex-none items-center justify-center rounded-xl text-gift"
             style={{ background: tint('gift', 0.16) }}
@@ -265,9 +275,13 @@ function DeclinedHeader({
           />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-[17px] font-extrabold">{displayName}</div>
+          <h1 className="text-[17px] font-extrabold">{displayName}</h1>
           {occasionLabel ? (
-            <div className="mt-px text-xs font-semibold text-muted-foreground">
+            <div
+              className="mt-px text-xs font-semibold text-muted-foreground"
+              role="group"
+              aria-label={`Birthday ${occasionLabel}`}
+            >
               Birthday · {occasionLabel}
             </div>
           ) : null}
@@ -332,9 +346,9 @@ function IdentityHeader({
         user={data.user}
         size={20}
       />
-      <div className="mt-3 text-xl font-extrabold tracking-tight">
+      <h1 className="mt-3 text-xl font-extrabold tracking-tight">
         {displayName}
-      </div>
+      </h1>
       <div className="mt-0.5 text-sm font-semibold text-muted-foreground">
         @{data.user.username}
       </div>
@@ -529,11 +543,19 @@ function TriggerButton({
   trigger: React.ReactNode;
   onClick: () => void;
 }) {
-  return (
-    <span onClick={onClick} className="contents">
-      {trigger}
-    </span>
-  );
+  if (!isValidElement(trigger)) return null;
+
+  const element = trigger as React.ReactElement<{
+    onClick?: React.MouseEventHandler<HTMLElement>;
+  }>;
+  const triggerClick = element.props.onClick;
+
+  return cloneElement(element, {
+    onClick(event: React.MouseEvent<HTMLElement>) {
+      triggerClick?.(event);
+      if (!event.defaultPrevented) onClick();
+    },
+  });
 }
 
 function SaveIdeaDialog({
@@ -779,9 +801,18 @@ function IdeationBlock({
             token="gift"
             title="Their wishlist"
             right={
-              <span className="text-[11px] font-bold text-muted-foreground">
-                {data.wishlistSource.length} items
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-muted-foreground">
+                  {data.wishlistSource.length} items
+                </span>
+                <Link
+                  to={`/users/${data.user.username}/wishlist`}
+                  aria-label={`${displayName}'s wishlist`}
+                  className="rounded-full px-2 py-1 text-[11px] font-extrabold text-gift hover:bg-gift/10"
+                >
+                  See all
+                </Link>
+              </div>
             }
           />
           <div className="flex flex-col gap-2.5">
@@ -1167,11 +1198,7 @@ function ProposeControl({
         className={variant === 'wishlist' ? 'flex-1' : undefined}
       >
         {hidden(openPools[0]!.id)}
-        <button
-          type="submit"
-          className={btnClass}
-          style={btnStyle}
-        >
+        <button type="submit" className={btnClass} style={btnStyle}>
           <LuUsers size={15} />
           Propose to pool
         </button>
