@@ -122,6 +122,14 @@ tests/
 - kebab-case filenames, PascalCase exports
 - Colocate tests: `ComponentName.test.tsx`
 
+### Modals are sheets on mobile — HARD RULE
+
+**Every modal renders as a bottom sheet on mobile (< 640px) and a centered dialog on desktop. No exceptions.** A centered modal on a phone is a bug.
+
+- Use `ResponsiveDialog` from `app/components/ui/responsive-dialog.tsx` for ALL modals. Its sub-components (`ResponsiveDialogContent`, `ResponsiveDialogHeader`, `ResponsiveDialogFooter`, `ResponsiveDialogTitle`, `ResponsiveDialogDescription`, `ResponsiveDialogTrigger`, `ResponsiveDialogClose`) mirror the `Dialog` API exactly, so they are drop-in — commonly imported `as Dialog`, `as DialogContent`, … to keep JSX unchanged. It swaps to the `MobileBottomSheet` family below the breakpoint via `useIsDesktop`.
+- Do NOT use the raw `Dialog` primitive (`app/components/ui/dialog.tsx`) directly for a modal — it is centered at every width. `Dialog`/`MobileBottomSheet` are the low-level primitives that `ResponsiveDialog` composes; reach for them only when building `ResponsiveDialog` itself.
+- This does not apply to non-modal overlays (dropdown menus, popovers, tooltips, toasts) — only to modal dialogs.
+
 ### Database
 
 - Always create migrations for schema changes

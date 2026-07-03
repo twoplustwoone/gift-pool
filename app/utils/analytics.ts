@@ -84,6 +84,15 @@ export const ANALYTIC_EVENT_NAMES = [
   // between wishlist_share_viewed and signup_submitted in the share-reach
   // funnel; anonymous visitors fire it, so NOT user-required.
   'share_cta_clicked',
+  // Person surface — circle-private memory write paths. All require an acting
+  // user (the viewer), so all are user-required below.
+  'gift_list_item_saved',
+  'person_note_created',
+  'occasion_declined',
+  'occasion_decline_undone',
+  'solo_gift_committed',
+  'gift_outcome_recorded',
+  'saved_idea_promoted',
   // Browser/device/PWA environment snapshot. Anonymous-capable and deduped
   // daily by visitor id in analytics.server.ts.
   CLIENT_ENVIRONMENT_EVENT_NAME,
@@ -190,4 +199,12 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   // Joining a group and opening the wishlist editor require a session.
   'group_joined',
   'wishlist_editor_opened',
+  // Person-surface memory writes all have a known acting viewer.
+  'gift_list_item_saved',
+  'person_note_created',
+  'occasion_declined',
+  'occasion_decline_undone',
+  'solo_gift_committed',
+  'gift_outcome_recorded',
+  'saved_idea_promoted',
 ]);

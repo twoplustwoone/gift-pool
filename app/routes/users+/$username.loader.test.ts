@@ -72,7 +72,7 @@ test('non-friends receive minimal profile data from the loader', async () => {
   expect(getRouteResultStatus(response)).toBe(200);
   const data = await getRouteResultData<any>(response);
 
-  expect(data.canViewProfile).toBe(false);
+  expect(data.unlocked).toBe(false);
   expect(data.user).toEqual({
     id: targetUser.id,
     name: targetUser.name,
@@ -83,7 +83,7 @@ test('non-friends receive minimal profile data from the loader', async () => {
   expect(data.user).not.toHaveProperty('createdAt');
   expect(data.user).not.toHaveProperty('birthday');
   expect(data).not.toHaveProperty('userJoinedDisplay');
-  expect(data).not.toHaveProperty('profileData');
+  expect(data).not.toHaveProperty('wishlistPreview');
 });
 
 test('friends can view the full profile details', async () => {
@@ -128,17 +128,17 @@ test('friends can view the full profile details', async () => {
   expect(getRouteResultStatus(response)).toBe(200);
   const data = await getRouteResultData<any>(response);
 
-  expect(data.canViewProfile).toBe(true);
+  expect(data.unlocked).toBe(true);
   expect(data.user.id).toBe(targetUser.id);
   expect(data.user.username).toBe(targetUser.username);
   expect(data.user).toHaveProperty('createdAt');
   expect(data.user).toHaveProperty('birthday');
   expect(data).toHaveProperty('userJoinedDisplay');
   expect(data.relationship.state).toBe('FRIENDS');
-  expect(data).toHaveProperty('profileData');
-  expect(data.profileData).toHaveProperty('mutualGroups');
-  expect(data.profileData).toHaveProperty('mutualFriends');
-  expect(data.profileData).toHaveProperty('wishlistPreview');
+  expect(data).toHaveProperty('mutualGroups');
+  expect(data).toHaveProperty('mutualFriends');
+  expect(data).toHaveProperty('ideation');
+  expect(data).toHaveProperty('wishlistSource');
 });
 
 test('viewing your own profile redirects to /me', async () => {

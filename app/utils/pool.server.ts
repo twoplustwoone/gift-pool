@@ -342,6 +342,9 @@ export type ProposeIdeaInput = {
 	url?: string | null
 	estimatedPriceCents?: number | null
 	wishlistItemId?: string | null
+	// Promotion link — set when this idea was promoted from a private
+	// GiftListItem (person surface). Links, never copy-orphans.
+	giftListItemId?: string | null
 }
 
 export async function proposeIdea(input: ProposeIdeaInput) {
@@ -354,6 +357,7 @@ export async function proposeIdea(input: ProposeIdeaInput) {
 			url: input.url ?? null,
 			estimatedPriceCents: input.estimatedPriceCents ?? null,
 			wishlistItemId: input.wishlistItemId ?? null,
+			giftListItemId: input.giftListItemId ?? null,
 		},
 		select: { id: true, name: true },
 	})
