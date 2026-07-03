@@ -12,7 +12,7 @@ import {
   LuUsers,
   LuX,
 } from 'react-icons/lu';
-import { useFetcher, useNavigate } from 'react-router';
+import { Form, useFetcher, useNavigate } from 'react-router';
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -1114,7 +1114,6 @@ function ProposeControl({
   variant?: 'wishlist' | 'saved';
 }) {
   const navigate = useNavigate();
-  const fetcher = useFetcher();
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const hidden = (poolId: string) => (
@@ -1163,21 +1162,20 @@ function ProposeControl({
   // 1 open pool → propose directly.
   if (openPools.length === 1) {
     return (
-      <fetcher.Form
+      <Form
         method="post"
         className={variant === 'wishlist' ? 'flex-1' : undefined}
       >
         {hidden(openPools[0]!.id)}
         <button
           type="submit"
-          disabled={fetcher.state !== 'idle'}
           className={btnClass}
           style={btnStyle}
         >
           <LuUsers size={15} />
           Propose to pool
         </button>
-      </fetcher.Form>
+      </Form>
     );
   }
 
@@ -1200,16 +1198,15 @@ function ProposeControl({
           </DialogHeader>
           <div className="flex flex-col gap-2">
             {openPools.map((pool) => (
-              <fetcher.Form key={pool.id} method="post">
+              <Form key={pool.id} method="post">
                 {hidden(pool.id)}
                 <button
                   type="submit"
-                  onClick={() => setPickerOpen(false)}
                   className="flex w-full items-center justify-between rounded-2xl border bg-card p-3.5 text-left font-bold transition-colors hover:border-pool/50"
                 >
                   {pool.title}
                 </button>
-              </fetcher.Form>
+              </Form>
             ))}
           </div>
         </DialogContent>

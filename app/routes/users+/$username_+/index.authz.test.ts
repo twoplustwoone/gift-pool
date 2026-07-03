@@ -262,7 +262,7 @@ describe('person surface write authorization', () => {
     expect(await prisma.giftIdea.count()).toBe(0);
   });
 
-  it('propose-to-pool promotes a saved idea and links it (giftListItemId)', async () => {
+  it('propose-to-pool promotes a saved idea and redirects to the pool', async () => {
     const viewer = await createUserRecord();
     const target = await createUserRecord();
     await makeFriends(viewer.id, target.id);
@@ -284,16 +284,18 @@ describe('person surface write authorization', () => {
     });
     const cookie = await withSession(viewer.id);
 
-    expect(
-      await statusOf(
-        invoke(target.username, cookie, {
-          intent: 'propose-to-pool',
-          poolId: pool.id,
-          name: 'Trail shoes',
-          giftListItemId: saved.id,
-        }),
-      ),
-    ).toBe(200);
+    const result = await invoke(target.username, cookie, {
+      intent: 'propose-to-pool',
+      poolId: pool.id,
+      name: 'Trail shoes',
+      giftListItemId: saved.id,
+    });
+
+    expect(getRouteResultStatus(result)).toBe(302);
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).headers.get('Location')).toBe(
+      `/pools/${pool.id}`,
+    );
 
     const idea = await prisma.giftIdea.findFirstOrThrow();
     expect(idea.poolId).toBe(pool.id);

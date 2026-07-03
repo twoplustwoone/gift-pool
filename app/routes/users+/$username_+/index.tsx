@@ -446,7 +446,9 @@ export async function action({ params, request }: ActionFunctionArgs) {
         priceCents: v.priceCents ?? null,
         requestId,
       });
-      return data(submission.reply());
+      // Land the user in the pool so they see their idea took; a bare reply
+      // gives no feedback and reads as "nothing happened".
+      return redirect(`/pools/${v.poolId}`);
     }
     default: {
       return data(submission.reply(), { status: 400 });
