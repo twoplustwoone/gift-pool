@@ -35,6 +35,7 @@ model User {
   sessions                     Session[]
   image                        UserImage?
   giftGroups                   UsersInGiftGroups[]
+  giftGroupsCreated            GiftGroup[]                   @relation("GiftGroup_CreatedBy")
   wishlistItems                WishlistItem[]
   wishlistCategories           WishlistCategory[]
   roles                        Role[]                        @relation("RoleToUser")
@@ -184,6 +185,11 @@ model GiftGroup {
   name             String
   description      String?
   budgetVisibility String              @default("EVERYONE")
+  // Provenance/analytics only — the user who created this group. NOT a
+  // permission input: role on UsersInGiftGroups remains the sole authority for
+  // authorization. Nullable because historical groups have no recorded creator.
+  createdById      String?
+  createdBy        User?               @relation("GiftGroup_CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   pools            Pool[]
   activities       GroupActivity[]
   groupInvitations GroupInvitation[]
@@ -191,6 +197,7 @@ model GiftGroup {
   joinRequests     JoinRequest[]
   groupMembers     UsersInGiftGroups[]
 
+  @@index([createdById])
   @@map("Group")
 }
 
