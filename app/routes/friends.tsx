@@ -156,7 +156,16 @@ export function buildFriendEntry(
   return {
     friendshipId: friendshipId ?? requestId,
     createdAt: new Date(),
-    user,
+    user: {
+      ...user,
+      // Optimistic entries come from a just-accepted friend request, so the
+      // viewer is now a direct friend — NOBODY is the only visibility gate
+      // that still applies. The pending-request payload carries
+      // birthdayVisibility but not the server-computed birthdayVisible, so
+      // derive it here (falling back to the legacy field) to stop a NOBODY
+      // friend's birthday flashing in the list before the loader recomputes it.
+      birthdayVisible: user.birthdayVisible ?? user.birthdayVisibility !== 'NOBODY',
+    },
     // Optimistic entries (just-accepted friend requests) start without
     // mutual-groups data. The next loader run will fill them in.
     mutualGroups: [],
