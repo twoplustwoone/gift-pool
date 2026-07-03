@@ -97,6 +97,19 @@ describe('<FriendRow />', () => {
     expect(screen.getByText('Apr 15')).toBeInTheDocument();
   });
 
+  it('hides the birthday badge when the server marks it not visible (NOBODY)', () => {
+    // Birthday would be within the window, but birthdayVisible=false (e.g. the
+    // owner set birthdayVisibility=NOBODY) must suppress the pill.
+    renderRow({
+      user: {
+        ...baseUser,
+        birthday: new Date(1990, 3, 15),
+        birthdayVisible: false,
+      },
+    });
+    expect(screen.queryByText('Apr 15')).not.toBeInTheDocument();
+  });
+
   it('renders a "Tomorrow" badge when the birthday is exactly 1 day away', () => {
     renderRow({
       user: {

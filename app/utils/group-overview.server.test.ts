@@ -507,4 +507,76 @@ describe('getGroupOverviewData (integration)', () => {
       );
     }
   });
+
+  it('drops NOBODY members from the birthday feed even with shareBirthday=true', async () => {
+    const inTenDays = new Date(NOW);
+    inTenDays.setDate(inTenDays.getDate() + 10);
+
+    poolFindMany.mockResolvedValueOnce([]); // active pools
+    // Both rows come back from the shareBirthday=true query; only the NOBODY
+    // one must be filtered out by canViewBirthday.
+    usersInGiftGroupsFindMany.mockResolvedValueOnce([
+      {
+        userId: 'hidden',
+        user: {
+          name: 'Hidden',
+          username: 'hidden',
+          birthday: inTenDays,
+          birthdayVisibility: 'NOBODY',
+          image: null,
+        },
+      },
+      {
+        userId: 'visible',
+        user: {
+          name: 'Visible',
+          username: 'visible',
+          birthday: inTenDays,
+          birthdayVisibility: 'FRIENDS',
+          image: null,
+        },
+      },
+    ]);
+    poolFindMany.mockResolvedValueOnce([]); // past gifts
+
+    const result = await getGroupOverviewData('group-1', 'viewer-1');
+
+    const ids = result.upcomingOccasions.map((o) => o.userId);
+    expect(ids).toEqual(['visible']);
+    expect(ids).not.toContain('hidden');
+  });
+
+  it('shows a non-friend group-mate on the birthday feed, and excludes shareBirthday=false at the DB level', async () => {
+    const inTenDays = new Date(NOW);
+    inTenDays.setDate(inTenDays.getDate() + 10);
+
+    poolFindMany.mockResolvedValueOnce([]); // active pools
+    // `viewer-1` has no friendship with `colleague` — friendship is irrelevant
+    // to the group-based feed. The row is returned because they shareBirthday.
+    usersInGiftGroupsFindMany.mockResolvedValueOnce([
+      {
+        userId: 'colleague',
+        user: {
+          name: 'Colleague',
+          username: 'colleague',
+          birthday: inTenDays,
+          birthdayVisibility: 'FRIENDS',
+          image: null,
+        },
+      },
+    ]);
+    poolFindMany.mockResolvedValueOnce([]); // past gifts
+
+    const result = await getGroupOverviewData('group-1', 'viewer-1');
+
+    expect(result.upcomingOccasions.map((o) => o.userId)).toEqual(['colleague']);
+
+    // shareBirthday=false members are excluded at the DB level, so the false
+    // case never reaches the app-side filter.
+    const membersCall = usersInGiftGroupsFindMany.mock.calls[0]?.[0] as {
+      where: { shareBirthday: boolean; removedAt: null };
+    };
+    expect(membersCall.where.shareBirthday).toBe(true);
+    expect(membersCall.where.removedAt).toBeNull();
+  });
 });

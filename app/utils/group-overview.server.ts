@@ -1,3 +1,4 @@
+import { canViewBirthday } from '#app/utils/birthday-visibility.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	ACTION_TYPE,
@@ -124,7 +125,7 @@ async function queryActivePools(groupId: string, viewerId: string) {
 type ActivePoolRow = Awaited<ReturnType<typeof queryActivePools>>[number]
 
 async function queryGroupMembers(groupId: string, viewerId: string) {
-	return prisma.usersInGiftGroups.findMany({
+	const members = await prisma.usersInGiftGroups.findMany({
 		where: {
 			giftGroupId: groupId,
 			userId: { not: viewerId },
@@ -139,11 +140,25 @@ async function queryGroupMembers(groupId: string, viewerId: string) {
 					name: true,
 					username: true,
 					birthday: true,
+					birthdayVisibility: true,
 					image: { select: { id: true } },
 				},
 			},
 		},
 	})
+
+	// The `where` above already restricts to active memberships that opted into
+	// shareBirthday for this group, so condition (b) of `canViewBirthday` holds
+	// for every row — the only remaining gate is the target's global
+	// `birthdayVisibility`. This drops users who set NOBODY, which the raw
+	// shareBirthday filter used to leak into the birthday feed.
+	return members.filter((member) =>
+		canViewBirthday(member.user, {
+			isDirectFriend: false,
+			isMutualFriend: false,
+			sharesActiveBirthdayGroup: true,
+		}),
+	)
 }
 
 type MemberRow = Awaited<ReturnType<typeof queryGroupMembers>>[number]
