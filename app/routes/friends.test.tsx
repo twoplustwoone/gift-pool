@@ -404,6 +404,14 @@ describe('/friends route helpers', () => {
     ]);
   });
 
+  it('derives birthdayVisible for optimistic entries so a NOBODY friend does not leak', () => {
+    const hiddenUser = { ...createUser('user-2', 'sam', 'Sam'), birthdayVisibility: 'NOBODY' };
+    expect(buildFriendEntry('request-3', hiddenUser).user.birthdayVisible).toBe(false);
+
+    const friendsUser = createUser('user-3', 'jo', 'Jo'); // birthdayVisibility: 'FRIENDS'
+    expect(buildFriendEntry('request-4', friendsUser).user.birthdayVisible).toBe(true);
+  });
+
   it('submits request mutations and batches failures', async () => {
     vi.stubGlobal(
       'fetch',
