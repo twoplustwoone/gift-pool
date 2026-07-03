@@ -38,38 +38,62 @@ vi.mock('#app/utils/misc.tsx', async () => {
 
 import ProfileRoute, { meta } from './$username_+/index.tsx';
 
-const emptyProfileData = {
+const baseUser = {
+  id: 'user-2',
+  image: null,
+  name: 'Taylor',
+  username: 'taylor',
+  bio: null,
+  birthday: null,
+};
+
+const emptyBody = {
   mutualGroups: [],
   mutualFriends: [],
   wishlistPreview: { items: [], totalCount: 0 },
 };
 
-describe('/users/:username route component', () => {
-  it('renders the friend gate when the profile is not visible', async () => {
-    const App = createRoutesStub([
-      {
-        Component: ProfileRoute,
-        HydrateFallback: () => null,
-        loader: async () => ({
-          unlocked: false,
-          relationship: {
-            friendshipId: null,
-            incomingRequestId: null,
-            outgoingRequestId: null,
-            state: 'NONE',
-          },
-          user: {
-            id: 'user-1',
-            name: 'Taylor',
-            username: 'taylor',
-            image: null,
-          },
-        }),
-        path: '/users/:username',
-      },
-    ]);
+const unlockedBase = {
+  unlocked: true,
+  relationship: {
+    friendshipId: 'friendship-1',
+    incomingRequestId: null,
+    outgoingRequestId: null,
+    state: 'FRIENDS',
+  },
+  user: baseUser,
+  userJoinedDisplay: '3/31/2026',
+  isFriend: true,
+  birthdayVisible: false,
+  canViewWishlist: true,
+  declined: false,
+  ...emptyBody,
+};
 
-    render(<App initialEntries={['/users/taylor']} />);
+function renderWith(loaderData: unknown) {
+  const App = createRoutesStub([
+    {
+      Component: ProfileRoute,
+      HydrateFallback: () => null,
+      loader: async () => loaderData,
+      path: '/users/:username',
+    },
+  ]);
+  render(<App initialEntries={['/users/taylor']} />);
+}
+
+describe('/users/:username person surface component', () => {
+  it('renders the friend gate when not unlocked', async () => {
+    renderWith({
+      unlocked: false,
+      relationship: {
+        friendshipId: null,
+        incomingRequestId: null,
+        outgoingRequestId: null,
+        state: 'NONE',
+      },
+      user: { id: 'user-1', name: 'Taylor', username: 'taylor', image: null },
+    });
 
     expect(
       await screen.findByRole('heading', {
@@ -83,54 +107,59 @@ describe('/users/:username route component', () => {
     );
   });
 
-  it('renders the friend profile view with wishlist CTA', async () => {
-    const App = createRoutesStub([
-      {
-        Component: ProfileRoute,
-        HydrateFallback: () => null,
-        loader: async () => ({
-          unlocked: true,
-          relationship: {
-            friendshipId: 'friendship-1',
-            incomingRequestId: null,
-            outgoingRequestId: null,
-            state: 'FRIENDS',
-          },
-          user: {
-            createdAt: new Date('2026-03-31T00:00:00.000Z'),
-            id: 'user-2',
-            image: { id: 'image-2' },
-            name: 'Taylor',
-            username: 'taylor',
-            bio: null,
-            birthday: null,
-            birthdayVisibility: 'FRIENDS',
-          },
-          userJoinedDisplay: '3/31/2026',
-          isFriend: true,
-          birthdayVisible: true,
-          canViewWishlist: true,
-          ...emptyProfileData,
-        }),
-        path: '/users/:username',
-      },
-    ]);
-
-    render(<App initialEntries={['/users/taylor']} />);
+  it('cold state leads with identity + capture card', async () => {
+    renderWith({
+      ...unlockedBase,
+      temporalState: 'cold',
+      occasion: null,
+      organizeGroups: [],
+    });
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Taylor' }),
+      await screen.findByText('Taylor', { selector: 'div' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Joined 3/31/2026')).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: "Taylor's wishlist" }),
-    ).toHaveAttribute('href', '/users/taylor/wishlist');
+    expect(screen.getByText('Save an idea')).toBeInTheDocument();
+    expect(screen.getByText('Add a note')).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Add Taylor' }),
     ).toBeInTheDocument();
+  });
+
+  it('occasion-near state shows the occasion header + full action row', async () => {
+    renderWith({
+      ...unlockedBase,
+      birthdayVisible: true,
+      temporalState: 'occasion-near',
+      occasion: { label: 'Aug 14', daysUntil: 42 },
+      organizeGroups: [
+        { id: 'g1', name: 'The Crew', memberCount: 3, budgetCents: 18000 },
+      ],
+    });
+
     expect(
-      screen.queryByRole('button', { name: 'Logout' }),
-    ).not.toBeInTheDocument();
+      await screen.findByRole('button', { name: /Organize with The Crew/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Birthday · Aug 14/)).toBeInTheDocument();
+    expect(screen.getByText('Just me')).toBeInTheDocument();
+    expect(screen.getByText('Save idea')).toBeInTheDocument();
+    expect(screen.getByText('Not this time')).toBeInTheDocument();
+  });
+
+  it('declined state shows the quiet sitting-out header with undo', async () => {
+    renderWith({
+      ...unlockedBase,
+      birthdayVisible: true,
+      temporalState: 'declined',
+      occasion: { label: 'Aug 14', daysUntil: 42 },
+      declined: true,
+      organizeGroups: [],
+    });
+
+    expect(
+      await screen.findByText("You're sitting this one out"),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Only you can see this')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
   });
 
   it('builds route meta from data and params', () => {

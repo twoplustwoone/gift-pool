@@ -34,7 +34,8 @@ vi.mock('#app/utils/db.server.ts', () => ({
       findUnique: (...args: Array<unknown>) => giftGroupFindUnique(...args),
     },
     usersInGiftGroups: {
-      findUnique: (...args: Array<unknown>) => usersInGiftGroupsFindUnique(...args),
+      findUnique: (...args: Array<unknown>) =>
+        usersInGiftGroupsFindUnique(...args),
       findMany: (...args: Array<unknown>) => usersInGiftGroupsFindMany(...args),
     },
     friendship: {
@@ -79,7 +80,11 @@ describe('app/routes/pools+/new.tsx', () => {
       }),
     );
 
-    expect(result).toEqual({ groupContext: null, candidates: [] });
+    expect(result).toEqual({
+      groupContext: null,
+      candidates: [],
+      preselectedRecipient: null,
+    });
     expect(requireUserId).toHaveBeenCalledWith(expect.any(Request));
   });
 
@@ -264,7 +269,9 @@ describe('app/routes/pools+/new.tsx', () => {
       screen.getByLabelText(/Find a friend or group member/i),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/Or just their name/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Start Pool' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Start Pool' }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('radio', { name: /Organizer chooses/i }),
     ).toBeChecked();

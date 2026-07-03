@@ -7,16 +7,14 @@ import {
   redirect,
   useLoaderData,
   type MetaFunction,
-  Link,
 } from 'react-router';
 import { z } from 'zod';
-import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
 import { FriendGateCard } from '#app/components/friends/friend-gate-card.tsx';
-import { Button } from '#app/components/ui/button.tsx';
-import { MutualStrip } from '#app/components/users/mutual-strip.tsx';
-import { ProfileHeader } from '#app/components/users/profile-header.tsx';
+import {
+  PersonSurface,
+  type TemporalState,
+} from '#app/components/users/person-surface.tsx';
 import { getUserProfileMeta } from '#app/components/users/user-profile-route.tsx';
-import { WishlistPreviewCard } from '#app/components/users/wishlist-preview-card.tsx';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { canViewBirthday } from '#app/utils/birthday-visibility.server.ts';
 import {
@@ -32,11 +30,13 @@ import {
 } from '#app/utils/friends.server.ts';
 import { type RelationshipState } from '#app/utils/friends.ts';
 import {
+  circleBudgetCents,
   commitSoloGift,
   createPersonNote,
   declineOccasion,
   getOccasionYear,
   getPersonSurfaceAccess,
+  PERSON_SURFACE_OCCASION_TYPE,
   recordPoolOutcome,
   recordWishlistPurchaseOutcome,
   requirePersonSurfaceUnlock,
@@ -44,10 +44,7 @@ import {
   undoOccasionDecline,
 } from '#app/utils/person-surface.server.ts';
 import { dollarsToCents } from '#app/utils/price.ts';
-import {
-  loadProfilePageData,
-  type ProfilePageData,
-} from '#app/utils/profile-page.server.ts';
+import { loadProfilePageData } from '#app/utils/profile-page.server.ts';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
 
 type Relationship = {
@@ -163,6 +160,52 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     ? profileData.wishlistPreview
     : { items: [], totalCount: 0 };
 
+  // ── Temporal state (spec §4) ──
+  const upcoming = birthdayVisible ? getUpcomingBirthday(user.birthday) : null;
+  const occasionNear =
+    upcoming != null &&
+    upcoming.daysUntil >= 0 &&
+    upcoming.daysUntil <= BIRTHDAY_VISIBILITY_DAYS;
+  const occasion = upcoming
+    ? {
+        label: formatBirthdayLabel(upcoming.date, upcoming.daysUntil),
+        daysUntil: upcoming.daysUntil,
+      }
+    : null;
+
+  // A decline for the current cycle flips the occasion header to a quiet,
+  // private "sitting this one out" variant.
+  const occasionYear = getOccasionYear(user.birthday);
+  const declined =
+    occasionYear != null &&
+    (await prisma.occasionDecline.findUnique({
+      where: {
+        userId_targetUserId_occasionType_occasionYear: {
+          userId,
+          targetUserId: user.id,
+          occasionType: PERSON_SURFACE_OCCASION_TYPE,
+          occasionYear,
+        },
+      },
+      select: { id: true },
+    })) != null;
+
+  const temporalState: TemporalState =
+    occasionNear && declined
+      ? 'declined'
+      : occasionNear
+        ? 'occasion-near'
+        : 'cold';
+
+  // Organize routing candidates: the active shared groups, each with the
+  // recipient-excluded budget ceiling and member count.
+  const organizeGroups = access.sharedActiveGroups.map((g) => ({
+    id: g.id,
+    name: g.name,
+    memberCount: g.members.filter((m) => m.userId !== user.id).length,
+    budgetCents: circleBudgetCents(g, user.id),
+  }));
+
   return {
     unlocked: true,
     user,
@@ -174,6 +217,10 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     mutualGroups,
     mutualFriends,
     wishlistPreview,
+    temporalState,
+    occasion,
+    declined,
+    organizeGroups,
   } as const;
 }
 
@@ -368,103 +415,23 @@ const ProfileRoute = () => {
   }
 
   return (
-    <FriendProfileView
+    <PersonSurface
       user={data.user}
       userJoinedDisplay={data.userJoinedDisplay}
       relationship={relationship}
+      isFriend={data.isFriend}
       birthdayVisible={data.birthdayVisible}
       canViewWishlist={data.canViewWishlist}
       mutualGroups={data.mutualGroups}
       mutualFriends={data.mutualFriends}
       wishlistPreview={data.wishlistPreview}
+      temporalState={data.temporalState}
+      occasion={data.occasion}
+      declined={data.declined}
+      organizeGroups={data.organizeGroups}
     />
   );
 };
-
-type FriendProfileViewProps = Readonly<{
-  user: {
-    id: string;
-    username: string;
-    name: string | null;
-    bio: string | null;
-    birthday: Date | string | null;
-    birthdayVisibility: string;
-    image: { id: string } | null;
-  };
-  userJoinedDisplay: string;
-  relationship: Relationship;
-  birthdayVisible: boolean;
-  canViewWishlist: boolean;
-  mutualGroups: ProfilePageData['mutualGroups'];
-  mutualFriends: ProfilePageData['mutualFriends'];
-  wishlistPreview: ProfilePageData['wishlistPreview'];
-}>;
-
-function FriendProfileView({
-  user,
-  userJoinedDisplay,
-  relationship,
-  birthdayVisible,
-  canViewWishlist,
-  mutualGroups,
-  mutualFriends,
-  wishlistPreview,
-}: FriendProfileViewProps) {
-  const userDisplayName = user.name ?? user.username;
-  // Visibility is decided server-side by `canViewBirthday` (single source of
-  // truth); the pill is suppressed when the owner opted into NOBODY.
-  const upcoming = birthdayVisible ? getUpcomingBirthday(user.birthday) : null;
-  const birthdayLabel =
-    upcoming && upcoming.daysUntil <= BIRTHDAY_VISIBILITY_DAYS
-      ? formatBirthdayLabel(upcoming.date, upcoming.daysUntil)
-      : null;
-
-  return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:py-14">
-      <ProfileHeader
-        user={user}
-        bio={user.bio}
-        birthdayLabel={birthdayLabel}
-        joinedDisplay={userJoinedDisplay}
-        actions={
-          canViewWishlist ? (
-            <>
-              <Button asChild>
-                <Link to="wishlist" prefetch="intent">
-                  {userDisplayName}'s wishlist
-                </Link>
-              </Button>
-              <FriendActionButton
-                targetUserId={user.id}
-                targetUserName={userDisplayName}
-                relationship={relationship}
-                variant="compact"
-              />
-            </>
-          ) : (
-            <FriendActionButton
-              targetUserId={user.id}
-              targetUserName={userDisplayName}
-              relationship={relationship}
-              variant="compact"
-            />
-          )
-        }
-      />
-
-      <MutualStrip groups={mutualGroups} friends={mutualFriends} />
-
-      {canViewWishlist ? (
-        <WishlistPreviewCard
-          items={wishlistPreview.items}
-          totalCount={wishlistPreview.totalCount}
-          fullListTo="wishlist"
-          ownerName={userDisplayName}
-        />
-      ) : null}
-    </div>
-  );
-}
 
 export default ProfileRoute;
 export const meta: MetaFunction<typeof loader> = getUserProfileMeta;
