@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { createRoutesStub } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -125,13 +126,101 @@ describe('/users/:username person surface component', () => {
     });
 
     expect(
-      await screen.findByText('Taylor', { selector: 'div' }),
+      await screen.findByRole('heading', { level: 1, name: 'Taylor' }),
     ).toBeInTheDocument();
     expect(screen.getByText('Save an idea')).toBeInTheDocument();
     expect(screen.getByText('Add a note')).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Add Taylor' }),
     ).toBeInTheDocument();
+  });
+
+  it('opens cold-state idea and note capture dialogs', async () => {
+    const user = userEvent.setup();
+    renderWith({
+      ...unlockedBase,
+      temporalState: 'cold',
+      occasion: null,
+      organizeGroups: [],
+    });
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: /Save an idea\s+for when it counts/,
+      }),
+    );
+    expect(
+      screen.getByRole('heading', { name: /Save an idea for Taylor/ }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await user.click(screen.getByRole('button', { name: /Add a note/ }));
+    expect(
+      screen.getByRole('heading', { name: /Add a note about Taylor/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('renders wishlist and circle-private memory sections', async () => {
+    renderWith({
+      ...unlockedBase,
+      temporalState: 'cold',
+      occasion: null,
+      organizeGroups: [],
+      budgetLine: { groupName: 'The Crew', cents: 18000 },
+      wishlistSource: [
+        {
+          id: 'wish-1',
+          title: 'Vintage espresso machine',
+          url: 'https://example.com/espresso',
+          priceCents: 12000,
+          currency: 'USD',
+          claimed: false,
+          claimedByViewer: false,
+        },
+      ],
+      ideation: {
+        giftHistory: [
+          {
+            id: 'gift-1',
+            name: 'Pizza oven',
+            year: 2025,
+            contributorCount: 4,
+            priceCents: 24000,
+          },
+        ],
+        proposedUnused: [{ id: 'idea-old', name: 'Running vest', year: 2024 }],
+        notes: [{ id: 'note-1', body: 'Started running this spring.' }],
+        savedIdeas: [
+          {
+            id: 'saved-1',
+            name: 'Trail shoes',
+            url: null,
+            priceCents: 9000,
+            currency: 'USD',
+          },
+        ],
+      },
+      openPools: [{ id: 'pool-1', title: "Taylor's birthday" }],
+    });
+
+    expect(await screen.findByText('Their wishlist')).toBeInTheDocument();
+    expect(screen.getByText('Vintage espresso machine')).toBeInTheDocument();
+    expect(
+      screen.getByText('What this circle gave before'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Pizza oven')).toBeInTheDocument();
+    expect(screen.getByText('We almost got them…')).toBeInTheDocument();
+    expect(screen.getByText('Running vest')).toBeInTheDocument();
+    expect(screen.getByText('Your notes · private')).toBeInTheDocument();
+    expect(
+      screen.getByText('Started running this spring.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Your saved ideas · private')).toBeInTheDocument();
+    expect(screen.getByText('Trail shoes')).toBeInTheDocument();
+    expect(screen.getByText(/The Crew can cover/)).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button', { name: 'Propose to pool' }),
+    ).toHaveLength(2);
   });
 
   it('occasion-near state shows the occasion header + full action row', async () => {

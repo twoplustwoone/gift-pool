@@ -84,18 +84,14 @@ test('friend profile view shows header, birthday pill, wishlist preview, and out
     await expect(page.getByText(`@${friend.username}`)).toBeVisible();
 
     // Birthday pill visible (we set it 30 days out, inside the window).
-    await expect(
-      page.getByLabel(/^Birthday /i).first(),
-    ).toBeVisible();
+    await expect(page.getByLabel(/^Birthday /i).first()).toBeVisible();
 
     // Wishlist preview card renders the seeded item.
+    await expect(page.getByText('Vintage espresso machine')).toBeVisible();
     await expect(
-      page.getByText('Vintage espresso machine'),
-    ).toBeVisible();
-    await expect(
-      page
-        .getByRole('link', { name: /see.*full wishlist/i })
-        .or(page.getByRole('link', { name: /see all/i })),
+      page.getByRole('link', {
+        name: `${friend.name ?? friend.username}'s wishlist`,
+      }),
     ).toBeVisible();
 
     // Stranger profile should show the new NONE-state gate copy.
