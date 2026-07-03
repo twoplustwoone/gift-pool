@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const nanoid = vi.fn(() => 'invite-123');
 
+const captureMessage = vi.fn();
+
 const giftIdeaCreate = vi.fn();
 const giftIdeaDelete = vi.fn();
 const giftIdeaFindFirst = vi.fn();
@@ -21,6 +23,11 @@ const poolUpdate = vi.fn();
 
 vi.mock('nanoid', () => ({
   nanoid: () => nanoid(),
+}));
+
+vi.mock('@sentry/react-router', () => ({
+  captureException: vi.fn(),
+  captureMessage: (...args: Array<unknown>) => captureMessage(...args),
 }));
 
 vi.mock('#app/utils/db.server.ts', () => ({
@@ -81,6 +88,7 @@ import {
 
 beforeEach(() => {
   nanoid.mockReset().mockReturnValue('invite-123');
+  captureMessage.mockReset();
   giftIdeaCreate.mockReset().mockResolvedValue({ id: 'idea-1', name: 'Speaker' });
   giftIdeaDelete.mockReset().mockResolvedValue(undefined);
   giftIdeaFindFirst.mockReset();
@@ -154,6 +162,51 @@ describe('pool server utilities', () => {
       actorId: 'organizer-1',
       payload: { title: 'Birthday Pool' },
     });
+  });
+
+  it('createPool rejects a pool whose recipient is the organizer', async () => {
+    await expect(
+      createPool({
+        organizerId: 'organizer-1',
+        recipientUserId: 'organizer-1',
+        title: 'Self Pool',
+      }),
+    ).rejects.toMatchObject({ init: { status: 400 } });
+
+    expect(poolCreate).not.toHaveBeenCalled();
+  });
+
+  it('createPool filters the recipient out of groupMemberDefaults and reports it', async () => {
+    await createPool({
+      groupMemberDefaults: [
+        { contributionCents: 2000, userId: 'recipient-1' },
+        { contributionCents: 1000, userId: 'member-2' },
+      ],
+      organizerId: 'organizer-1',
+      recipientUserId: 'recipient-1',
+      title: 'Birthday Pool',
+    });
+
+    expect(poolCreate).toHaveBeenCalledWith({
+      data: {
+        contributors: {
+          create: [
+            { contributionCents: null, userId: 'organizer-1' },
+            { contributionCents: 1000, userId: 'member-2' },
+          ],
+        },
+        decisionMode: 'ORGANIZER_PICKS',
+        eventDate: null,
+        giftGroupId: null,
+        occasionType: 'BIRTHDAY',
+        organizerId: 'organizer-1',
+        recipientName: null,
+        recipientUserId: 'recipient-1',
+        title: 'Birthday Pool',
+      },
+      select: { id: true, organizerId: true, title: true },
+    });
+    expect(captureMessage).toHaveBeenCalledTimes(1);
   });
 
   it('updatePool updates the pool and logs changed fields', async () => {

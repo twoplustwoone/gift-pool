@@ -1,3 +1,4 @@
+import { captureMessage } from '@sentry/react-router'
 import { data } from 'react-router'
 import { nanoid } from 'nanoid'
 import { queueLogEvent } from '#app/utils/analytics.server.ts'
@@ -117,10 +118,36 @@ export async function createPool(input: CreatePoolInput) {
 		groupMemberDefaults = [],
 	} = input
 
+	// Secrecy invariant: the recipient must never be a contributor on their own
+	// pool. Enforce it here at write time so no caller can seed a leak.
+	if (recipientUserId != null && recipientUserId === organizerId) {
+		// String body (not an { error } object) so the thrown response renders
+		// cleanly through the root GeneralErrorBoundary as a 400 rather than
+		// crashing it into a 500.
+		throw data('A pool recipient cannot also be its organizer.', {
+			status: 400,
+		})
+	}
+
+	// Filter the recipient out of the seeded contributors. A caller passing the
+	// recipient in defaults is an upstream bug — report it, but still proceed
+	// with the filtered list.
+	const filteredDefaults =
+		recipientUserId != null
+			? groupMemberDefaults.filter(m => m.userId !== recipientUserId)
+			: groupMemberDefaults
+
+	if (filteredDefaults.length !== groupMemberDefaults.length) {
+		captureMessage('createPool: recipient present in groupMemberDefaults', {
+			level: 'warning',
+			extra: { recipientUserId, organizerId, giftGroupId },
+		})
+	}
+
 	// Build the contributor list. The organizer is always first.
 	const contributorData = [
 		{ userId: organizerId, contributionCents: null },
-		...groupMemberDefaults
+		...filteredDefaults
 			.filter(m => m.userId !== organizerId)
 			.map(m => ({
 				userId: m.userId,
