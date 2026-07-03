@@ -358,6 +358,7 @@ describe('pool server utilities', () => {
         proposedById: 'user-1',
         url: 'https://example.com',
         wishlistItemId: null,
+        giftListItemId: null,
       },
       select: { id: true, name: true },
     });
