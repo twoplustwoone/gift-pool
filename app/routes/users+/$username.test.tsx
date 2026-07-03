@@ -51,7 +51,7 @@ describe('/users/:username route component', () => {
         Component: ProfileRoute,
         HydrateFallback: () => null,
         loader: async () => ({
-          canViewProfile: false,
+          unlocked: false,
           relationship: {
             friendshipId: null,
             incomingRequestId: null,
@@ -89,7 +89,7 @@ describe('/users/:username route component', () => {
         Component: ProfileRoute,
         HydrateFallback: () => null,
         loader: async () => ({
-          canViewProfile: true,
+          unlocked: true,
           relationship: {
             friendshipId: 'friendship-1',
             incomingRequestId: null,
@@ -102,10 +102,15 @@ describe('/users/:username route component', () => {
             image: { id: 'image-2' },
             name: 'Taylor',
             username: 'taylor',
+            bio: null,
             birthday: null,
+            birthdayVisibility: 'FRIENDS',
           },
           userJoinedDisplay: '3/31/2026',
-          profileData: emptyProfileData,
+          isFriend: true,
+          birthdayVisible: true,
+          canViewWishlist: true,
+          ...emptyProfileData,
         }),
         path: '/users/:username',
       },

@@ -25,13 +25,18 @@ import {
   getUpcomingBirthday,
 } from '#app/utils/birthday.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import { getRelationshipDetails } from '#app/utils/friends.server.ts';
+import {
+  canViewWishlistOf,
+  getRelationshipDetails,
+  isFriendOfFriend,
+} from '#app/utils/friends.server.ts';
 import { type RelationshipState } from '#app/utils/friends.ts';
 import {
   commitSoloGift,
   createPersonNote,
   declineOccasion,
   getOccasionYear,
+  getPersonSurfaceAccess,
   recordPoolOutcome,
   recordWishlistPurchaseOutcome,
   requirePersonSurfaceUnlock,
@@ -85,11 +90,14 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     incomingRequestId: relationshipDetails.incoming?.id ?? null,
     outgoingRequestId: relationshipDetails.outgoing?.id ?? null,
   };
-  const canViewProfile = relationship.state === 'FRIENDS';
 
-  if (!canViewProfile) {
+  // Unlock rule (spec §6): FRIENDS or ≥1 shared active group. Groupmates who
+  // aren't friends now reach the surface — the old friends-only gate is gone.
+  const access = await getPersonSurfaceAccess(userId, targetUser.id);
+
+  if (!access.unlocked) {
     return {
-      canViewProfile,
+      unlocked: false,
       user: targetUser,
       relationship,
     } as const;
@@ -119,24 +127,53 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     status: 404,
   });
 
-  const profileData = await loadProfilePageData(userId, targetUser.id);
-
-  // The viewer is a confirmed direct friend to reach this branch, so the rule
-  // reduces to "visible unless NOBODY" — but route it through the shared helper
-  // so the pill consults the single source of truth.
+  // Birthday visibility via the single canViewBirthday helper, fed the REAL
+  // facts for this viewer — the shared-group override (a groupmate seeing a
+  // birthday shared with the group) is honored here, not hardcoded false.
+  const sharesActiveBirthdayGroup = access.sharedActiveGroups.some(
+    (g) => g.shareBirthday,
+  );
+  const isMutualFriend = access.isFriend
+    ? false
+    : await isFriendOfFriend(userId, targetUser.id);
   const birthdayVisible = canViewBirthday(user, {
-    isDirectFriend: true,
-    isMutualFriend: false,
-    sharesActiveBirthdayGroup: false,
+    isDirectFriend: access.isFriend,
+    isMutualFriend,
+    sharesActiveBirthdayGroup,
   });
 
+  // Wishlist: existing friendship/FoF path OR a shared group with the target's
+  // shareWishlist grant (shareWishlist's first-ever read path).
+  const sharesWishlistGroup = access.sharedActiveGroups.some(
+    (g) => g.shareWishlist,
+  );
+  const canViewWishlist =
+    sharesWishlistGroup || (await canViewWishlistOf(userId, targetUser.id));
+
+  const profileData = await loadProfilePageData(userId, targetUser.id);
+  // Mutual friends are friends-only — a groupmate can't enumerate the graph.
+  // Per §12.1 the section is simply absent (empty array → not rendered).
+  const mutualFriends = access.isFriend ? profileData.mutualFriends : [];
+  // Mutual groups shown are the active shared groups (aligned with the gate).
+  const mutualGroups = access.sharedActiveGroups.map((g) => ({
+    id: g.id,
+    name: g.name,
+  }));
+  const wishlistPreview = canViewWishlist
+    ? profileData.wishlistPreview
+    : { items: [], totalCount: 0 };
+
   return {
-    canViewProfile,
+    unlocked: true,
     user,
     userJoinedDisplay: user.createdAt.toLocaleDateString(),
     relationship,
-    profileData,
+    isFriend: access.isFriend,
     birthdayVisible,
+    canViewWishlist,
+    mutualGroups,
+    mutualFriends,
+    wishlistPreview,
   } as const;
 }
 
@@ -317,7 +354,7 @@ const ProfileRoute = () => {
   const userDisplayName = data.user.name ?? data.user.username;
   const relationship = data.relationship;
 
-  if (!data.canViewProfile) {
+  if (!data.unlocked) {
     return (
       <FriendGateCard
         context="profile"
@@ -335,8 +372,11 @@ const ProfileRoute = () => {
       user={data.user}
       userJoinedDisplay={data.userJoinedDisplay}
       relationship={relationship}
-      profileData={data.profileData}
       birthdayVisible={data.birthdayVisible}
+      canViewWishlist={data.canViewWishlist}
+      mutualGroups={data.mutualGroups}
+      mutualFriends={data.mutualFriends}
+      wishlistPreview={data.wishlistPreview}
     />
   );
 };
@@ -353,16 +393,22 @@ type FriendProfileViewProps = Readonly<{
   };
   userJoinedDisplay: string;
   relationship: Relationship;
-  profileData: ProfilePageData;
   birthdayVisible: boolean;
+  canViewWishlist: boolean;
+  mutualGroups: ProfilePageData['mutualGroups'];
+  mutualFriends: ProfilePageData['mutualFriends'];
+  wishlistPreview: ProfilePageData['wishlistPreview'];
 }>;
 
 function FriendProfileView({
   user,
   userJoinedDisplay,
   relationship,
-  profileData,
   birthdayVisible,
+  canViewWishlist,
+  mutualGroups,
+  mutualFriends,
+  wishlistPreview,
 }: FriendProfileViewProps) {
   const userDisplayName = user.name ?? user.username;
   // Visibility is decided server-side by `canViewBirthday` (single source of
@@ -381,33 +427,41 @@ function FriendProfileView({
         birthdayLabel={birthdayLabel}
         joinedDisplay={userJoinedDisplay}
         actions={
-          <>
-            <Button asChild>
-              <Link to="wishlist" prefetch="intent">
-                {userDisplayName}'s wishlist
-              </Link>
-            </Button>
+          canViewWishlist ? (
+            <>
+              <Button asChild>
+                <Link to="wishlist" prefetch="intent">
+                  {userDisplayName}'s wishlist
+                </Link>
+              </Button>
+              <FriendActionButton
+                targetUserId={user.id}
+                targetUserName={userDisplayName}
+                relationship={relationship}
+                variant="compact"
+              />
+            </>
+          ) : (
             <FriendActionButton
               targetUserId={user.id}
               targetUserName={userDisplayName}
               relationship={relationship}
               variant="compact"
             />
-          </>
+          )
         }
       />
 
-      <MutualStrip
-        groups={profileData.mutualGroups}
-        friends={profileData.mutualFriends}
-      />
+      <MutualStrip groups={mutualGroups} friends={mutualFriends} />
 
-      <WishlistPreviewCard
-        items={profileData.wishlistPreview.items}
-        totalCount={profileData.wishlistPreview.totalCount}
-        fullListTo="wishlist"
-        ownerName={userDisplayName}
-      />
+      {canViewWishlist ? (
+        <WishlistPreviewCard
+          items={wishlistPreview.items}
+          totalCount={wishlistPreview.totalCount}
+          fullListTo="wishlist"
+          ownerName={userDisplayName}
+        />
+      ) : null}
     </div>
   );
 }
