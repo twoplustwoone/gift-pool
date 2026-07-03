@@ -41,10 +41,11 @@ export type FriendRowEntry = {
     username: string;
     name: string | null;
     birthday: Date | string | null;
-    // String, not a true enum — see schema note. 'FRIENDS' | 'EVERYONE' |
-    // 'NOBODY'. Optional because some callers (legacy test fixtures) don't
-    // set it; defaults to showing the pill.
-    birthdayVisibility?: string;
+    // Server-computed via `canViewBirthday` (the single source of truth for
+    // birthday visibility). Optional because optimistic just-accepted entries
+    // are built client-side before the loader has computed it — `undefined`
+    // shows the pill, and the next loader run fills in the real value.
+    birthdayVisible?: boolean;
     image: { id: string; altText: string | null } | null;
   };
   mutualGroups: Array<{ id: string; name: string }>;
@@ -60,9 +61,9 @@ export function FriendRow({
   onRemove: () => void;
 }>) {
   const { user, mutualGroups } = friend;
-  // Friend has explicitly hidden their birthday — don't compute the upcoming
-  // label at all so nothing shows up in the row slot.
-  const birthdayHidden = user.birthdayVisibility === 'NOBODY';
+  // Friend has hidden their birthday from the viewer (per `canViewBirthday`) —
+  // don't compute the upcoming label at all so nothing shows up in the row slot.
+  const birthdayHidden = user.birthdayVisible === false;
   const upcoming = birthdayHidden ? null : getUpcomingBirthday(user.birthday);
   const birthdaySoon =
     upcoming && upcoming.daysUntil <= BIRTHDAY_VISIBILITY_DAYS

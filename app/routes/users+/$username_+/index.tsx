@@ -19,6 +19,7 @@ import {
   formatBirthdayLabel,
   getUpcomingBirthday,
 } from '#app/utils/birthday.ts';
+import { canViewBirthday } from '#app/utils/birthday-visibility.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getRelationshipDetails } from '#app/utils/friends.server.ts';
 import { type RelationshipState } from '#app/utils/friends.ts';
@@ -103,12 +104,22 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 
   const profileData = await loadProfilePageData(userId, targetUser.id);
 
+  // The viewer is a confirmed direct friend to reach this branch, so the rule
+  // reduces to "visible unless NOBODY" — but route it through the shared helper
+  // so the pill consults the single source of truth.
+  const birthdayVisible = canViewBirthday(user, {
+    isDirectFriend: true,
+    isMutualFriend: false,
+    sharesActiveBirthdayGroup: false,
+  });
+
   return {
     canViewProfile,
     user,
     userJoinedDisplay: user.createdAt.toLocaleDateString(),
     relationship,
     profileData,
+    birthdayVisible,
   } as const;
 }
 
@@ -136,6 +147,7 @@ const ProfileRoute = () => {
       userJoinedDisplay={data.userJoinedDisplay}
       relationship={relationship}
       profileData={data.profileData}
+      birthdayVisible={data.birthdayVisible}
     />
   );
 };
@@ -153,6 +165,7 @@ type FriendProfileViewProps = Readonly<{
   userJoinedDisplay: string;
   relationship: Relationship;
   profileData: ProfilePageData;
+  birthdayVisible: boolean;
 }>;
 
 function FriendProfileView({
@@ -160,13 +173,12 @@ function FriendProfileView({
   userJoinedDisplay,
   relationship,
   profileData,
+  birthdayVisible,
 }: FriendProfileViewProps) {
   const userDisplayName = user.name ?? user.username;
-  // Viewer is already a confirmed friend to reach this view, so we only
-  // need to suppress the pill when the owner has opted into NOBODY. EVERYONE
-  // and FRIENDS both end up rendering it.
-  const birthdayHidden = user.birthdayVisibility === 'NOBODY';
-  const upcoming = birthdayHidden ? null : getUpcomingBirthday(user.birthday);
+  // Visibility is decided server-side by `canViewBirthday` (single source of
+  // truth); the pill is suppressed when the owner opted into NOBODY.
+  const upcoming = birthdayVisible ? getUpcomingBirthday(user.birthday) : null;
   const birthdayLabel =
     upcoming && upcoming.daysUntil <= BIRTHDAY_VISIBILITY_DAYS
       ? formatBirthdayLabel(upcoming.date, upcoming.daysUntil)

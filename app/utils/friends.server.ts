@@ -1,5 +1,6 @@
 import { captureException } from '@sentry/react-router';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
+import { canViewBirthday } from '#app/utils/birthday-visibility.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
 import { notifyUser } from '#app/utils/notification-service.server.tsx';
@@ -126,10 +127,25 @@ export async function listFriends(userId: string) {
   return friendships.map((friendship) => {
     const otherUser =
       friendship.userAId === userId ? friendship.userB : friendship.userA;
+    // The viewer is a direct friend of every entry in this list, so the rule
+    // reduces to "visible unless NOBODY". Compute it via the shared helper so
+    // the friend row consults the single source of truth rather than
+    // re-checking birthdayVisibility itself.
+    const birthdayVisible = canViewBirthday(otherUser, {
+      isDirectFriend: true,
+      isMutualFriend: false,
+      sharesActiveBirthdayGroup: false,
+    });
     return {
       friendshipId: friendship.id,
       createdAt: friendship.createdAt,
-      user: otherUser,
+      // `birthdayVisible` is optional in the type so optimistic client entries
+      // (just-accepted friend requests, built before a loader run) can omit it
+      // — an absent value renders the birthday pill, and the next loader fills
+      // in the real value.
+      user: { ...otherUser, birthdayVisible } as typeof otherUser & {
+        birthdayVisible?: boolean;
+      },
     };
   });
 }
