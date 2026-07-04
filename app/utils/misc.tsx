@@ -11,10 +11,11 @@ import { extendedTheme } from './extended-theme.ts';
 export const USER_IMAGE_SIZES = [32, 48, 64, 96, 128, 256, 512] as const;
 
 export function snapToUserImageSize(px: number) {
-  for (const size of USER_IMAGE_SIZES) {
-    if (px <= size) return size;
-  }
-  return USER_IMAGE_SIZES[USER_IMAGE_SIZES.length - 1];
+  return (
+    USER_IMAGE_SIZES.find((size) => px <= size) ??
+    USER_IMAGE_SIZES.at(-1) ??
+    512
+  );
 }
 
 export function getUserImgSrc(
