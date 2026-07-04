@@ -34,9 +34,18 @@ export const Avatar = ({
   loading = 'lazy',
   ariaLabel,
 }: AvatarProps) => {
+  // Numeric sizes are rendered via inline styles (Tailwind's N * 0.25rem scale)
+  // rather than `h-${size} w-${size}` classes — interpolated class names can't
+  // be seen by Tailwind's JIT scanner and get purged, leaving the img with no
+  // dimensions.
+  const numericSizeStyle =
+    typeof size === 'number'
+      ? { height: `${size * 0.25}rem`, width: `${size * 0.25}rem` }
+      : undefined;
+
   const sizeClass = (() => {
     if (typeof size === 'number') {
-      return `h-${size} w-${size}`;
+      return '';
     }
     switch (size) {
       case 's':
@@ -85,7 +94,7 @@ export const Avatar = ({
         src={src}
         alt={imageAlt}
         className={imgClasses}
-        style={style}
+        style={{ ...numericSizeStyle, ...style }}
         onClick={onClick}
         loading={loading}
         aria-label={ariaLabel ?? imageAlt}
