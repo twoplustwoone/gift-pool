@@ -130,4 +130,63 @@ describe('group settings route', () => {
     expect(checkbox).not.toBeChecked();
     expect(readHidden()).toBe('false');
   });
+
+  const asOwnerViewing = (
+    members: Array<{ userId: string; role: string; username: string }>,
+  ) => {
+    loaderDataSnapshot.canManageSettings = true;
+    loaderDataSnapshot.viewerMember.role = 'OWNER';
+    loaderDataSnapshot.giftGroup.groupMembers = members.map((m) => ({
+      userId: m.userId,
+      role: m.role,
+      user: {
+        id: m.userId,
+        username: m.username,
+        name: m.username,
+        image: null,
+      },
+    }));
+  };
+
+  it('offers every non-owner member (not just admins) in Transfer Ownership', () => {
+    // A group with no admins — the owner and two plain members. The dropdown
+    // used to filter to ADMIN only and render empty; every member is eligible.
+    asOwnerViewing([
+      { userId: 'viewer-1', role: 'OWNER', username: 'wade' },
+      { userId: 'm2', role: 'MEMBER', username: 'np' },
+    ]);
+    renderRoute();
+    expect(screen.getByText('Transfer Ownership')).toBeInTheDocument();
+    // Non-empty branch: the select + Transfer button render.
+    expect(screen.getByText('Select member')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Transfer' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/invite another member/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows a guidance message instead of an empty Transfer dropdown when the owner is alone', () => {
+    asOwnerViewing([{ userId: 'viewer-1', role: 'OWNER', username: 'wade' }]);
+    renderRoute();
+    expect(screen.getByText(/invite another member/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Transfer' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders the shared actions menu per manageable member row', () => {
+    asOwnerViewing([
+      { userId: 'viewer-1', role: 'OWNER', username: 'wade' },
+      { userId: 'm2', role: 'MEMBER', username: 'np' },
+    ]);
+    renderRoute();
+    // A manageable member gets the three-dot menu (desktop + mobile triggers).
+    expect(screen.getAllByLabelText('Actions for np').length).toBeGreaterThan(
+      0,
+    );
+    // The owner's own row has no actions available, so no menu renders.
+    expect(screen.queryByLabelText('Actions for wade')).not.toBeInTheDocument();
+  });
 });
