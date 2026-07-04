@@ -493,7 +493,7 @@ const GroupSettingsRoute = () => {
                 Transfer Ownership
               </div>
               <div className="mb-4 text-sm text-muted-foreground">
-                Make another admin the owner of this group
+                Make another member the owner of this group
               </div>
               <TransferOwnershipForm
                 giftGroupId={giftGroup.id}
@@ -932,7 +932,11 @@ const TransferOwnershipForm = ({
   const [form] = useForm({
     id: 'transfer-owner',
   });
-  const admins = members.filter((m) => m.role === 'ADMIN');
+  // Any non-owner member can receive ownership. transferOwnership() on the
+  // server promotes the target (ADMIN *or* MEMBER) straight to OWNER, so
+  // filtering to ADMIN-only here left an empty, dead-end dropdown in groups
+  // that have no admins.
+  const eligible = members.filter((m) => m.role !== 'OWNER');
   return (
     <fetcher.Form
       method="post"
@@ -941,21 +945,29 @@ const TransferOwnershipForm = ({
       className="flex items-center gap-2"
     >
       <input type="hidden" name="giftGroupId" value={giftGroupId} />
-      <Select name="newOwnerUserId">
-        <SelectTrigger>
-          <SelectValue placeholder="Select admin" />
-        </SelectTrigger>
-        <SelectContent>
-          {admins.map((m: any) => (
-            <SelectItem key={m.userId} value={m.userId}>
-              {m.user.username}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button name="intent" value={SettingsIntent.OwnershipTransfer}>
-        Transfer
-      </Button>
+      {eligible.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Invite another member to this group before you can transfer ownership.
+        </p>
+      ) : (
+        <>
+          <Select name="newOwnerUserId">
+            <SelectTrigger>
+              <SelectValue placeholder="Select member" />
+            </SelectTrigger>
+            <SelectContent>
+              {eligible.map((m: any) => (
+                <SelectItem key={m.userId} value={m.userId}>
+                  {m.user.username}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button name="intent" value={SettingsIntent.OwnershipTransfer}>
+            Transfer
+          </Button>
+        </>
+      )}
     </fetcher.Form>
   );
 };
