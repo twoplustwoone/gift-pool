@@ -23,6 +23,7 @@ import {
   useExitOnSubmitSuccess,
 } from '#app/components/editable-section.tsx';
 import { ErrorList } from '#app/components/forms.tsx';
+import { MemberActionsMenu } from '#app/components/groups/member-actions-menu.tsx';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
@@ -436,7 +437,6 @@ const GroupSettingsRoute = () => {
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const fetchers = useFetchers();
-  const memberActionFetcher = useFetcher<typeof action>();
   const settingsAction = `/groups/${giftGroup.id}/settings`;
   const optimisticMembers = React.useMemo(
     () =>
@@ -455,10 +455,6 @@ const GroupSettingsRoute = () => {
     viewerMember?.role ??
     'MEMBER';
   const canTransfer = optimisticViewerRole === 'OWNER';
-  const canPromote = optimisticViewerRole === 'OWNER';
-  const canDemote = optimisticViewerRole === 'OWNER';
-  const canRemove =
-    optimisticViewerRole === 'OWNER' || optimisticViewerRole === 'ADMIN';
   return (
     <div className="space-y-6">
       {/* Your preferences — visible & editable by every member (P7.5) */}
@@ -516,10 +512,7 @@ const GroupSettingsRoute = () => {
               {optimisticMembers.map((m: any) => {
                 const isViewer = m.userId === viewerMember?.userId;
                 return (
-                  <li
-                    key={m.userId}
-                    className="flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap"
-                  >
+                  <li key={m.userId} className="flex items-center gap-3 p-3">
                     <div className="flex min-w-0 flex-1 items-center gap-3">
                       <Avatar size="s" image={m.user.image} user={m.user} />
                       <div className="min-w-0">
@@ -532,63 +525,19 @@ const GroupSettingsRoute = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {/* Promote / Demote (owner only) */}
-                      {canPromote && m.role === 'MEMBER' && !isViewer ? (
-                        <memberActionFetcher.Form
-                          method="post"
-                          action={settingsAction}
-                        >
-                          <input
-                            type="hidden"
-                            name="giftGroupId"
-                            value={giftGroup.id}
-                          />
-                          <input
-                            type="hidden"
-                            name="memberUserId"
-                            value={m.userId}
-                          />
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            name="intent"
-                            value={SettingsIntent.MemberPromoteAdmin}
-                          >
-                            Promote to Admin
-                          </Button>
-                        </memberActionFetcher.Form>
-                      ) : null}
-                      {canDemote && m.role === 'ADMIN' && !isViewer ? (
-                        <memberActionFetcher.Form
-                          method="post"
-                          action={settingsAction}
-                        >
-                          <input
-                            type="hidden"
-                            name="giftGroupId"
-                            value={giftGroup.id}
-                          />
-                          <input
-                            type="hidden"
-                            name="memberUserId"
-                            value={m.userId}
-                          />
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            name="intent"
-                            value={SettingsIntent.MemberDemoteMember}
-                          >
-                            Demote to Member
-                          </Button>
-                        </memberActionFetcher.Form>
-                      ) : null}
-
-                      <MemberActions
+                    {/*
+                     * Same three-dot menu the Members tab uses
+                     * (MemberActionsMenu → dropdown on desktop, bottom sheet on
+                     * mobile). It derives the allowed promote/demote/remove
+                     * actions from the viewer's role, so the row no longer packs
+                     * multiple wide buttons that overlapped on small screens.
+                     */}
+                    <div className="flex-none">
+                      <MemberActionsMenu
                         giftGroupId={giftGroup.id}
-                        memberUserId={m.userId}
-                        canRemove={canRemove && !isViewer}
+                        viewerRole={optimisticViewerRole}
+                        member={{ user: m.user, role: m.role }}
+                        isViewer={isViewer}
                       />
                     </div>
                   </li>
@@ -761,35 +710,6 @@ const SettingsCard = ({
         <ErrorList errors={form.errors} id={form.errorId} />
       </fetcher.Form>
     </EditableSection>
-  );
-};
-const MemberActions = ({
-  giftGroupId,
-  memberUserId,
-  canRemove,
-}: {
-  giftGroupId: string;
-  memberUserId: string;
-  canRemove: boolean;
-}) => {
-  const fetcher = useFetcher<typeof action>();
-  const settingsAction = `/groups/${giftGroupId}/settings`;
-  return (
-    <div className="flex items-center gap-2">
-      {canRemove && (
-        <fetcher.Form method="post" action={settingsAction}>
-          <input type="hidden" name="giftGroupId" value={giftGroupId} />
-          <input type="hidden" name="memberUserId" value={memberUserId} />
-          <Button
-            name="intent"
-            value={SettingsIntent.MemberRemove}
-            variant="destructive"
-          >
-            Remove
-          </Button>
-        </fetcher.Form>
-      )}
-    </div>
   );
 };
 const RemindersSection = ({ giftGroup }: { giftGroup: any }) => {
