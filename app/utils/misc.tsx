@@ -5,6 +5,18 @@ import { useSpinDelay } from 'spin-delay';
 import { extendTailwindMerge } from 'tailwind-merge';
 import { extendedTheme } from './extended-theme.ts';
 
+// The only sizes the /resources/user-images route will resize to — any other
+// value is rejected with a 400. Keep this in sync with that route (it imports
+// this constant) and snap requested pixel dimensions to a bucket before asking.
+export const USER_IMAGE_SIZES = [32, 48, 64, 96, 128, 256, 512] as const;
+
+export function snapToUserImageSize(px: number) {
+  for (const size of USER_IMAGE_SIZES) {
+    if (px <= size) return size;
+  }
+  return USER_IMAGE_SIZES[USER_IMAGE_SIZES.length - 1];
+}
+
 export function getUserImgSrc(
   imageId?: string | null,
   options?: { size?: number },

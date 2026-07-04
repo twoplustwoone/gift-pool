@@ -1,5 +1,5 @@
 import { type User, type UserImage } from '@prisma/client';
-import { getUserImgSrc } from '#app/utils/misc.tsx';
+import { getUserImgSrc, snapToUserImageSize } from '#app/utils/misc.tsx';
 
 type AvatarSize = 's' | 'm' | 'l' | number;
 type AvatarShape = 'circle' | 'rounded' | 'square';
@@ -61,9 +61,12 @@ export const Avatar = ({
     }
   })();
 
+  // Snap to a bucket the image route actually serves — an off-list size (e.g.
+  // 160 from size={20}) is a 400 and a broken avatar. size is a Tailwind unit
+  // (× 4px); request 2× for retina, then snap up.
   const requestedImageSize =
     typeof size === 'number'
-      ? Math.min(512, Math.max(32, size * 8))
+      ? snapToUserImageSize(size * 8)
       : size === 's'
         ? 64
         : size === 'l'
