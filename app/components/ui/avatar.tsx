@@ -1,5 +1,5 @@
 import { type User, type UserImage } from '@prisma/client';
-import { getUserImgSrc } from '#app/utils/misc.tsx';
+import { getUserImgSrc, snapToUserImageSize } from '#app/utils/misc.tsx';
 
 type AvatarSize = 's' | 'm' | 'l' | number;
 type AvatarShape = 'circle' | 'rounded' | 'square';
@@ -34,9 +34,18 @@ export const Avatar = ({
   loading = 'lazy',
   ariaLabel,
 }: AvatarProps) => {
+  // Numeric sizes are rendered via inline styles (Tailwind's N * 0.25rem scale)
+  // rather than `h-${size} w-${size}` classes — interpolated class names can't
+  // be seen by Tailwind's JIT scanner and get purged, leaving the img with no
+  // dimensions.
+  const numericSizeStyle =
+    typeof size === 'number'
+      ? { height: `${size * 0.25}rem`, width: `${size * 0.25}rem` }
+      : undefined;
+
   const sizeClass = (() => {
     if (typeof size === 'number') {
-      return `h-${size} w-${size}`;
+      return '';
     }
     switch (size) {
       case 's':
@@ -61,9 +70,12 @@ export const Avatar = ({
     }
   })();
 
+  // Snap to a bucket the image route actually serves — an off-list size (e.g.
+  // 160 from size={20}) is a 400 and a broken avatar. size is a Tailwind unit
+  // (× 4px); request 2× for retina, then snap up.
   const requestedImageSize =
     typeof size === 'number'
-      ? Math.min(512, Math.max(32, size * 8))
+      ? snapToUserImageSize(size * 8)
       : size === 's'
         ? 64
         : size === 'l'
@@ -82,7 +94,7 @@ export const Avatar = ({
         src={src}
         alt={imageAlt}
         className={imgClasses}
-        style={style}
+        style={{ ...numericSizeStyle, ...style }}
         onClick={onClick}
         loading={loading}
         aria-label={ariaLabel ?? imageAlt}

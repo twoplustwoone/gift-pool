@@ -3,8 +3,9 @@ import sharp from 'sharp';
 import { type LoaderFunctionArgs } from 'react-router';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { USER_IMAGE_SIZES } from '#app/utils/misc.tsx';
 
-const ALLOWED_IMAGE_SIZES = new Set([32, 48, 64, 96, 128, 256, 512]);
+const ALLOWED_IMAGE_SIZES = new Set<number>(USER_IMAGE_SIZES);
 
 function parseRequestedSize(request: Request) {
   const sizeParam = new URL(request.url).searchParams.get('size');
