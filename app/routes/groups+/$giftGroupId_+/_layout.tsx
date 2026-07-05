@@ -26,6 +26,10 @@ const GroupLayout = () => {
   // back affordance to the group, and never shows the Overview/Members tab bar.
   const isSettings =
     location.pathname === `/groups/${giftGroup.id}/settings`;
+  // Members is a tab under this same header. Its back should climb to the parent
+  // group, not skip past it to the groups index (which is correct for Overview).
+  const isMembers =
+    location.pathname === `/groups/${giftGroup.id}/members`;
 
   return (
     // min-w-0: this is a grid item in the app shell; without it the default
@@ -47,7 +51,11 @@ const GroupLayout = () => {
       ) : (
         <PageHeader
           variant="detail"
-          back={{ label: 'Groups', href: '/groups' }}
+          back={
+            isMembers
+              ? { label: giftGroup.name, href: `/groups/${giftGroup.id}` }
+              : { label: 'Groups', href: '/groups' }
+          }
           icon={<LuUsers size={24} className="text-primary" />}
           title={giftGroup.name}
           subtitle={`${giftGroup.groupMembers.length} ${giftGroup.groupMembers.length === 1 ? 'member' : 'members'}`}
