@@ -194,7 +194,7 @@ const MembersRailCard = ({
           to={`/groups/${giftGroupId}/members`}
           className="text-xs text-primary hover:underline"
         >
-          Manage
+          {viewerRole === 'MEMBER' ? 'View all' : 'Manage'}
         </Link>
       }
     />
