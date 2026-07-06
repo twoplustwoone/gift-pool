@@ -41,6 +41,7 @@ import {
 	isPoolOrganizer,
 	type PoolForPermissions,
 } from '#app/utils/pool-permissions.server.ts';
+import { isPoolEmptyForDeletion } from '#app/utils/pool.server.ts';
 
 // Reuse the shared pool action so cancel/delete/generate-invite/update-details
 // all flow through one place.
@@ -93,10 +94,15 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		? `${new URL(request.url).origin}/pools/join/${pool.inviteCode}`
 		: null;
 
+	const isOrganizer = isPoolOrganizer(userId, poolForPerms);
+
 	return {
 		pool,
 		inviteUrl,
-		isOrganizer: isPoolOrganizer(userId, poolForPerms),
+		isOrganizer,
+		// Hard delete is only offered for an empty "mistake" pool (no ideas, no
+		// contributors beyond the organizer). Anything with memory shows Cancel.
+		canHardDelete: isOrganizer && (await isPoolEmptyForDeletion(pool.id)),
 	};
 }
 
@@ -119,7 +125,7 @@ function toDateInputValue(value: Date | string | null | undefined) {
 }
 
 const PoolSettings = () => {
-	const { pool, inviteUrl, isOrganizer } = useLoaderData<typeof loader>();
+	const { pool, inviteUrl, canHardDelete } = useLoaderData<typeof loader>();
 	const isClosed =
 		pool.status === POOL_STATUS.DELIVERED ||
 		pool.status === POOL_STATUS.CANCELLED;
@@ -141,7 +147,7 @@ const PoolSettings = () => {
 			{!isClosed && (
 				<DangerZone
 					poolId={pool.id}
-					isOrganizer={isOrganizer}
+					canHardDelete={canHardDelete}
 					canCancel={pool.status !== POOL_STATUS.DELIVERED}
 				/>
 			)}
@@ -382,11 +388,11 @@ const InviteSection = ({
 
 const DangerZone = ({
 	poolId,
-	isOrganizer,
+	canHardDelete,
 	canCancel,
 }: {
 	poolId: string;
-	isOrganizer: boolean;
+	canHardDelete: boolean;
 	canCancel: boolean;
 }) => {
 	const cancelFetcher = useFetcher();
@@ -429,7 +435,7 @@ const DangerZone = ({
 							</Button>
 						</ConfirmDialog>
 					)}
-					{isOrganizer && (
+					{canHardDelete && (
 						<ConfirmDialog
 							title="Delete this pool?"
 							description="This permanently deletes the pool and everything in it."
