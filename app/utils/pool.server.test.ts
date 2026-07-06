@@ -542,6 +542,14 @@ describe('pool server utilities', () => {
   });
 
   it('marks purchased, delivered, cancelled, and deleted pools', async () => {
+    // deletePool now guards on an empty "mistake" pool — seed the empty state so
+    // the guard passes and the hard delete proceeds.
+    poolFindUnique.mockResolvedValue({
+      organizerId: 'user-1',
+      _count: { ideas: 0 },
+      contributors: [{ userId: 'user-1' }],
+    });
+
     await markPurchased('pool-1', 'user-1');
     await markDelivered('pool-1', 'user-1');
     await cancelPool('pool-1', 'user-1');
@@ -572,6 +580,72 @@ describe('pool server utilities', () => {
     expect(logPoolActivity).toHaveBeenNthCalledWith(4, 'pool-1', 'pool.deleted', {
       actorId: 'user-1',
     });
+  });
+
+  it('deletePool rejects a pool that has gift ideas', async () => {
+    poolFindUnique.mockResolvedValue({
+      organizerId: 'user-1',
+      _count: { ideas: 1 },
+      contributors: [{ userId: 'user-1' }],
+    });
+
+    await expect(deletePool('pool-1', 'user-1')).rejects.toMatchObject({
+      init: { status: 409 },
+    });
+    expect(poolDelete).not.toHaveBeenCalled();
+    expect(logPoolActivity).not.toHaveBeenCalled();
+  });
+
+  it('deletePool rejects a pool with contributors beyond the organizer', async () => {
+    poolFindUnique.mockResolvedValue({
+      organizerId: 'user-1',
+      _count: { ideas: 0 },
+      contributors: [{ userId: 'user-1' }, { userId: 'user-2' }],
+    });
+
+    await expect(deletePool('pool-1', 'user-1')).rejects.toMatchObject({
+      init: { status: 409 },
+    });
+    expect(poolDelete).not.toHaveBeenCalled();
+    expect(logPoolActivity).not.toHaveBeenCalled();
+  });
+
+  it('deletePool hard-deletes an empty "mistake" pool', async () => {
+    poolFindUnique.mockResolvedValue({
+      organizerId: 'user-1',
+      _count: { ideas: 0 },
+      contributors: [{ userId: 'user-1' }],
+    });
+
+    await deletePool('pool-1', 'user-1');
+
+    expect(poolDelete).toHaveBeenCalledWith({ where: { id: 'pool-1' } });
+    expect(logPoolActivity).toHaveBeenCalledWith('pool-1', 'pool.deleted', {
+      actorId: 'user-1',
+    });
+  });
+
+  it('deletePool rejects when the pool no longer exists', async () => {
+    poolFindUnique.mockResolvedValue(null);
+
+    await expect(deletePool('pool-1', 'user-1')).rejects.toMatchObject({
+      init: { status: 409 },
+    });
+    expect(poolDelete).not.toHaveBeenCalled();
+  });
+
+  it('cancelPool preserves gift ideas (no destructive delete)', async () => {
+    // Cancellation only flips status — GiftIdea rows are preserved for future
+    // queries (distinct from display: the person surface reads only completed
+    // pools, so a cancelled pool's ideas are preserved, not shown).
+    await cancelPool('pool-1', 'user-1');
+
+    expect(poolUpdate).toHaveBeenCalledWith({
+      data: { status: 'CANCELLED' },
+      where: { id: 'pool-1' },
+    });
+    expect(poolDelete).not.toHaveBeenCalled();
+    expect(giftIdeaDelete).not.toHaveBeenCalled();
   });
 
   it('getContributionBreakdown returns null without a confirmed final price', async () => {

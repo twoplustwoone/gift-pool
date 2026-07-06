@@ -623,7 +623,39 @@ export async function cancelPool(poolId: string, actorId: string) {
 	})
 }
 
+// Returns whether the pool is an empty "mistake" (safe to hard-delete):
+// no gift ideas and no contributors beyond the organizer. The organizer is
+// always seeded as a contributor at creation, so we exclude them from the count.
+export async function isPoolEmptyForDeletion(poolId: string): Promise<boolean> {
+	const pool = await prisma.pool.findUnique({
+		where: { id: poolId },
+		select: {
+			organizerId: true,
+			_count: { select: { ideas: true } },
+			contributors: { select: { userId: true } },
+		},
+	})
+	if (!pool) return false
+	const otherContributors = pool.contributors.filter(
+		c => c.userId !== pool.organizerId,
+	).length
+	return pool._count.ideas === 0 && otherContributors === 0
+}
+
 export async function deletePool(poolId: string, actorId: string) {
+	// Hard delete is allowed only for a pool that is genuinely a mistake — no
+	// gift ideas and no contributors beyond the organizer. Anything with memory
+	// must be cancelled instead, so its GiftIdea/contributor rows survive for the
+	// recipient's gift history. Enforced here (throw), not just hidden in the UI.
+	if (!(await isPoolEmptyForDeletion(poolId))) {
+		throw data(
+			{
+				error:
+					'This pool has gift ideas or other contributors. Cancel it instead of deleting.',
+			},
+			{ status: 409 },
+		)
+	}
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_DELETED, { actorId })
 	await prisma.pool.delete({ where: { id: poolId } })
 }
