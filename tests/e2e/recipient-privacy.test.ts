@@ -13,7 +13,7 @@
 
 import { getPasswordHash } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import { createPool } from '#app/utils/pool.server.ts';
+import { createPool, generatePoolInviteCode } from '#app/utils/pool.server.ts';
 import { createUser } from '#tests/db-utils.ts';
 import { readEmail } from '#tests/mocks/utils.ts';
 import { expect, loginWithPassword, test } from '#tests/playwright-utils.ts';
@@ -79,6 +79,9 @@ test.describe('recipient privacy', () => {
       groupMemberDefaults: [{ userId: other.id, contributionCents: 0 }],
     });
     poolId = pool.id;
+    // Give the pool a real invite code so the recipient-invite-link test can
+    // actually navigate the join flow (createPool never sets one).
+    await generatePoolInviteCode(poolId);
   });
 
   test.afterAll(async () => {
@@ -204,16 +207,14 @@ test.describe('recipient privacy', () => {
       where: { id: poolId },
       select: { inviteCode: true },
     });
-    if (!invite?.inviteCode) {
-      test.skip(true, 'pool has no invite code in seed — skip');
-      return;
-    }
+    const inviteCode = invite?.inviteCode;
+    expect(inviteCode).toBeTruthy();
 
     await loginWithPassword(page, {
       username: recipient.username,
       password: recipient.password,
     });
-    await page.goto(`/pools/join/${invite.inviteCode}`);
+    await page.goto(`/pools/join/${inviteCode}`);
 
     // Landing on the pool detail would be a leak.
     await expect(page).not.toHaveURL(new RegExp(`/pools/${poolId}`));
