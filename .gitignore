@@ -37,3 +37,6 @@ storybook-static
 *.har
 *profile.json.gz
 *profile.json
+
+# Claude Code runtime state (machine-local, never commit)
+.claude/scheduled_tasks.lock
