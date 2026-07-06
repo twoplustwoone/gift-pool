@@ -8,7 +8,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const loaderDataSnapshot = {
   inviteUrl: 'https://giftpool.app/pools/join/invite-1' as string | null,
-  isOrganizer: true,
+  // True only for an empty "mistake" pool the organizer may hard-delete;
+  // anything with memory shows Cancel instead. See settings loader.
+  canHardDelete: true,
   pool: {
     id: 'pool-1',
     title: 'Alex Birthday Pool',
@@ -49,7 +51,7 @@ function renderRoute() {
 describe('app/routes/pools+/$poolId+/settings.tsx', () => {
   beforeEach(() => {
     loaderDataSnapshot.pool.status = 'OPEN';
-    loaderDataSnapshot.isOrganizer = true;
+    loaderDataSnapshot.canHardDelete = true;
     loaderDataSnapshot.inviteUrl = 'https://giftpool.app/pools/join/invite-1';
   });
 
@@ -102,8 +104,10 @@ describe('app/routes/pools+/$poolId+/settings.tsx', () => {
     expect(method.disabled).toBe(true);
   });
 
-  it('hides the delete action from non-organizer managers', () => {
-    loaderDataSnapshot.isOrganizer = false;
+  it('hides the delete action when the pool cannot be hard-deleted', () => {
+    // canHardDelete is false for non-organizer managers AND for any pool that
+    // holds memory (gift ideas / other contributors) — both collapse to Cancel.
+    loaderDataSnapshot.canHardDelete = false;
     renderRoute();
     expect(
       screen.queryByRole('button', { name: 'Delete pool' }),

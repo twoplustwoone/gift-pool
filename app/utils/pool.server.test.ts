@@ -625,6 +625,15 @@ describe('pool server utilities', () => {
     });
   });
 
+  it('deletePool rejects when the pool no longer exists', async () => {
+    poolFindUnique.mockResolvedValue(null);
+
+    await expect(deletePool('pool-1', 'user-1')).rejects.toMatchObject({
+      init: { status: 409 },
+    });
+    expect(poolDelete).not.toHaveBeenCalled();
+  });
+
   it('cancelPool preserves gift ideas (no destructive delete)', async () => {
     // Cancellation only flips status — GiftIdea rows are preserved for future
     // queries (distinct from display: the person surface reads only completed
