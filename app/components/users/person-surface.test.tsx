@@ -210,7 +210,13 @@ describe('PersonSurface form emission', () => {
 
   it('save-idea emits its intent and name', async () => {
     const user = userEvent.setup();
-    renderSurface(baseData());
+    // A note gives the surface memory, suppressing DayOneCapture — otherwise it
+    // renders a second SaveIdeaDialog and the "Idea" control is ambiguous.
+    renderSurface(
+      baseData({
+        ideation: { ...emptyIdeation, notes: [{ id: 'n1', body: 'Likes tea' }] },
+      }),
+    );
 
     await user.type(screen.getByLabelText('Idea'), 'Handmade journal');
     await user.click(submitButton('Save idea'));
