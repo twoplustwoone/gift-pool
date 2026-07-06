@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Gift Pool is a full-stack web application for managing wishlists and coordinating gifts within groups. Built with React Router v7, React, TypeScript, Prisma (SQLite), and Tailwind CSS. Deployed on Fly.io with LiteFS for distributed SQLite.
 
+## Git Workflow
+
+Always ship changes via a dedicated PR branch — never commit directly to main. Follow the atomic-commit PR workflow and monitor CI to green before considering work done.
+
 ## Commands
 
 ### Development
@@ -229,3 +233,11 @@ Optional:
 - `SENTRY_DSN` - Error tracking
 
 See `app/utils/env.server.ts` for full list.
+
+## Mobile UI Conventions
+
+On mobile surfaces, use bottom-sheet patterns (not centered modals), and ensure every interactive control provides visible feedback or redirect after action. See the "Modals are sheets on mobile — HARD RULE" convention above for the `ResponsiveDialog` mechanics.
+
+## Debugging & Testing
+
+When a test or CI check fails, run the specific test type the user requested (jest/unit vs. e2e). If a fix isn't working after two attempts, stop and step back to re-diagnose the root cause rather than iterating on throwaway diagnostics.
