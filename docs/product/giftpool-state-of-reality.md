@@ -117,11 +117,13 @@ at larger scale, burning a first impression.
   `Pool.organizerId`.
 - **No `User.lastActiveAt`** — recency proxied via `Session.createdAt` or
   `AnalyticsEvent.createdAt`.
-- **`GiftIdea` is pool-bound only** — there is NO standalone "gift-list / ideas saved for
-  a friend" concept in the data model. That feature is greenfield, not an extension.
-  *(Note: the person-surface "save gift-list item" action, shipped in #461, writes
-  somewhere — confirm whether this closes the gap or writes into a pool-bound
-  structure by another name. Not yet re-verified against this specific claim.)*
+- ~~**`GiftIdea` is pool-bound only, no standalone gift-list concept.**~~ **WRONG —
+  RESOLVED.** A standalone `GiftListItem` model already exists (`prisma/schema.prisma:581`,
+  keyed on `ownerId`/`targetUserId`, no pool reference), and `saveGiftListItem`
+  (`person-surface.server.ts:152`, shipped in #461) writes to it directly.
+  `GiftIdea.giftListItemId` links a promoted pool idea back to its originating
+  `GiftListItem` rather than copying data. The "gift-list / ideas saved for a friend"
+  feature is not greenfield — it's built and live.
 - **Soft-delete asymmetry:** `UsersInGiftGroups` soft-removes (`removedAt`);
   `PoolContributor` hard-deletes (rejoin history not preserved).
 - Analytics has no historical backfill — pre-instrumentation behavior lives only in
