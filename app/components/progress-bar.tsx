@@ -18,9 +18,12 @@ const EpicProgress = () => {
     if (!ref.current) return;
     if (delayedPending) setAnimationComplete(false);
 
-    const animationPromises = ref.current
-      .getAnimations()
-      .map(({ finished }) => finished);
+    // Element.getAnimations() is missing on older browsers (pre-Chrome 84);
+    // fall back to resolving immediately so the bar still hides.
+    const animationPromises =
+      typeof ref.current.getAnimations === 'function'
+        ? ref.current.getAnimations().map(({ finished }) => finished)
+        : [];
 
     void Promise.allSettled(animationPromises).then(() => {
       if (!delayedPending) setAnimationComplete(true);
