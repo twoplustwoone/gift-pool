@@ -34,7 +34,12 @@ export const en = {
       fallbackName: 'Someone',
     },
     upcomingBirthday: {
-      message: "{{name}}'s birthday is in {{daysUntil}} days",
+      // `when` is 'today' | 'tomorrow' | 'on Jul 18' — date-based so the
+      // message can't go stale while it sits in the bell for the rest of the
+      // lead window (see formatBirthdayWhen in
+      // notification-service.server.tsx).
+      message: "{{name}}'s birthday is {{when}}",
+      pushTitle: 'Upcoming birthday',
     },
     markAllReadSuccess: 'All notifications marked as read.',
   },

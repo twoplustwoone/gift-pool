@@ -80,6 +80,9 @@ export function getRecentBirthday(
 // Short human label — "Today!", "Tomorrow", or "Sep 12". The Date passed
 // in is already the local-timezone candidate constructed by
 // `getUpcomingBirthday`, so local-time formatting is correct here.
+// Sibling of `formatBirthdayWhen` below: this is the capitalized badge
+// style, that one is the mid-sentence phrase style. Keep the two in step if
+// the copy ever changes.
 export function formatBirthdayLabel(date: Date, daysUntil: number) {
   if (daysUntil === 0) return 'Today!';
   if (daysUntil === 1) return 'Tomorrow';
@@ -87,4 +90,18 @@ export function formatBirthdayLabel(date: Date, daysUntil: number) {
     month: 'short',
     day: 'numeric',
   }).format(date);
+}
+
+// Mid-sentence phrase — 'today' | 'tomorrow' | 'on Jul 18'. Date-based
+// beyond tomorrow so persistent surfaces (the notification bell, an email
+// read days later) can't go stale the way "in 7 days" would. Used by the
+// UPCOMING_BIRTHDAY notification message and email.
+export function formatBirthdayWhen(daysUntil: number, birthdayDate: Date) {
+  if (daysUntil === 0) return 'today';
+  if (daysUntil === 1) return 'tomorrow';
+  const dateLabel = new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+  }).format(birthdayDate);
+  return `on ${dateLabel}`;
 }

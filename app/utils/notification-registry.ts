@@ -52,6 +52,7 @@ type PayloadByType = {
   [NOTIFICATION_TYPES.UPCOMING_BIRTHDAY]: {
     targetUserId: string;
     birthdayUserId: string;
+    birthdayUsername: string;
     birthdayDisplayName: string;
     daysUntil: number;
   };
@@ -82,6 +83,8 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: Record<
     pushEnabled: false,
   },
   [NOTIFICATION_TYPES.UPCOMING_BIRTHDAY]: {
+    // v1 default is in-app only — see occasion-reminders.server.ts. Users can
+    // still opt into email/push themselves via /settings/profile/notifications.
     inAppEnabled: true,
     emailEnabled: false,
     pushEnabled: false,

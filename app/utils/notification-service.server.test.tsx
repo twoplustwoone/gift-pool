@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import { sendEmail } from '#app/utils/email.server.ts';
 import {
@@ -23,6 +23,20 @@ vi.mock('#app/utils/web-push.server.ts', () => ({
   sendWebPush: (...args: Array<unknown>) => sendWebPush(...args),
 }));
 
+const queueLogEvent = vi.fn().mockReturnValue({ eventId: 'mock-event' });
+vi.mock('#app/utils/analytics.server.ts', () => ({
+  queueLogEvent: (...args: Array<unknown>) => queueLogEvent(...args),
+}));
+
+const captureException = vi.fn();
+vi.mock('@sentry/react-router', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    captureException: (...args: Array<unknown>) => captureException(...args),
+  };
+});
+
 async function createUser(
   overrides: Partial<{ email: string; username: string; name: string }> = {},
 ) {
@@ -45,9 +59,23 @@ async function createUser(
 describe('notification service', () => {
   const emailMock = vi.mocked(sendEmail);
 
+  beforeEach(() => {
+    // vite.config.ts sets `restoreMocks: true`, which strips vi.fn()
+    // implementations before every test — factory-level defaults don't
+    // survive, so the success default must be (re)set here.
+    emailMock.mockResolvedValue({
+      status: 'success',
+      data: { id: 'mock-email' },
+    } as never);
+  });
+
   afterEach(async () => {
+    vi.useRealTimers();
     emailMock.mockClear();
     sendWebPush.mockClear();
+    queueLogEvent.mockClear();
+    captureException.mockClear();
+    await prisma.notificationDelivery.deleteMany();
     await prisma.notificationPreferenceAudit.deleteMany();
     await prisma.userNotificationPreference.deleteMany();
     await prisma.notification.deleteMany();
@@ -198,5 +226,519 @@ describe('notification service', () => {
     });
 
     expect(sendWebPush).not.toHaveBeenCalled();
+  });
+
+  it('creates an in-app UPCOMING_BIRTHDAY notification without email by default', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser({ name: 'Birthday Person' });
+    await ensureNotificationPreferencesForUser(viewer.id);
+
+    await notifyUser({
+      userId: viewer.id,
+      type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      payload: {
+        targetUserId: viewer.id,
+        birthdayUserId: birthdayOwner.id,
+        birthdayUsername: birthdayOwner.username,
+        birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+        daysUntil: 5,
+      },
+      sourceIdentifier: 'test-birthday-source',
+    });
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId: viewer.id, type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY },
+    });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]?.targetUrl).toBe(
+      `/users/${birthdayOwner.username}`,
+    );
+    expect(emailMock).not.toHaveBeenCalled();
+  });
+
+  it('is idempotent per sourceIdentifier for UPCOMING_BIRTHDAY', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+
+    const notify = () =>
+      notifyUser({
+        userId: viewer.id,
+        type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+        payload: {
+          targetUserId: viewer.id,
+          birthdayUserId: birthdayOwner.id,
+          birthdayUsername: birthdayOwner.username,
+          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+          daysUntil: 5,
+        },
+        sourceIdentifier: 'test-birthday-repeat',
+      });
+
+    await notify();
+    await notify();
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId: viewer.id, type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY },
+    });
+    expect(notifications).toHaveLength(1);
+  });
+
+  it('sends birthday email when the user has opted in', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.EMAIL,
+      true,
+      'test',
+    );
+
+    await notifyUser({
+      userId: viewer.id,
+      type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      payload: {
+        targetUserId: viewer.id,
+        birthdayUserId: birthdayOwner.id,
+        birthdayUsername: birthdayOwner.username,
+        birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+        daysUntil: 2,
+      },
+      sourceIdentifier: 'test-birthday-email-opt-in',
+    });
+
+    expect(emailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends the birthday email only once across repeated calls — the delivery ledger gates every channel', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.EMAIL,
+      true,
+      'test',
+    );
+
+    const notify = () =>
+      notifyUser({
+        userId: viewer.id,
+        type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+        payload: {
+          targetUserId: viewer.id,
+          birthdayUserId: birthdayOwner.id,
+          birthdayUsername: birthdayOwner.username,
+          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+          daysUntil: 4,
+        },
+        sourceIdentifier: 'test-birthday-email-repeat',
+      });
+
+    await notify();
+    await notify();
+
+    expect(emailMock).toHaveBeenCalledTimes(1);
+    // One ledger claim per channel: IN_APP (default on) + EMAIL (opted in).
+    const deliveries = await prisma.notificationDelivery.findMany({
+      where: { userId: viewer.id },
+    });
+    expect(deliveries.map((d) => d.sourceIdentifier).sort()).toEqual([
+      'test-birthday-email-repeat:EMAIL',
+      'test-birthday-email-repeat:IN_APP',
+    ]);
+  });
+
+  it('dedupes email for an email-only user with the in-app channel disabled', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.IN_APP,
+      false,
+      'test',
+    );
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.EMAIL,
+      true,
+      'test',
+    );
+
+    const notify = () =>
+      notifyUser({
+        userId: viewer.id,
+        type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+        payload: {
+          targetUserId: viewer.id,
+          birthdayUserId: birthdayOwner.id,
+          birthdayUsername: birthdayOwner.username,
+          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+          daysUntil: 4,
+        },
+        sourceIdentifier: 'test-birthday-email-only',
+      });
+
+    await notify();
+    await notify();
+
+    // No in-app row exists to anchor dedupe on — the ledger must carry it.
+    const notifications = await prisma.notification.findMany({
+      where: { userId: viewer.id, type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY },
+    });
+    expect(notifications).toHaveLength(0);
+    expect(emailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends the birthday push only once across repeated calls', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.WEB_PUSH,
+      true,
+      'test',
+    );
+
+    const notify = () =>
+      notifyUser({
+        userId: viewer.id,
+        type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+        payload: {
+          targetUserId: viewer.id,
+          birthdayUserId: birthdayOwner.id,
+          birthdayUsername: birthdayOwner.username,
+          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+          daysUntil: 4,
+        },
+        sourceIdentifier: 'test-birthday-push-repeat',
+      });
+
+    await notify();
+    await notify();
+
+    expect(sendWebPush).toHaveBeenCalledTimes(1);
+  });
+
+  it('derives a window-stable default sourceIdentifier — the birthday date, not the sweep day', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+
+    // No sourceIdentifier passed: the service derives it from the birthday's
+    // calendar date (now + daysUntil). Simulate the daily sweep advancing
+    // through the window — same birthday date, so the second call must be a
+    // no-op, not a second notification.
+    const notify = (daysUntil: number) =>
+      notifyUser({
+        userId: viewer.id,
+        type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+        payload: {
+          targetUserId: viewer.id,
+          birthdayUserId: birthdayOwner.id,
+          birthdayUsername: birthdayOwner.username,
+          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+          daysUntil,
+        },
+      });
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 12, 12, 0, 0));
+    await notify(5);
+    vi.setSystemTime(new Date(2026, 6, 14, 12, 0, 0));
+    await notify(3);
+    vi.useRealTimers();
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId: viewer.id, type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY },
+    });
+    expect(notifications).toHaveLength(1);
+    // The key pins the birthday's local calendar date (Jul 17) per channel.
+    expect(notifications[0]?.sourceIdentifier).toBe(
+      `birthday:${birthdayOwner.id}:2026-07-17:IN_APP`,
+    );
+  });
+
+  it('re-notifies when the owner edits their birthday to a different date', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+
+    const notify = (daysUntil: number) =>
+      notifyUser({
+        userId: viewer.id,
+        type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+        payload: {
+          targetUserId: viewer.id,
+          birthdayUserId: birthdayOwner.id,
+          birthdayUsername: birthdayOwner.username,
+          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+          daysUntil,
+        },
+      });
+
+    // Same sweep day, different derived birthday date = the owner corrected
+    // their birthday after the first reminder went out. A date-keyed ledger
+    // must deliver for the new date (a year-keyed one silently wouldn't).
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 12, 12, 0, 0));
+    await notify(2);
+    await notify(6);
+    vi.useRealTimers();
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId: viewer.id, type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY },
+    });
+    expect(notifications).toHaveLength(2);
+  });
+
+  it('renders a date-based message that cannot go stale in the bell', async () => {
+    const viewer = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+
+    const notifyFor = async (daysUntil: number) => {
+      const birthdayOwner = await createUser({ name: 'Birthday Person' });
+      await notifyUser({
+        userId: viewer.id,
+        type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+        payload: {
+          targetUserId: viewer.id,
+          birthdayUserId: birthdayOwner.id,
+          birthdayUsername: birthdayOwner.username,
+          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+          daysUntil,
+        },
+        sourceIdentifier: `test-birthday-when-${daysUntil}`,
+      });
+      const notification = await prisma.notification.findFirst({
+        where: {
+          userId: viewer.id,
+          // The in-app row stores its channel-suffixed ledger claim key.
+          sourceIdentifier: `test-birthday-when-${daysUntil}:${NOTIFICATION_CHANNELS.IN_APP}`,
+        },
+      });
+      return JSON.parse(notification?.messageParams ?? '{}') as {
+        when?: string;
+      };
+    };
+
+    expect((await notifyFor(0)).when).toBe('today');
+    expect((await notifyFor(1)).when).toBe('tomorrow');
+    // Beyond tomorrow the message pins the calendar date ('on Jul 18'), not
+    // a relative count that would be wrong by the next morning.
+    expect((await notifyFor(6)).when).toMatch(/^on [A-Z][a-z]{2} \d{1,2}$/);
+  });
+
+  it('claims nothing while all channels are disabled, so enabling one later in the window still delivers', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.IN_APP,
+      false,
+      'test',
+    );
+
+    const notify = () =>
+      notifyUser({
+        userId: viewer.id,
+        type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+        payload: {
+          targetUserId: viewer.id,
+          birthdayUserId: birthdayOwner.id,
+          birthdayUsername: birthdayOwner.username,
+          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+          daysUntil: 5,
+        },
+        sourceIdentifier: 'test-birthday-disabled-then-enabled',
+      });
+
+    await notify();
+    expect(
+      await prisma.notificationDelivery.count({
+        where: { userId: viewer.id },
+      }),
+    ).toBe(0);
+
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.IN_APP,
+      true,
+      'test',
+    );
+    await notify();
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId: viewer.id, type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY },
+    });
+    expect(notifications).toHaveLength(1);
+  });
+
+  it('delivers to a channel enabled mid-window without repeating the others', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+
+    const notify = () =>
+      notifyUser({
+        userId: viewer.id,
+        type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+        payload: {
+          targetUserId: viewer.id,
+          birthdayUserId: birthdayOwner.id,
+          birthdayUsername: birthdayOwner.username,
+          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+          daysUntil: 5,
+        },
+        sourceIdentifier: 'test-birthday-mid-window',
+      });
+
+    // Day 7: in-app (default) delivers. Day 4: the user, prompted by the
+    // bell item, opts into email — the email channel's claim doesn't exist
+    // yet, so the NEXT sweep delivers it, exactly once.
+    await notify();
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.EMAIL,
+      true,
+      'test',
+    );
+    await notify();
+    await notify();
+
+    expect(emailMock).toHaveBeenCalledTimes(1);
+    const notifications = await prisma.notification.findMany({
+      where: { userId: viewer.id, type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY },
+    });
+    expect(notifications).toHaveLength(1);
+  });
+
+  it('isolates channel failures — a failing email does not block push', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.EMAIL,
+      true,
+      'test',
+    );
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.WEB_PUSH,
+      true,
+      'test',
+    );
+    emailMock.mockRejectedValueOnce(new Error('resend outage'));
+
+    const outcome = await notifyUser({
+      userId: viewer.id,
+      type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      payload: {
+        targetUserId: viewer.id,
+        birthdayUserId: birthdayOwner.id,
+        birthdayUsername: birthdayOwner.username,
+        birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+        daysUntil: 3,
+      },
+      sourceIdentifier: 'test-birthday-channel-isolation',
+    });
+
+    expect(sendWebPush).toHaveBeenCalledTimes(1);
+    expect(captureException).toHaveBeenCalledTimes(1);
+    expect(outcome).toEqual({
+      deliveredChannels: [
+        NOTIFICATION_CHANNELS.IN_APP,
+        NOTIFICATION_CHANNELS.WEB_PUSH,
+      ],
+      failedChannels: [NOTIFICATION_CHANNELS.EMAIL],
+    });
+  });
+
+  it('treats a sendEmail error status (no throw) as a failed channel', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.EMAIL,
+      true,
+      'test',
+    );
+    // sendEmail reports Resend API failures as a status object, not a throw.
+    emailMock.mockResolvedValueOnce({
+      status: 'error',
+      error: {
+        name: 'rate_limit_exceeded',
+        message: 'slow down',
+        statusCode: 429,
+      },
+    } as never);
+
+    const outcome = await notifyUser({
+      userId: viewer.id,
+      type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      payload: {
+        targetUserId: viewer.id,
+        birthdayUserId: birthdayOwner.id,
+        birthdayUsername: birthdayOwner.username,
+        birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+        daysUntil: 3,
+      },
+      sourceIdentifier: 'test-birthday-email-error-status',
+    });
+
+    expect(outcome?.failedChannels).toEqual([NOTIFICATION_CHANNELS.EMAIL]);
+    expect(captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires occasion_reminder_sent once per delivery, never on no-op re-runs', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+
+    const notify = () =>
+      notifyUser({
+        userId: viewer.id,
+        type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+        payload: {
+          targetUserId: viewer.id,
+          birthdayUserId: birthdayOwner.id,
+          birthdayUsername: birthdayOwner.username,
+          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+          daysUntil: 5,
+        },
+        sourceIdentifier: 'test-birthday-analytics',
+      });
+
+    await notify();
+    await notify();
+
+    expect(queueLogEvent).toHaveBeenCalledTimes(1);
+    expect(queueLogEvent).toHaveBeenCalledWith({
+      name: 'occasion_reminder_sent',
+      source: 'server',
+      userId: viewer.id,
+      properties: {
+        birthdayUserId: birthdayOwner.id,
+        daysUntil: 5,
+        channels: [NOTIFICATION_CHANNELS.IN_APP],
+      },
+    });
   });
 });
