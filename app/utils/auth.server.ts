@@ -8,7 +8,7 @@ import { combineHeaders } from './misc.tsx';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   NOTIFICATION_TYPES,
-} from './notification-registry.ts';
+} from './notification-catalog.ts';
 import { authSessionStorage } from './session.server.ts';
 
 // Seed a row per notification type at user creation so we don't have to run
@@ -191,9 +191,7 @@ export async function logout(
   if (sessionId) {
     // the .catch is important because that's what triggers the query.
     // learn more about PrismaPromise: https://www.prisma.io/docs/orm/reference/prisma-client-reference#prismapromise-behavior
-    prisma.session
-      .deleteMany({ where: { id: sessionId } })
-      .catch(() => {});
+    prisma.session.deleteMany({ where: { id: sessionId } }).catch(() => {});
   }
   throw redirect(safeRedirect(redirectTo), {
     ...responseInit,

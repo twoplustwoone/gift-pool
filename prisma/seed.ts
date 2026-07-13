@@ -12,7 +12,7 @@ import {
 	DECISION_MODE,
 	OCCASION_TYPE,
 } from '#app/utils/pool-constants.ts'
-import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts'
+import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1279,7 +1279,7 @@ async function seed() {
 
 	// ── Notifications for Wade ──────────────────────────────────────────────────
 	// Mix of unread + read across the three supported types. Shapes match
-	// what `app/utils/notification-service.server.tsx` produces.
+	// what `app/utils/notification-dispatcher.server.ts` produces.
 	console.time('🔔 Created notifications for Wade...')
 
 	// UNREAD — Zoe sent a friend request (attached to the PENDING request)

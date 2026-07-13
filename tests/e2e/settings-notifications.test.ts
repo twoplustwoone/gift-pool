@@ -1,6 +1,6 @@
 import { type Page } from '@playwright/test';
 import { prisma } from '#app/utils/db.server.ts';
-import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
+import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts';
 import {
   expect,
   singleFetchActionBody,

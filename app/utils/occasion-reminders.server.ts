@@ -6,10 +6,9 @@
 // shareBirthday groupmates, each still checked against the single
 // birthday-visibility source of truth in birthday-visibility.server.ts — do
 // not re-derive the visibility rule here), and hand each (recipient,
-// birthdayUser) pair to notifyUser. Idempotency (so re-running the sweep, or
-// missing a day, never double-sends on any channel) lives in notifyUser's
-// NotificationDelivery ledger claim — see notifyUpcomingBirthday in
-// notification-service.server.tsx.
+// birthdayUser) pair to the dispatcher. Idempotency (so re-running the sweep,
+// or missing a day, never double-sends on any channel) lives in the
+// dispatcher's NotificationDelivery claim.
 import * as Sentry from '@sentry/react-router';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { OCCASION_REMINDER_EMAIL_SRC } from '#app/utils/analytics.ts';
@@ -19,8 +18,8 @@ import {
 } from '#app/utils/birthday-visibility.server.ts';
 import { getUpcomingBirthday } from '#app/utils/birthday.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
-import { notifyUser } from '#app/utils/notification-service.server.tsx';
+import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts';
+import { dispatchNotification } from '#app/utils/notification-dispatcher.server.ts';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
 
 // Fixed for v1. Configurable per-user/per-group lead time is a real future
@@ -50,7 +49,7 @@ export type UpcomingBirthdayOwner = {
 // All users whose next birthday falls within [0, leadDays] days from today.
 // Inclusive of 0 (today) so a late-running or missed sweep still catches it,
 // and inclusive of the full window (not just `=== leadDays`) so a sweep that
-// misses a day doesn't skip anyone — notifyUser's sourceIdentifier dedupe
+// misses a day doesn't skip anyone — the dispatcher's occurrence-key dedupe
 // means re-entering the window on a later day is harmless.
 export async function findUpcomingBirthdayOwners(
   leadDays: number = UPCOMING_BIRTHDAY_LEAD_DAYS,
@@ -189,7 +188,7 @@ export type OccasionReminderSweepSummary = {
   // enabled): the idempotent no-op path.
   viewersSkipped: number;
   // Recipients where a channel send failed after its claim (at-most-once, in
-  // Sentry) or notifyUser threw before claiming (retried tomorrow).
+  // Sentry) or dispatch setup threw before claiming (retried tomorrow).
   viewersFailed: number;
 };
 
@@ -205,10 +204,10 @@ export async function runOccasionReminderSweep(
     const recipientIds = await getBirthdayReminderRecipientIds(owner.user);
     for (const recipientId of recipientIds) {
       try {
-        // sourceIdentifier deliberately omitted: notifyUpcomingBirthday
-        // derives the canonical `birthday:<owner>:<yyyy-mm-dd>` base key
-        // next to the per-channel ledger claims that consume it.
-        const outcome = await notifyUser({
+        // sourceIdentifier deliberately omitted: the event handler derives
+        // the canonical `birthday:<owner>:<yyyy-mm-dd>` occurrence key next
+        // to the per-channel ledger claims that consume it.
+        const outcome = await dispatchNotification({
           userId: recipientId,
           type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
           payload: {
@@ -228,10 +227,9 @@ export async function runOccasionReminderSweep(
           viewersSkipped++;
         }
       } catch (error) {
-        // A throw here happened before any channel claim (prefs lookup, DB),
-        // so tomorrow's run retries it. Channel-send failures are handled
-        // inside notifyUpcomingBirthday (per-channel, at-most-once) and
-        // surface via failedChannels above — Sentry is the signal either way.
+        // A throw here happened before channel dispatch (policy lookup, DB),
+        // so tomorrow's run retries it. Channel-send failures are isolated by
+        // the dispatcher and surface via failedChannels above.
         viewersFailed++;
         Sentry.captureException(error);
       }

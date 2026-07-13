@@ -2,12 +2,12 @@ import { data, type ActionFunctionArgs } from 'react-router';
 import { z } from 'zod';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import { setNotificationPreference } from '#app/utils/notification-preferences.server.ts';
 import {
   NOTIFICATION_CHANNELS,
   NOTIFICATION_TYPES,
   type NotificationType,
-} from '#app/utils/notification-registry.ts';
+} from '#app/utils/notification-catalog.ts';
+import { setNotificationPreference } from '#app/utils/notification-preferences.server.ts';
 
 // Shape of a browser PushSubscription as serialized by `subscription.toJSON()`.
 const SubscribeSchema = z.object({
@@ -51,7 +51,13 @@ export async function action({ request }: ActionFunctionArgs) {
   // than duplicated.
   await prisma.pushSubscription.upsert({
     where: { endpoint },
-    create: { userId, endpoint, p256dh: keys.p256dh, auth: keys.auth, userAgent },
+    create: {
+      userId,
+      endpoint,
+      p256dh: keys.p256dh,
+      auth: keys.auth,
+      userAgent,
+    },
     update: { userId, p256dh: keys.p256dh, auth: keys.auth, userAgent },
   });
 

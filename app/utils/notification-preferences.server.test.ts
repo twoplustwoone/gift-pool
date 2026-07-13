@@ -2,6 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_TYPES,
+  type NotificationType,
+} from '#app/utils/notification-catalog.ts';
+import {
   disableEmailForAll,
   ensureNotificationPreferencesForUser,
   getNotificationPreferenceForChannels,
@@ -9,12 +15,6 @@ import {
   notificationPreferenceDefaultsFor,
   setNotificationPreference,
 } from '#app/utils/notification-preferences.server.ts';
-import {
-  DEFAULT_NOTIFICATION_PREFERENCES,
-  NOTIFICATION_CHANNELS,
-  NOTIFICATION_TYPES,
-  type NotificationType,
-} from '#app/utils/notification-registry.ts';
 
 async function createUser() {
   return prisma.user.create({
@@ -142,15 +142,13 @@ describe('notification preferences', () => {
       select: { type: true, previousValue: true, newValue: true },
     });
     // FRIEND_REQUEST_RECEIVED was true → false (and so was UPCOMING_BIRTHDAY
-    // if its default is true). Defaults live in notification-registry; we
+    // if its default is true). Defaults live in notification-catalog; we
     // assert we only audited rows whose previous value was true.
     expect(audits.every((a) => a.previousValue === true)).toBe(true);
     expect(audits.every((a) => a.newValue === false)).toBe(true);
     // FRIEND_REQUEST_ACCEPTED was already off, so there should be no audit.
     expect(
-      audits.find(
-        (a) => a.type === NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED,
-      ),
+      audits.find((a) => a.type === NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED),
     ).toBeUndefined();
   });
 

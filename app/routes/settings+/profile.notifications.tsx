@@ -14,8 +14,18 @@ import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { Checkbox } from '#app/components/ui/checkbox.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
+import { useWebPush } from '#app/hooks/use-web-push.ts';
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts';
 import { cn } from '#app/utils/misc.tsx';
+import {
+  channelToColumn,
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  isNotificationType,
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_TYPES,
+  type NotificationChannel,
+  type NotificationType,
+} from '#app/utils/notification-catalog.ts';
 import { verifyPreferenceToken } from '#app/utils/notification-preference-token.server.ts';
 import {
   disableEmailForAll,
@@ -23,15 +33,6 @@ import {
   getNotificationPreferences,
   setNotificationPreference,
 } from '#app/utils/notification-preferences.server.ts';
-import { useWebPush } from '#app/hooks/use-web-push.ts';
-import {
-  channelToColumn,
-  DEFAULT_NOTIFICATION_PREFERENCES,
-  NOTIFICATION_CHANNELS,
-  NOTIFICATION_TYPES,
-  type NotificationChannel,
-  type NotificationType,
-} from '#app/utils/notification-registry.ts';
 const preferenceGroups: Array<{
   id: string;
   title: string;
@@ -135,10 +136,7 @@ export async function action({ request }: ActionFunctionArgs) {
     const type = formData.get('type');
     const channel = formData.get('channel');
     const enabled = formData.get('enabled');
-    invariantResponse(
-      typeof type === 'string' && type in NOTIFICATION_TYPES,
-      'Invalid notification type',
-    );
+    invariantResponse(isNotificationType(type), 'Invalid notification type');
     invariantResponse(
       typeof channel === 'string' && channel in NOTIFICATION_CHANNELS,
       'Invalid channel',

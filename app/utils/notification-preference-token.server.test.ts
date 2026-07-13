@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts';
 import {
   createPreferenceToken,
   verifyPreferenceToken,
 } from '#app/utils/notification-preference-token.server.ts';
-import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
 
 describe('notification preference tokens', () => {
   it('creates and verifies tokens', async () => {

@@ -1,18 +1,10 @@
 import { captureException } from '@sentry/react-router';
-import webpush, { type PushSubscription as WebPushSubscription } from 'web-push';
+import webpush, {
+  type PushSubscription as WebPushSubscription,
+} from 'web-push';
 import { prisma } from '#app/utils/db.server.ts';
 
-/**
- * Web Push delivery. This is a best-effort side channel that hangs off the
- * notification fanout — it must never throw into a mutation handler (mirrors
- * the side-effect-off-the-response pattern used by `queueLogEvent` and
- * `fanoutNotification`). Failures are tailed to Sentry; dead subscriptions are
- * pruned on the spot.
- *
- * When the VAPID env vars are unset (dev / CI), every call is a no-op so the
- * feature is inert without keys — the same approach as the ANTHROPIC_API_KEY
- * enrichment fallback.
- */
+/** Web Push adapter implementation. Endpoint failures stay isolated here. */
 
 let configured: boolean | null = null;
 
@@ -39,6 +31,20 @@ export interface WebPushMessage {
   tag?: string;
 }
 
+export type WebPushDeliveryResult =
+  | { status: 'delivered'; attempted: number; delivered: number }
+  | { status: 'unavailable'; attempted: 0; delivered: 0 }
+  | { status: 'failed'; attempted: number; delivered: 0 };
+
+export async function hasWebPushCapability(userId: string): Promise<boolean> {
+  if (!ensureConfigured()) return false;
+  const subscription = await prisma.pushSubscription.findFirst({
+    where: { userId },
+    select: { id: true },
+  });
+  return Boolean(subscription);
+}
+
 /**
  * Send a push to every registered subscription for a user. No-ops when VAPID is
  * unconfigured or the user has no subscriptions. Prunes subscriptions the push
@@ -47,14 +53,18 @@ export interface WebPushMessage {
 export async function sendWebPush(
   userId: string,
   message: WebPushMessage,
-): Promise<void> {
-  if (!ensureConfigured()) return;
+): Promise<WebPushDeliveryResult> {
+  if (!ensureConfigured()) {
+    return { status: 'unavailable', attempted: 0, delivered: 0 };
+  }
 
   const subscriptions = await prisma.pushSubscription.findMany({
     where: { userId },
     select: { id: true, endpoint: true, p256dh: true, auth: true },
   });
-  if (subscriptions.length === 0) return;
+  if (subscriptions.length === 0) {
+    return { status: 'unavailable', attempted: 0, delivered: 0 };
+  }
 
   const payload = JSON.stringify({
     title: message.title,
@@ -63,7 +73,7 @@ export async function sendWebPush(
     tag: message.tag,
   });
 
-  await Promise.all(
+  const results = await Promise.all(
     subscriptions.map(async (sub) => {
       const target: WebPushSubscription = {
         endpoint: sub.endpoint,
@@ -71,6 +81,7 @@ export async function sendWebPush(
       };
       try {
         await webpush.sendNotification(target, payload);
+        return true;
       } catch (error) {
         const statusCode = (error as { statusCode?: number }).statusCode;
         // 404/410 mean the subscription is permanently gone — drop it so we
@@ -79,13 +90,24 @@ export async function sendWebPush(
           await prisma.pushSubscription
             .delete({ where: { id: sub.id } })
             .catch(() => {});
-          return;
+          return false;
         }
         captureException(error, {
           tags: { feature: 'web-push' },
           extra: { userId, endpoint: sub.endpoint, statusCode },
         });
+        return false;
       }
     }),
   );
+
+  const delivered = results.filter(Boolean).length;
+  if (delivered > 0) {
+    return {
+      status: 'delivered',
+      attempted: subscriptions.length,
+      delivered,
+    };
+  }
+  return { status: 'failed', attempted: subscriptions.length, delivered: 0 };
 }

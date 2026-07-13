@@ -1,7 +1,6 @@
-export type NotificationType =
-  | 'FRIEND_REQUEST_RECEIVED'
-  | 'FRIEND_REQUEST_ACCEPTED'
-  | 'UPCOMING_BIRTHDAY';
+import { type NotificationType } from '#app/utils/notification-catalog.ts';
+
+export type { NotificationType } from '#app/utils/notification-catalog.ts';
 
 export type NotificationStatus = 'UNREAD' | 'READ' | 'ARCHIVED';
 
