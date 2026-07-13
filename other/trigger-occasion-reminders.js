@@ -16,11 +16,18 @@
 //
 //   fly machine run . \
 //     --app gift-pool-c7cf \
+//     --dockerfile other/Dockerfile \
 //     --schedule daily \
 //     --region ord \
 //     --entrypoint "node other/trigger-occasion-reminders.js" \
 //     --vm-cpu-kind shared --vm-cpus 1 --vm-memory 256 \
 //     --restart no
+//
+// --dockerfile is required: unlike `fly deploy`, `fly machine run` does NOT
+// read fly.toml's [build] dockerfile setting — it defaults to ./Dockerfile
+// in the build context and otherwise errors with "dockerfile '/other/
+// Dockerfile' not found". Run from the repo root so `.` is the context and
+// `other/Dockerfile` resolves relative to it.
 //
 // (Scheduled Machines only support hourly/daily/monthly buckets, not exact
 // times — see https://fly.io/docs/blueprints/task-scheduling/.)
