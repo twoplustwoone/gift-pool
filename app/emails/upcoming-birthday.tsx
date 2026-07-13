@@ -17,7 +17,7 @@ export function UpcomingBirthdayEmail({
   when,
   profileUrl,
   managePreferencesUrl,
-}: UpcomingBirthdayEmailProps) {
+}: Readonly<UpcomingBirthdayEmailProps>) {
   return (
     <E.Html lang="en" dir="ltr">
       <E.Container>

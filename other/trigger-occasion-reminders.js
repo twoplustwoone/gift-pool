@@ -53,6 +53,13 @@ const targetUrl =
     ? `https://${appName}.fly.dev/api/internal/occasion-reminders`
     : 'http://localhost:3000/api/internal/occasion-reminders');
 
+// The body comes from an HTTP response: if the server were ever compromised,
+// embedded newlines could forge extra log lines in the scheduler's output
+// (Sonar S5145). Collapse whitespace and bound the length.
+function sanitizeForLog(text) {
+  return text.replace(/\s+/g, ' ').slice(0, 2000);
+}
+
 async function main() {
   const res = await fetch(targetUrl, {
     method: 'POST',
@@ -62,7 +69,7 @@ async function main() {
     // in seconds; five minutes is generous.
     signal: AbortSignal.timeout(5 * 60_000),
   });
-  const body = await res.text();
+  const body = sanitizeForLog(await res.text());
   if (!res.ok) {
     console.error(
       `trigger-occasion-reminders: sweep failed (${res.status}): ${body}`,
@@ -72,7 +79,9 @@ async function main() {
   console.log(`trigger-occasion-reminders: ${body}`);
 }
 
-main().catch((error) => {
+try {
+  await main();
+} catch (error) {
   if (error?.name === 'TimeoutError') {
     console.error(
       'trigger-occasion-reminders: request timed out after 5 minutes — the sweep may be hung; check the app logs.',
@@ -81,4 +90,4 @@ main().catch((error) => {
     console.error('trigger-occasion-reminders: request failed', error);
   }
   process.exit(1);
-});
+}
