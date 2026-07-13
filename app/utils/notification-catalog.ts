@@ -119,7 +119,7 @@ export function getNotificationEventDefinition(type: NotificationType) {
 export function isNotificationType(value: unknown): value is NotificationType {
   return (
     typeof value === 'string' &&
-    Object.prototype.hasOwnProperty.call(NOTIFICATION_EVENT_CATALOG, value)
+    Object.hasOwn(NOTIFICATION_EVENT_CATALOG, value)
   );
 }
 
