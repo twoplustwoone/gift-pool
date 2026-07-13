@@ -38,6 +38,7 @@
     "typecheck": "npm run typegen && tsc",
     "validate": "run-p \"test -- --run\" lint typecheck test:e2e:run",
     "ensure:admin": "node other/ensure-admin.js",
+    "trigger:occasion-reminders": "node other/trigger-occasion-reminders.js",
     "storybook": "cross-env STORYBOOK=1 storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
