@@ -29,6 +29,7 @@ import {
   isFriendOfFriend,
 } from '#app/utils/friends.server.ts';
 import { type RelationshipState } from '#app/utils/friends.ts';
+import { trackOccasionReminderEmailClick } from '#app/utils/occasion-reminders.server.ts';
 import {
   circleBudgetCents,
   commitSoloGift,
@@ -81,6 +82,14 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   if (targetUser.id === userId) {
     return redirect('/me');
   }
+
+  // Attributes reminder-email visits (`?src=...`) to the occasion-reminder
+  // funnel; no-op for all other traffic. requireUserId above preserves the
+  // query string through a login round-trip via redirectTo.
+  await trackOccasionReminderEmailClick(request, {
+    viewerId: userId,
+    birthdayUserId: targetUser.id,
+  });
 
   const relationshipDetails = await getRelationshipDetails(
     userId,

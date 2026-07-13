@@ -65,14 +65,13 @@ const preferenceGroups: Array<{
   {
     id: 'reminders',
     title: 'Reminders',
-    description: 'Upcoming birthday reminders are coming soon.',
     items: [
       {
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
         label: 'Upcoming birthdays',
-        description: 'Receive reminders before birthdays in your groups.',
+        description:
+          "Sent once, about a week before a friend's or group member's birthday you can see.",
         emailDefault: false,
-        disabled: true,
       },
     ],
   },

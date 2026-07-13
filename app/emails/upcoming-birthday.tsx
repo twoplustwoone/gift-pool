@@ -1,30 +1,35 @@
 import * as E from '@react-email/components';
 
-type FriendRequestReceivedEmailProps = {
+type UpcomingBirthdayEmailProps = {
   appName: string;
-  actorDisplayName: string;
-  actorProfileUrl: string;
+  birthdayDisplayName: string;
+  // Preformatted by formatBirthdayWhen in app/utils/birthday.ts — 'today',
+  // 'tomorrow', or 'on Jul 18'. Passed in as a string to keep the template
+  // dumb and the phrasing identical to the in-app notification.
+  when: string;
+  profileUrl: string;
   managePreferencesUrl: string;
 };
 
-export function FriendRequestReceivedEmail({
+export function UpcomingBirthdayEmail({
   appName,
-  actorDisplayName,
-  actorProfileUrl,
+  birthdayDisplayName,
+  when,
+  profileUrl,
   managePreferencesUrl,
-}: FriendRequestReceivedEmailProps) {
+}: Readonly<UpcomingBirthdayEmailProps>) {
   return (
     <E.Html lang="en" dir="ltr">
       <E.Container>
         <E.Heading as="h1">
-          {actorDisplayName} sent you a friend request on {appName}
+          {birthdayDisplayName}&apos;s birthday is {when}
         </E.Heading>
         <E.Text>
-          {actorDisplayName} would like to connect with you on {appName}. You
-          can view the request and respond at any time.
+          Get ahead of it — see their wishlist or start a gift pool before the
+          day arrives.
         </E.Text>
         <E.Button
-          href={actorProfileUrl}
+          href={profileUrl}
           style={{
             backgroundColor: '#0f172a',
             color: '#ffffff',
@@ -35,13 +40,14 @@ export function FriendRequestReceivedEmail({
             fontWeight: 600,
           }}
         >
-          View request
+          View {birthdayDisplayName}&apos;s profile
         </E.Button>
         <E.Text
           style={{ marginTop: '32px', fontSize: '12px', color: '#64748b' }}
         >
-          You are receiving this email because you have enabled friend activity
-          email notifications. You can update your preferences at any time.
+          You are receiving this email because you have enabled birthday
+          reminder email notifications on {appName}. You can update your
+          preferences at any time.
         </E.Text>
         <E.Link
           href={managePreferencesUrl}

@@ -46,6 +46,7 @@ model User {
   friendshipsB                 Friendship[]                  @relation("FriendshipUserB")
   notificationPreferences      UserNotificationPreference[]
   notificationPreferenceAudits NotificationPreferenceAudit[]
+  notificationDeliveries       NotificationDelivery[]
   pushSubscriptions            PushSubscription[]
   friendInvitationsCreated     FriendInvitation[]            @relation("FriendInvitation_CreatedBy")
   friendInvitationsUsed        FriendInvitation[]            @relation("FriendInvitation_UsedBy")
@@ -136,6 +137,24 @@ model Notification {
 
   @@index([userId, createdAt])
   @@index([userId, status])
+}
+
+// Cross-channel delivery ledger for scheduled/recurring notifications
+// (currently only UPCOMING_BIRTHDAY). A row is claimed atomically (unique
+// violation = already delivered) BEFORE any channel fires, so a daily sweep
+// re-entering the same window can never repeat an email or push — and unlike
+// the Notification row, which the user can delete from the bell, this record
+// survives, so deleting the in-app notification doesn't resurrect the
+// reminder on the next sweep. See claimNotificationDelivery in
+// notification-service.server.tsx.
+model NotificationDelivery {
+  userId           String
+  sourceIdentifier String
+  type             String
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, sourceIdentifier])
 }
 
 model UserNotificationPreference {
