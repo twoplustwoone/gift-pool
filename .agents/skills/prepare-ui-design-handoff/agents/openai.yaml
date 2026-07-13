@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Prepare UI Design Handoff'
+  short_description: 'Turn UI ideas into Claude Design briefs'
+  default_prompt: 'Use $prepare-ui-design-handoff to refine this UI request and prepare a Claude Design prompt.'
