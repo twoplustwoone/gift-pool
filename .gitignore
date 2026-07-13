@@ -40,3 +40,6 @@ storybook-static
 
 # Claude Code runtime state (machine-local, never commit)
 .claude/scheduled_tasks.lock
+
+# Worktree-local agent plans and handoff state (never commit)
+/.agents/plans/
