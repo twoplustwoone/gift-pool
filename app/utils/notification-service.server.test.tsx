@@ -56,6 +56,25 @@ async function createUser(
   });
 }
 
+// Mirrors the sweep: daysUntil and the birthday date are derived from the
+// same moment (real or faked "now"), and the date travels in the payload.
+function birthdayPayload(
+  viewerId: string,
+  birthdayOwner: { id: string; username: string; name: string | null },
+  daysUntil: number,
+) {
+  const birthdayDate = new Date();
+  birthdayDate.setDate(birthdayDate.getDate() + daysUntil);
+  return {
+    targetUserId: viewerId,
+    birthdayUserId: birthdayOwner.id,
+    birthdayUsername: birthdayOwner.username,
+    birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
+    daysUntil,
+    birthdayDate,
+  };
+}
+
 describe('notification service', () => {
   const emailMock = vi.mocked(sendEmail);
 
@@ -236,13 +255,7 @@ describe('notification service', () => {
     await notifyUser({
       userId: viewer.id,
       type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-      payload: {
-        targetUserId: viewer.id,
-        birthdayUserId: birthdayOwner.id,
-        birthdayUsername: birthdayOwner.username,
-        birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-        daysUntil: 5,
-      },
+      payload: birthdayPayload(viewer.id, birthdayOwner, 5),
       sourceIdentifier: 'test-birthday-source',
     });
 
@@ -265,13 +278,7 @@ describe('notification service', () => {
       notifyUser({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-        payload: {
-          targetUserId: viewer.id,
-          birthdayUserId: birthdayOwner.id,
-          birthdayUsername: birthdayOwner.username,
-          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-          daysUntil: 5,
-        },
+        payload: birthdayPayload(viewer.id, birthdayOwner, 5),
         sourceIdentifier: 'test-birthday-repeat',
       });
 
@@ -299,13 +306,7 @@ describe('notification service', () => {
     await notifyUser({
       userId: viewer.id,
       type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-      payload: {
-        targetUserId: viewer.id,
-        birthdayUserId: birthdayOwner.id,
-        birthdayUsername: birthdayOwner.username,
-        birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-        daysUntil: 2,
-      },
+      payload: birthdayPayload(viewer.id, birthdayOwner, 2),
       sourceIdentifier: 'test-birthday-email-opt-in',
     });
 
@@ -328,13 +329,7 @@ describe('notification service', () => {
       notifyUser({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-        payload: {
-          targetUserId: viewer.id,
-          birthdayUserId: birthdayOwner.id,
-          birthdayUsername: birthdayOwner.username,
-          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-          daysUntil: 4,
-        },
+        payload: birthdayPayload(viewer.id, birthdayOwner, 4),
         sourceIdentifier: 'test-birthday-email-repeat',
       });
 
@@ -375,13 +370,7 @@ describe('notification service', () => {
       notifyUser({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-        payload: {
-          targetUserId: viewer.id,
-          birthdayUserId: birthdayOwner.id,
-          birthdayUsername: birthdayOwner.username,
-          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-          daysUntil: 4,
-        },
+        payload: birthdayPayload(viewer.id, birthdayOwner, 4),
         sourceIdentifier: 'test-birthday-email-only',
       });
 
@@ -412,13 +401,7 @@ describe('notification service', () => {
       notifyUser({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-        payload: {
-          targetUserId: viewer.id,
-          birthdayUserId: birthdayOwner.id,
-          birthdayUsername: birthdayOwner.username,
-          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-          daysUntil: 4,
-        },
+        payload: birthdayPayload(viewer.id, birthdayOwner, 4),
         sourceIdentifier: 'test-birthday-push-repeat',
       });
 
@@ -441,13 +424,7 @@ describe('notification service', () => {
       notifyUser({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-        payload: {
-          targetUserId: viewer.id,
-          birthdayUserId: birthdayOwner.id,
-          birthdayUsername: birthdayOwner.username,
-          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-          daysUntil,
-        },
+        payload: birthdayPayload(viewer.id, birthdayOwner, daysUntil),
       });
 
     vi.useFakeTimers();
@@ -476,13 +453,7 @@ describe('notification service', () => {
       notifyUser({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-        payload: {
-          targetUserId: viewer.id,
-          birthdayUserId: birthdayOwner.id,
-          birthdayUsername: birthdayOwner.username,
-          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-          daysUntil,
-        },
+        payload: birthdayPayload(viewer.id, birthdayOwner, daysUntil),
       });
 
     // Same sweep day, different derived birthday date = the owner corrected
@@ -509,13 +480,7 @@ describe('notification service', () => {
       await notifyUser({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-        payload: {
-          targetUserId: viewer.id,
-          birthdayUserId: birthdayOwner.id,
-          birthdayUsername: birthdayOwner.username,
-          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-          daysUntil,
-        },
+        payload: birthdayPayload(viewer.id, birthdayOwner, daysUntil),
         sourceIdentifier: `test-birthday-when-${daysUntil}`,
       });
       const notification = await prisma.notification.findFirst({
@@ -553,13 +518,7 @@ describe('notification service', () => {
       notifyUser({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-        payload: {
-          targetUserId: viewer.id,
-          birthdayUserId: birthdayOwner.id,
-          birthdayUsername: birthdayOwner.username,
-          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-          daysUntil: 5,
-        },
+        payload: birthdayPayload(viewer.id, birthdayOwner, 5),
         sourceIdentifier: 'test-birthday-disabled-then-enabled',
       });
 
@@ -594,13 +553,7 @@ describe('notification service', () => {
       notifyUser({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-        payload: {
-          targetUserId: viewer.id,
-          birthdayUserId: birthdayOwner.id,
-          birthdayUsername: birthdayOwner.username,
-          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-          daysUntil: 5,
-        },
+        payload: birthdayPayload(viewer.id, birthdayOwner, 5),
         sourceIdentifier: 'test-birthday-mid-window',
       });
 
@@ -648,13 +601,7 @@ describe('notification service', () => {
     const outcome = await notifyUser({
       userId: viewer.id,
       type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-      payload: {
-        targetUserId: viewer.id,
-        birthdayUserId: birthdayOwner.id,
-        birthdayUsername: birthdayOwner.username,
-        birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-        daysUntil: 3,
-      },
+      payload: birthdayPayload(viewer.id, birthdayOwner, 3),
       sourceIdentifier: 'test-birthday-channel-isolation',
     });
 
@@ -693,13 +640,7 @@ describe('notification service', () => {
     const outcome = await notifyUser({
       userId: viewer.id,
       type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-      payload: {
-        targetUserId: viewer.id,
-        birthdayUserId: birthdayOwner.id,
-        birthdayUsername: birthdayOwner.username,
-        birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-        daysUntil: 3,
-      },
+      payload: birthdayPayload(viewer.id, birthdayOwner, 3),
       sourceIdentifier: 'test-birthday-email-error-status',
     });
 
@@ -716,13 +657,7 @@ describe('notification service', () => {
       notifyUser({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-        payload: {
-          targetUserId: viewer.id,
-          birthdayUserId: birthdayOwner.id,
-          birthdayUsername: birthdayOwner.username,
-          birthdayDisplayName: birthdayOwner.name ?? birthdayOwner.username,
-          daysUntil: 5,
-        },
+        payload: birthdayPayload(viewer.id, birthdayOwner, 5),
         sourceIdentifier: 'test-birthday-analytics',
       });
 

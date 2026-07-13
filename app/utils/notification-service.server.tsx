@@ -223,15 +223,16 @@ async function notifyUpcomingBirthday(
     NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
   );
 
-  const birthdayDate = new Date();
-  birthdayDate.setDate(birthdayDate.getDate() + payload.daysUntil);
+  // payload.birthdayDate was computed once by the sweep's owner scan — never
+  // rebuild it from now+daysUntil here, or a sweep spanning local midnight
+  // forks the key onto the wrong day (and the next day's sweep double-sends).
   const baseKey =
     options.sourceIdentifier ??
-    `birthday:${payload.birthdayUserId}:${formatLocalDateKey(birthdayDate)}`;
+    `birthday:${payload.birthdayUserId}:${formatLocalDateKey(payload.birthdayDate)}`;
 
   const messageParams = {
     name: payload.birthdayDisplayName,
-    when: formatBirthdayWhen(payload.daysUntil, birthdayDate),
+    when: formatBirthdayWhen(payload.daysUntil, payload.birthdayDate),
   };
 
   const deliveredChannels: Array<NotificationChannel> = [];

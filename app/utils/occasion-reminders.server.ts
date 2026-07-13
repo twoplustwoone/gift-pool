@@ -41,6 +41,10 @@ type BirthdayOwner = {
 export type UpcomingBirthdayOwner = {
   user: BirthdayOwner;
   daysUntil: number;
+  // The birthday's calendar date from getUpcomingBirthday — passed through to
+  // delivery so the dedupe key is pinned here, once, and can't shift if the
+  // sweep spans local midnight.
+  date: Date;
 };
 
 // All users whose next birthday falls within [0, leadDays] days from today.
@@ -75,6 +79,7 @@ export async function findUpcomingBirthdayOwners(
         birthdayVisibility: user.birthdayVisibility,
       },
       daysUntil: upcoming.daysUntil,
+      date: upcoming.date,
     });
   }
   return owners;
@@ -212,6 +217,7 @@ export async function runOccasionReminderSweep(
             birthdayUsername: owner.user.username,
             birthdayDisplayName: owner.user.name ?? owner.user.username,
             daysUntil: owner.daysUntil,
+            birthdayDate: owner.date,
           },
         });
         if (outcome && outcome.failedChannels.length > 0) {
