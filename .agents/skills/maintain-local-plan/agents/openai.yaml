@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Maintain Local Plan'
+  short_description: 'Create and update worktree-local handoff plans'
+  default_prompt: 'Use $maintain-local-plan to create or update the active worktree-local plan for this task.'

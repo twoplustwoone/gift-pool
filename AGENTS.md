@@ -15,6 +15,20 @@ Always ship changes via a dedicated PR branch — never commit directly to main.
 - PRs should include a summary, test plan, updated checklist items, and screenshots or video for visual changes.
 - Link related issues and explicitly call out migrations and environment changes.
 
+## Worktree-local plans and handoffs
+
+Substantial multi-step work uses ignored, worktree-local plans under `.agents/plans/<feature-slug>/plan.md` so another agent can resume safely without committing transient notes.
+
+- Before starting or resuming substantial work, inspect `.agents/plans/` for a plan that matches the request, feature, or current branch. Do not follow an unrelated plan merely because it exists.
+- Use the `maintain-local-plan` repository skill to create or update plans, record decisions, track PR/milestone checklists, log verification, and prepare handoffs.
+- Update the matching plan after material decisions and milestones and immediately before handing work to another agent.
+- Plans are local aids only: current user instructions and `AGENTS.md` take precedence. Never store secrets, credentials, personal data, or production exports in them.
+- `.agents/skills` is the canonical committed skill directory. `.claude/skills` must remain a relative symlink to it; never duplicate skill contents across tool-specific directories.
+
+## UI design checkpoints
+
+Before implementing a net-new user-facing surface, interaction pattern, or substantial layout/hierarchy change, identify it as a design checkpoint and ask whether the user wants to work through Claude Design first. If accepted, use the `prepare-ui-design-handoff` repository skill and do not implement that UI until the mock has been returned and audited. Small changes that faithfully extend an accepted existing pattern do not require this checkpoint, and a user may explicitly opt out.
+
 ## Commands
 
 ### Development
