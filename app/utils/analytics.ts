@@ -84,6 +84,15 @@ export const ANALYTIC_EVENT_NAMES = [
   // between wishlist_share_viewed and signup_submitted in the share-reach
   // funnel; anonymous visitors fire it, so NOT user-required.
   'share_cta_clicked',
+  // Occasion reminders (the daily birthday sweep). `occasion_reminder_sent`
+  // fires server-side per recipient when ≥1 channel newly delivers
+  // (`channels`, `daysUntil`, `birthdayUserId` properties). Its click-through
+  // completions: notification_clicked (`type: UPCOMING_BIRTHDAY`) for the
+  // bell, occasion_reminder_email_clicked for the email (the profile link
+  // carries `?src=` OCCASION_REMINDER_EMAIL_SRC and the profile loader logs
+  // it). Both sides require a signed-in user, so both are user-required.
+  'occasion_reminder_sent',
+  'occasion_reminder_email_clicked',
   // Person surface — circle-private memory write paths. All require an acting
   // user (the viewer), so all are user-required below.
   'gift_list_item_saved',
@@ -100,6 +109,12 @@ export const ANALYTIC_EVENT_NAMES = [
 ] as const;
 
 export type AnalyticEventName = (typeof ANALYTIC_EVENT_NAMES)[number];
+
+// `src` query-param value the upcoming-birthday email appends to its profile
+// link; the profile loader fires occasion_reminder_email_clicked when it sees
+// it. Lives here (client-safe, no deps) so the email builder and the loader
+// share one definition.
+export const OCCASION_REMINDER_EMAIL_SRC = 'birthday-reminder-email';
 
 export const ANALYTIC_EVENT_SET = new Set<string>(ANALYTIC_EVENT_NAMES);
 
@@ -199,6 +214,10 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   // Joining a group and opening the wishlist editor require a session.
   'group_joined',
   'wishlist_editor_opened',
+  // Occasion reminders: the recipient (sent) and the clicking viewer (email
+  // click) are always signed-in users.
+  'occasion_reminder_sent',
+  'occasion_reminder_email_clicked',
   // Person-surface memory writes all have a known acting viewer.
   'gift_list_item_saved',
   'person_note_created',

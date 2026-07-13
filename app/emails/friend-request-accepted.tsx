@@ -53,17 +53,3 @@ export function FriendRequestAcceptedEmail({
     </E.Html>
   );
 }
-
-export function FriendRequestAcceptedEmailText({
-  appName,
-  actorDisplayName,
-  actorProfileUrl,
-  managePreferencesUrl,
-}: FriendRequestAcceptedEmailProps) {
-  return `
-${actorDisplayName} accepted your friend request on ${appName}.
-
-See their profile: ${actorProfileUrl}
-Update notification preferences: ${managePreferencesUrl}
-`;
-}

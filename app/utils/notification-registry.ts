@@ -52,8 +52,15 @@ type PayloadByType = {
   [NOTIFICATION_TYPES.UPCOMING_BIRTHDAY]: {
     targetUserId: string;
     birthdayUserId: string;
+    birthdayUsername: string;
     birthdayDisplayName: string;
     daysUntil: number;
+    // The birthday's calendar date, computed ONCE by the sweep's owner scan
+    // (getUpcomingBirthday). Deliberately not re-derived from daysUntil at
+    // delivery time: a sweep spanning local midnight would shift
+    // now+daysUntil to the wrong day, forking the dedupe key and
+    // double-sending.
+    birthdayDate: Date;
   };
 };
 
@@ -82,6 +89,8 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: Record<
     pushEnabled: false,
   },
   [NOTIFICATION_TYPES.UPCOMING_BIRTHDAY]: {
+    // v1 default is in-app only — see occasion-reminders.server.ts. Users can
+    // still opt into email/push themselves via /settings/profile/notifications.
     inAppEnabled: true,
     emailEnabled: false,
     pushEnabled: false,
