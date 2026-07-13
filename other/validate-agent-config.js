@@ -21,7 +21,7 @@ async function requireDirectory(directory, label) {
 
 function frontmatterValue(frontmatter, key) {
   const match = frontmatter.match(
-    new RegExp(`^${key}:\\s*[\"']?(.+?)[\"']?\\s*$`, 'm'),
+    new RegExp(`^${key}:\\s*["']?(.+?)["']?\\s*$`, 'm'),
   );
   return match?.[1]?.trim() ?? null;
 }
