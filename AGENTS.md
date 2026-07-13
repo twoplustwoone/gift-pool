@@ -226,7 +226,7 @@ Invite links (friend / group / pool) land on the shared `InviteLanding` page (`a
 Mutation handlers should return after committing the primary change; anything the user doesn't need to block on runs afterwards.
 
 - **Pattern**: pre-generate any IDs the client needs, fire the async work without awaiting, catch rejections into `Sentry.captureException`.
-- **Reference implementations**: `queueLogEvent` in `analytics.server.ts`, `fanoutNotification` in `friends.server.ts` (wraps `notifyUser` so in-app rows + Resend emails don't block friend-request actions).
+- **Reference implementations**: `queueLogEvent` in `analytics.server.ts` and `queueNotification` in `notification-dispatcher.server.ts`. Friend-request handlers submit a typed intent only after their transaction closes; the dispatcher isolates in-app, email, and web-push delivery so none can turn a committed mutation into a 500.
 - The mutation is already committed by the time fanout runs, so a fanout failure must surface in Sentry — it must never convert a successful action into a 500.
 
 ### Admin surface
