@@ -5,7 +5,11 @@ import { queueLogEvent } from '#app/utils/analytics.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { canViewWishlistOf } from '#app/utils/friends.server.ts'
-import { dollarsToCents } from '#app/utils/price.ts'
+import {
+	getNotificationTopicDefinition,
+	getNotificationTopicsForContext,
+} from '#app/utils/notification-catalog.ts'
+import { getContextNotificationAwareness } from '#app/utils/notification-preferences.server.ts'
 import {
 	OCCASION_TYPE,
 	POOL_STATUS,
@@ -41,6 +45,7 @@ import {
 	updatePool,
 	type UpdatePoolInput,
 } from '#app/utils/pool.server.ts'
+import { dollarsToCents } from '#app/utils/price.ts'
 import { getRequestContext } from '#app/utils/request-context.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 
@@ -137,6 +142,15 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		contributionBreakdown,
 		inviteUrl,
 		recipientWishlistItems,
+		notificationAwareness: await getContextNotificationAwareness({
+			userId,
+			context: { kind: 'POOL', poolId },
+			requireAccess: false,
+		}),
+		notificationTopics: getNotificationTopicsForContext('POOL').map(topic => ({
+			topic,
+			...getNotificationTopicDefinition(topic),
+		})),
 	}
 }
 

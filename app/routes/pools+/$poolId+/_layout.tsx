@@ -1,5 +1,9 @@
 import { LuGift, LuSettings, LuUsers } from 'react-icons/lu'
 import { Link, Outlet, useLoaderData } from 'react-router'
+import {
+	ContextNotificationAwarenessNotice,
+	ContextNotificationControl,
+} from '#app/components/notifications/context-notification-controls.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Stack, Text } from '#app/components/ui-kit'
 import {
@@ -22,7 +26,8 @@ const statusColors: Record<PoolStatus, string> = {
 }
 
 const PoolLayout = () => {
-	const { pool, canManage } = useLoaderData<typeof routeLoader>()
+	const { pool, canManage, notificationAwareness, notificationTopics } =
+		useLoaderData<typeof routeLoader>()
 
 	const status = pool.status as PoolStatus
 	const occasion = pool.occasionType as OccasionType
@@ -52,6 +57,13 @@ const PoolLayout = () => {
 					>
 						{POOL_STATUS_LABELS[status]}
 					</span>
+					<ContextNotificationControl
+						context={{ kind: 'POOL', poolId: pool.id }}
+						contextLabel={pool.title}
+						awareness={notificationAwareness}
+						availableTopics={notificationTopics}
+						inheritedFromLabel={pool.giftGroup?.name}
+					/>
 					{canManage && (
 						<Link
 							to="settings"
@@ -68,6 +80,12 @@ const PoolLayout = () => {
 			<main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
 				<div className="mx-auto max-w-6xl p-3 sm:p-6">
 					<Stack gap={6}>
+						<ContextNotificationAwarenessNotice
+							context={{ kind: 'POOL', poolId: pool.id }}
+							contextLabel={pool.title}
+							awareness={notificationAwareness}
+							inheritedFromLabel={pool.giftGroup?.name}
+						/>
 						{pool.giftGroup && (
 							<Link
 								to={`/groups/${pool.giftGroup.id}`}

@@ -26,6 +26,7 @@ const friendshipFindMany = vi.fn();
 const friendRequestFindMany = vi.fn();
 const viewerMembershipFindUnique = vi.fn();
 const groupInvitationFindFirst = vi.fn();
+const getContextNotificationAwareness = vi.fn();
 
 vi.mock('#app/utils/auth.server.ts', () => ({
   requireUserId: (...args: Array<unknown>) => requireUserId(...args),
@@ -53,7 +54,8 @@ vi.mock('#app/utils/db.server.ts', () => ({
       findFirst: (...args: Array<unknown>) => groupInvitationFindFirst(...args),
     },
     usersInGiftGroups: {
-      findUnique: (...args: Array<unknown>) => viewerMembershipFindUnique(...args),
+      findUnique: (...args: Array<unknown>) =>
+        viewerMembershipFindUnique(...args),
     },
   },
 }));
@@ -72,6 +74,11 @@ vi.mock('#app/utils/group-invitations.server.ts', () => ({
 vi.mock('#app/utils/toast.server.ts', () => ({
   createToastHeaders: (...args: Array<unknown>) => createToastHeaders(...args),
   redirectWithToast: (...args: Array<unknown>) => redirectWithToast(...args),
+}));
+
+vi.mock('#app/utils/notification-preferences.server.ts', () => ({
+  getContextNotificationAwareness: (...args: Array<unknown>) =>
+    getContextNotificationAwareness(...args),
 }));
 
 import { action, loader } from './__route.server.ts';
@@ -107,6 +114,12 @@ beforeEach(() => {
   friendRequestFindMany.mockReset();
   viewerMembershipFindUnique.mockReset();
   groupInvitationFindFirst.mockReset();
+  getContextNotificationAwareness.mockReset().mockResolvedValue({
+    notificationOff: false,
+    noticeVisible: false,
+    reason: null,
+    preference: { activityLevel: 'IMPORTANT_ONLY' },
+  });
 
   createToastHeaders.mockResolvedValue(new Headers({ 'x-toast': 'ok' }));
   redirectWithToast.mockImplementation(
@@ -183,7 +196,9 @@ describe('groups detail route server module', () => {
       code: 'invite-code',
       id: 'invite-1',
     });
-    getInviteLink.mockReturnValue('https://giftpool.app/groups/join/invite-code');
+    getInviteLink.mockReturnValue(
+      'https://giftpool.app/groups/join/invite-code',
+    );
     userHasGroupPermission.mockImplementation(
       async (_userId: string, _groupId: string, permission: string) =>
         ({
@@ -221,7 +236,9 @@ describe('groups detail route server module', () => {
     const membersById = new Map(
       result.giftGroup.groupMembers.map((member) => [member.user.id, member]),
     );
-    expect(membersById.get('viewer-1')?.friendRelationship.state).toBe('FRIENDS');
+    expect(membersById.get('viewer-1')?.friendRelationship.state).toBe(
+      'FRIENDS',
+    );
     expect(membersById.get('friend-1')?.friendRelationship).toEqual({
       friendshipId: 'friendship-1',
       incomingRequestId: null,
