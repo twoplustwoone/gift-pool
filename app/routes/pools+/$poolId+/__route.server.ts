@@ -13,6 +13,7 @@ import { getContextNotificationAwareness } from '#app/utils/notification-prefere
 import {
 	getOrganizerNudgeAvailability,
 	ORGANIZER_NUDGE_KINDS,
+	OrganizerNudgeError,
 	type OrganizerNudgeAvailability,
 	type OrganizerNudgeKind,
 } from '#app/utils/organizer-nudges.server.ts'
@@ -162,19 +163,13 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	) {
 		organizerReminderKinds.push(ORGANIZER_NUDGE_KINDS.DELIVERY)
 	}
-	const organizerReminderEntries = await Promise.all(
-		organizerReminderKinds.map(
-			async kind =>
-				[
-					kind,
-					await getOrganizerNudgeAvailability({
-						poolId,
-						senderId: userId,
-						kind,
-					}),
-				] as const,
-		),
-	)
+	const organizerReminderEntries = (
+		await Promise.all(
+			organizerReminderKinds.map(kind =>
+				getOrganizerReminderEntry({ poolId, senderId: userId, kind }),
+			),
+		)
+	).filter(entry => entry !== null)
 	const organizerReminderStates = Object.fromEntries(
 		organizerReminderEntries,
 	) as Partial<Record<OrganizerNudgeKind, OrganizerNudgeAvailability>>
@@ -199,6 +194,40 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			...getNotificationTopicDefinition(topic),
 		})),
 	}
+}
+
+type OrganizerReminderEntry = readonly [
+	OrganizerNudgeKind,
+	OrganizerNudgeAvailability,
+]
+
+async function getOrganizerReminderEntry({
+	poolId,
+	senderId,
+	kind,
+}: {
+	poolId: string
+	senderId: string
+	kind: OrganizerNudgeKind
+}): Promise<OrganizerReminderEntry | null> {
+	try {
+		return [
+			kind,
+			await getOrganizerNudgeAvailability({ poolId, senderId, kind }),
+		]
+	} catch (error) {
+		if (isStaleOrganizerReminderError(error)) return null
+		throw error
+	}
+}
+
+function isStaleOrganizerReminderError(error: unknown) {
+	return (
+		error instanceof OrganizerNudgeError &&
+		(error.code === 'POOL_NOT_FOUND' ||
+			error.code === 'FORBIDDEN' ||
+			error.code === 'TASK_UNAVAILABLE')
+	)
 }
 
 // ─── Intents ──────────────────────────────────────────────────────────────────

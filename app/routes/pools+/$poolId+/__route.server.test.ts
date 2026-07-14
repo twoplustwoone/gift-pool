@@ -3,6 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { OrganizerNudgeError as MockOrganizerNudgeError } from '#app/utils/organizer-nudges.server.ts';
 import {
   getRouteResultData,
   getRouteResultStatus,
@@ -128,6 +129,15 @@ vi.mock('#app/utils/organizer-nudges.server.ts', () => ({
     DELIVERY: 'DELIVERY',
     PURCHASE: 'PURCHASE',
     VOTE: 'VOTE',
+  },
+  OrganizerNudgeError: class OrganizerNudgeError extends Error {
+    constructor(
+      public readonly code: string,
+      message: string,
+    ) {
+      super(message);
+      this.name = 'OrganizerNudgeError';
+    }
   },
   getOrganizerNudgeAvailability: (...args: Array<unknown>) =>
     getOrganizerNudgeAvailability(...args),
@@ -391,6 +401,54 @@ describe('pool detail route loader', () => {
       },
     });
     expect(getOrganizerNudgeAvailability).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['POOL_NOT_FOUND', 'FORBIDDEN', 'TASK_UNAVAILABLE'] as const)(
+    'omits stale reminder availability after a %s race',
+    async (code) => {
+      getOrganizerNudgeAvailability.mockImplementation(
+        async ({ kind }: { kind: string }) => {
+          if (kind === 'VOTE') throw new MockOrganizerNudgeError(code, code);
+          return { kind, latestNudge: null, status: 'AVAILABLE' };
+        },
+      );
+
+      const result = await loader(
+        toLoaderArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: new Request('https://giftpool.app/pools/pool-1'),
+        }),
+      );
+      const resultData = await getRouteResultData(result);
+
+      expect(
+        (resultData as { organizerReminderStates: unknown })
+          .organizerReminderStates,
+      ).toEqual({
+        CONTRIBUTION: {
+          kind: 'CONTRIBUTION',
+          latestNudge: null,
+          status: 'AVAILABLE',
+        },
+      });
+    },
+  );
+
+  it('keeps unexpected reminder availability failures visible', async () => {
+    getOrganizerNudgeAvailability.mockRejectedValueOnce(
+      new Error('database unavailable'),
+    );
+
+    await expect(
+      loader(
+        toLoaderArgs({
+          context: {} as never,
+          params: { poolId: 'pool-1' },
+          request: new Request('https://giftpool.app/pools/pool-1'),
+        }),
+      ),
+    ).rejects.toThrow('database unavailable');
   });
 });
 
