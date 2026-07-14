@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import * as Sentry from '@sentry/react-router';
+import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import {
   NOTIFICATION_CHANNEL_VALUES,
@@ -193,7 +194,9 @@ export async function sendOrganizerNudge({
     const raced = await prisma.organizerNudge.findUnique({
       where: { senderId_idempotencyKey: { senderId, idempotencyKey } },
     });
-    return raced ? replayExistingNudge(raced, { poolId, kind }) : initial;
+    if (raced) return replayExistingNudge(raced, { poolId, kind });
+    recordSkippedOrganizerNudge({ poolId, senderId, result: initial });
+    return initial;
   }
 
   const preferenceEligibleUserIds = await filterPreferenceEligibleRecipients({
@@ -281,8 +284,31 @@ export async function sendOrganizerNudge({
 
   if (result.status === 'QUEUED') {
     queueOrganizerNudgeNotifications(result.nudgeId);
+  } else {
+    recordSkippedOrganizerNudge({ poolId, senderId, result });
   }
   return result;
+}
+
+function recordSkippedOrganizerNudge({
+  poolId,
+  senderId,
+  result,
+}: {
+  poolId: string;
+  senderId: string;
+  result: Exclude<OrganizerNudgeSendResult, { status: 'QUEUED' }>;
+}) {
+  queueLogEvent({
+    name: 'organizer_reminder_skipped',
+    source: 'server',
+    userId: senderId,
+    properties: {
+      poolId,
+      kind: result.kind,
+      reason: result.status,
+    },
+  });
 }
 
 async function evaluateNudge(
