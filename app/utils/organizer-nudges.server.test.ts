@@ -7,7 +7,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 
 const queueNotification = vi.fn();
+const queueLogEvent = vi.fn().mockReturnValue({ eventId: 'test-event' });
 const captureException = vi.fn();
+
+vi.mock('#app/utils/analytics.server.ts', () => ({
+  queueLogEvent: (...args: Array<unknown>) => queueLogEvent(...args),
+}));
 
 vi.mock('#app/utils/notification-dispatcher.server.ts', () => ({
   queueNotification: (...args: Array<unknown>) => queueNotification(...args),
@@ -33,6 +38,7 @@ const createdGroupIds: string[] = [];
 
 afterEach(async () => {
   queueNotification.mockReset();
+  queueLogEvent.mockReset().mockReturnValue({ eventId: 'test-event' });
   captureException.mockReset();
   if (createdPoolIds.length > 0) {
     await prisma.pool.deleteMany({ where: { id: { in: createdPoolIds } } });
@@ -226,6 +232,16 @@ describe('organizer nudge module', () => {
     await expect(
       prisma.organizerNudge.count({ where: { poolId: pool.id } }),
     ).resolves.toBe(1);
+    expect(queueLogEvent).toHaveBeenCalledWith({
+      name: 'organizer_reminder_skipped',
+      source: 'server',
+      userId: organizer.id,
+      properties: {
+        poolId: pool.id,
+        kind: ORGANIZER_NUDGE_KINDS.CONTRIBUTION,
+        reason: 'COOLDOWN',
+      },
+    });
   });
 
   it('keeps a zero-recipient attempt as a no-op that consumes no limit', async () => {
@@ -251,6 +267,16 @@ describe('organizer nudge module', () => {
       prisma.organizerNudge.count({ where: { poolId: pool.id } }),
     ).resolves.toBe(0);
     expect(queueNotification).not.toHaveBeenCalled();
+    expect(queueLogEvent).toHaveBeenCalledWith({
+      name: 'organizer_reminder_skipped',
+      source: 'server',
+      userId: organizer.id,
+      properties: {
+        poolId: pool.id,
+        kind: ORGANIZER_NUDGE_KINDS.CONTRIBUTION,
+        reason: 'NO_ELIGIBLE',
+      },
+    });
   });
 
   it('enforces manager permission and current assignment state', async () => {

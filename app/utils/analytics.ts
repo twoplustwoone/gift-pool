@@ -33,6 +33,11 @@ export const ANALYTIC_EVENT_NAMES = [
   // least one channel delivers; repeated requests remain queryable from the
   // OrganizerNudge audit rows without putting recipient lists in analytics.
   'organizer_reminder_sent',
+  // A send action that did not create an OrganizerNudge audit row. `reason`
+  // distinguishes preference/task suppression from cooldown and weekly-limit
+  // enforcement, so admin observability does not infer blocked attempts from
+  // page views or availability checks.
+  'organizer_reminder_skipped',
   'friend_request_sent',
   'friend_request_accepted',
   'friend_request_rejected',
@@ -198,6 +203,7 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   'pool_deliverer_assigned',
   'pool_activity_notification_sent',
   'organizer_reminder_sent',
+  'organizer_reminder_skipped',
   'friend_request_sent',
   'friend_request_accepted',
   'friend_request_rejected',

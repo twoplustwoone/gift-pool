@@ -2,9 +2,9 @@
  * @vitest-environment jsdom
  */
 import { render, screen } from '@testing-library/react';
-import * as ReactRouter from 'react-router';
+import type * as ReactRouter from 'react-router';
 import { MemoryRouter } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 const loaderDataSnapshot = {
   analytics: {
@@ -70,6 +70,56 @@ const loaderDataSnapshot = {
       total: 10,
     },
   ],
+  organizerReminders: {
+    days: 30,
+    queuedReminders: 4,
+    targetedRecipients: 10,
+    deliveredRecipients: 8,
+    deliveryRate: 80,
+    notificationClicks: 3,
+    clickEventRate: 38,
+    repeatSends: 1,
+    skippedAttempts: { noEligible: 2, cooldown: 1, weeklyLimit: 1 },
+    settingsReducedWithin7Days: 1,
+    byKind: [
+      {
+        kind: 'CONTRIBUTION',
+        label: 'Contribution',
+        notificationType: 'POOL_CONTRIBUTION_REMINDER',
+        queued: 2,
+        targeted: 5,
+        delivered: 4,
+        clicks: 2,
+      },
+      {
+        kind: 'VOTE',
+        label: 'Vote',
+        notificationType: 'POOL_VOTE_REMINDER',
+        queued: 1,
+        targeted: 3,
+        delivered: 2,
+        clicks: 1,
+      },
+      {
+        kind: 'PURCHASE',
+        label: 'Purchase',
+        notificationType: 'POOL_PURCHASE_REMINDER',
+        queued: 1,
+        targeted: 2,
+        delivered: 2,
+        clicks: 0,
+      },
+      {
+        kind: 'DELIVERY',
+        label: 'Delivery',
+        notificationType: 'POOL_DELIVERY_REMINDER',
+        queued: 0,
+        targeted: 0,
+        delivered: 0,
+        clicks: 0,
+      },
+    ],
+  },
   enrichment: {
     attempts: 20,
     successes: 15,
@@ -163,6 +213,10 @@ vi.mock('#app/utils/admin.server.ts', () => ({
   getSmartLinkAdoption: vi.fn(),
 }));
 
+vi.mock('#app/utils/admin-organizer-reminders.server.ts', () => ({
+  getOrganizerReminderMetrics: vi.fn(),
+}));
+
 import AnalyticsRoute from './analytics.tsx';
 
 const renderAnalytics = () =>
@@ -254,6 +308,23 @@ describe('admin analytics page', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('friend request received')).toBeInTheDocument();
     expect(screen.getByText('upcoming birthday')).toBeInTheDocument();
+  });
+
+  it('renders aggregate organizer reminder outcomes and caveats', () => {
+    renderAnalytics();
+    expect(
+      screen.getByRole('heading', { name: 'Organizer reminders' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Reminders queued')).toBeInTheDocument();
+    expect(screen.getByText('Recipients delivered')).toBeInTheDocument();
+    expect(screen.getByText('Rate-limited attempts')).toBeInTheDocument();
+    expect(screen.getByText('1 cooldown · 1 weekly limit')).toBeInTheDocument();
+    expect(screen.getByText('Contribution')).toBeInTheDocument();
+    expect(screen.getByText('Delivery')).toBeInTheDocument();
+    expect(screen.getByText(/not per-nudge attribution/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/not proof the reminder caused/i),
+    ).toBeInTheDocument();
   });
 
   it('renders the environment analytics section', () => {
