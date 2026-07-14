@@ -14,6 +14,11 @@ vi.mock('#app/utils/app-url.server.ts', () => ({
 }));
 
 const createPreferenceToken = vi.fn();
+const queueLogEvent = vi.fn();
+
+vi.mock('#app/utils/analytics.server.ts', () => ({
+  queueLogEvent: (...args: Array<unknown>) => queueLogEvent(...args),
+}));
 
 vi.mock('#app/utils/notification-preference-token.server.ts', () => ({
   createPreferenceToken: (...args: Array<unknown>) =>
@@ -24,6 +29,7 @@ vi.mock('#app/utils/notification-preference-token.server.ts', () => ({
 
 import {
   getNotificationOccurrenceKey,
+  recordNotificationDelivery,
   renderNotificationChannel,
 } from './notification-events.server.tsx';
 
@@ -105,6 +111,71 @@ const poolCases = [
     message: "You're delivering the gift for Taylor birthday",
     pushTitle: 'Delivery assignment',
   },
+  {
+    intent: {
+      ...base,
+      type: NOTIFICATION_TYPES.POOL_CONTRIBUTION_REMINDER,
+      payload: {
+        nudgeId: 'nudge-1',
+        poolId: 'pool-1',
+        poolTitle: 'Taylor birthday',
+        senderUserId: 'manager-1',
+        senderDisplayName: 'Wade Wilson',
+      },
+    },
+    messageKey: 'notifications.poolContributionReminder.message',
+    message:
+      'Wade Wilson reminded you to set your contribution in Taylor birthday',
+    pushTitle: 'Contribution reminder',
+  },
+  {
+    intent: {
+      ...base,
+      type: NOTIFICATION_TYPES.POOL_VOTE_REMINDER,
+      payload: {
+        nudgeId: 'nudge-1',
+        poolId: 'pool-1',
+        poolTitle: 'Taylor birthday',
+        senderUserId: 'manager-1',
+        senderDisplayName: 'Wade Wilson',
+      },
+    },
+    messageKey: 'notifications.poolVoteReminder.message',
+    message: 'Wade Wilson reminded you to vote in Taylor birthday',
+    pushTitle: 'Voting reminder',
+  },
+  {
+    intent: {
+      ...base,
+      type: NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER,
+      payload: {
+        nudgeId: 'nudge-1',
+        poolId: 'pool-1',
+        poolTitle: 'Taylor birthday',
+        senderUserId: 'manager-1',
+        senderDisplayName: 'Wade Wilson',
+      },
+    },
+    messageKey: 'notifications.poolPurchaseReminder.message',
+    message: 'Wade Wilson reminded you to buy the gift for Taylor birthday',
+    pushTitle: 'Purchase reminder',
+  },
+  {
+    intent: {
+      ...base,
+      type: NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER,
+      payload: {
+        nudgeId: 'nudge-1',
+        poolId: 'pool-1',
+        poolTitle: 'Taylor birthday',
+        senderUserId: 'manager-1',
+        senderDisplayName: 'Wade Wilson',
+      },
+    },
+    messageKey: 'notifications.poolDeliveryReminder.message',
+    message: 'Wade Wilson reminded you to deliver the gift for Taylor birthday',
+    pushTitle: 'Delivery reminder',
+  },
 ] as const satisfies ReadonlyArray<{
   intent: NotificationIntent;
   messageKey: string;
@@ -115,6 +186,7 @@ const poolCases = [
 describe('pool activity notification rendering', () => {
   beforeEach(() => {
     createPreferenceToken.mockResolvedValue('preference-token');
+    queueLogEvent.mockReset();
   });
 
   it('renders every pool event for the bell and web push', async () => {
@@ -126,7 +198,12 @@ describe('pool activity notification rendering', () => {
       expect(inApp).toMatchObject({
         messageKey,
         targetUrl: '/pools/pool-1',
-        metadata: JSON.stringify({ poolId: 'pool-1' }),
+        metadata: JSON.stringify({
+          poolId: 'pool-1',
+          ...('nudgeId' in intent.payload
+            ? { organizerNudgeId: intent.payload.nudgeId }
+            : {}),
+        }),
       });
 
       const push = await renderNotificationChannel(
@@ -165,5 +242,22 @@ describe('pool activity notification rendering', () => {
     expect(() => getNotificationOccurrenceKey(withoutSource)).toThrow(
       'POOL_VOTE_STARTED requires a sourceIdentifier',
     );
+  });
+
+  it('records actual organizer-reminder delivery without recipient-list analytics', () => {
+    const intent = poolCases[6].intent;
+    recordNotificationDelivery(intent, [NOTIFICATION_CHANNELS.IN_APP]);
+
+    expect(queueLogEvent).toHaveBeenCalledWith({
+      name: 'organizer_reminder_sent',
+      source: 'server',
+      userId: intent.userId,
+      properties: {
+        notificationType: NOTIFICATION_TYPES.POOL_VOTE_REMINDER,
+        poolId: 'pool-1',
+        organizerNudgeId: 'nudge-1',
+        channels: [NOTIFICATION_CHANNELS.IN_APP],
+      },
+    });
   });
 });

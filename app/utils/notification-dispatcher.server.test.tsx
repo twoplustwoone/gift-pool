@@ -331,6 +331,64 @@ describe('notification dispatcher', () => {
     });
   });
 
+  it('delivers an organizer reminder once with email off by default', async () => {
+    const organizer = await createUser({ name: 'Wade Wilson' });
+    const member = await createUser();
+    const pool = await prisma.pool.create({
+      data: {
+        title: 'Taylor birthday',
+        organizerId: organizer.id,
+        contributors: {
+          create: [{ userId: organizer.id }, { userId: member.id }],
+        },
+      },
+      select: { id: true, title: true },
+    });
+    const notify = () =>
+      dispatchNotification({
+        userId: member.id,
+        type: NOTIFICATION_TYPES.POOL_VOTE_REMINDER,
+        context: { kind: 'POOL', poolId: pool.id },
+        sourceIdentifier: 'organizer-nudge:nudge-1',
+        payload: {
+          nudgeId: 'nudge-1',
+          poolId: pool.id,
+          poolTitle: pool.title,
+          senderUserId: organizer.id,
+          senderDisplayName: organizer.name ?? organizer.username,
+        },
+      });
+
+    await notify();
+    await notify();
+
+    const notifications = await prisma.notification.findMany({
+      where: {
+        userId: member.id,
+        type: NOTIFICATION_TYPES.POOL_VOTE_REMINDER,
+      },
+    });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toMatchObject({
+      messageKey: 'notifications.poolVoteReminder.message',
+      targetUrl: `/pools/${pool.id}`,
+      sourceIdentifier: 'organizer-nudge:nudge-1:IN_APP',
+    });
+    expect(emailMock).not.toHaveBeenCalled();
+    expect(queueLogEvent).toHaveBeenCalledTimes(1);
+    expect(queueLogEvent).toHaveBeenCalledWith({
+      name: 'organizer_reminder_sent',
+      source: 'server',
+      userId: member.id,
+      properties: {
+        notificationType: NOTIFICATION_TYPES.POOL_VOTE_REMINDER,
+        poolId: pool.id,
+        organizerNudgeId: 'nudge-1',
+        channels: [NOTIFICATION_CHANNELS.IN_APP],
+      },
+    });
+  });
+
   it('is idempotent per sourceIdentifier for UPCOMING_BIRTHDAY', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();

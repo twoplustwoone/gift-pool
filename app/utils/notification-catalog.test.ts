@@ -9,6 +9,7 @@ import {
   NOTIFICATION_TOPIC_CATALOG,
   NOTIFICATION_TOPICS,
   NOTIFICATION_TYPES,
+  ORGANIZER_NUDGE_NOTIFICATION_TYPES,
   POOL_ACTIVITY_NOTIFICATION_TYPES,
 } from '#app/utils/notification-catalog.ts';
 
@@ -69,11 +70,30 @@ describe('notification catalog', () => {
     ).toBe(NOTIFICATION_TOPICS.ASSIGNMENTS);
   });
 
+  it('maps every organizer nudge to one in-app-first pool topic', () => {
+    for (const type of ORGANIZER_NUDGE_NOTIFICATION_TYPES) {
+      expect(getNotificationEventDefinition(type)).toMatchObject({
+        topic: NOTIFICATION_TOPICS.ORGANIZER_NUDGES,
+        context: 'POOL',
+        importance: 'IMPORTANT',
+        deliveryStrategy: 'PER_CHANNEL_LEDGER',
+      });
+    }
+    expect(
+      NOTIFICATION_TOPIC_CATALOG[NOTIFICATION_TOPICS.ORGANIZER_NUDGES].defaults,
+    ).toEqual({
+      inAppEnabled: true,
+      emailEnabled: false,
+      pushEnabled: false,
+    });
+  });
+
   it('exposes pool topics for pool and group context controls', () => {
     const poolTopics = [
       NOTIFICATION_TOPICS.IDEAS_AND_VOTING,
       NOTIFICATION_TOPICS.POOL_PROGRESS,
       NOTIFICATION_TOPICS.ASSIGNMENTS,
+      NOTIFICATION_TOPICS.ORGANIZER_NUDGES,
     ];
 
     expect(getNotificationTopicsForContext('POOL')).toEqual(poolTopics);
