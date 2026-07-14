@@ -146,7 +146,7 @@ model Notification {
 // the Notification row, which the user can delete from the bell, this record
 // survives, so deleting the in-app notification doesn't resurrect the
 // reminder on the next sweep. See claimNotificationDelivery in
-// notification-service.server.tsx.
+// notification-dispatcher.server.ts.
 model NotificationDelivery {
   userId           String
   sourceIdentifier String

@@ -3,14 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import { sendEmail } from '#app/utils/email.server.ts';
 import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_TYPES,
+} from '#app/utils/notification-catalog.ts';
+import { dispatchNotification } from '#app/utils/notification-dispatcher.server.ts';
+import {
   ensureNotificationPreferencesForUser,
   setNotificationPreference,
 } from '#app/utils/notification-preferences.server.ts';
-import {
-  NOTIFICATION_CHANNELS,
-  NOTIFICATION_TYPES,
-} from '#app/utils/notification-registry.ts';
-import { notifyUser } from '#app/utils/notification-service.server.tsx';
 
 vi.mock('#app/utils/email.server.ts', () => ({
   sendEmail: vi
@@ -18,9 +18,12 @@ vi.mock('#app/utils/email.server.ts', () => ({
     .mockResolvedValue({ status: 'success', data: { id: 'mock-email' } }),
 }));
 
-const sendWebPush = vi.fn().mockResolvedValue(undefined);
+const sendWebPush = vi.fn();
+const hasWebPushCapability = vi.fn();
 vi.mock('#app/utils/web-push.server.ts', () => ({
   sendWebPush: (...args: Array<unknown>) => sendWebPush(...args),
+  hasWebPushCapability: (...args: Array<unknown>) =>
+    hasWebPushCapability(...args),
 }));
 
 const queueLogEvent = vi.fn().mockReturnValue({ eventId: 'mock-event' });
@@ -75,7 +78,7 @@ function birthdayPayload(
   };
 }
 
-describe('notification service', () => {
+describe('notification dispatcher', () => {
   const emailMock = vi.mocked(sendEmail);
 
   beforeEach(() => {
@@ -86,12 +89,19 @@ describe('notification service', () => {
       status: 'success',
       data: { id: 'mock-email' },
     } as never);
+    hasWebPushCapability.mockResolvedValue(true);
+    sendWebPush.mockResolvedValue({
+      status: 'delivered',
+      attempted: 1,
+      delivered: 1,
+    });
   });
 
   afterEach(async () => {
     vi.useRealTimers();
     emailMock.mockClear();
     sendWebPush.mockClear();
+    hasWebPushCapability.mockClear();
     queueLogEvent.mockClear();
     captureException.mockClear();
     await prisma.notificationDelivery.deleteMany();
@@ -118,7 +128,7 @@ describe('notification service', () => {
       select: { id: true },
     });
 
-    await notifyUser({
+    await dispatchNotification({
       userId: recipient.id,
       type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
       payload: {
@@ -164,7 +174,7 @@ describe('notification service', () => {
       select: { id: true },
     });
 
-    await notifyUser({
+    await dispatchNotification({
       userId: recipient.id,
       type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
       payload: {
@@ -199,7 +209,7 @@ describe('notification service', () => {
       select: { id: true },
     });
 
-    await notifyUser({
+    await dispatchNotification({
       userId: recipient.id,
       type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
       payload: {
@@ -230,7 +240,7 @@ describe('notification service', () => {
       select: { id: true },
     });
 
-    await notifyUser({
+    await dispatchNotification({
       userId: recipient.id,
       type: NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED,
       payload: {
@@ -252,7 +262,7 @@ describe('notification service', () => {
     const birthdayOwner = await createUser({ name: 'Birthday Person' });
     await ensureNotificationPreferencesForUser(viewer.id);
 
-    await notifyUser({
+    await dispatchNotification({
       userId: viewer.id,
       type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
       payload: birthdayPayload(viewer.id, birthdayOwner, 5),
@@ -275,7 +285,7 @@ describe('notification service', () => {
     await ensureNotificationPreferencesForUser(viewer.id);
 
     const notify = () =>
-      notifyUser({
+      dispatchNotification({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
         payload: birthdayPayload(viewer.id, birthdayOwner, 5),
@@ -303,7 +313,7 @@ describe('notification service', () => {
       'test',
     );
 
-    await notifyUser({
+    await dispatchNotification({
       userId: viewer.id,
       type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
       payload: birthdayPayload(viewer.id, birthdayOwner, 2),
@@ -326,7 +336,7 @@ describe('notification service', () => {
     );
 
     const notify = () =>
-      notifyUser({
+      dispatchNotification({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
         payload: birthdayPayload(viewer.id, birthdayOwner, 4),
@@ -367,7 +377,7 @@ describe('notification service', () => {
     );
 
     const notify = () =>
-      notifyUser({
+      dispatchNotification({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
         payload: birthdayPayload(viewer.id, birthdayOwner, 4),
@@ -398,7 +408,7 @@ describe('notification service', () => {
     );
 
     const notify = () =>
-      notifyUser({
+      dispatchNotification({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
         payload: birthdayPayload(viewer.id, birthdayOwner, 4),
@@ -411,17 +421,55 @@ describe('notification service', () => {
     expect(sendWebPush).toHaveBeenCalledTimes(1);
   });
 
+  it('does not claim a recurring channel when delivery capability is unavailable', async () => {
+    const viewer = await createUser();
+    const birthdayOwner = await createUser();
+    await ensureNotificationPreferencesForUser(viewer.id);
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.IN_APP,
+      false,
+      'test',
+    );
+    await setNotificationPreference(
+      viewer.id,
+      NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      NOTIFICATION_CHANNELS.WEB_PUSH,
+      true,
+      'test',
+    );
+    hasWebPushCapability.mockResolvedValueOnce(false);
+
+    const outcome = await dispatchNotification({
+      userId: viewer.id,
+      type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      payload: birthdayPayload(viewer.id, birthdayOwner, 4),
+      sourceIdentifier: 'test-birthday-push-unavailable',
+    });
+
+    expect(outcome.channels[NOTIFICATION_CHANNELS.WEB_PUSH].status).toBe(
+      'unavailable',
+    );
+    expect(sendWebPush).not.toHaveBeenCalled();
+    expect(
+      await prisma.notificationDelivery.count({
+        where: { userId: viewer.id },
+      }),
+    ).toBe(0);
+  });
+
   it('derives a window-stable default sourceIdentifier — the birthday date, not the sweep day', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
     await ensureNotificationPreferencesForUser(viewer.id);
 
-    // No sourceIdentifier passed: the service derives it from the birthday's
+    // No sourceIdentifier passed: the event handler derives it from the birthday's
     // calendar date (now + daysUntil). Simulate the daily sweep advancing
     // through the window — same birthday date, so the second call must be a
     // no-op, not a second notification.
     const notify = (daysUntil: number) =>
-      notifyUser({
+      dispatchNotification({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
         payload: birthdayPayload(viewer.id, birthdayOwner, daysUntil),
@@ -450,7 +498,7 @@ describe('notification service', () => {
     await ensureNotificationPreferencesForUser(viewer.id);
 
     const notify = (daysUntil: number) =>
-      notifyUser({
+      dispatchNotification({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
         payload: birthdayPayload(viewer.id, birthdayOwner, daysUntil),
@@ -477,7 +525,7 @@ describe('notification service', () => {
 
     const notifyFor = async (daysUntil: number) => {
       const birthdayOwner = await createUser({ name: 'Birthday Person' });
-      await notifyUser({
+      await dispatchNotification({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
         payload: birthdayPayload(viewer.id, birthdayOwner, daysUntil),
@@ -515,7 +563,7 @@ describe('notification service', () => {
     );
 
     const notify = () =>
-      notifyUser({
+      dispatchNotification({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
         payload: birthdayPayload(viewer.id, birthdayOwner, 5),
@@ -550,7 +598,7 @@ describe('notification service', () => {
     await ensureNotificationPreferencesForUser(viewer.id);
 
     const notify = () =>
-      notifyUser({
+      dispatchNotification({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
         payload: birthdayPayload(viewer.id, birthdayOwner, 5),
@@ -598,7 +646,7 @@ describe('notification service', () => {
     );
     emailMock.mockRejectedValueOnce(new Error('resend outage'));
 
-    const outcome = await notifyUser({
+    const outcome = await dispatchNotification({
       userId: viewer.id,
       type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
       payload: birthdayPayload(viewer.id, birthdayOwner, 3),
@@ -607,7 +655,7 @@ describe('notification service', () => {
 
     expect(sendWebPush).toHaveBeenCalledTimes(1);
     expect(captureException).toHaveBeenCalledTimes(1);
-    expect(outcome).toEqual({
+    expect(outcome).toMatchObject({
       deliveredChannels: [
         NOTIFICATION_CHANNELS.IN_APP,
         NOTIFICATION_CHANNELS.WEB_PUSH,
@@ -637,7 +685,7 @@ describe('notification service', () => {
       },
     } as never);
 
-    const outcome = await notifyUser({
+    const outcome = await dispatchNotification({
       userId: viewer.id,
       type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
       payload: birthdayPayload(viewer.id, birthdayOwner, 3),
@@ -654,7 +702,7 @@ describe('notification service', () => {
     await ensureNotificationPreferencesForUser(viewer.id);
 
     const notify = () =>
-      notifyUser({
+      dispatchNotification({
         userId: viewer.id,
         type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
         payload: birthdayPayload(viewer.id, birthdayOwner, 5),

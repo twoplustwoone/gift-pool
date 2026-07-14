@@ -6,7 +6,7 @@ import {
   CURRENT_LEGAL_VERSION,
   LEGAL_DOCUMENT_TYPE,
 } from '#app/utils/legal.ts';
-import { NOTIFICATION_TYPES } from '#app/utils/notification-registry.ts';
+import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts';
 
 const testConsent = {
   version: CURRENT_LEGAL_VERSION,

@@ -58,9 +58,14 @@ describe('sendWebPush', () => {
     await createSubscription(user.id, `https://push.example/${randomUUID()}`);
 
     const { sendWebPush } = await import('#app/utils/web-push.server.ts');
-    await sendWebPush(user.id, { title: 'Hi', body: 'There', url: '/friends' });
+    const result = await sendWebPush(user.id, {
+      title: 'Hi',
+      body: 'There',
+      url: '/friends',
+    });
 
     expect(sendNotification).not.toHaveBeenCalled();
+    expect(result.status).toBe('unavailable');
   });
 
   it('sends to every subscription when configured', async () => {
@@ -77,15 +82,24 @@ describe('sendWebPush', () => {
     sendNotification.mockResolvedValue({ statusCode: 201 });
 
     const { sendWebPush } = await import('#app/utils/web-push.server.ts');
-    await sendWebPush(user.id, {
+    const result = await sendWebPush(user.id, {
       title: 'New friend request',
       body: 'Ada sent you a friend request',
       url: '/friends#incoming-requests',
       tag: 'friend-request:abc:received',
     });
 
-    expect(setVapidDetails).toHaveBeenCalledWith('mailto:test@example.com', 'pub', 'priv');
+    expect(setVapidDetails).toHaveBeenCalledWith(
+      'mailto:test@example.com',
+      'pub',
+      'priv',
+    );
     expect(sendNotification).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({
+      status: 'delivered',
+      attempted: 2,
+      delivered: 2,
+    });
     const firstCall = sendNotification.mock.calls[0];
     expect(firstCall).toBeDefined();
     const payload = JSON.parse(firstCall?.[1] as string);
@@ -108,11 +122,16 @@ describe('sendWebPush', () => {
     sendNotification.mockRejectedValue({ statusCode: 410 });
 
     const { sendWebPush } = await import('#app/utils/web-push.server.ts');
-    await sendWebPush(user.id, { title: 'Hi', body: 'There', url: '/friends' });
+    const result = await sendWebPush(user.id, {
+      title: 'Hi',
+      body: 'There',
+      url: '/friends',
+    });
 
     const remaining = await prisma.pushSubscription.findUnique({
       where: { endpoint },
     });
     expect(remaining).toBeNull();
+    expect(result).toEqual({ status: 'failed', attempted: 1, delivered: 0 });
   });
 });

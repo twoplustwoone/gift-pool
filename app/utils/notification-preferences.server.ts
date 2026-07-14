@@ -6,7 +6,7 @@ import {
   NOTIFICATION_TYPES,
   type NotificationChannel,
   type NotificationType,
-} from '#app/utils/notification-registry.ts';
+} from '#app/utils/notification-catalog.ts';
 
 const preferenceTypes = Object.values(NOTIFICATION_TYPES);
 
@@ -141,8 +141,7 @@ export async function setNotificationPreference(
           column === 'inAppEnabled' ? enabled : defaults.inAppEnabled,
         emailEnabled:
           column === 'emailEnabled' ? enabled : defaults.emailEnabled,
-        pushEnabled:
-          column === 'pushEnabled' ? enabled : defaults.pushEnabled,
+        pushEnabled: column === 'pushEnabled' ? enabled : defaults.pushEnabled,
       },
     });
 

@@ -1,6 +1,6 @@
 # Notification coordination architecture
 
-Status: Proposed for product and design review
+Status: Accepted; milestone 4 runtime architecture implemented
 
 Last updated: 2026-07-13
 
@@ -41,13 +41,23 @@ and been measured. General messaging and free-form broadcasts are out of scope.
 
 ### What exists
 
-- `notification-registry.ts` registers three concrete types: friend request
-  received, friend request accepted, and upcoming birthday. It also contains
-  payload shapes and default channel settings.
-- `notification-service.server.tsx` resolves preferences, renders content, and
-  sends through in-app, email, and web-push paths.
+- `notification-catalog.ts` is the typed source of truth for the three current
+  events, their stable topics and categories, importance, context support,
+  channel defaults, payloads, and delivery strategy.
+- `notification-dispatcher.server.ts` is the single delivery interface. It
+  resolves policy, derives occurrence keys, claims recurring deliveries,
+  isolates channels, records outcomes, and owns queued versus awaited use.
+- `notification-events.server.tsx` contains event-specific occurrence-key,
+  rendering, and post-delivery analytics behavior. Domain callers do not know
+  those details.
+- `notification-channel-adapters.server.ts` contains the in-app, email, and web
+  push adapters. Web push returns structured delivered, unavailable, or failed
+  outcomes and checks capability before a recurring claim.
+- `notification-policy.server.ts` returns explainable per-channel decisions.
+  It deliberately reads the legacy per-event rows until scoped preferences
+  replace its implementation in milestone 5.
 - `UserNotificationPreference` stores one row per user and concrete type.
-  Settings-page reads materialize missing rows; hot-path reads inherit registry
+  Settings-page reads materialize missing rows; hot-path reads inherit catalog
   defaults without writing.
 - `NotificationDelivery` is the recurring-delivery ledger. Birthday reminders
   use a channel-specific source identifier and claim before sending.
@@ -69,25 +79,18 @@ a preference key, a renderer key, a default-policy key, and part of the dedupe
 strategy. Adding every pool occurrence to that list would expose implementation
 detail to users and make the dispatcher wider with each feature.
 
-Other gaps to resolve during the architecture refactor:
+Remaining gaps belong to later milestones:
 
 - Category labels live in the settings route rather than the catalog.
 - “Disable all email” updates current type rows but is not a durable channel
   gate; a future type can inherit an enabled email default.
 - One-shot friend notifications dedupe only the in-app row and use a
   check-then-create flow. Email and push have no common delivery claim.
-- Friend-request channel sends are sequential and are not fully failure
-  isolated.
-- Web push captures endpoint failures internally and returns no delivery
-  outcome. A caller cannot distinguish accepted delivery, no subscription,
-  unavailable configuration, or complete failure.
 - The admin opt-out matrix counts persisted rows rather than effective choices,
   so missing default rows and context modes can produce misleading percentages.
 - `GroupReminder` settings are persisted and presented as functional, but the
   birthday sweep does not consume them. Occasion schedule policy must not be
   confused with recipient delivery preference.
-- `app/utils/notifications.ts` duplicates part of the notification type model
-  used by the server registry.
 
 ## Domain language
 

@@ -33,13 +33,13 @@ vi.mock('#app/utils/analytics.server.ts', () => ({
 }));
 
 import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_TYPES,
+} from '#app/utils/notification-catalog.ts';
+import {
   ensureNotificationPreferencesForUser,
   setNotificationPreference,
 } from '#app/utils/notification-preferences.server.ts';
-import {
-  NOTIFICATION_CHANNELS,
-  NOTIFICATION_TYPES,
-} from '#app/utils/notification-registry.ts';
 import {
   findUpcomingBirthdayOwners,
   getBirthdayReminderRecipientIds,
