@@ -363,11 +363,14 @@ New pool topics default to in-app on where useful, email off, and push off.
 
 ## Organizer nudges
 
-V1 nudges are pool-scoped, preset, and task-bound. A group owner/admin may send
-them only through their pool-manager capability; there is no group-wide
-broadcast and no free-form text.
+V1 nudges are pool-scoped, preset, and task-bound. A pool organizer or active
+group owner/admin may send them only through their pool-manager capability;
+there is no group-wide broadcast and no free-form text. The implementation seam
+is `organizer-nudges.server.ts`: callers may preview an aggregate eligible count
+or request a send, while authorization, audience selection, limits,
+idempotency, audit persistence, and fanout remain private to that module.
 
-Candidate presets:
+Presets:
 
 - set a contribution preference, targeting contributors who have not set one;
 - cast a vote, targeting eligible contributors who have not voted;
@@ -375,8 +378,10 @@ Candidate presets:
 
 Before creating a nudge, re-check pool state, sender permission, recipient
 membership, unresolved task state, actor exclusion, and concealed-recipient
-exclusion. Persist one nudge audit record before fanout so rate checks do not
-depend on notification rows.
+exclusion. `OrganizerNudge` is the durable send-action audit and
+`OrganizerNudgeRecipient` is private cooldown state; neither rate checks nor
+idempotency depend on visible notification rows. Audit and recipient claims are
+committed atomically before fanout.
 
 Recommended initial limits:
 

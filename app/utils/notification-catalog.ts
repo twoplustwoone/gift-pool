@@ -7,6 +7,10 @@ export const NOTIFICATION_TYPES = {
   POOL_CANCELLED: 'POOL_CANCELLED',
   POOL_PURCHASER_ASSIGNED: 'POOL_PURCHASER_ASSIGNED',
   POOL_DELIVERER_ASSIGNED: 'POOL_DELIVERER_ASSIGNED',
+  POOL_CONTRIBUTION_REMINDER: 'POOL_CONTRIBUTION_REMINDER',
+  POOL_VOTE_REMINDER: 'POOL_VOTE_REMINDER',
+  POOL_PURCHASE_REMINDER: 'POOL_PURCHASE_REMINDER',
+  POOL_DELIVERY_REMINDER: 'POOL_DELIVERY_REMINDER',
 } as const;
 
 export type NotificationType =
@@ -28,6 +32,24 @@ export function isPoolActivityNotificationType(
 ): type is PoolActivityNotificationType {
   return POOL_ACTIVITY_NOTIFICATION_TYPES.includes(
     type as PoolActivityNotificationType,
+  );
+}
+
+export const ORGANIZER_NUDGE_NOTIFICATION_TYPES = [
+  NOTIFICATION_TYPES.POOL_CONTRIBUTION_REMINDER,
+  NOTIFICATION_TYPES.POOL_VOTE_REMINDER,
+  NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER,
+  NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER,
+] as const;
+
+export type OrganizerNudgeNotificationType =
+  (typeof ORGANIZER_NUDGE_NOTIFICATION_TYPES)[number];
+
+export function isOrganizerNudgeNotificationType(
+  type: NotificationType,
+): type is OrganizerNudgeNotificationType {
+  return ORGANIZER_NUDGE_NOTIFICATION_TYPES.includes(
+    type as OrganizerNudgeNotificationType,
   );
 }
 
@@ -84,6 +106,7 @@ export const NOTIFICATION_TOPICS = {
   IDEAS_AND_VOTING: 'IDEAS_AND_VOTING',
   POOL_PROGRESS: 'POOL_PROGRESS',
   ASSIGNMENTS: 'ASSIGNMENTS',
+  ORGANIZER_NUDGES: 'ORGANIZER_NUDGES',
 } as const;
 
 export type NotificationTopic =
@@ -174,6 +197,16 @@ export const NOTIFICATION_TOPIC_CATALOG = {
       pushEnabled: false,
     },
   },
+  [NOTIFICATION_TOPICS.ORGANIZER_NUDGES]: {
+    category: NOTIFICATION_CATEGORIES.POOL_COORDINATION,
+    label: 'Organizer reminders',
+    description: 'Preset reminders from pool managers about unfinished tasks.',
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: false,
+      pushEnabled: false,
+    },
+  },
 } as const satisfies Record<NotificationTopic, NotificationTopicDefinition>;
 
 /**
@@ -232,6 +265,34 @@ export const NOTIFICATION_EVENT_CATALOG = {
   },
   [NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED]: {
     topic: NOTIFICATION_TOPICS.ASSIGNMENTS,
+    importance: 'IMPORTANT',
+    context: 'POOL',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.POOL_CONTRIBUTION_REMINDER]: {
+    topic: NOTIFICATION_TOPICS.ORGANIZER_NUDGES,
+    importance: 'IMPORTANT',
+    context: 'POOL',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.POOL_VOTE_REMINDER]: {
+    topic: NOTIFICATION_TOPICS.ORGANIZER_NUDGES,
+    importance: 'IMPORTANT',
+    context: 'POOL',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER]: {
+    topic: NOTIFICATION_TOPICS.ORGANIZER_NUDGES,
+    importance: 'IMPORTANT',
+    context: 'POOL',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER]: {
+    topic: NOTIFICATION_TOPICS.ORGANIZER_NUDGES,
     importance: 'IMPORTANT',
     context: 'POOL',
     supportedChannels: allChannels,
@@ -363,6 +424,14 @@ type PoolActivityPayload = {
   actorUserId: string;
 };
 
+type OrganizerNudgePayload = {
+  nudgeId: string;
+  poolId: string;
+  poolTitle: string;
+  senderUserId: string;
+  senderDisplayName: string;
+};
+
 type PayloadByType = {
   [NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED]: FriendRequestPayload;
   [NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED]: FriendRequestPayload;
@@ -383,6 +452,10 @@ type PayloadByType = {
   [NOTIFICATION_TYPES.POOL_CANCELLED]: PoolActivityPayload;
   [NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED]: PoolActivityPayload;
   [NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED]: PoolActivityPayload;
+  [NOTIFICATION_TYPES.POOL_CONTRIBUTION_REMINDER]: OrganizerNudgePayload;
+  [NOTIFICATION_TYPES.POOL_VOTE_REMINDER]: OrganizerNudgePayload;
+  [NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER]: OrganizerNudgePayload;
+  [NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER]: OrganizerNudgePayload;
 };
 
 export type NotificationPayload<T extends NotificationType> = PayloadByType[T];

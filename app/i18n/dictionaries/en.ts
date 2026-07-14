@@ -61,6 +61,22 @@ export const en = {
       message: "You're delivering the gift for {{pool}}",
       pushTitle: 'Delivery assignment',
     },
+    poolContributionReminder: {
+      message: '{{sender}} reminded you to set your contribution in {{pool}}',
+      pushTitle: 'Contribution reminder',
+    },
+    poolVoteReminder: {
+      message: '{{sender}} reminded you to vote in {{pool}}',
+      pushTitle: 'Voting reminder',
+    },
+    poolPurchaseReminder: {
+      message: '{{sender}} reminded you to buy the gift for {{pool}}',
+      pushTitle: 'Purchase reminder',
+    },
+    poolDeliveryReminder: {
+      message: '{{sender}} reminded you to deliver the gift for {{pool}}',
+      pushTitle: 'Delivery reminder',
+    },
     markAllReadSuccess: 'All notifications marked as read.',
   },
   friends: {

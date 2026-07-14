@@ -11,9 +11,11 @@ import { translate } from '#app/utils/i18n.tsx';
 import {
   NOTIFICATION_CHANNELS,
   NOTIFICATION_TYPES,
+  isOrganizerNudgeNotificationType,
   isPoolActivityNotificationType,
   type NotificationChannel,
   type NotificationIntent,
+  type OrganizerNudgeNotificationType,
   type PoolActivityNotificationType,
 } from '#app/utils/notification-catalog.ts';
 import {
@@ -68,6 +70,10 @@ export function getNotificationOccurrenceKey(
     case NOTIFICATION_TYPES.POOL_CANCELLED:
     case NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED:
     case NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED:
+    case NOTIFICATION_TYPES.POOL_CONTRIBUTION_REMINDER:
+    case NOTIFICATION_TYPES.POOL_VOTE_REMINDER:
+    case NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER:
+    case NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER:
       throw new Error(
         `Pool notification ${intent.type} requires a sourceIdentifier.`,
       );
@@ -90,6 +96,10 @@ export async function renderNotificationChannel<C extends NotificationChannel>(
     case NOTIFICATION_TYPES.POOL_CANCELLED:
     case NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED:
     case NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED:
+    case NOTIFICATION_TYPES.POOL_CONTRIBUTION_REMINDER:
+    case NOTIFICATION_TYPES.POOL_VOTE_REMINDER:
+    case NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER:
+    case NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER:
       return renderPoolActivity(intent, channel);
   }
 }
@@ -250,7 +260,10 @@ async function renderUpcomingBirthday<C extends NotificationChannel>(
   }
 }
 
-type PoolActivityIntent = NotificationIntent<PoolActivityNotificationType>;
+type PoolContextIntent = NotificationIntent<
+  PoolActivityNotificationType | OrganizerNudgeNotificationType
+>;
+type OrganizerNudgeIntent = NotificationIntent<OrganizerNudgeNotificationType>;
 
 type PoolActivityCopy = {
   messageKey:
@@ -258,19 +271,27 @@ type PoolActivityCopy = {
     | 'notifications.poolGiftChosen.message'
     | 'notifications.poolCancelled.message'
     | 'notifications.poolPurchaserAssigned.message'
-    | 'notifications.poolDelivererAssigned.message';
+    | 'notifications.poolDelivererAssigned.message'
+    | 'notifications.poolContributionReminder.message'
+    | 'notifications.poolVoteReminder.message'
+    | 'notifications.poolPurchaseReminder.message'
+    | 'notifications.poolDeliveryReminder.message';
   pushTitleKey:
     | 'notifications.poolVoteStarted.pushTitle'
     | 'notifications.poolGiftChosen.pushTitle'
     | 'notifications.poolCancelled.pushTitle'
     | 'notifications.poolPurchaserAssigned.pushTitle'
-    | 'notifications.poolDelivererAssigned.pushTitle';
+    | 'notifications.poolDelivererAssigned.pushTitle'
+    | 'notifications.poolContributionReminder.pushTitle'
+    | 'notifications.poolVoteReminder.pushTitle'
+    | 'notifications.poolPurchaseReminder.pushTitle'
+    | 'notifications.poolDeliveryReminder.pushTitle';
   messageParams: Record<string, string>;
   emailBody: string;
 };
 
 async function renderPoolActivity<C extends NotificationChannel>(
-  intent: PoolActivityIntent,
+  intent: PoolContextIntent,
   channel: C,
 ): Promise<NotificationChannelMessageMap[C]> {
   const copy = getPoolActivityCopy(intent);
@@ -284,7 +305,12 @@ async function renderPoolActivity<C extends NotificationChannel>(
         messageKey: copy.messageKey,
         messageParams: JSON.stringify(copy.messageParams),
         targetUrl: poolUrl,
-        metadata: JSON.stringify({ poolId: intent.payload.poolId }),
+        metadata: JSON.stringify({
+          poolId: intent.payload.poolId,
+          ...(isOrganizerNudgeIntent(intent)
+            ? { organizerNudgeId: intent.payload.nudgeId }
+            : {}),
+        }),
         friendRequestId: null,
       } as NotificationChannelMessageMap[C];
     case NOTIFICATION_CHANNELS.EMAIL: {
@@ -312,7 +338,7 @@ async function renderPoolActivity<C extends NotificationChannel>(
   }
 }
 
-function getPoolActivityCopy(intent: PoolActivityIntent): PoolActivityCopy {
+function getPoolActivityCopy(intent: PoolContextIntent): PoolActivityCopy {
   const pool = intent.payload.poolTitle;
   switch (intent.type) {
     case NOTIFICATION_TYPES.POOL_VOTE_STARTED:
@@ -353,6 +379,46 @@ function getPoolActivityCopy(intent: PoolActivityIntent): PoolActivityCopy {
         messageParams: { pool },
         emailBody: 'Open the pool to review the delivery details.',
       };
+    case NOTIFICATION_TYPES.POOL_CONTRIBUTION_REMINDER:
+      return {
+        messageKey: 'notifications.poolContributionReminder.message',
+        pushTitleKey: 'notifications.poolContributionReminder.pushTitle',
+        messageParams: {
+          pool,
+          sender: intent.payload.senderDisplayName,
+        },
+        emailBody: 'Open the pool to set your contribution.',
+      };
+    case NOTIFICATION_TYPES.POOL_VOTE_REMINDER:
+      return {
+        messageKey: 'notifications.poolVoteReminder.message',
+        pushTitleKey: 'notifications.poolVoteReminder.pushTitle',
+        messageParams: {
+          pool,
+          sender: intent.payload.senderDisplayName,
+        },
+        emailBody: 'Open the pool to review the ideas and cast your vote.',
+      };
+    case NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER:
+      return {
+        messageKey: 'notifications.poolPurchaseReminder.message',
+        pushTitleKey: 'notifications.poolPurchaseReminder.pushTitle',
+        messageParams: {
+          pool,
+          sender: intent.payload.senderDisplayName,
+        },
+        emailBody: 'Open the pool to review the gift and purchase details.',
+      };
+    case NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER:
+      return {
+        messageKey: 'notifications.poolDeliveryReminder.message',
+        pushTitleKey: 'notifications.poolDeliveryReminder.pushTitle',
+        messageParams: {
+          pool,
+          sender: intent.payload.senderDisplayName,
+        },
+        emailBody: 'Open the pool to review the delivery details.',
+      };
   }
 }
 
@@ -384,6 +450,21 @@ export function recordNotificationDelivery(
     return;
   }
 
+  if (isOrganizerNudgeIntent(intent)) {
+    queueLogEvent({
+      name: 'organizer_reminder_sent',
+      source: 'server',
+      userId: intent.userId,
+      properties: {
+        notificationType: intent.type,
+        poolId: intent.payload.poolId,
+        organizerNudgeId: intent.payload.nudgeId,
+        channels: deliveredChannels,
+      },
+    });
+    return;
+  }
+
   if (isPoolActivityIntent(intent)) {
     queueLogEvent({
       name: 'pool_activity_notification_sent',
@@ -396,6 +477,12 @@ export function recordNotificationDelivery(
       },
     });
   }
+}
+
+function isOrganizerNudgeIntent(
+  intent: NotificationIntent,
+): intent is OrganizerNudgeIntent {
+  return isOrganizerNudgeNotificationType(intent.type);
 }
 
 function isPoolActivityIntent(
