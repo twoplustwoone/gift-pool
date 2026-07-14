@@ -35,6 +35,7 @@ function serializeNotification(record: NotificationRecord, locale: Locale) {
     metadata: record.metadata ?? {},
     actions,
     friendRequestId: record.friendRequestId,
+    poolInvitationId: record.poolInvitationId,
   };
 }
 export async function loader({ request }: LoaderFunctionArgs) {

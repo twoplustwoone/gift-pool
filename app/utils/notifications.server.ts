@@ -18,6 +18,7 @@ export interface NotificationRecord {
   metadata?: Record<string, unknown> | null;
   actions: NotificationActionPayload[];
   friendRequestId?: string | null;
+  poolInvitationId?: string | null;
 }
 
 interface ListNotificationsOptions {
@@ -79,6 +80,7 @@ export async function listNotifications({
           notification.actions ?? undefined,
         ) ?? [],
       friendRequestId: notification.friendRequestId,
+      poolInvitationId: notification.poolInvitationId,
     } satisfies NotificationRecord;
   });
 

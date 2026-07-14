@@ -2,6 +2,7 @@ import { type ReactElement } from 'react';
 import { FriendRequestAcceptedEmail } from '#app/emails/friend-request-accepted.tsx';
 import { FriendRequestReceivedEmail } from '#app/emails/friend-request-received.tsx';
 import { PoolActivityEmail } from '#app/emails/pool-activity.tsx';
+import { PoolInvitationReceivedEmail } from '#app/emails/pool-invitation-received.tsx';
 import { UpcomingBirthdayEmail } from '#app/emails/upcoming-birthday.tsx';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { OCCASION_REMINDER_EMAIL_SRC } from '#app/utils/analytics.ts';
@@ -34,6 +35,7 @@ export type InAppNotificationMessage = {
   metadata?: string | null;
   actions?: string | null;
   friendRequestId?: string | null;
+  poolInvitationId?: string | null;
 };
 
 export type EmailNotificationMessage = {
@@ -63,6 +65,8 @@ export function getNotificationOccurrenceKey(
       return `friend-request:${intent.payload.friendRequestId}:received`;
     case NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED:
       return `friend-request:${intent.payload.friendRequestId}:accepted`;
+    case NOTIFICATION_TYPES.POOL_INVITATION_RECEIVED:
+      return `pool-invitation:${intent.payload.invitationId}:received`;
     case NOTIFICATION_TYPES.UPCOMING_BIRTHDAY:
       return `birthday:${intent.payload.birthdayUserId}:${formatLocalDateKey(intent.payload.birthdayDate)}`;
     case NOTIFICATION_TYPES.POOL_VOTE_STARTED:
@@ -89,6 +93,8 @@ export async function renderNotificationChannel<C extends NotificationChannel>(
       return renderFriendRequestReceived(intent, channel);
     case NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED:
       return renderFriendRequestAccepted(intent, channel);
+    case NOTIFICATION_TYPES.POOL_INVITATION_RECEIVED:
+      return renderPoolInvitationReceived(intent, channel);
     case NOTIFICATION_TYPES.UPCOMING_BIRTHDAY:
       return renderUpcomingBirthday(intent, channel);
     case NOTIFICATION_TYPES.POOL_VOTE_STARTED:
@@ -101,6 +107,73 @@ export async function renderNotificationChannel<C extends NotificationChannel>(
     case NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER:
     case NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER:
       return renderPoolActivity(intent, channel);
+  }
+}
+
+async function renderPoolInvitationReceived<C extends NotificationChannel>(
+  intent: NotificationIntent<'POOL_INVITATION_RECEIVED'>,
+  channel: C,
+): Promise<NotificationChannelMessageMap[C]> {
+  const { payload } = intent;
+  const invitationPath = `/pools/invitations/${payload.invitationId}`;
+  const messageParams = {
+    name: payload.inviterDisplayName,
+    pool: payload.poolTitle,
+  };
+  switch (channel) {
+    case NOTIFICATION_CHANNELS.IN_APP:
+      return {
+        status: 'UNREAD',
+        messageKey: 'notifications.poolInvitation.message',
+        messageParams: JSON.stringify(messageParams),
+        targetUrl: invitationPath,
+        metadata: JSON.stringify({
+          poolId: payload.poolId,
+          poolTitle: payload.poolTitle,
+          recipientLabel: payload.recipientLabel,
+          senderUserId: payload.inviterUserId,
+          senderDisplayName: payload.inviterDisplayName,
+          senderAvatarId: payload.inviterAvatarId ?? null,
+        }),
+        actions: JSON.stringify([
+          {
+            kind: 'POOL_INVITATION_ACCEPT',
+            labelKey: 'notifications.poolInvitation.accept',
+          },
+          {
+            kind: 'POOL_INVITATION_DECLINE',
+            labelKey: 'notifications.poolInvitation.decline',
+          },
+        ]),
+        poolInvitationId: payload.invitationId,
+      } as NotificationChannelMessageMap[C];
+    case NOTIFICATION_CHANNELS.EMAIL: {
+      const managePreferencesUrl = await buildManagePreferencesUrl(intent);
+      return {
+        subject: `${payload.inviterDisplayName} invited you to ${payload.poolTitle} on ${appName}`,
+        react: (
+          <PoolInvitationReceivedEmail
+            appName={appName}
+            inviterDisplayName={payload.inviterDisplayName}
+            poolTitle={payload.poolTitle}
+            recipientLabel={payload.recipientLabel}
+            invitationUrl={buildAppUrl(invitationPath)}
+            managePreferencesUrl={managePreferencesUrl}
+          />
+        ),
+      } as NotificationChannelMessageMap[C];
+    }
+    case NOTIFICATION_CHANNELS.WEB_PUSH:
+      return {
+        title: translate('en', 'notifications.poolInvitation.pushTitle'),
+        body: translate(
+          'en',
+          'notifications.poolInvitation.message',
+          messageParams,
+        ),
+        url: invitationPath,
+        tag: getNotificationOccurrenceKey(intent),
+      } as NotificationChannelMessageMap[C];
   }
 }
 

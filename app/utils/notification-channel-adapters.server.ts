@@ -62,6 +62,7 @@ const inAppAdapter: NotificationChannelAdapter<'IN_APP'> = {
         metadata: message.metadata,
         actions: message.actions,
         friendRequestId: message.friendRequestId,
+        poolInvitationId: message.poolInvitationId,
       },
     });
     return { status: 'delivered' };

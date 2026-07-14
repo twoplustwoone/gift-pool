@@ -151,6 +151,50 @@ describe('notification dispatcher', () => {
     expect(emailMock).toHaveBeenCalledTimes(1);
   });
 
+  it('delivers a consent-bearing pool invitation by in-app and email', async () => {
+    const recipient = await createUser();
+    const inviter = await createUser();
+    const pool = await prisma.pool.create({
+      data: {
+        title: 'Birthday surprise',
+        organizerId: inviter.id,
+        contributors: { create: { userId: inviter.id } },
+      },
+    });
+    const invitation = await prisma.poolInvitation.create({
+      data: {
+        poolId: pool.id,
+        invitedById: inviter.id,
+        inviteeId: recipient.id,
+      },
+    });
+
+    await dispatchNotification({
+      userId: recipient.id,
+      type: NOTIFICATION_TYPES.POOL_INVITATION_RECEIVED,
+      payload: {
+        invitationId: invitation.id,
+        poolId: pool.id,
+        poolTitle: pool.title,
+        recipientLabel: 'Taylor',
+        inviterUserId: inviter.id,
+        inviterDisplayName: inviter.name ?? inviter.username,
+        inviterAvatarId: null,
+      },
+    });
+
+    await expect(
+      prisma.notification.findUnique({
+        where: { poolInvitationId: invitation.id },
+      }),
+    ).resolves.toMatchObject({
+      userId: recipient.id,
+      type: NOTIFICATION_TYPES.POOL_INVITATION_RECEIVED,
+      targetUrl: `/pools/invitations/${invitation.id}`,
+    });
+    expect(emailMock).toHaveBeenCalledTimes(1);
+  });
+
   it('respects email preference toggles', async () => {
     const recipient = await createUser();
     const actor = await createUser();

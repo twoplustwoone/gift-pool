@@ -33,6 +33,14 @@ export const en = {
       pushTitle: 'Friend request accepted',
       fallbackName: 'Someone',
     },
+    poolInvitation: {
+      message: '{{name}} invited you to join {{pool}}',
+      pushTitle: 'New pool invitation',
+      accept: 'Accept',
+      decline: 'Decline',
+      acceptSuccess: 'You joined the pool.',
+      declineSuccess: 'Invitation declined.',
+    },
     upcomingBirthday: {
       // `when` is 'today' | 'tomorrow' | 'on Jul 18' — date-based so the
       // message can't go stale while it sits in the bell for the rest of the

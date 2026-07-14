@@ -69,6 +69,8 @@ model User {
   poolMessages                 PoolMessage[]
   organizerNudgesSent          OrganizerNudge[]               @relation("OrganizerNudge_Sender")
   organizerNudgeRecipients     OrganizerNudgeRecipient[]
+  poolInvitationsSent          PoolInvitation[]                @relation("PoolInvitation_Inviter")
+  poolInvitationsReceived      PoolInvitation[]                @relation("PoolInvitation_Invitee")
   feedback                     Feedback[]
   consents                     Consent[]
   // Person-surface memory relations
@@ -137,8 +139,10 @@ model Notification {
   metadata         String?
   actions          String?
   friendRequestId  String?       @unique
+  poolInvitationId String?       @unique
   sourceIdentifier String?
   friendRequest    FriendRequest? @relation("FriendRequestNotification", fields: [friendRequestId], references: [id], onDelete: Cascade)
+  poolInvitation   PoolInvitation? @relation("PoolInvitationNotification", fields: [poolInvitationId], references: [id], onDelete: Cascade)
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
@@ -404,6 +408,7 @@ model Pool {
   activities    PoolActivity[]
   messages      PoolMessage[]
   organizerNudges OrganizerNudge[]
+  directInvitations PoolInvitation[]
   notificationPreferences PoolNotificationPreference[]
 
   @@index([giftGroupId])
@@ -469,6 +474,32 @@ model PoolContributor {
   @@unique([poolId, userId])
   @@index([poolId])
   @@index([userId])
+}
+
+// A consent-bearing invitation for one existing user to join one pool.
+// Valid statuses are PENDING | ACCEPTED | DECLINED | CANCELLED. The unique
+// pool+invitee key makes a decline final for direct invitations to that pool.
+model PoolInvitation {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  status      String    @default("PENDING")
+  respondedAt DateTime?
+  cancelledAt DateTime?
+
+  poolId      String
+  invitedById String
+  inviteeId   String
+
+  pool         Pool          @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  invitedBy    User          @relation("PoolInvitation_Inviter", fields: [invitedById], references: [id], onDelete: Cascade)
+  invitee      User          @relation("PoolInvitation_Invitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  notification Notification? @relation("PoolInvitationNotification")
+
+  @@unique([poolId, inviteeId])
+  @@index([poolId, status])
+  @@index([inviteeId, status])
+  @@index([invitedById])
 }
 
 // A proposed gift within a pool.
