@@ -314,12 +314,16 @@ async function resolveGroupBackedRecipient(
     };
   }
 
+  // createPool always adds the organizer, so include them when resolving
+  // contribution defaults even if the submitted picker selection omits them.
+  const contributorIds = [...new Set([...selectedIds, userId])];
+
   // Re-derive authoritative contribution defaults from the DB; filter out
   // the recipient — they must never be a contributor.
   const members = await prisma.usersInGiftGroups.findMany({
     where: {
       giftGroupId,
-      userId: { in: selectedIds },
+      userId: { in: contributorIds },
       removedAt: null,
     },
     select: { userId: true, contributionCents: true },

@@ -153,9 +153,19 @@ export async function createPool(input: CreatePoolInput) {
 		})
 	}
 
+	const organizerContributionCents = filteredDefaults.find(
+		member => member.userId === organizerId,
+	)?.contributionCents
+
 	// Build the contributor list. The organizer is always first.
 	const contributorData = [
-		{ userId: organizerId, contributionCents: null },
+		{
+			userId: organizerId,
+			contributionCents:
+				organizerContributionCents != null && organizerContributionCents > 0
+					? organizerContributionCents
+					: null,
+		},
 		...filteredDefaults
 			.filter(m => m.userId !== organizerId)
 			.map(m => ({
