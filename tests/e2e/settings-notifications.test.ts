@@ -1,4 +1,4 @@
-import { type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
 import { prisma } from '#app/utils/db.server.ts';
 import {
   NOTIFICATION_CHANNELS,
@@ -19,6 +19,59 @@ const dismissInstallPrompt = async (page: Page) => {
 };
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getSwitchGeometry = async (toggle: Locator) => {
+  return toggle.evaluate((element) => {
+    const track = element.querySelector(':scope > span');
+    const thumb = track?.querySelector(':scope > span');
+
+    if (!(track instanceof HTMLElement) || !(thumb instanceof HTMLElement)) {
+      throw new Error('Expected switch track and thumb elements');
+    }
+
+    const trackRect = track.getBoundingClientRect();
+    const thumbRect = thumb.getBoundingClientRect();
+
+    return {
+      leftGap: thumbRect.left - trackRect.left,
+      rightGap: trackRect.right - thumbRect.right,
+    };
+  });
+};
+
+test('notification switch thumb stays contained and reflects both states', async ({
+  page,
+  login,
+}) => {
+  await login();
+  await page.goto('/settings/profile/notifications');
+  await dismissInstallPrompt(page);
+
+  const emailChannel = page.getByRole('switch', {
+    name: 'Email notifications',
+  });
+  await expect(emailChannel).toBeChecked();
+
+  const checkedGeometry = await getSwitchGeometry(emailChannel);
+  expect(checkedGeometry.leftGap).toBeGreaterThan(0);
+  expect(checkedGeometry.rightGap).toBeGreaterThan(0);
+  expect(checkedGeometry.leftGap).toBeGreaterThan(checkedGeometry.rightGap);
+
+  await emailChannel.click();
+  await expect(emailChannel).not.toBeChecked();
+
+  await expect
+    .poll(async () => {
+      const geometry = await getSwitchGeometry(emailChannel);
+      return geometry.leftGap < geometry.rightGap;
+    })
+    .toBe(true);
+
+  const uncheckedGeometry = await getSwitchGeometry(emailChannel);
+  expect(uncheckedGeometry.leftGap).toBeGreaterThan(0);
+  expect(uncheckedGeometry.rightGap).toBeGreaterThan(0);
+  expect(uncheckedGeometry.leftGap).toBeLessThan(uncheckedGeometry.rightGap);
+});
 
 test('users can optimistically toggle notification channels while request is pending', async ({
   page,
