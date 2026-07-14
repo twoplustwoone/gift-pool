@@ -1,6 +1,7 @@
 import { type ReactElement } from 'react';
 import { FriendRequestAcceptedEmail } from '#app/emails/friend-request-accepted.tsx';
 import { FriendRequestReceivedEmail } from '#app/emails/friend-request-received.tsx';
+import { PoolActivityEmail } from '#app/emails/pool-activity.tsx';
 import { UpcomingBirthdayEmail } from '#app/emails/upcoming-birthday.tsx';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { OCCASION_REMINDER_EMAIL_SRC } from '#app/utils/analytics.ts';
@@ -10,8 +11,10 @@ import { translate } from '#app/utils/i18n.tsx';
 import {
   NOTIFICATION_CHANNELS,
   NOTIFICATION_TYPES,
+  isPoolActivityNotificationType,
   type NotificationChannel,
   type NotificationIntent,
+  type PoolActivityNotificationType,
 } from '#app/utils/notification-catalog.ts';
 import {
   createPreferenceToken,
@@ -60,6 +63,14 @@ export function getNotificationOccurrenceKey(
       return `friend-request:${intent.payload.friendRequestId}:accepted`;
     case NOTIFICATION_TYPES.UPCOMING_BIRTHDAY:
       return `birthday:${intent.payload.birthdayUserId}:${formatLocalDateKey(intent.payload.birthdayDate)}`;
+    case NOTIFICATION_TYPES.POOL_VOTE_STARTED:
+    case NOTIFICATION_TYPES.POOL_GIFT_CHOSEN:
+    case NOTIFICATION_TYPES.POOL_CANCELLED:
+    case NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED:
+    case NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED:
+      throw new Error(
+        `Pool notification ${intent.type} requires a sourceIdentifier.`,
+      );
   }
 }
 
@@ -74,6 +85,12 @@ export async function renderNotificationChannel<C extends NotificationChannel>(
       return renderFriendRequestAccepted(intent, channel);
     case NOTIFICATION_TYPES.UPCOMING_BIRTHDAY:
       return renderUpcomingBirthday(intent, channel);
+    case NOTIFICATION_TYPES.POOL_VOTE_STARTED:
+    case NOTIFICATION_TYPES.POOL_GIFT_CHOSEN:
+    case NOTIFICATION_TYPES.POOL_CANCELLED:
+    case NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED:
+    case NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED:
+      return renderPoolActivity(intent, channel);
   }
 }
 
@@ -233,6 +250,112 @@ async function renderUpcomingBirthday<C extends NotificationChannel>(
   }
 }
 
+type PoolActivityIntent = NotificationIntent<PoolActivityNotificationType>;
+
+type PoolActivityCopy = {
+  messageKey:
+    | 'notifications.poolVoteStarted.message'
+    | 'notifications.poolGiftChosen.message'
+    | 'notifications.poolCancelled.message'
+    | 'notifications.poolPurchaserAssigned.message'
+    | 'notifications.poolDelivererAssigned.message';
+  pushTitleKey:
+    | 'notifications.poolVoteStarted.pushTitle'
+    | 'notifications.poolGiftChosen.pushTitle'
+    | 'notifications.poolCancelled.pushTitle'
+    | 'notifications.poolPurchaserAssigned.pushTitle'
+    | 'notifications.poolDelivererAssigned.pushTitle';
+  messageParams: Record<string, string>;
+  emailBody: string;
+};
+
+async function renderPoolActivity<C extends NotificationChannel>(
+  intent: PoolActivityIntent,
+  channel: C,
+): Promise<NotificationChannelMessageMap[C]> {
+  const copy = getPoolActivityCopy(intent);
+  const message = translate('en', copy.messageKey, copy.messageParams);
+  const poolUrl = `/pools/${intent.payload.poolId}`;
+
+  switch (channel) {
+    case NOTIFICATION_CHANNELS.IN_APP:
+      return {
+        status: 'UNREAD',
+        messageKey: copy.messageKey,
+        messageParams: JSON.stringify(copy.messageParams),
+        targetUrl: poolUrl,
+        metadata: JSON.stringify({ poolId: intent.payload.poolId }),
+        friendRequestId: null,
+      } as NotificationChannelMessageMap[C];
+    case NOTIFICATION_CHANNELS.EMAIL: {
+      const managePreferencesUrl = await buildManagePreferencesUrl(intent);
+      return {
+        subject: `${message} on ${appName}`,
+        react: (
+          <PoolActivityEmail
+            appName={appName}
+            heading={message}
+            message={copy.emailBody}
+            poolUrl={buildAppUrl(poolUrl)}
+            managePreferencesUrl={managePreferencesUrl}
+          />
+        ),
+      } as NotificationChannelMessageMap[C];
+    }
+    case NOTIFICATION_CHANNELS.WEB_PUSH:
+      return {
+        title: translate('en', copy.pushTitleKey),
+        body: message,
+        url: poolUrl,
+        tag: getNotificationOccurrenceKey(intent),
+      } as NotificationChannelMessageMap[C];
+  }
+}
+
+function getPoolActivityCopy(intent: PoolActivityIntent): PoolActivityCopy {
+  const pool = intent.payload.poolTitle;
+  switch (intent.type) {
+    case NOTIFICATION_TYPES.POOL_VOTE_STARTED:
+      return {
+        messageKey: 'notifications.poolVoteStarted.message',
+        pushTitleKey: 'notifications.poolVoteStarted.pushTitle',
+        messageParams: { pool },
+        emailBody: 'Open the pool to review the ideas and cast your vote.',
+      };
+    case NOTIFICATION_TYPES.POOL_GIFT_CHOSEN:
+      return {
+        messageKey: 'notifications.poolGiftChosen.message',
+        pushTitleKey: 'notifications.poolGiftChosen.pushTitle',
+        messageParams: {
+          pool,
+          idea: intent.payload.chosenIdeaName,
+        },
+        emailBody: 'Open the pool to see the chosen gift and next steps.',
+      };
+    case NOTIFICATION_TYPES.POOL_CANCELLED:
+      return {
+        messageKey: 'notifications.poolCancelled.message',
+        pushTitleKey: 'notifications.poolCancelled.pushTitle',
+        messageParams: { pool },
+        emailBody: 'Open the pool to review its final status.',
+      };
+    case NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED:
+      return {
+        messageKey: 'notifications.poolPurchaserAssigned.message',
+        pushTitleKey: 'notifications.poolPurchaserAssigned.pushTitle',
+        messageParams: { pool },
+        emailBody: 'Open the pool to review the gift and purchase details.',
+      };
+    case NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED:
+      return {
+        messageKey: 'notifications.poolDelivererAssigned.message',
+        pushTitleKey: 'notifications.poolDelivererAssigned.pushTitle',
+        messageParams: { pool },
+        emailBody: 'Open the pool to review the delivery details.',
+      };
+  }
+}
+
 async function buildManagePreferencesUrl(intent: NotificationIntent) {
   const token = await createPreferenceToken({
     userId: intent.userId,
@@ -245,21 +368,38 @@ export function recordNotificationDelivery(
   intent: NotificationIntent,
   deliveredChannels: Array<NotificationChannel>,
 ) {
-  if (
-    intent.type !== NOTIFICATION_TYPES.UPCOMING_BIRTHDAY ||
-    deliveredChannels.length === 0
-  ) {
+  if (deliveredChannels.length === 0) return;
+
+  if (intent.type === NOTIFICATION_TYPES.UPCOMING_BIRTHDAY) {
+    queueLogEvent({
+      name: 'occasion_reminder_sent',
+      source: 'server',
+      userId: intent.userId,
+      properties: {
+        birthdayUserId: intent.payload.birthdayUserId,
+        daysUntil: intent.payload.daysUntil,
+        channels: deliveredChannels,
+      },
+    });
     return;
   }
 
-  queueLogEvent({
-    name: 'occasion_reminder_sent',
-    source: 'server',
-    userId: intent.userId,
-    properties: {
-      birthdayUserId: intent.payload.birthdayUserId,
-      daysUntil: intent.payload.daysUntil,
-      channels: deliveredChannels,
-    },
-  });
+  if (isPoolActivityIntent(intent)) {
+    queueLogEvent({
+      name: 'pool_activity_notification_sent',
+      source: 'server',
+      userId: intent.userId,
+      properties: {
+        notificationType: intent.type,
+        poolId: intent.payload.poolId,
+        channels: deliveredChannels,
+      },
+    });
+  }
+}
+
+function isPoolActivityIntent(
+  intent: NotificationIntent,
+): intent is NotificationIntent<PoolActivityNotificationType> {
+  return isPoolActivityNotificationType(intent.type);
 }

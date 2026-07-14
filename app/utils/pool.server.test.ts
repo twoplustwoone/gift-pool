@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts';
 
 const nanoid = vi.fn(() => 'invite-123');
 
@@ -20,6 +21,9 @@ const poolCreate = vi.fn();
 const poolDelete = vi.fn();
 const poolFindUnique = vi.fn();
 const poolUpdate = vi.fn();
+const poolUpdateMany = vi.fn();
+const queueLogEvent = vi.fn();
+const queuePoolActivityNotifications = vi.fn();
 
 vi.mock('nanoid', () => ({
   nanoid: () => nanoid(),
@@ -45,6 +49,7 @@ vi.mock('#app/utils/db.server.ts', () => ({
       delete: (...args: Array<unknown>) => poolDelete(...args),
       findUnique: (...args: Array<unknown>) => poolFindUnique(...args),
       update: (...args: Array<unknown>) => poolUpdate(...args),
+      updateMany: (...args: Array<unknown>) => poolUpdateMany(...args),
     },
     poolContributor: {
       create: (...args: Array<unknown>) => poolContributorCreate(...args),
@@ -57,6 +62,15 @@ vi.mock('#app/utils/db.server.ts', () => ({
 
 vi.mock('#app/utils/pool-activity.server.ts', () => ({
   logPoolActivity: (...args: Array<unknown>) => logPoolActivity(...args),
+}));
+
+vi.mock('#app/utils/analytics.server.ts', () => ({
+  queueLogEvent: (...args: Array<unknown>) => queueLogEvent(...args),
+}));
+
+vi.mock('#app/utils/pool-notifications.server.ts', () => ({
+  queuePoolActivityNotifications: (...args: Array<unknown>) =>
+    queuePoolActivityNotifications(...args),
 }));
 
 import {
@@ -106,6 +120,9 @@ beforeEach(() => {
   poolDelete.mockReset().mockResolvedValue(undefined);
   poolFindUnique.mockReset();
   poolUpdate.mockReset().mockResolvedValue(undefined);
+  poolUpdateMany.mockReset().mockResolvedValue({ count: 1 });
+  queueLogEvent.mockReset().mockReturnValue({ eventId: 'event-123' });
+  queuePoolActivityNotifications.mockReset();
 });
 
 describe('pool server utilities', () => {
@@ -401,24 +418,31 @@ describe('pool server utilities', () => {
   });
 
   it('callVote rejects pools that are not open', async () => {
-    poolFindUnique.mockResolvedValue({ status: 'DECIDED' });
+    poolUpdateMany.mockResolvedValue({ count: 0 });
 
     await expect(callVote('pool-1', 'user-1')).rejects.toMatchObject({
       init: { status: 400 },
     });
+    expect(logPoolActivity).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
+    expect(queuePoolActivityNotifications).not.toHaveBeenCalled();
   });
 
   it('callVote transitions open pools to voting', async () => {
-    poolFindUnique.mockResolvedValue({ status: 'OPEN' });
-
     await callVote('pool-1', 'user-1');
 
-    expect(poolUpdate).toHaveBeenCalledWith({
+    expect(poolUpdateMany).toHaveBeenCalledWith({
       data: { status: 'VOTING' },
-      where: { id: 'pool-1' },
+      where: { id: 'pool-1', status: 'OPEN' },
     });
     expect(logPoolActivity).toHaveBeenCalledWith('pool-1', 'vote.called', {
       actorId: 'user-1',
+    });
+    expect(queuePoolActivityNotifications).toHaveBeenCalledWith({
+      type: NOTIFICATION_TYPES.POOL_VOTE_STARTED,
+      poolId: 'pool-1',
+      actorUserId: 'user-1',
+      occurrenceId: 'event-123',
     });
   });
 
@@ -481,7 +505,7 @@ describe('pool server utilities', () => {
       init: { status: 404 },
     });
 
-    expect(poolUpdate).not.toHaveBeenCalled();
+    expect(poolUpdateMany).not.toHaveBeenCalled();
   });
 
   it('chooseIdea falls back to the estimated idea price when none is provided', async () => {
@@ -492,18 +516,45 @@ describe('pool server utilities', () => {
 
     await chooseIdea('pool-1', 'idea-1', 'user-1');
 
-    expect(poolUpdate).toHaveBeenCalledWith({
+    expect(poolUpdateMany).toHaveBeenCalledWith({
       data: {
         chosenIdeaId: 'idea-1',
         finalPriceCents: 8000,
         status: 'DECIDED',
       },
-      where: { id: 'pool-1' },
+      where: {
+        id: 'pool-1',
+        OR: [
+          { status: { not: 'DECIDED' } },
+          { chosenIdeaId: null },
+          { chosenIdeaId: { not: 'idea-1' } },
+        ],
+      },
     });
     expect(logPoolActivity).toHaveBeenCalledWith('pool-1', 'idea.chosen', {
       actorId: 'user-1',
       payload: { finalPriceCents: 8000, ideaId: 'idea-1', name: 'Speaker' },
     });
+    expect(queuePoolActivityNotifications).toHaveBeenCalledWith({
+      type: NOTIFICATION_TYPES.POOL_GIFT_CHOSEN,
+      poolId: 'pool-1',
+      actorUserId: 'user-1',
+      occurrenceId: 'event-123',
+    });
+  });
+
+  it('does not repeat decision side effects when the gift is already chosen', async () => {
+    giftIdeaFindFirst.mockResolvedValue({
+      estimatedPriceCents: 8000,
+      name: 'Speaker',
+    });
+    poolUpdateMany.mockResolvedValue({ count: 0 });
+
+    await chooseIdea('pool-1', 'idea-1', 'user-1');
+
+    expect(logPoolActivity).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
+    expect(queuePoolActivityNotifications).not.toHaveBeenCalled();
   });
 
   it('updates final price and logs the new amount', async () => {
@@ -520,16 +571,25 @@ describe('pool server utilities', () => {
   });
 
   it('assigns purchaser and deliverer roles with activity logs', async () => {
+    queueLogEvent
+      .mockReturnValueOnce({ eventId: 'purchaser-event' })
+      .mockReturnValueOnce({ eventId: 'deliverer-event' });
     await assignPurchaser('pool-1', 'user-2', 'manager-1');
     await assignDeliverer('pool-1', 'user-3', 'manager-1');
 
-    expect(poolUpdate).toHaveBeenNthCalledWith(1, {
+    expect(poolUpdateMany).toHaveBeenNthCalledWith(1, {
       data: { purchaserId: 'user-2' },
-      where: { id: 'pool-1' },
+      where: {
+        id: 'pool-1',
+        OR: [{ purchaserId: null }, { purchaserId: { not: 'user-2' } }],
+      },
     });
-    expect(poolUpdate).toHaveBeenNthCalledWith(2, {
+    expect(poolUpdateMany).toHaveBeenNthCalledWith(2, {
       data: { delivererId: 'user-3' },
-      where: { id: 'pool-1' },
+      where: {
+        id: 'pool-1',
+        OR: [{ delivererId: null }, { delivererId: { not: 'user-3' } }],
+      },
     });
     expect(logPoolActivity).toHaveBeenNthCalledWith(1, 'pool-1', 'purchaser.assigned', {
       actorId: 'manager-1',
@@ -539,6 +599,33 @@ describe('pool server utilities', () => {
       actorId: 'manager-1',
       payload: { userId: 'user-3' },
     });
+    expect(queuePoolActivityNotifications).toHaveBeenNthCalledWith(1, {
+      type: NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED,
+      poolId: 'pool-1',
+      actorUserId: 'manager-1',
+      assigneeUserId: 'user-2',
+      occurrenceId: 'purchaser-event',
+    });
+    expect(queuePoolActivityNotifications).toHaveBeenNthCalledWith(2, {
+      type: NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED,
+      poolId: 'pool-1',
+      actorUserId: 'manager-1',
+      assigneeUserId: 'user-3',
+      occurrenceId: 'deliverer-event',
+    });
+  });
+
+  it('does not repeat assignment or cancellation side effects for unchanged state', async () => {
+    poolUpdateMany.mockResolvedValue({ count: 0 });
+
+    await assignPurchaser('pool-1', 'user-2', 'manager-1');
+    await assignDeliverer('pool-1', 'user-3', 'manager-1');
+    await cancelPool('pool-1', 'manager-1');
+
+    expect(poolUpdateMany).toHaveBeenCalledTimes(3);
+    expect(logPoolActivity).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
+    expect(queuePoolActivityNotifications).not.toHaveBeenCalled();
   });
 
   it('marks purchased, delivered, cancelled, and deleted pools', async () => {
@@ -563,9 +650,9 @@ describe('pool server utilities', () => {
       data: { status: 'DELIVERED' },
       where: { id: 'pool-1' },
     });
-    expect(poolUpdate).toHaveBeenNthCalledWith(3, {
+    expect(poolUpdateMany).toHaveBeenCalledWith({
       data: { status: 'CANCELLED' },
-      where: { id: 'pool-1' },
+      where: { id: 'pool-1', status: { not: 'CANCELLED' } },
     });
     expect(poolDelete).toHaveBeenCalledWith({ where: { id: 'pool-1' } });
     expect(logPoolActivity).toHaveBeenNthCalledWith(1, 'pool-1', 'pool.purchased', {
@@ -579,6 +666,12 @@ describe('pool server utilities', () => {
     });
     expect(logPoolActivity).toHaveBeenNthCalledWith(4, 'pool-1', 'pool.deleted', {
       actorId: 'user-1',
+    });
+    expect(queuePoolActivityNotifications).toHaveBeenCalledWith({
+      type: NOTIFICATION_TYPES.POOL_CANCELLED,
+      poolId: 'pool-1',
+      actorUserId: 'user-1',
+      occurrenceId: 'event-123',
     });
   });
 
@@ -640,9 +733,9 @@ describe('pool server utilities', () => {
     // pools, so a cancelled pool's ideas are preserved, not shown).
     await cancelPool('pool-1', 'user-1');
 
-    expect(poolUpdate).toHaveBeenCalledWith({
+    expect(poolUpdateMany).toHaveBeenCalledWith({
       data: { status: 'CANCELLED' },
-      where: { id: 'pool-1' },
+      where: { id: 'pool-1', status: { not: 'CANCELLED' } },
     });
     expect(poolDelete).not.toHaveBeenCalled();
     expect(giftIdeaDelete).not.toHaveBeenCalled();

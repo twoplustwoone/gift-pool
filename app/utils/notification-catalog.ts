@@ -2,10 +2,34 @@ export const NOTIFICATION_TYPES = {
   FRIEND_REQUEST_RECEIVED: 'FRIEND_REQUEST_RECEIVED',
   FRIEND_REQUEST_ACCEPTED: 'FRIEND_REQUEST_ACCEPTED',
   UPCOMING_BIRTHDAY: 'UPCOMING_BIRTHDAY',
+  POOL_VOTE_STARTED: 'POOL_VOTE_STARTED',
+  POOL_GIFT_CHOSEN: 'POOL_GIFT_CHOSEN',
+  POOL_CANCELLED: 'POOL_CANCELLED',
+  POOL_PURCHASER_ASSIGNED: 'POOL_PURCHASER_ASSIGNED',
+  POOL_DELIVERER_ASSIGNED: 'POOL_DELIVERER_ASSIGNED',
 } as const;
 
 export type NotificationType =
   (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
+
+export const POOL_ACTIVITY_NOTIFICATION_TYPES = [
+  NOTIFICATION_TYPES.POOL_VOTE_STARTED,
+  NOTIFICATION_TYPES.POOL_GIFT_CHOSEN,
+  NOTIFICATION_TYPES.POOL_CANCELLED,
+  NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED,
+  NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED,
+] as const;
+
+export type PoolActivityNotificationType =
+  (typeof POOL_ACTIVITY_NOTIFICATION_TYPES)[number];
+
+export function isPoolActivityNotificationType(
+  type: NotificationType,
+): type is PoolActivityNotificationType {
+  return POOL_ACTIVITY_NOTIFICATION_TYPES.includes(
+    type as PoolActivityNotificationType,
+  );
+}
 
 export const NOTIFICATION_CHANNELS = {
   IN_APP: 'IN_APP',
@@ -21,6 +45,7 @@ export const NOTIFICATION_CHANNEL_VALUES = Object.values(NOTIFICATION_CHANNELS);
 export const NOTIFICATION_CATEGORIES = {
   SOCIAL: 'SOCIAL',
   OCCASIONS: 'OCCASIONS',
+  POOL_COORDINATION: 'POOL_COORDINATION',
 } as const;
 
 export type NotificationCategory =
@@ -44,6 +69,10 @@ export const NOTIFICATION_CATEGORY_CATALOG = {
     label: 'Reminders',
     description: 'Timely reminders about occasions you can see.',
   },
+  [NOTIFICATION_CATEGORIES.POOL_COORDINATION]: {
+    label: 'Pool coordination',
+    description: 'Important decisions and assignments in your gift pools.',
+  },
 } as const satisfies Record<
   NotificationCategory,
   NotificationCategoryDefinition
@@ -52,6 +81,9 @@ export const NOTIFICATION_CATEGORY_CATALOG = {
 export const NOTIFICATION_TOPICS = {
   FRIEND_REQUESTS: 'FRIEND_REQUESTS',
   BIRTHDAY_REMINDERS: 'BIRTHDAY_REMINDERS',
+  IDEAS_AND_VOTING: 'IDEAS_AND_VOTING',
+  POOL_PROGRESS: 'POOL_PROGRESS',
+  ASSIGNMENTS: 'ASSIGNMENTS',
 } as const;
 
 export type NotificationTopic =
@@ -112,6 +144,36 @@ export const NOTIFICATION_TOPIC_CATALOG = {
       pushEnabled: false,
     },
   },
+  [NOTIFICATION_TOPICS.IDEAS_AND_VOTING]: {
+    category: NOTIFICATION_CATEGORIES.POOL_COORDINATION,
+    label: 'Ideas and voting',
+    description: 'When voting starts or a gift is chosen.',
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: false,
+      pushEnabled: false,
+    },
+  },
+  [NOTIFICATION_TOPICS.POOL_PROGRESS]: {
+    category: NOTIFICATION_CATEGORIES.POOL_COORDINATION,
+    label: 'Pool progress',
+    description: "Important changes to a pool's lifecycle.",
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: false,
+      pushEnabled: false,
+    },
+  },
+  [NOTIFICATION_TOPICS.ASSIGNMENTS]: {
+    category: NOTIFICATION_CATEGORIES.POOL_COORDINATION,
+    label: 'Assignments',
+    description: 'When you are assigned to purchase or deliver a gift.',
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: false,
+      pushEnabled: false,
+    },
+  },
 } as const satisfies Record<NotificationTopic, NotificationTopicDefinition>;
 
 /**
@@ -137,6 +199,41 @@ export const NOTIFICATION_EVENT_CATALOG = {
     topic: NOTIFICATION_TOPICS.BIRTHDAY_REMINDERS,
     importance: 'IMPORTANT',
     context: 'NONE',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.POOL_VOTE_STARTED]: {
+    topic: NOTIFICATION_TOPICS.IDEAS_AND_VOTING,
+    importance: 'IMPORTANT',
+    context: 'POOL',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.POOL_GIFT_CHOSEN]: {
+    topic: NOTIFICATION_TOPICS.IDEAS_AND_VOTING,
+    importance: 'IMPORTANT',
+    context: 'POOL',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.POOL_CANCELLED]: {
+    topic: NOTIFICATION_TOPICS.POOL_PROGRESS,
+    importance: 'IMPORTANT',
+    context: 'POOL',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED]: {
+    topic: NOTIFICATION_TOPICS.ASSIGNMENTS,
+    importance: 'IMPORTANT',
+    context: 'POOL',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED]: {
+    topic: NOTIFICATION_TOPICS.ASSIGNMENTS,
+    importance: 'IMPORTANT',
+    context: 'POOL',
     supportedChannels: allChannels,
     deliveryStrategy: 'PER_CHANNEL_LEDGER',
   },
@@ -260,6 +357,12 @@ type FriendRequestPayload = {
   recipientUserId: string;
 };
 
+type PoolActivityPayload = {
+  poolId: string;
+  poolTitle: string;
+  actorUserId: string;
+};
+
 type PayloadByType = {
   [NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED]: FriendRequestPayload;
   [NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED]: FriendRequestPayload;
@@ -273,6 +376,13 @@ type PayloadByType = {
     // spans local midnight.
     birthdayDate: Date;
   };
+  [NOTIFICATION_TYPES.POOL_VOTE_STARTED]: PoolActivityPayload;
+  [NOTIFICATION_TYPES.POOL_GIFT_CHOSEN]: PoolActivityPayload & {
+    chosenIdeaName: string;
+  };
+  [NOTIFICATION_TYPES.POOL_CANCELLED]: PoolActivityPayload;
+  [NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED]: PoolActivityPayload;
+  [NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED]: PoolActivityPayload;
 };
 
 export type NotificationPayload<T extends NotificationType> = PayloadByType[T];

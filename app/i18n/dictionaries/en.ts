@@ -41,6 +41,26 @@ export const en = {
       message: "{{name}}'s birthday is {{when}}",
       pushTitle: 'Upcoming birthday',
     },
+    poolVoteStarted: {
+      message: 'Voting has started in {{pool}}',
+      pushTitle: 'Voting started',
+    },
+    poolGiftChosen: {
+      message: '{{idea}} was chosen for {{pool}}',
+      pushTitle: 'Gift chosen',
+    },
+    poolCancelled: {
+      message: '{{pool}} was cancelled',
+      pushTitle: 'Pool cancelled',
+    },
+    poolPurchaserAssigned: {
+      message: "You're the purchaser for {{pool}}",
+      pushTitle: 'Purchase assignment',
+    },
+    poolDelivererAssigned: {
+      message: "You're delivering the gift for {{pool}}",
+      pushTitle: 'Delivery assignment',
+    },
     markAllReadSuccess: 'All notifications marked as read.',
   },
   friends: {

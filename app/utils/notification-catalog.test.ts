@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getNotificationEventDefinition,
+  getNotificationTopicsForContext,
   isNotificationType,
   matchesNotificationContext,
   NOTIFICATION_CHANNELS,
@@ -8,6 +9,7 @@ import {
   NOTIFICATION_TOPIC_CATALOG,
   NOTIFICATION_TOPICS,
   NOTIFICATION_TYPES,
+  POOL_ACTIVITY_NOTIFICATION_TYPES,
 } from '#app/utils/notification-catalog.ts';
 
 describe('notification catalog', () => {
@@ -40,6 +42,42 @@ describe('notification catalog', () => {
         NOTIFICATION_CHANNELS.IN_APP,
       );
     }
+  });
+
+  it('classifies important pool activity into scoped, ledger-backed topics', () => {
+    for (const type of POOL_ACTIVITY_NOTIFICATION_TYPES) {
+      expect(getNotificationEventDefinition(type)).toMatchObject({
+        context: 'POOL',
+        importance: 'IMPORTANT',
+        deliveryStrategy: 'PER_CHANNEL_LEDGER',
+      });
+    }
+
+    expect(
+      getNotificationEventDefinition(NOTIFICATION_TYPES.POOL_VOTE_STARTED)
+        .topic,
+    ).toBe(NOTIFICATION_TOPICS.IDEAS_AND_VOTING);
+    expect(
+      getNotificationEventDefinition(NOTIFICATION_TYPES.POOL_GIFT_CHOSEN).topic,
+    ).toBe(NOTIFICATION_TOPICS.IDEAS_AND_VOTING);
+    expect(
+      getNotificationEventDefinition(NOTIFICATION_TYPES.POOL_CANCELLED).topic,
+    ).toBe(NOTIFICATION_TOPICS.POOL_PROGRESS);
+    expect(
+      getNotificationEventDefinition(NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED)
+        .topic,
+    ).toBe(NOTIFICATION_TOPICS.ASSIGNMENTS);
+  });
+
+  it('exposes pool topics for pool and group context controls', () => {
+    const poolTopics = [
+      NOTIFICATION_TOPICS.IDEAS_AND_VOTING,
+      NOTIFICATION_TOPICS.POOL_PROGRESS,
+      NOTIFICATION_TOPICS.ASSIGNMENTS,
+    ];
+
+    expect(getNotificationTopicsForContext('POOL')).toEqual(poolTopics);
+    expect(getNotificationTopicsForContext('GROUP')).toEqual(poolTopics);
   });
 
   it('validates persisted type strings through the catalog', () => {

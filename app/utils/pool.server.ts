@@ -3,6 +3,7 @@ import { data } from 'react-router'
 import { nanoid } from 'nanoid'
 import { queueLogEvent } from '#app/utils/analytics.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts'
 import { logPoolActivity } from '#app/utils/pool-activity.server.ts'
 import {
 	POOL_ACTIVITY_TYPE,
@@ -10,6 +11,7 @@ import {
 	DECISION_MODE,
 } from '#app/utils/pool-constants.ts'
 import { calculateContributions } from '#app/utils/pool-contributions.ts'
+import { queuePoolActivityNotifications } from '#app/utils/pool-notifications.server.ts'
 import type { DecisionMode, OccasionType } from '#app/utils/pool-constants.ts'
 
 // ─── Selects ──────────────────────────────────────────────────────────────────
@@ -395,30 +397,31 @@ export async function deleteIdea(
 
 // Transition pool to VOTING status. Only valid from OPEN.
 export async function callVote(poolId: string, actorId: string) {
-	const pool = await prisma.pool.findUnique({
-		where: { id: poolId },
-		select: { status: true },
+	const transition = await prisma.pool.updateMany({
+		where: { id: poolId, status: POOL_STATUS.OPEN },
+		data: { status: POOL_STATUS.VOTING },
 	})
 
-	if (pool?.status !== POOL_STATUS.OPEN) {
+	if (transition.count !== 1) {
 		throw data(
 			{ error: 'A vote can only be called when the pool is open.' },
 			{ status: 400 },
 		)
 	}
 
-	await prisma.pool.update({
-		where: { id: poolId },
-		data: { status: POOL_STATUS.VOTING },
-	})
-
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.VOTE_CALLED, { actorId })
 
-	queueLogEvent({
+	const { eventId } = queueLogEvent({
 		name: 'pool_vote_called',
 		userId: actorId,
 		source: 'server',
 		properties: { poolId },
+	})
+	queuePoolActivityNotifications({
+		type: NOTIFICATION_TYPES.POOL_VOTE_STARTED,
+		poolId,
+		actorUserId: actorId,
+		occurrenceId: eventId,
 	})
 }
 
@@ -500,25 +503,39 @@ export async function chooseIdea(
 
 	const resolvedPrice = finalPriceCents ?? idea.estimatedPriceCents ?? null
 
-	await prisma.pool.update({
-		where: { id: poolId },
+	const decision = await prisma.pool.updateMany({
+		where: {
+			id: poolId,
+			OR: [
+				{ status: { not: POOL_STATUS.DECIDED } },
+				{ chosenIdeaId: null },
+				{ chosenIdeaId: { not: ideaId } },
+			],
+		},
 		data: {
 			status: POOL_STATUS.DECIDED,
 			chosenIdeaId: ideaId,
 			finalPriceCents: resolvedPrice,
 		},
 	})
+	if (decision.count === 0) return
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.IDEA_CHOSEN, {
 		actorId,
 		payload: { ideaId, name: idea.name, finalPriceCents: resolvedPrice },
 	})
 
-	queueLogEvent({
+	const { eventId } = queueLogEvent({
 		name: 'pool_decided',
 		userId: actorId,
 		source: 'server',
 		properties: { poolId, ideaId, finalPriceCents: resolvedPrice },
+	})
+	queuePoolActivityNotifications({
+		type: NOTIFICATION_TYPES.POOL_GIFT_CHOSEN,
+		poolId,
+		actorUserId: actorId,
+		occurrenceId: eventId,
 	})
 }
 
@@ -546,14 +563,32 @@ export async function assignPurchaser(
 	userId: string,
 	actorId: string,
 ) {
-	await prisma.pool.update({
-		where: { id: poolId },
+	const assignment = await prisma.pool.updateMany({
+		where: {
+			id: poolId,
+			OR: [{ purchaserId: null }, { purchaserId: { not: userId } }],
+		},
 		data: { purchaserId: userId },
 	})
+	if (assignment.count === 0) return
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.PURCHASER_ASSIGNED, {
 		actorId,
 		payload: { userId },
+	})
+
+	const { eventId } = queueLogEvent({
+		name: 'pool_purchaser_assigned',
+		userId: actorId,
+		source: 'server',
+		properties: { poolId, assigneeUserId: userId },
+	})
+	queuePoolActivityNotifications({
+		type: NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED,
+		poolId,
+		actorUserId: actorId,
+		assigneeUserId: userId,
+		occurrenceId: eventId,
 	})
 }
 
@@ -562,14 +597,32 @@ export async function assignDeliverer(
 	userId: string,
 	actorId: string,
 ) {
-	await prisma.pool.update({
-		where: { id: poolId },
+	const assignment = await prisma.pool.updateMany({
+		where: {
+			id: poolId,
+			OR: [{ delivererId: null }, { delivererId: { not: userId } }],
+		},
 		data: { delivererId: userId },
 	})
+	if (assignment.count === 0) return
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.DELIVERER_ASSIGNED, {
 		actorId,
 		payload: { userId },
+	})
+
+	const { eventId } = queueLogEvent({
+		name: 'pool_deliverer_assigned',
+		userId: actorId,
+		source: 'server',
+		properties: { poolId, assigneeUserId: userId },
+	})
+	queuePoolActivityNotifications({
+		type: NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED,
+		poolId,
+		actorUserId: actorId,
+		assigneeUserId: userId,
+		occurrenceId: eventId,
 	})
 }
 
@@ -608,18 +661,25 @@ export async function markDelivered(poolId: string, actorId: string) {
 }
 
 export async function cancelPool(poolId: string, actorId: string) {
-	await prisma.pool.update({
-		where: { id: poolId },
+	const cancellation = await prisma.pool.updateMany({
+		where: { id: poolId, status: { not: POOL_STATUS.CANCELLED } },
 		data: { status: POOL_STATUS.CANCELLED },
 	})
+	if (cancellation.count === 0) return
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_CANCELLED, { actorId })
 
-	queueLogEvent({
+	const { eventId } = queueLogEvent({
 		name: 'pool_cancelled',
 		userId: actorId,
 		source: 'server',
 		properties: { poolId },
+	})
+	queuePoolActivityNotifications({
+		type: NOTIFICATION_TYPES.POOL_CANCELLED,
+		poolId,
+		actorUserId: actorId,
+		occurrenceId: eventId,
 	})
 }
 
