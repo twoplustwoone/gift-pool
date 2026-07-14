@@ -245,12 +245,18 @@ Cache tiering: short-TTL admin queries (≤5 min) use `lruCache`; long-TTL aggre
 
 ### Notification preferences
 
-Hot/cold path split — reads tolerate missing rows, writes don't.
+Preferences are sparse and resolved through the notification policy seam. Reads
+never create rows, including signup and the settings loader.
 
-- **Cold path (settings loader)**: `app/routes/settings+/profile.notifications.tsx` calls `ensureNotificationPreferencesForUser` to materialize a row per `NOTIFICATION_TYPES`. This is the only place that upserts on read, and the e2e rollback tests rely on the rows existing afterwards.
-- **Hot path (friend-request fanout)**: `getNotificationPreferences` / `getNotificationPreferenceForChannels` fall back to `DEFAULT_NOTIFICATION_PREFERENCES` when rows are missing — no upsert in the fanout.
-- **Signup**: `auth.server.ts` seeds one row per type via nested-create so new users never hit the fallback.
-- `disableEmailForAll` collapses to one `findMany` + one transactional `updateMany` + audit `createMany` (not an O(N) loop).
+- Central precedence is global channel gate → topic override → category override → catalog default. Context activity filters the result and can never re-enable a centrally disabled channel/topic.
+- `notification-catalog.ts` maps concrete events to stable user-facing topics and categories. Adding an event to an existing topic must not add another preference row or toggle.
+- The current settings screen still submits concrete event types for compatibility; `setNotificationPreference` deliberately maps them to their shared topic. The scoped settings UI arrives in the next milestone.
+- `disableEmailForAll` writes one durable `EMAIL` global gate, so future topics remain disabled. Topic choices changed while that gate is off are retained for a later re-enable.
+- Context activity uses sparse `GroupNotificationPreference` and `PoolNotificationPreference` rows. Explicit pool settings override the parent group; otherwise group settings inherit to child pools; otherwise the default is `IMPORTANT_ONLY`.
+- Context preference reads/writes require current group membership or pool contribution. Dispatcher policy reads use `requireAccess: false` only after the owning domain has selected an eligible audience.
+- A null context activity level means inherit and may coexist with `noticeDismissedAt`, which is required to dismiss awareness of an inherited group mute on one pool.
+- Category bulk writes are transactional and clear more-specific topic rows for that channel so the selected category value actually applies to every child topic.
+- Admin notification reporting resolves effective choices for the full user denominator; it must not count sparse rows as if they were the user population.
 
 ### Occasion reminders (the scheduler)
 
