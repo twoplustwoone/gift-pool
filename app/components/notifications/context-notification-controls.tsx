@@ -135,11 +135,11 @@ export function ContextNotificationControl({
         <div className="space-y-4 py-2">
           {inherited ? (
             <div className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-              Using the notification setting from{' '}
+              {'Using the notification setting from '}
               <span className="font-medium text-foreground">
                 {inheritedFromLabel ?? 'this group'}
               </span>
-              . Choosing an option below changes only this pool.
+              {'. Choosing an option below changes only this pool.'}
             </div>
           ) : null}
 
@@ -271,6 +271,7 @@ function CustomTopicOptions({
           return (
             <label
               key={topic.topic}
+              aria-label={`${topic.label}: ${topic.description}`}
               className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 hover:bg-muted"
             >
               <input

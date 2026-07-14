@@ -351,6 +351,9 @@ function CategoryBulkAction({
   const pending = fetcher.state !== 'idle';
   const nextEnabled = !enabled;
   const details = channelDetails[channel];
+  let stateLabel = 'All off';
+  if (enabled) stateLabel = 'All on';
+  else if (mixed) stateLabel = 'Mixed · turn on';
   return (
     <fetcher.Form method="post">
       <input type="hidden" name="intent" value="category-channel" />
@@ -366,9 +369,7 @@ function CategoryBulkAction({
         aria-label={`${enabled ? 'Turn off' : 'Turn on'} all ${getNotificationCategoryDefinition(category).label} ${details.label} notifications`}
       >
         <span>{details.label}</span>
-        <span className="text-xs text-muted-foreground">
-          {enabled ? 'All on' : mixed ? 'Mixed · turn on' : 'All off'}
-        </span>
+        <span className="text-xs text-muted-foreground">{stateLabel}</span>
       </Button>
     </fetcher.Form>
   );
@@ -450,9 +451,9 @@ function MutationSwitch({
         }}
       />
       {fetcher.data?.ok === false ? (
-        <span className="sr-only" role="status">
+        <output className="sr-only">
           Could not save {label}. Try again.
-        </span>
+        </output>
       ) : null}
     </>
   );
@@ -480,35 +481,44 @@ function PushCapabilityStatus({
     message = 'Push notifications are enabled on this device.';
   }
 
+  let action: React.ReactNode = null;
+  if (canEdit && push.status === 'ios-needs-install') {
+    action = (
+      <Button asChild variant="link" className="h-auto p-0">
+        <Link to="/pwa-install">How to install</Link>
+      </Button>
+    );
+  } else if (canEdit && push.status === 'subscribed') {
+    action = (
+      <Button
+        type="button"
+        variant="ghost"
+        disabled={push.isBusy}
+        onClick={() => {
+          void push.unsubscribe().then(() => revalidator.revalidate());
+        }}
+      >
+        Turn off on this device
+      </Button>
+    );
+  } else if (canEdit && push.status === 'default') {
+    action = (
+      <Button
+        type="button"
+        disabled={push.isBusy}
+        onClick={() => {
+          void push.subscribe().then(() => revalidator.revalidate());
+        }}
+      >
+        Enable on this device
+      </Button>
+    );
+  }
+
   return (
     <div className={className}>
       <span className="text-muted-foreground">{message}</span>
-      {!canEdit ? null : push.status === 'ios-needs-install' ? (
-        <Button asChild variant="link" className="h-auto p-0">
-          <Link to="/pwa-install">How to install</Link>
-        </Button>
-      ) : push.status === 'subscribed' ? (
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={push.isBusy}
-          onClick={() => {
-            void push.unsubscribe().then(() => revalidator.revalidate());
-          }}
-        >
-          Turn off on this device
-        </Button>
-      ) : push.status === 'default' ? (
-        <Button
-          type="button"
-          disabled={push.isBusy}
-          onClick={() => {
-            void push.subscribe().then(() => revalidator.revalidate());
-          }}
-        >
-          Enable on this device
-        </Button>
-      ) : null}
+      {action}
     </div>
   );
 }
