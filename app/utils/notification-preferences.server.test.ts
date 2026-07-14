@@ -12,7 +12,10 @@ import {
   allowsContextActivity,
   clearContextActivityPreference,
   disableEmailForAll,
+  dismissContextNotificationNotice,
   dismissContextMutedNotice,
+  getCentralNotificationSettings,
+  getContextNotificationAwareness,
   getContextNotificationPreference,
   getNotificationPreferenceForChannels,
   getNotificationPreferences,
@@ -184,6 +187,12 @@ describe('notification preferences', () => {
       enabled: false,
       source: 'global_channel',
     });
+    const settings = await getCentralNotificationSettings(user.id);
+    expect(
+      settings.topics.find(
+        ({ topic }) => topic === NOTIFICATION_TOPICS.BIRTHDAY_REMINDERS,
+      )?.channels.EMAIL,
+    ).toEqual({ enabled: false, source: 'topic_override' });
 
     await setTopicChannelPreference({
       userId: user.id,
@@ -418,6 +427,119 @@ describe('notification preferences', () => {
     });
     expect(resolved.noticeVisible).toBe(true);
     expect(resolved.noticeDismissedAt).toBeNull();
+  });
+
+  it('starts a new inherited notice cycle when the controlling group is re-muted', async () => {
+    vi.useFakeTimers();
+    const user = await createUser();
+    const { group, pool } = await createGroupPool(user.id);
+    const groupContext = { kind: 'GROUP', groupId: group.id } as const;
+    const poolContext = { kind: 'POOL', poolId: pool.id } as const;
+
+    vi.setSystemTime(new Date('2026-07-13T12:00:00Z'));
+    await setContextActivityPreference({
+      userId: user.id,
+      context: groupContext,
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.MUTED,
+      source: 'test-group-mute',
+    });
+    const first = await getContextNotificationAwareness({
+      userId: user.id,
+      context: poolContext,
+    });
+    expect(first).toMatchObject({
+      reason: 'inherited_mute',
+      noticeVisible: true,
+    });
+    await dismissContextNotificationNotice({
+      userId: user.id,
+      context: poolContext,
+      source: 'test-dismiss-inherited',
+    });
+    await expect(
+      getContextNotificationAwareness({
+        userId: user.id,
+        context: poolContext,
+      }),
+    ).resolves.toMatchObject({ noticeVisible: false });
+
+    vi.setSystemTime(new Date('2026-07-14T12:00:00Z'));
+    await setContextActivityPreference({
+      userId: user.id,
+      context: groupContext,
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.ALL_ACTIVITY,
+      source: 'test-group-unmute',
+    });
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+    await setContextActivityPreference({
+      userId: user.id,
+      context: groupContext,
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.MUTED,
+      source: 'test-group-remute',
+    });
+    const next = await getContextNotificationAwareness({
+      userId: user.id,
+      context: poolContext,
+    });
+    expect(next.noticeVisible).toBe(true);
+    expect(next.noticeKey).not.toBe(first.noticeKey);
+  });
+
+  it('shows and revisions a dismissible warning when every delivery channel is off', async () => {
+    vi.useFakeTimers();
+    const user = await createUser();
+    const { group } = await createGroupPool(user.id);
+    const context = { kind: 'GROUP', groupId: group.id } as const;
+    vi.setSystemTime(new Date('2026-07-13T12:00:00Z'));
+    for (const channel of Object.values(NOTIFICATION_CHANNELS)) {
+      await setGlobalChannelPreference({
+        userId: user.id,
+        channel,
+        enabled: false,
+        source: 'test-all-off',
+      });
+    }
+    const first = await getContextNotificationAwareness({
+      userId: user.id,
+      context,
+    });
+    expect(first).toMatchObject({
+      notificationOff: true,
+      reason: 'no_channels',
+      noticeVisible: true,
+    });
+    await dismissContextNotificationNotice({
+      userId: user.id,
+      context,
+      source: 'test-dismiss-all-off',
+    });
+    await expect(
+      getContextNotificationAwareness({ userId: user.id, context }),
+    ).resolves.toMatchObject({ noticeVisible: false });
+
+    vi.setSystemTime(new Date('2026-07-14T12:00:00Z'));
+    await setGlobalChannelPreference({
+      userId: user.id,
+      channel: NOTIFICATION_CHANNELS.IN_APP,
+      enabled: true,
+      source: 'test-one-on',
+    });
+    await expect(
+      getContextNotificationAwareness({ userId: user.id, context }),
+    ).resolves.toMatchObject({ notificationOff: false, reason: null });
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+    await setGlobalChannelPreference({
+      userId: user.id,
+      channel: NOTIFICATION_CHANNELS.IN_APP,
+      enabled: false,
+      source: 'test-all-off-again',
+    });
+    const next = await getContextNotificationAwareness({
+      userId: user.id,
+      context,
+    });
+    expect(next.noticeVisible).toBe(true);
+    expect(next.noticeKey).not.toBe(first.noticeKey);
   });
 
   it('rejects context writes for non-members without persisting state', async () => {
