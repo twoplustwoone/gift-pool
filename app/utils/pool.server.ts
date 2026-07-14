@@ -46,7 +46,14 @@ export const poolSelect = {
 			contributionCents: true,
 			hasPaid: true,
 			joinedAt: true,
-			user: { select: { id: true, username: true, name: true, image: { select: { id: true } } } },
+			user: {
+				select: {
+					id: true,
+					username: true,
+					name: true,
+					image: { select: { id: true, altText: true } },
+				},
+			},
 		},
 	},
 	ideas: {
@@ -745,7 +752,14 @@ export async function getContributionBreakdown(poolId: string) {
 					userId: true,
 					contributionCents: true,
 					hasPaid: true,
-					user: { select: { id: true, username: true, name: true } },
+					user: {
+						select: {
+							id: true,
+							username: true,
+							name: true,
+							image: { select: { id: true, altText: true } },
+						},
+					},
 				},
 			},
 		},

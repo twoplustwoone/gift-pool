@@ -22,6 +22,7 @@ import {
 } from 'react-router'
 import { z } from 'zod'
 import { OrganizerReminderAction } from '#app/components/pools/organizer-reminder-action.tsx'
+import { Avatar } from '#app/components/ui/avatar.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
@@ -48,11 +49,6 @@ export const getUserDisplayName = (u: {
 	name: string | null
 	username: string
 }) => (u.name && u.name.length > 0 ? u.name : `@${u.username}`)
-
-export const getInitials = (u: { name: string | null; username: string }) => {
-	const name = u.name && u.name.length > 0 ? u.name : u.username
-	return name.slice(0, 2).toUpperCase()
-}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -534,9 +530,7 @@ const ContributionBreakdown = ({
 							data-testid="contribution-breakdown-row"
 						>
 							<div className="flex min-w-0 items-center gap-2">
-								<span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
-									{getInitials(b.user)}
-								</span>
+								<Avatar size={7} image={b.user.image} user={b.user} />
 								<span className="truncate text-sm">{getUserDisplayName(b.user)}</span>
 							</div>
 							<div className="flex shrink-0 items-center gap-2">
@@ -628,9 +622,7 @@ const ContributorsList = ({
 							>
 								{/* Left: avatar + name + badges */}
 								<div className="flex min-w-0 items-center gap-2.5">
-									<span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold">
-										{getInitials(c.user)}
-									</span>
+									<Avatar size="s" image={c.user.image} user={c.user} />
 									<div className="min-w-0">
 										<div className="flex items-center gap-1.5 text-sm">
 											<span className={isMe ? 'font-semibold' : ''}>
@@ -726,9 +718,7 @@ const AssignRolesSection = ({
 												: 'hover:bg-muted/50'
 										}`}
 									>
-										<span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
-											{getInitials(c.user)}
-										</span>
+										<Avatar size={7} image={c.user.image} user={c.user} />
 										<span className="flex-1">{getUserDisplayName(c.user)}</span>
 										{isCurrentBuyer && (
 											<LuCheck size={14} className="text-amber-600" />
@@ -764,9 +754,7 @@ const AssignRolesSection = ({
 												: 'hover:bg-muted/50'
 										}`}
 									>
-										<span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
-											{getInitials(c.user)}
-										</span>
+										<Avatar size={7} image={c.user.image} user={c.user} />
 										<span className="flex-1">{getUserDisplayName(c.user)}</span>
 										{isCurrentDeliverer && (
 											<LuCheck size={14} className="text-blue-600" />
