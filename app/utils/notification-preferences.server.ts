@@ -831,6 +831,8 @@ function serializeActivity(
   });
 }
 
+type PreferenceAuditValue = string | boolean | null;
+
 async function auditPreferenceChange(
   tx: Prisma.TransactionClient,
   input: {
@@ -840,8 +842,8 @@ async function auditPreferenceChange(
     channel?: string | null;
     contextKind?: string | null;
     contextId?: string | null;
-    previousValue: string | boolean | null;
-    newValue: string | boolean | null;
+    previousValue: PreferenceAuditValue;
+    newValue: PreferenceAuditValue;
     source: string;
   },
 ) {
@@ -860,6 +862,6 @@ async function auditPreferenceChange(
   });
 }
 
-function serializeAuditValue(value: string | boolean | null) {
+function serializeAuditValue(value: PreferenceAuditValue) {
   return typeof value === 'boolean' ? String(value) : value;
 }
