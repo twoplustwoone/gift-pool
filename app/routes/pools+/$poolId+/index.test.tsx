@@ -30,6 +30,14 @@ const loaderDataSnapshot = {
   inviteUrl: 'https://giftpool.app/pools/join/invite-1' as string | null,
   isOrganizer: true,
   myVoteIdeaId: 'idea-1' as string | null,
+  organizerReminderStates: {
+    CONTRIBUTION: {
+      kind: 'CONTRIBUTION',
+      latestNudge: null,
+      status: 'AVAILABLE',
+    },
+    VOTE: { kind: 'VOTE', latestNudge: null, status: 'AVAILABLE' },
+  } as Record<string, unknown>,
   pool: {
     chosenIdeaId: null as string | null,
     contributors: [
@@ -57,6 +65,12 @@ const loaderDataSnapshot = {
     ],
     decisionMode: 'VOTE',
     delivererId: 'deliverer-1' as string | null,
+    deliverer: {
+      id: 'deliverer-1',
+      image: null,
+      name: null,
+      username: 'casey',
+    },
     finalPriceCents: null as number | null,
     id: 'pool-1',
     ideas: [
@@ -90,6 +104,12 @@ const loaderDataSnapshot = {
     occasionType: 'BIRTHDAY',
     organizerId: 'viewer-1',
     purchaserId: 'buyer-1' as string | null,
+    purchaser: {
+      id: 'buyer-1',
+      image: null,
+      name: 'Jordan',
+      username: 'jordan',
+    },
     recipientName: 'Alex',
     status: 'VOTING',
     title: 'Alex Birthday Pool',
@@ -144,6 +164,14 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     loaderDataSnapshot.inviteUrl = 'https://giftpool.app/pools/join/invite-1';
     loaderDataSnapshot.isOrganizer = true;
     loaderDataSnapshot.myVoteIdeaId = 'idea-1';
+    loaderDataSnapshot.organizerReminderStates = {
+      CONTRIBUTION: {
+        kind: 'CONTRIBUTION',
+        latestNudge: null,
+        status: 'AVAILABLE',
+      },
+      VOTE: { kind: 'VOTE', latestNudge: null, status: 'AVAILABLE' },
+    };
     loaderDataSnapshot.pool.chosenIdeaId = null;
     loaderDataSnapshot.pool.decisionMode = 'VOTE';
     loaderDataSnapshot.pool.delivererId = 'deliverer-1';
@@ -174,6 +202,12 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
 
     expect(screen.getByText('Organizer controls')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close vote' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Remind voters' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Remind contributors' }),
+    ).toBeInTheDocument();
     expect(screen.getByText('Voting open')).toBeInTheDocument();
     expect(screen.getAllByTestId('idea-card')).toHaveLength(2);
     expect(screen.getByText('≈ $15.99')).toBeInTheDocument();
@@ -301,5 +335,40 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     expect(
       screen.getByRole('button', { name: 'Mark as delivered' }),
     ).toBeInTheDocument();
+  });
+
+  it('renders task-local buyer and delivery reminders only for managers who are not the assignee', () => {
+    loaderDataSnapshot.pool.status = 'DECIDED';
+    loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
+    loaderDataSnapshot.pool.purchaserId = 'buyer-1';
+    loaderDataSnapshot.viewer.userId = 'viewer-1';
+    loaderDataSnapshot.organizerReminderStates = {
+      PURCHASE: { kind: 'PURCHASE', latestNudge: null, status: 'AVAILABLE' },
+    };
+
+    const { unmount } = renderRoute();
+    expect(screen.getByText('Waiting for the buyer')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Remind buyer' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'I bought it' }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    loaderDataSnapshot.pool.status = 'PURCHASED';
+    loaderDataSnapshot.pool.delivererId = 'deliverer-1';
+    loaderDataSnapshot.organizerReminderStates = {
+      DELIVERY: { kind: 'DELIVERY', latestNudge: null, status: 'AVAILABLE' },
+    };
+    renderRoute();
+
+    expect(screen.getByText('Waiting for delivery')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Remind deliverer' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Mark as delivered' }),
+    ).not.toBeInTheDocument();
   });
 });

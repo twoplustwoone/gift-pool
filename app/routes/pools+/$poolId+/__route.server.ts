@@ -11,6 +11,13 @@ import {
 } from '#app/utils/notification-catalog.ts'
 import { getContextNotificationAwareness } from '#app/utils/notification-preferences.server.ts'
 import {
+	getOrganizerNudgeAvailability,
+	ORGANIZER_NUDGE_KINDS,
+	OrganizerNudgeError,
+	type OrganizerNudgeAvailability,
+	type OrganizerNudgeKind,
+} from '#app/utils/organizer-nudges.server.ts'
+import {
 	OCCASION_TYPE,
 	POOL_STATUS,
 	type OccasionType,
@@ -133,6 +140,40 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				})
 			: []
 
+	const organizerReminderKinds: OrganizerNudgeKind[] = []
+	if (canManage && ideasOpen) {
+		organizerReminderKinds.push(ORGANIZER_NUDGE_KINDS.CONTRIBUTION)
+	}
+	if (canManage && pool.status === POOL_STATUS.VOTING) {
+		organizerReminderKinds.push(ORGANIZER_NUDGE_KINDS.VOTE)
+	}
+	if (
+		canManage &&
+		pool.status === POOL_STATUS.DECIDED &&
+		pool.purchaserId &&
+		pool.purchaserId !== userId
+	) {
+		organizerReminderKinds.push(ORGANIZER_NUDGE_KINDS.PURCHASE)
+	}
+	if (
+		canManage &&
+		pool.status === POOL_STATUS.PURCHASED &&
+		pool.delivererId &&
+		pool.delivererId !== userId
+	) {
+		organizerReminderKinds.push(ORGANIZER_NUDGE_KINDS.DELIVERY)
+	}
+	const organizerReminderEntries = (
+		await Promise.all(
+			organizerReminderKinds.map(kind =>
+				getOrganizerReminderEntry({ poolId, senderId: userId, kind }),
+			),
+		)
+	).filter(entry => entry !== null)
+	const organizerReminderStates = Object.fromEntries(
+		organizerReminderEntries,
+	) as Partial<Record<OrganizerNudgeKind, OrganizerNudgeAvailability>>
+
 	return {
 		pool,
 		viewer,
@@ -142,6 +183,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		contributionBreakdown,
 		inviteUrl,
 		recipientWishlistItems,
+		organizerReminderStates,
 		notificationAwareness: await getContextNotificationAwareness({
 			userId,
 			context: { kind: 'POOL', poolId },
@@ -152,6 +194,40 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			...getNotificationTopicDefinition(topic),
 		})),
 	}
+}
+
+type OrganizerReminderEntry = readonly [
+	OrganizerNudgeKind,
+	OrganizerNudgeAvailability,
+]
+
+async function getOrganizerReminderEntry({
+	poolId,
+	senderId,
+	kind,
+}: {
+	poolId: string
+	senderId: string
+	kind: OrganizerNudgeKind
+}): Promise<OrganizerReminderEntry | null> {
+	try {
+		return [
+			kind,
+			await getOrganizerNudgeAvailability({ poolId, senderId, kind }),
+		]
+	} catch (error) {
+		if (isStaleOrganizerReminderError(error)) return null
+		throw error
+	}
+}
+
+function isStaleOrganizerReminderError(error: unknown) {
+	return (
+		error instanceof OrganizerNudgeError &&
+		(error.code === 'POOL_NOT_FOUND' ||
+			error.code === 'FORBIDDEN' ||
+			error.code === 'TASK_UNAVAILABLE')
+	)
 }
 
 // ─── Intents ──────────────────────────────────────────────────────────────────

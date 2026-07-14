@@ -45,6 +45,14 @@ export type OrganizerNudgePreview = OrganizerNudgeResultBase &
     | { status: 'WEEKLY_LIMIT'; availableAt: Date }
   );
 
+export type OrganizerNudgeAvailability = OrganizerNudgeResultBase &
+  (
+    | { status: 'AVAILABLE' }
+    | { status: 'NO_ELIGIBLE' }
+    | { status: 'COOLDOWN'; availableAt: Date }
+    | { status: 'WEEKLY_LIMIT'; availableAt: Date }
+  );
+
 export type OrganizerNudgeSendResult =
   | OrganizerNudgePreview
   | (OrganizerNudgeResultBase & {
@@ -89,6 +97,32 @@ type ExistingNudge = {
   status: string;
   createdAt: Date;
 };
+
+/**
+ * Lightweight page-state interface. It deliberately stops before preference
+ * resolution so pool pages can render task and rate-limit availability without
+ * calculating or exposing a recipient count. The dialog calls
+ * previewOrganizerNudge only after the manager opens it.
+ */
+export async function getOrganizerNudgeAvailability({
+  poolId,
+  senderId,
+  kind,
+}: {
+  poolId: string;
+  senderId: string;
+  kind: OrganizerNudgeKind;
+}): Promise<OrganizerNudgeAvailability> {
+  const evaluation = await prisma.$transaction((tx) =>
+    evaluateNudge(tx, { poolId, senderId, kind, now: new Date() }),
+  );
+  if (evaluation.status !== 'READY') return evaluation;
+  return {
+    status: 'AVAILABLE',
+    kind,
+    latestNudge: evaluation.latestNudge,
+  };
+}
 
 /**
  * Read interface for the task-local confirmation surface. Audience details
