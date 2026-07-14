@@ -62,14 +62,20 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
 function organizerNudgeErrorResponse(error: unknown) {
   if (!(error instanceof OrganizerNudgeError)) throw error;
-  const status =
-    error.code === 'POOL_NOT_FOUND'
-      ? 404
-      : error.code === 'FORBIDDEN'
-        ? 403
-        : error.code === 'TASK_UNAVAILABLE' ||
-            error.code === 'IDEMPOTENCY_CONFLICT'
-          ? 409
-          : 400;
+  const status = organizerNudgeErrorStatus(error.code);
   return data({ error: error.message, code: error.code }, { status });
+}
+
+function organizerNudgeErrorStatus(code: OrganizerNudgeError['code']) {
+  switch (code) {
+    case 'POOL_NOT_FOUND':
+      return 404;
+    case 'FORBIDDEN':
+      return 403;
+    case 'TASK_UNAVAILABLE':
+    case 'IDEMPOTENCY_CONFLICT':
+      return 409;
+    case 'INVALID_IDEMPOTENCY_KEY':
+      return 400;
+  }
 }
