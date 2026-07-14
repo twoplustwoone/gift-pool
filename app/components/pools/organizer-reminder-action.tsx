@@ -118,14 +118,14 @@ export function OrganizerReminderAction({
   poolId,
   poolTitle,
   senderDisplayName,
-}: {
+}: Readonly<{
   availability: OrganizerReminderAvailability;
   className?: string;
   kind: OrganizerReminderKind;
   poolId: string;
   poolTitle: string;
   senderDisplayName: string;
-}) {
+}>) {
   const { locale } = useTranslation();
   const previewFetcher = useFetcher<OrganizerReminderPreviewResponse>({
     key: `organizer-reminder-preview-${poolId}-${kind}`,
@@ -177,12 +177,10 @@ export function OrganizerReminderAction({
   const statusId = `organizer-reminder-${poolId}-${kind}-status`;
   const endpoint = `/api/pools/${encodeURIComponent(poolId)}/reminders`;
 
-  const loadPreview = () => {
+  const loadPreview = async () => {
     setPreviewError(false);
     try {
-      void Promise.resolve(
-        previewFetcher.load(`${endpoint}?kind=${encodeURIComponent(kind)}`),
-      ).catch(() => setPreviewError(true));
+      await previewFetcher.load(`${endpoint}?kind=${encodeURIComponent(kind)}`);
     } catch {
       setPreviewError(true);
     }
@@ -198,21 +196,19 @@ export function OrganizerReminderAction({
     setSendAttempt(0);
     setSendStarted(false);
     setSendTimedOut(false);
-    loadPreview();
+    void loadPreview();
   };
 
-  const sendReminder = () => {
+  const sendReminder = async () => {
     setSendStarted(true);
     setSendAttempt((attempt) => attempt + 1);
     setSendError(false);
     setSendTimedOut(false);
     try {
-      void Promise.resolve(
-        sendFetcher.submit(
-          { kind, idempotencyKey: idempotencyKeyRef.current },
-          { action: endpoint, method: 'post' },
-        ),
-      ).catch(() => setSendError(true));
+      await sendFetcher.submit(
+        { kind, idempotencyKey: idempotencyKeyRef.current },
+        { action: endpoint, method: 'post' },
+      );
     } catch {
       setSendError(true);
     }
@@ -280,7 +276,7 @@ function OrganizerReminderDialogBody({
   sendPending,
   sendReminder,
   sendTimedOut,
-}: {
+}: Readonly<{
   config: ReminderConfig;
   locale: Parameters<typeof formatRelativeTime>[1];
   poolTitle: string;
@@ -292,9 +288,9 @@ function OrganizerReminderDialogBody({
   sendData: OrganizerReminderSendResponse | undefined;
   sendError: boolean;
   sendPending: boolean;
-  sendReminder: () => void;
+  sendReminder: () => Promise<void>;
   sendTimedOut: boolean;
-}) {
+}>) {
   const liveProps = { 'aria-live': 'polite' as const, role: 'status' as const };
 
   if (sendTimedOut && sendPending) {
@@ -334,40 +330,13 @@ function OrganizerReminderDialogBody({
   }
 
   if (sendData) {
-    if (isErrorResponse(sendData)) {
-      return isStaleResponse(sendData) ? (
-        <TerminalState
-          title="This reminder is no longer available"
-          description="The pool task or your access changed. Close this window to refresh the pool."
-        />
-      ) : (
-        <RecoverableError onRetry={sendReminder} message={sendData.error} />
-      );
-    }
-    if (sendData.status === 'QUEUED') {
-      return (
-        <>
-          <ResponsiveDialogHeader>
-            <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-              <LuCheck className="h-5 w-5" aria-hidden />
-            </div>
-            <ResponsiveDialogTitle>Reminder queued</ResponsiveDialogTitle>
-            <ResponsiveDialogDescription {...liveProps}>
-              Reminder queued for {formatPeople(sendData.queuedCount)}.
-            </ResponsiveDialogDescription>
-          </ResponsiveDialogHeader>
-          <div className="space-y-1 rounded-xl border bg-muted/30 p-4 text-sm">
-            <p>Queued {formatRelativeTime(sendData.createdAt, locale)}</p>
-            <p className="text-muted-foreground">
-              Available again at {formatExactTime(sendData.availableAt, locale)}
-              .
-            </p>
-          </div>
-          <CloseFooter label="Done" />
-        </>
-      );
-    }
-    return <UnavailableState availability={sendData} locale={locale} />;
+    return (
+      <OrganizerReminderSendOutcome
+        locale={locale}
+        sendData={sendData}
+        sendReminder={sendReminder}
+      />
+    );
   }
 
   if (previewError) {
@@ -457,13 +426,57 @@ function OrganizerReminderDialogBody({
   );
 }
 
+function OrganizerReminderSendOutcome({
+  locale,
+  sendData,
+  sendReminder,
+}: Readonly<{
+  locale: Parameters<typeof formatRelativeTime>[1];
+  sendData: OrganizerReminderSendResponse;
+  sendReminder: () => Promise<void>;
+}>) {
+  if (isErrorResponse(sendData)) {
+    return isStaleResponse(sendData) ? (
+      <TerminalState
+        title="This reminder is no longer available"
+        description="The pool task or your access changed. Close this window to refresh the pool."
+      />
+    ) : (
+      <RecoverableError onRetry={sendReminder} message={sendData.error} />
+    );
+  }
+  if (sendData.status !== 'QUEUED') {
+    return <UnavailableState availability={sendData} locale={locale} />;
+  }
+  return (
+    <>
+      <ResponsiveDialogHeader>
+        <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+          <LuCheck className="h-5 w-5" aria-hidden />
+        </div>
+        <ResponsiveDialogTitle>Reminder queued</ResponsiveDialogTitle>
+        <ResponsiveDialogDescription aria-live="polite" role="status">
+          Reminder queued for {formatPeople(sendData.queuedCount)}.
+        </ResponsiveDialogDescription>
+      </ResponsiveDialogHeader>
+      <div className="space-y-1 rounded-xl border bg-muted/30 p-4 text-sm">
+        <p>Queued {formatRelativeTime(sendData.createdAt, locale)}</p>
+        <p className="text-muted-foreground">
+          Available again at {formatExactTime(sendData.availableAt, locale)}.
+        </p>
+      </div>
+      <CloseFooter label="Done" />
+    </>
+  );
+}
+
 function UnavailableState({
   availability,
   locale,
-}: {
+}: Readonly<{
   availability: OrganizerReminderUnavailable;
   locale: Parameters<typeof formatRelativeTime>[1];
-}) {
+}>) {
   if (availability.status === 'NO_ELIGIBLE') {
     return (
       <TerminalState
@@ -491,10 +504,10 @@ function UnavailableState({
 function RecoverableError({
   message = 'We could not confirm the reminder. You can safely retry with the same request.',
   onRetry,
-}: {
+}: Readonly<{
   message?: string;
-  onRetry: () => void;
-}) {
+  onRetry: () => void | Promise<void>;
+}>) {
   return (
     <>
       <ResponsiveDialogHeader>
@@ -520,10 +533,10 @@ function RecoverableError({
 function TerminalState({
   description,
   title,
-}: {
+}: Readonly<{
   description: string;
   title: string;
-}) {
+}>) {
   return (
     <>
       <ResponsiveDialogHeader>
@@ -537,7 +550,7 @@ function TerminalState({
   );
 }
 
-function CloseFooter({ label }: { label: string }) {
+function CloseFooter({ label }: Readonly<{ label: string }>) {
   return (
     <ResponsiveDialogFooter>
       <ResponsiveDialogClose asChild>
