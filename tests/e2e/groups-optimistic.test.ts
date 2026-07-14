@@ -171,27 +171,33 @@ test('members page keeps long member rows within mobile viewport', async ({
       .getByRole('listitem')
       .filter({ hasText: longMemberDisplayName })
       .first();
-    const usernameBox = await desktopRow
-      .getByTestId('member-display-name')
-      .first()
-      .boundingBox();
-    const roleBox = await desktopRow
-      .getByText(/^member$/)
-      .first()
-      .boundingBox();
+    await expect(
+      desktopRow.getByTestId('member-display-name').first(),
+    ).toBeVisible();
+    await expect(desktopRow.getByText(/^member$/).first()).toBeVisible();
+    const centerDistance = await desktopRow.evaluate((row) => {
+      const usernameElement = row.querySelector<HTMLElement>(
+        '[data-testid="member-display-name"]',
+      );
+      const roleElement = usernameElement?.nextElementSibling;
+      if (!usernameElement || !(roleElement instanceof HTMLElement)) {
+        return null;
+      }
 
-    expect(usernameBox).not.toBeNull();
-    expect(roleBox).not.toBeNull();
-    if (!usernameBox || !roleBox) {
-      throw new Error('Expected desktop member row elements to be visible');
-    }
-    expect(
-      Math.abs(
+      const usernameBox = usernameElement.getBoundingClientRect();
+      const roleBox = roleElement.getBoundingClientRect();
+      return Math.abs(
         usernameBox.y +
           usernameBox.height / 2 -
           (roleBox.y + roleBox.height / 2),
-      ),
-    ).toBeLessThan(16);
+      );
+    });
+
+    expect(centerDistance).not.toBeNull();
+    if (centerDistance === null) {
+      throw new Error('Expected desktop member row elements to be visible');
+    }
+    expect(centerDistance).toBeLessThan(16);
     await assertNoHorizontalOverflow(page);
   } finally {
     await prisma.giftGroup.delete({ where: { id: groupId } }).catch(() => {});
