@@ -21,6 +21,7 @@ import {
 	useRouteLoaderData,
 } from 'react-router'
 import { z } from 'zod'
+import { OrganizerReminderAction } from '#app/components/pools/organizer-reminder-action.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
@@ -591,6 +592,7 @@ const ContributorsList = ({
 	delivererId,
 	canManage,
 	isDecided,
+	reminderAction,
 }: {
 	contributors: Contributor[]
 	poolId: string
@@ -600,11 +602,15 @@ const ContributorsList = ({
 	delivererId: string | null
 	canManage: boolean
 	isDecided: boolean
+	reminderAction?: React.ReactNode
 }) => {
 	return (
 		<Card className="p-4">
 			<Stack gap={3}>
-				<SectionHeading>Contributors ({contributors.length})</SectionHeading>
+				<div className="flex items-center justify-between gap-3">
+					<SectionHeading>Contributors ({contributors.length})</SectionHeading>
+					{reminderAction}
+				</div>
 				<p className="text-xs text-muted-foreground">
 					How much each person is chipping in for this one gift.
 				</p>
@@ -786,6 +792,7 @@ const PoolIndex = () => {
 		myVoteIdeaId,
 		contributionBreakdown,
 		recipientWishlistItems,
+		organizerReminderStates,
 	} = useRouteLoaderData<typeof routeLoader>(
 		'routes/pools+/$poolId+/_layout',
 	)!
@@ -801,6 +808,8 @@ const PoolIndex = () => {
 	const chosenIdea = pool.ideas.find(i => i.id === pool.chosenIdeaId) ?? null
 	const isPurchaser = viewer?.userId === pool.purchaserId
 	const isDeliverer = viewer?.userId === pool.delivererId
+	const senderDisplayName =
+		viewer?.user.name ?? viewer?.user.username ?? 'A pool manager'
 
 	const navigation = useNavigation()
 
@@ -824,13 +833,24 @@ const PoolIndex = () => {
 									</Form>
 								)}
 								{isVoting && (
-									<Form method="post">
-										<input type="hidden" name="intent" value="close-vote" />
-										<input type="hidden" name="poolId" value={pool.id} />
-										<Button type="submit" size="sm" variant="outline">
-											Close vote
-										</Button>
-									</Form>
+									<>
+										<Form method="post">
+											<input type="hidden" name="intent" value="close-vote" />
+											<input type="hidden" name="poolId" value={pool.id} />
+											<Button type="submit" size="sm" variant="outline">
+												Close vote
+											</Button>
+										</Form>
+										{organizerReminderStates.VOTE && (
+											<OrganizerReminderAction
+												availability={organizerReminderStates.VOTE}
+												kind="VOTE"
+												poolId={pool.id}
+												poolTitle={pool.title}
+												senderDisplayName={senderDisplayName}
+											/>
+										)}
+									</>
 								)}
 							</Flex>
 						</Stack>
@@ -859,6 +879,35 @@ const PoolIndex = () => {
 				</Form>
 			)}
 
+			{isDecided &&
+				canManage &&
+				!isPurchaser &&
+				pool.purchaser &&
+				organizerReminderStates.PURCHASE && (
+					<Card className="border-dashed bg-muted/20 p-4">
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+							<div className="flex min-w-0 items-start gap-3">
+								<LuPackage className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+								<div>
+									<p className="text-sm font-medium">Waiting for the buyer</p>
+									<p className="text-xs text-muted-foreground">
+										{getUserDisplayName(pool.purchaser)} is assigned to buy the
+										gift.
+									</p>
+								</div>
+							</div>
+							<OrganizerReminderAction
+								availability={organizerReminderStates.PURCHASE}
+								kind="PURCHASE"
+								poolId={pool.id}
+								poolTitle={pool.title}
+								senderDisplayName={senderDisplayName}
+								className="sm:items-end"
+							/>
+						</div>
+					</Card>
+				)}
+
 			{/* ── Contribution breakdown (DECIDED+) ── */}
 			{contributionBreakdown && (
 				<ContributionBreakdown
@@ -879,6 +928,35 @@ const PoolIndex = () => {
 					</Button>
 				</Form>
 			)}
+
+			{isPurchased &&
+				canManage &&
+				!isDeliverer &&
+				pool.deliverer &&
+				organizerReminderStates.DELIVERY && (
+					<Card className="border-dashed bg-muted/20 p-4">
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+							<div className="flex min-w-0 items-start gap-3">
+								<LuTruck className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+								<div>
+									<p className="text-sm font-medium">Waiting for delivery</p>
+									<p className="text-xs text-muted-foreground">
+										{getUserDisplayName(pool.deliverer)} is assigned to deliver
+										the gift.
+									</p>
+								</div>
+							</div>
+							<OrganizerReminderAction
+								availability={organizerReminderStates.DELIVERY}
+								kind="DELIVERY"
+								poolId={pool.id}
+								poolTitle={pool.title}
+								senderDisplayName={senderDisplayName}
+								className="sm:items-end"
+							/>
+						</div>
+					</Card>
+				)}
 
 			{/* ── Ideas section (OPEN + VOTING) ── */}
 			{isActive && (
@@ -971,6 +1049,18 @@ const PoolIndex = () => {
 				delivererId={pool.delivererId}
 				canManage={canManage}
 				isDecided={isDecided || isPurchased || isDelivered}
+				reminderAction={
+					canManage && isActive && organizerReminderStates.CONTRIBUTION ? (
+						<OrganizerReminderAction
+							availability={organizerReminderStates.CONTRIBUTION}
+							kind="CONTRIBUTION"
+							poolId={pool.id}
+							poolTitle={pool.title}
+							senderDisplayName={senderDisplayName}
+							className="items-end"
+						/>
+					) : undefined
+				}
 			/>
 
 			{/* ── Assign roles (organizer, DECIDED+, while roles still need setting) ── */}
