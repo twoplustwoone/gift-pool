@@ -109,6 +109,7 @@ describe('notification dispatcher', () => {
     await prisma.notification.deleteMany();
     await prisma.friendRequest.deleteMany();
     await prisma.friendship.deleteMany();
+    await prisma.pool.deleteMany();
     await prisma.user.deleteMany({
       where: { email: { contains: '@example.com' } },
     });
@@ -271,6 +272,63 @@ describe('notification dispatcher', () => {
       `/users/${birthdayOwner.username}`,
     );
     expect(emailMock).not.toHaveBeenCalled();
+  });
+
+  it('delivers pool activity once per occurrence with email off by default', async () => {
+    const organizer = await createUser();
+    const recipient = await createUser();
+    const member = await createUser();
+    const pool = await prisma.pool.create({
+      data: {
+        title: 'Taylor birthday',
+        organizerId: organizer.id,
+        recipientUserId: recipient.id,
+        contributors: {
+          create: [{ userId: organizer.id }, { userId: member.id }],
+        },
+      },
+      select: { id: true, title: true },
+    });
+    const notify = () =>
+      dispatchNotification({
+        userId: member.id,
+        type: NOTIFICATION_TYPES.POOL_VOTE_STARTED,
+        context: { kind: 'POOL', poolId: pool.id },
+        sourceIdentifier: 'test-pool-vote-started',
+        payload: {
+          poolId: pool.id,
+          poolTitle: pool.title,
+          actorUserId: organizer.id,
+        },
+      });
+
+    await notify();
+    await notify();
+
+    const notifications = await prisma.notification.findMany({
+      where: {
+        userId: member.id,
+        type: NOTIFICATION_TYPES.POOL_VOTE_STARTED,
+      },
+    });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toMatchObject({
+      messageKey: 'notifications.poolVoteStarted.message',
+      targetUrl: `/pools/${pool.id}`,
+      sourceIdentifier: 'test-pool-vote-started:IN_APP',
+    });
+    expect(emailMock).not.toHaveBeenCalled();
+    expect(queueLogEvent).toHaveBeenCalledTimes(1);
+    expect(queueLogEvent).toHaveBeenCalledWith({
+      name: 'pool_activity_notification_sent',
+      source: 'server',
+      userId: member.id,
+      properties: {
+        notificationType: NOTIFICATION_TYPES.POOL_VOTE_STARTED,
+        poolId: pool.id,
+        channels: [NOTIFICATION_CHANNELS.IN_APP],
+      },
+    });
   });
 
   it('is idempotent per sourceIdentifier for UPCOMING_BIRTHDAY', async () => {

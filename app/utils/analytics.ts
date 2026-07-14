@@ -24,6 +24,11 @@ export const ANALYTIC_EVENT_NAMES = [
   'pool_purchased',
   'pool_delivered',
   'pool_cancelled',
+  'pool_purchaser_assigned',
+  'pool_deliverer_assigned',
+  // Automatic pool activity fanout. Fires per recipient only when at least one
+  // channel newly delivers; properties contain type, pool id, and channels.
+  'pool_activity_notification_sent',
   'friend_request_sent',
   'friend_request_accepted',
   'friend_request_rejected',
@@ -185,6 +190,9 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   'pool_purchased',
   'pool_delivered',
   'pool_cancelled',
+  'pool_purchaser_assigned',
+  'pool_deliverer_assigned',
+  'pool_activity_notification_sent',
   'friend_request_sent',
   'friend_request_accepted',
   'friend_request_rejected',

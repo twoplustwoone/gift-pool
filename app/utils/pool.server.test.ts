@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts';
 
 const nanoid = vi.fn(() => 'invite-123');
 
@@ -20,6 +21,8 @@ const poolCreate = vi.fn();
 const poolDelete = vi.fn();
 const poolFindUnique = vi.fn();
 const poolUpdate = vi.fn();
+const queueLogEvent = vi.fn();
+const queuePoolActivityNotifications = vi.fn();
 
 vi.mock('nanoid', () => ({
   nanoid: () => nanoid(),
@@ -57,6 +60,15 @@ vi.mock('#app/utils/db.server.ts', () => ({
 
 vi.mock('#app/utils/pool-activity.server.ts', () => ({
   logPoolActivity: (...args: Array<unknown>) => logPoolActivity(...args),
+}));
+
+vi.mock('#app/utils/analytics.server.ts', () => ({
+  queueLogEvent: (...args: Array<unknown>) => queueLogEvent(...args),
+}));
+
+vi.mock('#app/utils/pool-notifications.server.ts', () => ({
+  queuePoolActivityNotifications: (...args: Array<unknown>) =>
+    queuePoolActivityNotifications(...args),
 }));
 
 import {
@@ -106,6 +118,8 @@ beforeEach(() => {
   poolDelete.mockReset().mockResolvedValue(undefined);
   poolFindUnique.mockReset();
   poolUpdate.mockReset().mockResolvedValue(undefined);
+  queueLogEvent.mockReset().mockReturnValue({ eventId: 'event-123' });
+  queuePoolActivityNotifications.mockReset();
 });
 
 describe('pool server utilities', () => {
@@ -420,6 +434,12 @@ describe('pool server utilities', () => {
     expect(logPoolActivity).toHaveBeenCalledWith('pool-1', 'vote.called', {
       actorId: 'user-1',
     });
+    expect(queuePoolActivityNotifications).toHaveBeenCalledWith({
+      type: NOTIFICATION_TYPES.POOL_VOTE_STARTED,
+      poolId: 'pool-1',
+      actorUserId: 'user-1',
+      occurrenceId: 'event-123',
+    });
   });
 
   it('castVote rejects ideas from another pool before writing', async () => {
@@ -504,6 +524,12 @@ describe('pool server utilities', () => {
       actorId: 'user-1',
       payload: { finalPriceCents: 8000, ideaId: 'idea-1', name: 'Speaker' },
     });
+    expect(queuePoolActivityNotifications).toHaveBeenCalledWith({
+      type: NOTIFICATION_TYPES.POOL_GIFT_CHOSEN,
+      poolId: 'pool-1',
+      actorUserId: 'user-1',
+      occurrenceId: 'event-123',
+    });
   });
 
   it('updates final price and logs the new amount', async () => {
@@ -520,6 +546,9 @@ describe('pool server utilities', () => {
   });
 
   it('assigns purchaser and deliverer roles with activity logs', async () => {
+    queueLogEvent
+      .mockReturnValueOnce({ eventId: 'purchaser-event' })
+      .mockReturnValueOnce({ eventId: 'deliverer-event' });
     await assignPurchaser('pool-1', 'user-2', 'manager-1');
     await assignDeliverer('pool-1', 'user-3', 'manager-1');
 
@@ -538,6 +567,20 @@ describe('pool server utilities', () => {
     expect(logPoolActivity).toHaveBeenNthCalledWith(2, 'pool-1', 'deliverer.assigned', {
       actorId: 'manager-1',
       payload: { userId: 'user-3' },
+    });
+    expect(queuePoolActivityNotifications).toHaveBeenNthCalledWith(1, {
+      type: NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED,
+      poolId: 'pool-1',
+      actorUserId: 'manager-1',
+      assigneeUserId: 'user-2',
+      occurrenceId: 'purchaser-event',
+    });
+    expect(queuePoolActivityNotifications).toHaveBeenNthCalledWith(2, {
+      type: NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED,
+      poolId: 'pool-1',
+      actorUserId: 'manager-1',
+      assigneeUserId: 'user-3',
+      occurrenceId: 'deliverer-event',
     });
   });
 
@@ -579,6 +622,12 @@ describe('pool server utilities', () => {
     });
     expect(logPoolActivity).toHaveBeenNthCalledWith(4, 'pool-1', 'pool.deleted', {
       actorId: 'user-1',
+    });
+    expect(queuePoolActivityNotifications).toHaveBeenCalledWith({
+      type: NOTIFICATION_TYPES.POOL_CANCELLED,
+      poolId: 'pool-1',
+      actorUserId: 'user-1',
+      occurrenceId: 'event-123',
     });
   });
 

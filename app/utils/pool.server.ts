@@ -3,6 +3,7 @@ import { data } from 'react-router'
 import { nanoid } from 'nanoid'
 import { queueLogEvent } from '#app/utils/analytics.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts'
 import { logPoolActivity } from '#app/utils/pool-activity.server.ts'
 import {
 	POOL_ACTIVITY_TYPE,
@@ -10,6 +11,7 @@ import {
 	DECISION_MODE,
 } from '#app/utils/pool-constants.ts'
 import { calculateContributions } from '#app/utils/pool-contributions.ts'
+import { queuePoolActivityNotifications } from '#app/utils/pool-notifications.server.ts'
 import type { DecisionMode, OccasionType } from '#app/utils/pool-constants.ts'
 
 // ─── Selects ──────────────────────────────────────────────────────────────────
@@ -414,11 +416,17 @@ export async function callVote(poolId: string, actorId: string) {
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.VOTE_CALLED, { actorId })
 
-	queueLogEvent({
+	const { eventId } = queueLogEvent({
 		name: 'pool_vote_called',
 		userId: actorId,
 		source: 'server',
 		properties: { poolId },
+	})
+	queuePoolActivityNotifications({
+		type: NOTIFICATION_TYPES.POOL_VOTE_STARTED,
+		poolId,
+		actorUserId: actorId,
+		occurrenceId: eventId,
 	})
 }
 
@@ -514,11 +522,17 @@ export async function chooseIdea(
 		payload: { ideaId, name: idea.name, finalPriceCents: resolvedPrice },
 	})
 
-	queueLogEvent({
+	const { eventId } = queueLogEvent({
 		name: 'pool_decided',
 		userId: actorId,
 		source: 'server',
 		properties: { poolId, ideaId, finalPriceCents: resolvedPrice },
+	})
+	queuePoolActivityNotifications({
+		type: NOTIFICATION_TYPES.POOL_GIFT_CHOSEN,
+		poolId,
+		actorUserId: actorId,
+		occurrenceId: eventId,
 	})
 }
 
@@ -555,6 +569,20 @@ export async function assignPurchaser(
 		actorId,
 		payload: { userId },
 	})
+
+	const { eventId } = queueLogEvent({
+		name: 'pool_purchaser_assigned',
+		userId: actorId,
+		source: 'server',
+		properties: { poolId, assigneeUserId: userId },
+	})
+	queuePoolActivityNotifications({
+		type: NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED,
+		poolId,
+		actorUserId: actorId,
+		assigneeUserId: userId,
+		occurrenceId: eventId,
+	})
 }
 
 export async function assignDeliverer(
@@ -570,6 +598,20 @@ export async function assignDeliverer(
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.DELIVERER_ASSIGNED, {
 		actorId,
 		payload: { userId },
+	})
+
+	const { eventId } = queueLogEvent({
+		name: 'pool_deliverer_assigned',
+		userId: actorId,
+		source: 'server',
+		properties: { poolId, assigneeUserId: userId },
+	})
+	queuePoolActivityNotifications({
+		type: NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED,
+		poolId,
+		actorUserId: actorId,
+		assigneeUserId: userId,
+		occurrenceId: eventId,
 	})
 }
 
@@ -615,11 +657,17 @@ export async function cancelPool(poolId: string, actorId: string) {
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_CANCELLED, { actorId })
 
-	queueLogEvent({
+	const { eventId } = queueLogEvent({
 		name: 'pool_cancelled',
 		userId: actorId,
 		source: 'server',
 		properties: { poolId },
+	})
+	queuePoolActivityNotifications({
+		type: NOTIFICATION_TYPES.POOL_CANCELLED,
+		poolId,
+		actorUserId: actorId,
+		occurrenceId: eventId,
 	})
 }
 
