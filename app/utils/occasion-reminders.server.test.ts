@@ -36,10 +36,7 @@ import {
   NOTIFICATION_CHANNELS,
   NOTIFICATION_TYPES,
 } from '#app/utils/notification-catalog.ts';
-import {
-  ensureNotificationPreferencesForUser,
-  setNotificationPreference,
-} from '#app/utils/notification-preferences.server.ts';
+import { setNotificationPreference } from '#app/utils/notification-preferences.server.ts';
 import {
   findUpcomingBirthdayOwners,
   getBirthdayReminderRecipientIds,
@@ -102,7 +99,6 @@ async function makeFriends(userAId: string, userBId: string) {
 }
 
 async function optIntoEmail(userId: string) {
-  await ensureNotificationPreferencesForUser(userId);
   await setNotificationPreference(
     userId,
     NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
@@ -116,7 +112,9 @@ async function cleanup() {
   await prisma.notificationDelivery.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.notificationPreferenceAudit.deleteMany();
-  await prisma.userNotificationPreference.deleteMany();
+  await prisma.notificationTopicPreference.deleteMany();
+  await prisma.notificationCategoryPreference.deleteMany();
+  await prisma.notificationChannelPreference.deleteMany();
   await prisma.usersInGiftGroups.deleteMany();
   await prisma.giftGroup.deleteMany();
   await prisma.friendship.deleteMany();

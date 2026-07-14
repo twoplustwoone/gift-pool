@@ -26,6 +26,10 @@ export const NOTIFICATION_CATEGORIES = {
 export type NotificationCategory =
   (typeof NOTIFICATION_CATEGORIES)[keyof typeof NOTIFICATION_CATEGORIES];
 
+export const NOTIFICATION_CATEGORY_VALUES = Object.values(
+  NOTIFICATION_CATEGORIES,
+);
+
 export const NOTIFICATION_TOPICS = {
   FRIEND_REQUESTS: 'FRIEND_REQUESTS',
   BIRTHDAY_REMINDERS: 'BIRTHDAY_REMINDERS',
@@ -34,9 +38,15 @@ export const NOTIFICATION_TOPICS = {
 export type NotificationTopic =
   (typeof NOTIFICATION_TOPICS)[keyof typeof NOTIFICATION_TOPICS];
 
+export const NOTIFICATION_TOPIC_VALUES = Object.values(NOTIFICATION_TOPICS);
+
 export type NotificationImportance = 'IMPORTANT' | 'ROUTINE';
 export type NotificationContextKind = 'NONE' | 'GROUP' | 'POOL';
 export type NotificationDeliveryStrategy = 'ONE_SHOT' | 'PER_CHANNEL_LEDGER';
+
+export type NotificationContext =
+  | { kind: 'GROUP'; groupId: string }
+  | { kind: 'POOL'; poolId: string };
 
 export type NotificationPreferenceDefaults = {
   inAppEnabled: boolean;
@@ -46,15 +56,38 @@ export type NotificationPreferenceDefaults = {
 
 type NotificationEventDefinition = {
   topic: NotificationTopic;
-  category: NotificationCategory;
   importance: NotificationImportance;
   context: NotificationContextKind;
   supportedChannels: ReadonlyArray<NotificationChannel>;
-  defaults: NotificationPreferenceDefaults;
   deliveryStrategy: NotificationDeliveryStrategy;
 };
 
+type NotificationTopicDefinition = {
+  category: NotificationCategory;
+  defaults: NotificationPreferenceDefaults;
+};
+
 const allChannels = NOTIFICATION_CHANNEL_VALUES;
+
+/** Topic policy is stable even when several concrete events map to one row. */
+export const NOTIFICATION_TOPIC_CATALOG = {
+  [NOTIFICATION_TOPICS.FRIEND_REQUESTS]: {
+    category: NOTIFICATION_CATEGORIES.SOCIAL,
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: true,
+      pushEnabled: false,
+    },
+  },
+  [NOTIFICATION_TOPICS.BIRTHDAY_REMINDERS]: {
+    category: NOTIFICATION_CATEGORIES.OCCASIONS,
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: false,
+      pushEnabled: false,
+    },
+  },
+} as const satisfies Record<NotificationTopic, NotificationTopicDefinition>;
 
 /**
  * Typed source of truth for event policy. User-facing topic/category copy will
@@ -64,41 +97,23 @@ const allChannels = NOTIFICATION_CHANNEL_VALUES;
 export const NOTIFICATION_EVENT_CATALOG = {
   [NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED]: {
     topic: NOTIFICATION_TOPICS.FRIEND_REQUESTS,
-    category: NOTIFICATION_CATEGORIES.SOCIAL,
     importance: 'IMPORTANT',
     context: 'NONE',
     supportedChannels: allChannels,
-    defaults: {
-      inAppEnabled: true,
-      emailEnabled: true,
-      pushEnabled: false,
-    },
     deliveryStrategy: 'ONE_SHOT',
   },
   [NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED]: {
     topic: NOTIFICATION_TOPICS.FRIEND_REQUESTS,
-    category: NOTIFICATION_CATEGORIES.SOCIAL,
     importance: 'IMPORTANT',
     context: 'NONE',
     supportedChannels: allChannels,
-    defaults: {
-      inAppEnabled: true,
-      emailEnabled: true,
-      pushEnabled: false,
-    },
     deliveryStrategy: 'ONE_SHOT',
   },
   [NOTIFICATION_TYPES.UPCOMING_BIRTHDAY]: {
     topic: NOTIFICATION_TOPICS.BIRTHDAY_REMINDERS,
-    category: NOTIFICATION_CATEGORIES.OCCASIONS,
     importance: 'IMPORTANT',
     context: 'NONE',
     supportedChannels: allChannels,
-    defaults: {
-      inAppEnabled: true,
-      emailEnabled: false,
-      pushEnabled: false,
-    },
     deliveryStrategy: 'PER_CHANNEL_LEDGER',
   },
 } as const satisfies Record<NotificationType, NotificationEventDefinition>;
@@ -108,7 +123,10 @@ export const NOTIFICATION_TYPE_VALUES = Object.values(NOTIFICATION_TYPES);
 export const DEFAULT_NOTIFICATION_PREFERENCES = Object.fromEntries(
   NOTIFICATION_TYPE_VALUES.map((type) => [
     type,
-    { ...NOTIFICATION_EVENT_CATALOG[type].defaults },
+    {
+      ...NOTIFICATION_TOPIC_CATALOG[NOTIFICATION_EVENT_CATALOG[type].topic]
+        .defaults,
+    },
   ]),
 ) as Record<NotificationType, NotificationPreferenceDefaults>;
 
@@ -116,10 +134,51 @@ export function getNotificationEventDefinition(type: NotificationType) {
   return NOTIFICATION_EVENT_CATALOG[type];
 }
 
+export function getNotificationTopicDefinition(topic: NotificationTopic) {
+  return NOTIFICATION_TOPIC_CATALOG[topic];
+}
+
+export function getNotificationCategoryTopics(
+  category: NotificationCategory,
+): Array<NotificationTopic> {
+  return NOTIFICATION_TOPIC_VALUES.filter(
+    (topic) => NOTIFICATION_TOPIC_CATALOG[topic].category === category,
+  );
+}
+
+export function matchesNotificationContext(
+  expected: NotificationContextKind,
+  context?: NotificationContext,
+) {
+  return expected === 'NONE'
+    ? context === undefined
+    : context?.kind === expected;
+}
+
 export function isNotificationType(value: unknown): value is NotificationType {
   return (
     typeof value === 'string' &&
     Object.hasOwn(NOTIFICATION_EVENT_CATALOG, value)
+  );
+}
+
+export function isNotificationTopic(
+  value: unknown,
+): value is NotificationTopic {
+  return (
+    typeof value === 'string' &&
+    Object.hasOwn(NOTIFICATION_TOPIC_CATALOG, value)
+  );
+}
+
+export function isNotificationCategory(
+  value: unknown,
+): value is NotificationCategory {
+  return (
+    typeof value === 'string' &&
+    Object.values(NOTIFICATION_CATEGORIES).includes(
+      value as NotificationCategory,
+    )
   );
 }
 
@@ -173,6 +232,7 @@ export type NotificationIntent<T extends NotificationType = NotificationType> =
         userId: string;
         type: T;
         payload: NotificationPayload<T>;
+        context?: NotificationContext;
         sourceIdentifier?: string;
       }
     : never;

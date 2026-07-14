@@ -1,6 +1,6 @@
 # Notification coordination architecture
 
-Status: Accepted; milestone 4 runtime architecture implemented
+Status: Accepted; runtime and scoped-preference architecture implemented
 
 Last updated: 2026-07-13
 
@@ -54,11 +54,14 @@ and been measured. General messaging and free-form broadcasts are out of scope.
   push adapters. Web push returns structured delivered, unavailable, or failed
   outcomes and checks capability before a recurring claim.
 - `notification-policy.server.ts` returns explainable per-channel decisions.
-  It deliberately reads the legacy per-event rows until scoped preferences
-  replace its implementation in milestone 5.
-- `UserNotificationPreference` stores one row per user and concrete type.
-  Settings-page reads materialize missing rows; hot-path reads inherit catalog
-  defaults without writing.
+  It resolves global gates, sparse topic/category choices, and contextual
+  activity without exposing persistence details to the dispatcher.
+- `notification-preferences.server.ts` owns sparse central and context storage,
+  precedence, inheritance, access checks, mute-awareness state, and audit rows.
+  Reads and signup never materialize catalog defaults.
+- `NotificationChannelPreference`, `NotificationCategoryPreference`, and
+  `NotificationTopicPreference` store sparse central choices. Group and pool
+  context tables store activity overrides and mute-awareness timestamps.
 - `NotificationDelivery` is the recurring-delivery ledger. Birthday reminders
   use a channel-specific source identifier and claim before sending.
 - `Notification` is the visible in-app read model. Users can mark rows read or
@@ -82,12 +85,13 @@ detail to users and make the dispatcher wider with each feature.
 Remaining gaps belong to later milestones:
 
 - Category labels live in the settings route rather than the catalog.
-- “Disable all email” updates current type rows but is not a durable channel
-  gate; a future type can inherit an enabled email default.
 - One-shot friend notifications dedupe only the in-app row and use a
   check-then-create flow. Email and push have no common delivery claim.
-- The admin opt-out matrix counts persisted rows rather than effective choices,
-  so missing default rows and context modes can produce misleading percentages.
+- The central settings screen still presents concrete events. Its compatibility
+  action maps those events to shared topics until the approved scoped UI ships.
+- No current catalog event has a group or pool context yet, so context policy is
+  covered at the resolver interface but will first be exercised by automatic
+  pool updates.
 - `GroupReminder` settings are persisted and presented as functional, but the
   birthday sweep does not consume them. Occasion schedule policy must not be
   confused with recipient delivery preference.
@@ -288,10 +292,10 @@ Email and push defaults for new topics are always off. A proposal to enable a
 new email or push default requires an explicit product decision and migration,
 not merely a catalog edit.
 
-## Persistence direction
+## Persistence
 
-The exact Prisma names can be chosen during implementation, but the data model
-must express these concepts without overloading the visible `Notification` row:
+The data model expresses these concepts without overloading the visible
+`Notification` row:
 
 - global user/channel gates;
 - sparse category/channel overrides;
@@ -300,17 +304,19 @@ must express these concepts without overloading the visible `Notification` row:
 - custom context-topic selections;
 - mute timestamp and notice-dismissal timestamp;
 - per-channel delivery claims and outcomes;
-- organizer-nudge audit and cooldown history.
+- organizer-nudge audit and cooldown history (deferred until nudges ship).
 
-Prefer real group and pool relations over an unconstrained polymorphic string.
-If a shared context-preference table uses nullable group and pool foreign keys,
-the migration must enforce exactly one context and unique user/context pairs.
+`GroupNotificationPreference` and `PoolNotificationPreference` use real foreign
+keys and unique user/context pairs rather than an unconstrained polymorphic
+identifier. A null activity level means inheritance and allows a child-pool row
+to retain its dismissal of an inherited group-mute notice.
 
-Existing `UserNotificationPreference` rows must migrate without changing current
-friend or birthday behavior. Default-equivalent rows may collapse to inheritance;
-non-default rows become explicit topic overrides. The migration must also derive
-the initial global email gate so an existing “disable all” choice is not undone
-by future topics.
+The legacy per-event rows migrate to sparse topic choices. Because the two
+friend-request events now share one topic, conflicting legacy choices collapse
+to the more restrictive value to avoid surprise delivery. Default-equivalent
+rows collapse to inheritance, and a legacy all-email-off choice becomes one
+durable global gate. Historical audit rows remain available as `LEGACY_EVENT`
+entries in the generalized audit table.
 
 ## Delivery, idempotency, and failure semantics
 
@@ -453,10 +459,10 @@ Required invariant coverage:
 
 ## Implementation sequence
 
-1. Refactor the catalog, policy resolver, dispatcher, delivery ledger, and
-   adapters while preserving existing behavior.
-2. Add central sparse overrides, durable channel gates, context activity
-   persistence, and resolver tests.
+1. **Complete:** Refactor the catalog, policy resolver, dispatcher, delivery
+   ledger, and adapters while preserving existing behavior.
+2. **Complete:** Add central sparse overrides, durable channel gates, context
+   activity persistence, migration coverage, and resolver tests.
 3. Complete the Claude Design checkpoint and implement approved settings and
    muted-awareness surfaces.
 4. Add the selected automatic pool events and measure delivery/suppression.

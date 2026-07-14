@@ -2,6 +2,8 @@ import { queueLogEvent } from './analytics.server.ts';
 import { cache, cachified, lruCache } from './cache.server.ts';
 import { prisma } from './db.server.ts';
 import { type FeedbackStatus } from './feedback-validation.ts';
+import { NOTIFICATION_TYPE_VALUES } from './notification-catalog.ts';
+import { getNotificationPreferencesForUsers } from './notification-preferences.server.ts';
 import { POOL_STATUS, type PoolStatus } from './pool-constants.ts';
 
 const SIXTY_SECONDS = 60 * 1000;
@@ -951,61 +953,59 @@ export type AdminUserDetail = {
 export async function getAdminUserDetail(
   userId: string,
 ): Promise<AdminUserDetail | null> {
-  const [identity, contributorGroups, recentEvents] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        name: true,
-        bio: true,
-        birthday: true,
-        createdAt: true,
-        image: { select: { id: true } },
-        roles: { select: { name: true }, orderBy: { name: 'asc' } },
-        sessions: {
-          select: { id: true, createdAt: true, expirationDate: true },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        },
-        notificationPreferences: {
-          select: { type: true, inAppEnabled: true, emailEnabled: true },
-          orderBy: { type: 'asc' },
-        },
-        _count: {
-          select: {
-            wishlistItems: true,
-            friendshipsA: true,
-            friendshipsB: true,
-            poolsOrganized: true,
-            poolsAsPurchaser: true,
-            poolsAsDeliverer: true,
-            poolsAsRecipient: true,
-            poolContributions: true,
-            notifications: { where: { status: 'UNREAD' } },
+  const [identity, contributorGroups, recentEvents, preferenceMaps] =
+    await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          name: true,
+          bio: true,
+          birthday: true,
+          createdAt: true,
+          image: { select: { id: true } },
+          roles: { select: { name: true }, orderBy: { name: 'asc' } },
+          sessions: {
+            select: { id: true, createdAt: true, expirationDate: true },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+          },
+          _count: {
+            select: {
+              wishlistItems: true,
+              friendshipsA: true,
+              friendshipsB: true,
+              poolsOrganized: true,
+              poolsAsPurchaser: true,
+              poolsAsDeliverer: true,
+              poolsAsRecipient: true,
+              poolContributions: true,
+              notifications: { where: { status: 'UNREAD' } },
+            },
           },
         },
-      },
-    }),
-    prisma.poolContributor.groupBy({
-      by: ['hasPaid'],
-      where: { userId },
-      _count: { _all: true },
-    }),
-    prisma.analyticsEvent.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-      select: {
-        id: true,
-        name: true,
-        createdAt: true,
-        source: true,
-        properties: true,
-      },
-    }),
-  ]);
+      }),
+      prisma.poolContributor.groupBy({
+        by: ['hasPaid'],
+        where: { userId },
+        _count: { _all: true },
+      }),
+      prisma.analyticsEvent.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          name: true,
+          createdAt: true,
+          source: true,
+          properties: true,
+        },
+      }),
+      getNotificationPreferencesForUsers([userId]),
+    ]);
 
   if (!identity) return null;
 
@@ -1025,7 +1025,13 @@ export async function getAdminUserDetail(
     image: identity.image,
     roles: identity.roles,
     sessions: identity.sessions,
-    notificationPreferences: identity.notificationPreferences,
+    notificationPreferences: Array.from(
+      preferenceMaps.get(userId)?.entries() ?? [],
+    ).map(([type, preference]) => ({
+      type,
+      inAppEnabled: preference.inAppEnabled,
+      emailEnabled: preference.emailEnabled,
+    })),
     counts: {
       wishlistItems: identity._count.wishlistItems,
       friendships: identity._count.friendshipsA + identity._count.friendshipsB,
@@ -1562,29 +1568,21 @@ export type NotificationOptOutRow = {
 export async function getNotificationOptOutMatrix(): Promise<
   NotificationOptOutRow[]
 > {
-  const rows = await prisma.$queryRaw<
-    Array<{
-      type: string;
-      inApp_off: bigint | null;
-      email_off: bigint | null;
-      total: bigint;
-    }>
-  >`
-    SELECT
-      type,
-      SUM(CASE WHEN inAppEnabled = 0 THEN 1 ELSE 0 END) AS inApp_off,
-      SUM(CASE WHEN emailEnabled = 0 THEN 1 ELSE 0 END) AS email_off,
-      COUNT(*) AS total
-    FROM UserNotificationPreference
-    GROUP BY type
-  `;
-
-  return rows.map((row) => {
-    const total = Number(row.total);
-    const inAppOff = Number(row.inApp_off ?? 0);
-    const emailOff = Number(row.email_off ?? 0);
+  const users = await prisma.user.findMany({ select: { id: true } });
+  const preferences = await getNotificationPreferencesForUsers(
+    users.map((user) => user.id),
+  );
+  return NOTIFICATION_TYPE_VALUES.map((type) => {
+    const total = users.length;
+    let inAppOff = 0;
+    let emailOff = 0;
+    for (const user of users) {
+      const preference = preferences.get(user.id)?.get(type);
+      if (!preference?.inAppEnabled) inAppOff += 1;
+      if (!preference?.emailEnabled) emailOff += 1;
+    }
     return {
-      type: row.type,
+      type,
       inAppOptOutPercent: total > 0 ? Math.round((inAppOff / total) * 100) : 0,
       emailOptOutPercent: total > 0 ? Math.round((emailOff / total) * 100) : 0,
       total,

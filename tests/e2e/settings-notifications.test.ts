@@ -1,6 +1,9 @@
 import { type Page } from '@playwright/test';
 import { prisma } from '#app/utils/db.server.ts';
-import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts';
+import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_TOPICS,
+} from '#app/utils/notification-catalog.ts';
 import {
   expect,
   singleFetchActionBody,
@@ -14,9 +17,6 @@ const dismissInstallPrompt = async (page: Page) => {
     await notNow.click();
   }
 };
-
-const friendRequestReceivedType = NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED;
-const friendRequestAcceptedType = NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED;
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -58,16 +58,17 @@ test('users can optimistically toggle notification channels while request is pen
   await waitFor(
     async () => {
       const updatedPreference =
-        await prisma.userNotificationPreference.findUnique({
+        await prisma.notificationTopicPreference.findUnique({
           where: {
-            userId_type: {
+            userId_topic_channel: {
               userId: user.id,
-              type: friendRequestReceivedType,
+              topic: NOTIFICATION_TOPICS.FRIEND_REQUESTS,
+              channel: NOTIFICATION_CHANNELS.EMAIL,
             },
           },
-          select: { emailEnabled: true },
+          select: { enabled: true },
         });
-      if (updatedPreference?.emailEnabled !== false) {
+      if (updatedPreference?.enabled !== false) {
         throw new Error('Preference not updated yet');
       }
       return updatedPreference;
@@ -148,16 +149,17 @@ test('failed toggle requests rollback optimistic notification channel updates', 
   );
 
   const unchangedPreference =
-    await prisma.userNotificationPreference.findUnique({
+    await prisma.notificationTopicPreference.findUnique({
       where: {
-        userId_type: {
+        userId_topic_channel: {
           userId: user.id,
-          type: friendRequestReceivedType,
+          topic: NOTIFICATION_TOPICS.FRIEND_REQUESTS,
+          channel: NOTIFICATION_CHANNELS.EMAIL,
         },
       },
-      select: { emailEnabled: true },
+      select: { enabled: true },
     });
-  expect(unchangedPreference?.emailEnabled).toBe(initiallyChecked);
+  expect(unchangedPreference?.enabled ?? true).toBe(initiallyChecked);
 
   await page.unroute('**/settings/profile/notifications*');
 });
@@ -184,33 +186,26 @@ test('users can disable all email notifications at once', async ({
   await expect(friendActivityEmailToggles.first()).not.toBeChecked();
   await expect(friendActivityEmailToggles.nth(1)).not.toBeChecked();
 
-  const updatedPreferences = await waitFor(
+  const updatedPreference = await waitFor(
     async () => {
-      const preferences = await prisma.userNotificationPreference.findMany({
+      const preference = await prisma.notificationChannelPreference.findUnique({
         where: {
-          userId: user.id,
-          type: {
-            in: [friendRequestReceivedType, friendRequestAcceptedType],
+          userId_channel: {
+            userId: user.id,
+            channel: NOTIFICATION_CHANNELS.EMAIL,
           },
         },
-        select: { type: true, emailEnabled: true },
+        select: { enabled: true },
       });
 
-      if (preferences.length !== 2) {
-        throw new Error('Preferences not updated yet');
+      if (preference?.enabled !== false) {
+        throw new Error('Email channel gate not disabled yet');
       }
 
-      if (preferences.some((pref) => pref.emailEnabled !== false)) {
-        throw new Error('Email preferences not disabled yet');
-      }
-
-      return preferences;
+      return preference;
     },
     { timeout: 8000 },
   );
 
-  expect(updatedPreferences).toHaveLength(2);
-  for (const pref of updatedPreferences) {
-    expect(pref.emailEnabled).toBe(false);
-  }
+  expect(updatedPreference.enabled).toBe(false);
 });

@@ -7,10 +7,7 @@ import {
   NOTIFICATION_TYPES,
 } from '#app/utils/notification-catalog.ts';
 import { dispatchNotification } from '#app/utils/notification-dispatcher.server.ts';
-import {
-  ensureNotificationPreferencesForUser,
-  setNotificationPreference,
-} from '#app/utils/notification-preferences.server.ts';
+import { setNotificationPreference } from '#app/utils/notification-preferences.server.ts';
 
 vi.mock('#app/utils/email.server.ts', () => ({
   sendEmail: vi
@@ -106,7 +103,9 @@ describe('notification dispatcher', () => {
     captureException.mockClear();
     await prisma.notificationDelivery.deleteMany();
     await prisma.notificationPreferenceAudit.deleteMany();
-    await prisma.userNotificationPreference.deleteMany();
+    await prisma.notificationTopicPreference.deleteMany();
+    await prisma.notificationCategoryPreference.deleteMany();
+    await prisma.notificationChannelPreference.deleteMany();
     await prisma.notification.deleteMany();
     await prisma.friendRequest.deleteMany();
     await prisma.friendship.deleteMany();
@@ -118,7 +117,6 @@ describe('notification dispatcher', () => {
   it('creates in-app notification and sends email by default', async () => {
     const recipient = await createUser();
     const actor = await createUser();
-    await ensureNotificationPreferencesForUser(recipient.id);
     const friendRequest = await prisma.friendRequest.create({
       data: {
         fromUserId: actor.id,
@@ -155,7 +153,6 @@ describe('notification dispatcher', () => {
   it('respects email preference toggles', async () => {
     const recipient = await createUser();
     const actor = await createUser();
-    await ensureNotificationPreferencesForUser(recipient.id);
 
     await setNotificationPreference(
       recipient.id,
@@ -194,7 +191,6 @@ describe('notification dispatcher', () => {
   it('sends a web push when the push preference is enabled', async () => {
     const recipient = await createUser();
     const actor = await createUser();
-    await ensureNotificationPreferencesForUser(recipient.id);
 
     await setNotificationPreference(
       recipient.id,
@@ -233,7 +229,6 @@ describe('notification dispatcher', () => {
   it('does not send a web push when the push preference is off (default)', async () => {
     const recipient = await createUser();
     const actor = await createUser();
-    await ensureNotificationPreferencesForUser(recipient.id);
 
     const friendRequest = await prisma.friendRequest.create({
       data: { fromUserId: actor.id, toUserId: recipient.id, status: 'PENDING' },
@@ -260,7 +255,6 @@ describe('notification dispatcher', () => {
   it('creates an in-app UPCOMING_BIRTHDAY notification without email by default', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser({ name: 'Birthday Person' });
-    await ensureNotificationPreferencesForUser(viewer.id);
 
     await dispatchNotification({
       userId: viewer.id,
@@ -282,7 +276,6 @@ describe('notification dispatcher', () => {
   it('is idempotent per sourceIdentifier for UPCOMING_BIRTHDAY', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
 
     const notify = () =>
       dispatchNotification({
@@ -304,7 +297,6 @@ describe('notification dispatcher', () => {
   it('sends birthday email when the user has opted in', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
     await setNotificationPreference(
       viewer.id,
       NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
@@ -326,7 +318,6 @@ describe('notification dispatcher', () => {
   it('sends the birthday email only once across repeated calls — the delivery ledger gates every channel', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
     await setNotificationPreference(
       viewer.id,
       NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
@@ -360,7 +351,6 @@ describe('notification dispatcher', () => {
   it('dedupes email for an email-only user with the in-app channel disabled', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
     await setNotificationPreference(
       viewer.id,
       NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
@@ -398,7 +388,6 @@ describe('notification dispatcher', () => {
   it('sends the birthday push only once across repeated calls', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
     await setNotificationPreference(
       viewer.id,
       NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
@@ -424,7 +413,6 @@ describe('notification dispatcher', () => {
   it('does not claim a recurring channel when delivery capability is unavailable', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
     await setNotificationPreference(
       viewer.id,
       NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
@@ -462,7 +450,6 @@ describe('notification dispatcher', () => {
   it('derives a window-stable default sourceIdentifier — the birthday date, not the sweep day', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
 
     // No sourceIdentifier passed: the event handler derives it from the birthday's
     // calendar date (now + daysUntil). Simulate the daily sweep advancing
@@ -495,7 +482,6 @@ describe('notification dispatcher', () => {
   it('re-notifies when the owner edits their birthday to a different date', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
 
     const notify = (daysUntil: number) =>
       dispatchNotification({
@@ -521,7 +507,6 @@ describe('notification dispatcher', () => {
 
   it('renders a date-based message that cannot go stale in the bell', async () => {
     const viewer = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
 
     const notifyFor = async (daysUntil: number) => {
       const birthdayOwner = await createUser({ name: 'Birthday Person' });
@@ -553,7 +538,6 @@ describe('notification dispatcher', () => {
   it('claims nothing while all channels are disabled, so enabling one later in the window still delivers', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
     await setNotificationPreference(
       viewer.id,
       NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
@@ -595,7 +579,6 @@ describe('notification dispatcher', () => {
   it('delivers to a channel enabled mid-window without repeating the others', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
 
     const notify = () =>
       dispatchNotification({
@@ -629,7 +612,6 @@ describe('notification dispatcher', () => {
   it('isolates channel failures — a failing email does not block push', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
     await setNotificationPreference(
       viewer.id,
       NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
@@ -667,7 +649,6 @@ describe('notification dispatcher', () => {
   it('treats a sendEmail error status (no throw) as a failed channel', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
     await setNotificationPreference(
       viewer.id,
       NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
@@ -699,7 +680,6 @@ describe('notification dispatcher', () => {
   it('fires occasion_reminder_sent once per delivery, never on no-op re-runs', async () => {
     const viewer = await createUser();
     const birthdayOwner = await createUser();
-    await ensureNotificationPreferencesForUser(viewer.id);
 
     const notify = () =>
       dispatchNotification({

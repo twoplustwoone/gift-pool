@@ -16,7 +16,6 @@ import {
 const getUserId = vi.fn();
 const requireUserId = vi.fn();
 const verifyPreferenceToken = vi.fn();
-const ensureNotificationPreferencesForUser = vi.fn();
 const getNotificationPreferences = vi.fn();
 const setNotificationPreference = vi.fn();
 const disableEmailForAll = vi.fn();
@@ -63,7 +62,10 @@ vi.mock('react-router', async () => {
     ...actual,
     useFetcher: () => {
       useFetcherCallCount += 1;
-      const state = useFetcherCallCount % 2 === 1 ? toggleFetcherState : disableFetcherState;
+      const state =
+        useFetcherCallCount % 2 === 1
+          ? toggleFetcherState
+          : disableFetcherState;
       return {
         Form: (props: React.ComponentProps<'form'>) => <form {...props} />,
         data: state.data,
@@ -94,13 +96,12 @@ vi.mock('#app/utils/auth.server.ts', () => ({
 }));
 
 vi.mock('#app/utils/notification-preference-token.server.ts', () => ({
-  verifyPreferenceToken: (...args: Array<unknown>) => verifyPreferenceToken(...args),
+  verifyPreferenceToken: (...args: Array<unknown>) =>
+    verifyPreferenceToken(...args),
 }));
 
 vi.mock('#app/utils/notification-preferences.server.ts', () => ({
   disableEmailForAll: (...args: Array<unknown>) => disableEmailForAll(...args),
-  ensureNotificationPreferencesForUser: (...args: Array<unknown>) =>
-    ensureNotificationPreferencesForUser(...args),
   getNotificationPreferences: (...args: Array<unknown>) =>
     getNotificationPreferences(...args),
   setNotificationPreference: (...args: Array<unknown>) =>
@@ -143,8 +144,6 @@ beforeEach(() => {
   getUserId.mockReset();
   requireUserId.mockReset();
   verifyPreferenceToken.mockReset();
-  ensureNotificationPreferencesForUser.mockReset();
-  ensureNotificationPreferencesForUser.mockResolvedValue(undefined);
   getNotificationPreferences.mockReset();
   setNotificationPreference.mockReset();
   disableEmailForAll.mockReset();
@@ -189,7 +188,9 @@ describe('settings notifications route module', () => {
         toLoaderArgs({
           context: {},
           params: {},
-          request: new Request('https://giftpool.app/settings/profile/notifications'),
+          request: new Request(
+            'https://giftpool.app/settings/profile/notifications',
+          ),
         }),
       ),
     ).rejects.toMatchObject({
@@ -207,7 +208,9 @@ describe('settings notifications route module', () => {
       toLoaderArgs({
         context: {},
         params: {},
-        request: new Request('https://giftpool.app/settings/profile/notifications'),
+        request: new Request(
+          'https://giftpool.app/settings/profile/notifications',
+        ),
       }),
     );
 
@@ -263,10 +266,12 @@ describe('settings notifications route module', () => {
     requireUserId.mockResolvedValue('user-1');
 
     const toggleResult = await action(
-        toActionArgs({
-          context: {},
-          params: {},
-          request: new Request('https://giftpool.app/settings/profile/notifications', {
+      toActionArgs({
+        context: {},
+        params: {},
+        request: new Request(
+          'https://giftpool.app/settings/profile/notifications',
+          {
             body: new URLSearchParams({
               channel: 'EMAIL',
               enabled: 'false',
@@ -277,8 +282,9 @@ describe('settings notifications route module', () => {
             headers: {
               'content-type': 'application/x-www-form-urlencoded',
             },
-          method: 'POST',
-        }),
+            method: 'POST',
+          },
+        ),
       }),
     );
 
@@ -295,10 +301,12 @@ describe('settings notifications route module', () => {
     });
 
     const disableResult = await action(
-        toActionArgs({
-          context: {},
-          params: {},
-          request: new Request('https://giftpool.app/settings/profile/notifications', {
+      toActionArgs({
+        context: {},
+        params: {},
+        request: new Request(
+          'https://giftpool.app/settings/profile/notifications',
+          {
             body: new URLSearchParams({
               intent: 'disable-email',
               requestId: 'disable-1',
@@ -306,8 +314,9 @@ describe('settings notifications route module', () => {
             headers: {
               'content-type': 'application/x-www-form-urlencoded',
             },
-          method: 'POST',
-        }),
+            method: 'POST',
+          },
+        ),
       }),
     );
 
@@ -321,10 +330,12 @@ describe('settings notifications route module', () => {
     });
 
     const invalidIntent = await action(
-        toActionArgs({
-          context: {},
-          params: {},
-          request: new Request('https://giftpool.app/settings/profile/notifications', {
+      toActionArgs({
+        context: {},
+        params: {},
+        request: new Request(
+          'https://giftpool.app/settings/profile/notifications',
+          {
             body: new URLSearchParams({
               intent: 'unknown',
               requestId: 'invalid-1',
@@ -332,8 +343,9 @@ describe('settings notifications route module', () => {
             headers: {
               'content-type': 'application/x-www-form-urlencoded',
             },
-          method: 'POST',
-        }),
+            method: 'POST',
+          },
+        ),
       }),
     );
 
@@ -380,16 +392,23 @@ describe('settings notifications route component', () => {
     renderRoute();
 
     expect(
-      screen.getByText('You are viewing notification preferences with a one-time link.'),
+      screen.getByText(
+        'You are viewing notification preferences with a one-time link.',
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /sign in to update your preferences/i }),
-    ).toHaveAttribute('href', '/login?redirectTo=/settings/profile/notifications');
+    ).toHaveAttribute(
+      'href',
+      '/login?redirectTo=/settings/profile/notifications',
+    );
     expect(
       screen.getAllByRole('checkbox', { name: /enable email/i })[0],
     ).toBeDisabled();
     expect(
-      screen.queryByRole('button', { name: /turn off all email notifications/i }),
+      screen.queryByRole('button', {
+        name: /turn off all email notifications/i,
+      }),
     ).not.toBeInTheDocument();
   });
 
@@ -423,7 +442,9 @@ describe('settings notifications route component', () => {
     toggleFetcherState.data = {
       ok: false,
       requestId:
-        typeof toggleRequestId === 'string' ? toggleRequestId : 'toggle-request',
+        typeof toggleRequestId === 'string'
+          ? toggleRequestId
+          : 'toggle-request',
     };
     useFetcherCallCount = 0;
     rerender(
@@ -433,7 +454,9 @@ describe('settings notifications route component', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getAllByRole('checkbox', { name: /enable email/i })[0]).toBeChecked();
+      expect(
+        screen.getAllByRole('checkbox', { name: /enable email/i })[0],
+      ).toBeChecked();
     });
     expect(toggleFetcherState.submit).toHaveBeenCalledTimes(1);
   });
@@ -446,9 +469,9 @@ describe('settings notifications route component', () => {
     );
 
     expect(
-      screen.getAllByRole('checkbox', { name: /enable email/i }).every(
-        (checkbox) => !(checkbox as HTMLInputElement).checked,
-      ),
+      screen
+        .getAllByRole('checkbox', { name: /enable email/i })
+        .every((checkbox) => !(checkbox as HTMLInputElement).checked),
     ).toBe(true);
     const disableFormData = disableFetcherState.submit.mock.calls[0]?.[0] as
       | FormData
@@ -480,9 +503,9 @@ describe('settings notifications route component', () => {
 
     await waitFor(() => {
       expect(
-        screen.getAllByRole('checkbox', { name: /enable email/i }).every(
-          (checkbox) => !(checkbox as HTMLInputElement).checked,
-        ),
+        screen
+          .getAllByRole('checkbox', { name: /enable email/i })
+          .every((checkbox) => !(checkbox as HTMLInputElement).checked),
       ).toBe(true);
     });
     expect(disableFetcherState.submit).toHaveBeenCalledTimes(1);
