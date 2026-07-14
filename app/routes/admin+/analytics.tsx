@@ -7,11 +7,9 @@ import {
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import {
-  type AnalyticsCounts,
-  type EnvironmentAnalytics,
-  getAnalyticsCounts,
-  getEnvironmentAnalytics,
-} from '#app/utils/analytics.server.ts';
+  type OrganizerReminderMetrics,
+  getOrganizerReminderMetrics,
+} from '#app/utils/admin-organizer-reminders.server.ts';
 import {
   type DropOffFunnels,
   type EnrichmentFailures,
@@ -30,6 +28,12 @@ import {
   getSmartLinkAdoption,
   getWeeklyRetention,
 } from '#app/utils/admin.server.ts';
+import {
+  type AnalyticsCounts,
+  type EnvironmentAnalytics,
+  getAnalyticsCounts,
+  getEnvironmentAnalytics,
+} from '#app/utils/analytics.server.ts';
 import { cn } from '#app/utils/misc.tsx';
 import { requireUserWithRole } from '#app/utils/permissions.server.ts';
 
@@ -45,6 +49,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     dropOff,
     retention,
     optOutMatrix,
+    organizerReminders,
     enrichment,
     enrichmentFailures,
     linkClicks,
@@ -56,6 +61,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     getDropOffFunnels({ days: 30 }),
     getWeeklyRetention(8),
     getNotificationOptOutMatrix(),
+    getOrganizerReminderMetrics({ days: 30, now }),
     getEnrichmentFunnel({ days: 30 }),
     getEnrichmentFailures({ days: 30 }),
     getLinkClickStats({ days: 30 }),
@@ -69,6 +75,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     dropOff,
     retention,
     optOutMatrix,
+    organizerReminders,
     enrichment,
     enrichmentFailures,
     linkClicks,
@@ -191,6 +198,7 @@ const AnalyticsRoute = () => {
     dropOff,
     retention,
     optOutMatrix,
+    organizerReminders,
     enrichment,
     enrichmentFailures,
     linkClicks,
@@ -278,6 +286,13 @@ const AnalyticsRoute = () => {
       </SectionCard>
 
       <SectionCard
+        title="Organizer reminders"
+        description="Last 30 days. Aggregate outcomes for preset, task-bound reminders; no pool, sender, or recipient identities are shown."
+      >
+        <OrganizerReminderSection metrics={organizerReminders} />
+      </SectionCard>
+
+      <SectionCard
         title="Environment"
         description="Last 30 days. Daily visitor snapshots by browser, device, OS, and PWA launch mode."
       >
@@ -318,6 +333,109 @@ const AnalyticsRoute = () => {
 
 const pctOf = (count: number, total: number) =>
   total > 0 ? Math.round((count / total) * 100) : 0;
+
+const OrganizerReminderSection = ({
+  metrics,
+}: {
+  metrics: OrganizerReminderMetrics;
+}) => {
+  const rateLimitedAttempts =
+    metrics.skippedAttempts.cooldown + metrics.skippedAttempts.weeklyLimit;
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard label="Reminders queued" value={metrics.queuedReminders} />
+        <SummaryCard
+          label="Recipients targeted"
+          value={metrics.targetedRecipients}
+        />
+        <SummaryCard
+          label="Recipients delivered"
+          value={metrics.deliveredRecipients}
+          delta={`${metrics.deliveryRate}% of targeted recipients`}
+        />
+        <SummaryCard
+          label="Reminder click events"
+          value={metrics.notificationClicks}
+          delta={`${metrics.clickEventRate}% of delivered recipients`}
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          label="Repeat sends"
+          value={metrics.repeatSends}
+          delta="Additional sends to the same pool and task in this window"
+        />
+        <SummaryCard
+          label="No eligible recipients"
+          value={metrics.skippedAttempts.noEligible}
+          delta="Send actions suppressed before a nudge was queued"
+        />
+        <SummaryCard
+          label="Rate-limited attempts"
+          value={rateLimitedAttempts}
+          delta={`${metrics.skippedAttempts.cooldown} cooldown · ${metrics.skippedAttempts.weeklyLimit} weekly limit`}
+        />
+        <SummaryCard
+          label="Settings reduced"
+          value={metrics.settingsReducedWithin7Days}
+          delta="Distinct recipients within 7 days of delivery"
+        />
+      </div>
+
+      <div className="overflow-x-auto rounded-md border border-border/50">
+        <table className="min-w-[34rem] divide-y divide-border/60 text-sm">
+          <thead className="bg-muted/40">
+            <tr>
+              <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Reminder
+              </th>
+              <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Queued
+              </th>
+              <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Targeted
+              </th>
+              <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Delivered
+              </th>
+              <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Clicks
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/60">
+            {metrics.byKind.map((row) => (
+              <tr key={row.kind}>
+                <td className="px-4 py-2 font-medium">{row.label}</td>
+                <td className="px-4 py-2 text-right tabular-nums">
+                  {row.queued.toLocaleString()}
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums">
+                  {row.targeted.toLocaleString()}
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums">
+                  {row.delivered.toLocaleString()}
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums">
+                  {row.clicks.toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Clicks are aggregate notification-type events, not per-nudge
+        attribution. “Settings reduced” is a directional signal, not proof the
+        reminder caused the change. Treat rates as preliminary until at least 50
+        reminders have been queued.
+      </p>
+    </div>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Browser/device/PWA environment

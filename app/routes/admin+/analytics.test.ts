@@ -112,6 +112,7 @@ describe('/admin/analytics loader', () => {
     const data = await getRouteResultData<{
       analytics: any;
       environment: any;
+      organizerReminders: any;
     }>(response);
     expect(data.analytics.totalUsers).toBe(2);
     expect(data.analytics.dau).toBe(1);
@@ -140,6 +141,13 @@ describe('/admin/analytics loader', () => {
       label: 'Chrome 120',
       count: 1,
       percent: 100,
+    });
+    expect(data.organizerReminders).toMatchObject({
+      days: 30,
+      queuedReminders: 0,
+      targetedRecipients: 0,
+      deliveredRecipients: 0,
+      notificationClicks: 0,
     });
   });
 });
