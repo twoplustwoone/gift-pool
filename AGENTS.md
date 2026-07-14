@@ -307,3 +307,5 @@ On mobile surfaces, use bottom-sheet patterns (not centered modals), and ensure 
 ## Debugging & Testing
 
 When a test or CI check fails, run the specific test type the user requested (jest/unit vs. e2e). If a fix isn't working after two attempts, stop and step back to re-diagnose the root cause rather than iterating on throwaway diagnostics.
+
+For Playwright layout comparisons, measure related element geometry in a single `evaluate` or `evaluateAll` call. Separate awaited `boundingBox()` calls can be invalidated by hydration-driven layout shifts such as the PWA install banner. Inspect trace screenshots before treating geometry failures as product regressions.
