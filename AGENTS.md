@@ -258,6 +258,18 @@ never create rows, including signup and the settings loader.
 - Category bulk writes are transactional and clear more-specific topic rows for that channel so the selected category value actually applies to every child topic.
 - Admin notification reporting resolves effective choices for the full user denominator; it must not count sparse rows as if they were the user population.
 
+### Organizer nudges
+
+Preset, task-bound Pool Manager reminders live behind the deep module in `app/utils/organizer-nudges.server.ts`. Routes and UI call only `previewOrganizerNudge` or `sendOrganizerNudge`; audience selection, manager authorization, current-task validation, preference suppression, limits, idempotency, audit persistence, and fanout stay inside the module.
+
+- Domain kinds are contribution, vote, purchase, and delivery. Customer-facing copy says “reminder,” never message/broadcast/nudge.
+- `OrganizerNudge` is the durable send-action audit. `OrganizerNudgeRecipient` is private operational state for the recipient/pool cooldown and must never be returned to senders.
+- An audit row is created only after at least one recipient remains eligible. Zero-recipient attempts consume no limit.
+- Limits are pool-wide across managers: one pool+kind action per 24 hours, at most three pool actions in a rolling seven days, and one recipient+pool nudge per 24 hours.
+- The sender, concealed pool recipient, former contributors, completed actors, muted contexts, and opted-out recipients are excluded. Permission, membership, task state, and limits are rechecked in the write transaction.
+- Each committed nudge queues typed, per-channel-ledger notifications after the transaction. The action reports “queued”; delivery failures go to Sentry and never turn a committed request into a 500.
+- Resource route: `/api/pools/:poolId/reminders` (`GET ?kind=` previews the aggregate count; `POST` requires `kind` plus an idempotency key).
+
 ### Occasion reminders (the scheduler)
 
 Beat 2 of the retention loop ("surface occasions proactively, before the user would otherwise remember") — see `docs/product/giftpool-vision-spine.md`. Previously the one entirely-unbuilt piece of the four-beat loop; `UPCOMING_BIRTHDAY` was a registered-but-stubbed notification type with no caller.

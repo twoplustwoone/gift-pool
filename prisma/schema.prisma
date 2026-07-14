@@ -67,6 +67,8 @@ model User {
   ideaVotesCast                IdeaVote[]
   poolActivities               PoolActivity[]                @relation("PoolActivity_Actor")
   poolMessages                 PoolMessage[]
+  organizerNudgesSent          OrganizerNudge[]               @relation("OrganizerNudge_Sender")
+  organizerNudgeRecipients     OrganizerNudgeRecipient[]
   feedback                     Feedback[]
   consents                     Consent[]
   // Person-surface memory relations
@@ -401,6 +403,7 @@ model Pool {
   votes         IdeaVote[]
   activities    PoolActivity[]
   messages      PoolMessage[]
+  organizerNudges OrganizerNudge[]
   notificationPreferences PoolNotificationPreference[]
 
   @@index([giftGroupId])
@@ -537,6 +540,40 @@ model PoolActivity {
   actor     User?    @relation("PoolActivity_Actor", fields: [actorId], references: [id])
 
   @@index([poolId, createdAt])
+}
+
+// Durable audit and rate-limit source for preset, task-bound organizer nudges.
+// Customer-facing UI calls these reminders; Organizer Nudge is the domain term.
+// A row exists only when at least one eligible recipient is claimed, so no-op
+// attempts never consume the pool/kind or rolling-pool limits.
+model OrganizerNudge {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  poolId         String
+  senderId       String
+  kind           String
+  idempotencyKey String
+  targetCount    Int
+  status         String   @default("QUEUED")
+  pool           Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  sender         User     @relation("OrganizerNudge_Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipients     OrganizerNudgeRecipient[]
+
+  @@unique([senderId, idempotencyKey])
+  @@index([poolId, kind, createdAt])
+  @@index([poolId, createdAt])
+}
+
+// Access-controlled operational targets. These identifiers are required for
+// the per-recipient/per-pool 24-hour limit and are never exposed to senders.
+model OrganizerNudgeRecipient {
+  nudgeId String
+  userId  String
+  nudge   OrganizerNudge @relation(fields: [nudgeId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([nudgeId, userId])
+  @@index([userId])
 }
 
 // Stub for future in-pool chat/discussion thread.

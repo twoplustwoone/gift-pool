@@ -29,6 +29,10 @@ export const ANALYTIC_EVENT_NAMES = [
   // Automatic pool activity fanout. Fires per recipient only when at least one
   // channel newly delivers; properties contain type, pool id, and channels.
   'pool_activity_notification_sent',
+  // Preset task-bound organizer reminders. Fires per recipient only after at
+  // least one channel delivers; repeated requests remain queryable from the
+  // OrganizerNudge audit rows without putting recipient lists in analytics.
+  'organizer_reminder_sent',
   'friend_request_sent',
   'friend_request_accepted',
   'friend_request_rejected',
@@ -193,6 +197,7 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   'pool_purchaser_assigned',
   'pool_deliverer_assigned',
   'pool_activity_notification_sent',
+  'organizer_reminder_sent',
   'friend_request_sent',
   'friend_request_accepted',
   'friend_request_rejected',
