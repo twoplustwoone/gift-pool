@@ -1,19 +1,28 @@
 import { randomUUID } from 'node:crypto';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
+  NOTIFICATION_CATEGORIES,
   NOTIFICATION_CHANNELS,
+  NOTIFICATION_TOPICS,
   NOTIFICATION_TYPES,
-  type NotificationType,
 } from '#app/utils/notification-catalog.ts';
 import {
+  allowsContextActivity,
+  clearContextActivityPreference,
   disableEmailForAll,
-  ensureNotificationPreferencesForUser,
+  dismissContextMutedNotice,
+  getContextNotificationPreference,
   getNotificationPreferenceForChannels,
   getNotificationPreferences,
-  notificationPreferenceDefaultsFor,
+  NOTIFICATION_ACTIVITY_LEVELS,
+  resolveCentralNotificationPreferences,
+  setCategoryChannelPreference,
+  setContextActivityPreference,
+  setGlobalChannelPreference,
   setNotificationPreference,
+  setTopicChannelPreference,
 } from '#app/utils/notification-preferences.server.ts';
 
 async function createUser() {
@@ -32,10 +41,39 @@ async function createUser() {
   });
 }
 
+async function createGroupPool(userId: string) {
+  const group = await prisma.giftGroup.create({
+    data: {
+      name: `Group ${randomUUID()}`,
+      groupMembers: { create: { userId } },
+    },
+    select: { id: true },
+  });
+  const pool = await prisma.pool.create({
+    data: {
+      title: `Pool ${randomUUID()}`,
+      organizerId: userId,
+      giftGroupId: group.id,
+      contributors: { create: { userId } },
+    },
+    select: { id: true },
+  });
+  return { group, pool };
+}
+
 describe('notification preferences', () => {
   beforeEach(async () => {
+    vi.useRealTimers();
     await prisma.notificationPreferenceAudit.deleteMany();
-    await prisma.userNotificationPreference.deleteMany();
+    await prisma.poolNotificationPreference.deleteMany();
+    await prisma.groupNotificationPreference.deleteMany();
+    await prisma.notificationTopicPreference.deleteMany();
+    await prisma.notificationCategoryPreference.deleteMany();
+    await prisma.notificationChannelPreference.deleteMany();
+    await prisma.poolContributor.deleteMany();
+    await prisma.pool.deleteMany();
+    await prisma.usersInGiftGroups.deleteMany();
+    await prisma.giftGroup.deleteMany();
     await prisma.friendRequest.deleteMany();
     await prisma.friendship.deleteMany();
     await prisma.user.deleteMany({
@@ -43,24 +81,22 @@ describe('notification preferences', () => {
     });
   });
 
-  it('seeds defaults when ensuring preferences', async () => {
+  it('inherits catalog defaults without materializing rows', async () => {
     const user = await createUser();
-    await ensureNotificationPreferencesForUser(user.id);
-    const preference = await getNotificationPreferenceForChannels(
-      user.id,
-      NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
-    );
-    expect(preference).toEqual({
-      inAppEnabled: true,
-      emailEnabled: true,
-      pushEnabled: false,
-    });
+    const preferences = await getNotificationPreferences(user.id);
+
+    for (const type of Object.values(NOTIFICATION_TYPES)) {
+      expect(preferences.get(type)).toEqual(
+        DEFAULT_NOTIFICATION_PREFERENCES[type],
+      );
+    }
+    await expect(
+      prisma.notificationTopicPreference.count({ where: { userId: user.id } }),
+    ).resolves.toBe(0);
   });
 
-  it('persists preference changes with audit log entries', async () => {
+  it('maps both friend events to one sparse topic override', async () => {
     const user = await createUser();
-    await ensureNotificationPreferencesForUser(user.id);
-
     await setNotificationPreference(
       user.id,
       NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
@@ -69,198 +105,337 @@ describe('notification preferences', () => {
       'test',
     );
 
-    const preference = await getNotificationPreferenceForChannels(
-      user.id,
+    for (const type of [
       NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
-    );
-    expect(preference.emailEnabled).toBe(false);
-
-    const audit = await prisma.notificationPreferenceAudit.findFirst({
-      where: {
-        userId: user.id,
-        type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
-      },
-    });
-    expect(audit).not.toBeNull();
-    expect(audit?.previousValue).toBe(true);
-    expect(audit?.newValue).toBe(false);
-    expect(audit?.channel).toBe(NOTIFICATION_CHANNELS.EMAIL);
-  });
-
-  it('disables email for all types', async () => {
-    const user = await createUser();
-    await ensureNotificationPreferencesForUser(user.id);
-
-    await disableEmailForAll(user.id, 'test');
-
-    for (const type of Object.values(NOTIFICATION_TYPES)) {
-      const pref = await getNotificationPreferenceForChannels(user.id, type);
-      if (type === NOTIFICATION_TYPES.UPCOMING_BIRTHDAY) {
-        expect(pref.emailEnabled).toBe(false);
-      } else {
-        expect(pref.emailEnabled).toBe(false);
-      }
+      NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED,
+    ]) {
+      await expect(
+        getNotificationPreferenceForChannels(user.id, type),
+      ).resolves.toMatchObject({ emailEnabled: false });
     }
-  });
-
-  it('disableEmailForAll is a no-op when no email rows are enabled', async () => {
-    const user = await createUser();
-    await ensureNotificationPreferencesForUser(user.id);
-    // Flip all email prefs off ahead of time.
-    await prisma.userNotificationPreference.updateMany({
-      where: { userId: user.id },
-      data: { emailEnabled: false },
-    });
-    const beforeAudit = await prisma.notificationPreferenceAudit.count({
-      where: { userId: user.id },
-    });
-
-    await disableEmailForAll(user.id, 'test-noop');
-
-    const afterAudit = await prisma.notificationPreferenceAudit.count({
-      where: { userId: user.id },
-    });
-    expect(afterAudit).toBe(beforeAudit);
-  });
-
-  it('disableEmailForAll only audits the rows that actually transitioned', async () => {
-    const user = await createUser();
-    await ensureNotificationPreferencesForUser(user.id);
-    // Pre-disable one email pref so only one row transitions.
-    await prisma.userNotificationPreference.updateMany({
-      where: {
-        userId: user.id,
-        type: NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED,
-      },
-      data: { emailEnabled: false },
-    });
-
-    await disableEmailForAll(user.id, 'test-partial');
-
-    const audits = await prisma.notificationPreferenceAudit.findMany({
-      where: { userId: user.id, source: 'test-partial' },
-      select: { type: true, previousValue: true, newValue: true },
-    });
-    // FRIEND_REQUEST_RECEIVED was true → false (and so was UPCOMING_BIRTHDAY
-    // if its default is true). Defaults live in notification-catalog; we
-    // assert we only audited rows whose previous value was true.
-    expect(audits.every((a) => a.previousValue === true)).toBe(true);
-    expect(audits.every((a) => a.newValue === false)).toBe(true);
-    // FRIEND_REQUEST_ACCEPTED was already off, so there should be no audit.
-    expect(
-      audits.find((a) => a.type === NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED),
-    ).toBeUndefined();
-  });
-
-  it('setNotificationPreference creates a row for users without one', async () => {
-    const user = await createUser();
-    // No ensure call — mimic a pre-bootstrap user visiting the toggle path.
-
-    const result = await setNotificationPreference(
-      user.id,
-      NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
-      NOTIFICATION_CHANNELS.EMAIL,
-      false,
-      'test-fresh',
-    );
-
-    expect(result.emailEnabled).toBe(false);
-    const stored = await prisma.userNotificationPreference.findUnique({
-      where: {
-        userId_type: {
-          userId: user.id,
-          type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
+    await expect(
+      prisma.notificationTopicPreference.findUnique({
+        where: {
+          userId_topic_channel: {
+            userId: user.id,
+            topic: NOTIFICATION_TOPICS.FRIEND_REQUESTS,
+            channel: NOTIFICATION_CHANNELS.EMAIL,
+          },
         },
-      },
-      select: { emailEnabled: true, inAppEnabled: true },
+      }),
+    ).resolves.toMatchObject({ enabled: false });
+    await expect(
+      prisma.notificationPreferenceAudit.findFirst({
+        where: { userId: user.id, source: 'test' },
+      }),
+    ).resolves.toMatchObject({
+      kind: 'TOPIC',
+      preferenceKey: NOTIFICATION_TOPICS.FRIEND_REQUESTS,
+      previousValue: 'true',
+      newValue: 'false',
     });
-    expect(stored?.emailEnabled).toBe(false);
-    // The other channel defaults to the registry value.
-    expect(stored?.inAppEnabled).toBe(
-      DEFAULT_NOTIFICATION_PREFERENCES[
-        NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED
-      ].inAppEnabled,
-    );
-    // An audit row is written because the effective value moved from
-    // "default true" → "explicit false".
-    const audit = await prisma.notificationPreferenceAudit.findFirst({
-      where: { userId: user.id, source: 'test-fresh' },
-    });
-    expect(audit).not.toBeNull();
-    expect(audit?.previousValue).toBe(true);
-    expect(audit?.newValue).toBe(false);
   });
 
-  it('setNotificationPreference returns the existing row when the value is unchanged', async () => {
+  it('resolves topic over category over catalog, with the global gate absolute', async () => {
     const user = await createUser();
-    await ensureNotificationPreferencesForUser(user.id);
-
-    // Idempotent call: try to "set" to the current default.
-    const result = await setNotificationPreference(
-      user.id,
-      NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
-      NOTIFICATION_CHANNELS.EMAIL,
-      DEFAULT_NOTIFICATION_PREFERENCES[
-        NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED
-      ].emailEnabled,
-      'test-idempotent',
-    );
-
-    expect(result.emailEnabled).toBe(
-      DEFAULT_NOTIFICATION_PREFERENCES[
-        NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED
-      ].emailEnabled,
-    );
-    // No audit row for no-op.
-    const audit = await prisma.notificationPreferenceAudit.findFirst({
-      where: { userId: user.id, source: 'test-idempotent' },
+    await setCategoryChannelPreference({
+      userId: user.id,
+      category: NOTIFICATION_CATEGORIES.OCCASIONS,
+      channel: NOTIFICATION_CHANNELS.EMAIL,
+      enabled: true,
+      source: 'test-category',
     });
-    expect(audit).toBeNull();
+    let resolved = await resolveCentralNotificationPreferences({
+      userId: user.id,
+      type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+    });
+    expect(resolved.channels.EMAIL).toEqual({
+      enabled: true,
+      source: 'category_override',
+    });
+
+    await setTopicChannelPreference({
+      userId: user.id,
+      topic: NOTIFICATION_TOPICS.BIRTHDAY_REMINDERS,
+      channel: NOTIFICATION_CHANNELS.EMAIL,
+      enabled: false,
+      source: 'test-topic',
+    });
+    resolved = await resolveCentralNotificationPreferences({
+      userId: user.id,
+      type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+    });
+    expect(resolved.channels.EMAIL).toEqual({
+      enabled: false,
+      source: 'topic_override',
+    });
+
+    await setGlobalChannelPreference({
+      userId: user.id,
+      channel: NOTIFICATION_CHANNELS.EMAIL,
+      enabled: false,
+      source: 'test-global',
+    });
+    resolved = await resolveCentralNotificationPreferences({
+      userId: user.id,
+      type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+    });
+    expect(resolved.channels.EMAIL).toEqual({
+      enabled: false,
+      source: 'global_channel',
+    });
+
+    await setTopicChannelPreference({
+      userId: user.id,
+      topic: NOTIFICATION_TOPICS.BIRTHDAY_REMINDERS,
+      channel: NOTIFICATION_CHANNELS.EMAIL,
+      enabled: true,
+      source: 'test-topic-while-gated',
+    });
+    await setGlobalChannelPreference({
+      userId: user.id,
+      channel: NOTIFICATION_CHANNELS.EMAIL,
+      enabled: true,
+      source: 'test-global-enable',
+    });
+    resolved = await resolveCentralNotificationPreferences({
+      userId: user.id,
+      type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+    });
+    expect(resolved.channels.EMAIL).toEqual({
+      enabled: true,
+      source: 'topic_override',
+    });
   });
 
-  it('getNotificationPreferences fills in defaults for types without a row', async () => {
+  it('applies category bulk changes atomically and clears narrower overrides', async () => {
     const user = await createUser();
-    // Seed exactly one row so we can verify the fill-in merges with stored.
-    await prisma.userNotificationPreference.create({
-      data: {
-        userId: user.id,
-        type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
-        inAppEnabled: false,
-        emailEnabled: false,
-      },
+    await setTopicChannelPreference({
+      userId: user.id,
+      topic: NOTIFICATION_TOPICS.FRIEND_REQUESTS,
+      channel: NOTIFICATION_CHANNELS.EMAIL,
+      enabled: false,
+      source: 'test-topic',
+    });
+    await setCategoryChannelPreference({
+      userId: user.id,
+      category: NOTIFICATION_CATEGORIES.SOCIAL,
+      channel: NOTIFICATION_CHANNELS.EMAIL,
+      enabled: true,
+      source: 'test-bulk',
     });
 
-    const prefs = await getNotificationPreferences(user.id);
-
-    // The stored row comes back as-is.
-    expect(prefs.get(NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED)).toEqual({
-      inAppEnabled: false,
-      emailEnabled: false,
-      pushEnabled: false,
+    await expect(
+      prisma.notificationTopicPreference.count({
+        where: {
+          userId: user.id,
+          topic: NOTIFICATION_TOPICS.FRIEND_REQUESTS,
+          channel: NOTIFICATION_CHANNELS.EMAIL,
+        },
+      }),
+    ).resolves.toBe(0);
+    const resolved = await resolveCentralNotificationPreferences({
+      userId: user.id,
+      type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
     });
-    // Missing types come back with registry defaults.
-    for (const type of Object.values(NOTIFICATION_TYPES)) {
-      if (type === NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED) continue;
-      expect(prefs.get(type)).toEqual(DEFAULT_NOTIFICATION_PREFERENCES[type]);
-    }
+    expect(resolved.channels.EMAIL).toEqual({
+      enabled: true,
+      source: 'category_override',
+    });
   });
 
-  it('notificationPreferenceDefaultsFor produces one row per registered type', () => {
-    const rows = notificationPreferenceDefaultsFor('user-xyz');
-    const types = new Set(rows.map((r) => r.type as NotificationType));
-    for (const type of Object.values(NOTIFICATION_TYPES)) {
-      expect(types.has(type)).toBe(true);
-    }
-    for (const row of rows) {
-      expect(row.userId).toBe('user-xyz');
-      expect(row.inAppEnabled).toBe(
-        DEFAULT_NOTIFICATION_PREFERENCES[row.type as NotificationType]
-          .inAppEnabled,
-      );
-      expect(row.emailEnabled).toBe(
-        DEFAULT_NOTIFICATION_PREFERENCES[row.type as NotificationType]
-          .emailEnabled,
-      );
-    }
+  it('rolls back a category operation when its user does not exist', async () => {
+    await expect(
+      setCategoryChannelPreference({
+        userId: 'missing-user',
+        category: NOTIFICATION_CATEGORIES.SOCIAL,
+        channel: NOTIFICATION_CHANNELS.EMAIL,
+        enabled: false,
+        source: 'test-rollback',
+      }),
+    ).rejects.toBeDefined();
+    await expect(
+      prisma.notificationCategoryPreference.count({
+        where: { userId: 'missing-user' },
+      }),
+    ).resolves.toBe(0);
+  });
+
+  it('disableEmailForAll creates one durable gate and is idempotent', async () => {
+    const user = await createUser();
+    await disableEmailForAll(user.id, 'test-disable');
+    await disableEmailForAll(user.id, 'test-disable-again');
+
+    await expect(
+      prisma.notificationChannelPreference.findUnique({
+        where: {
+          userId_channel: {
+            userId: user.id,
+            channel: NOTIFICATION_CHANNELS.EMAIL,
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ enabled: false });
+    await expect(
+      prisma.notificationPreferenceAudit.count({
+        where: { userId: user.id, kind: 'GLOBAL_CHANNEL' },
+      }),
+    ).resolves.toBe(1);
+  });
+
+  it('inherits a group activity setting and permits an explicit child-pool override', async () => {
+    const user = await createUser();
+    const { group, pool } = await createGroupPool(user.id);
+    await setContextActivityPreference({
+      userId: user.id,
+      context: { kind: 'GROUP', groupId: group.id },
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.MUTED,
+      source: 'test-group',
+    });
+
+    let resolved = await getContextNotificationPreference({
+      userId: user.id,
+      context: { kind: 'POOL', poolId: pool.id },
+    });
+    expect(resolved).toMatchObject({
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.MUTED,
+      source: 'group_override',
+      controllingContext: { kind: 'GROUP', groupId: group.id },
+      noticeVisible: true,
+    });
+
+    await setContextActivityPreference({
+      userId: user.id,
+      context: { kind: 'POOL', poolId: pool.id },
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.ALL_ACTIVITY,
+      source: 'test-pool',
+    });
+    resolved = await getContextNotificationPreference({
+      userId: user.id,
+      context: { kind: 'POOL', poolId: pool.id },
+    });
+    expect(resolved).toMatchObject({
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.ALL_ACTIVITY,
+      source: 'pool_override',
+    });
+
+    await clearContextActivityPreference({
+      userId: user.id,
+      context: { kind: 'POOL', poolId: pool.id },
+      source: 'test-clear',
+    });
+    resolved = await getContextNotificationPreference({
+      userId: user.id,
+      context: { kind: 'POOL', poolId: pool.id },
+    });
+    expect(resolved.activityLevel).toBe(NOTIFICATION_ACTIVITY_LEVELS.MUTED);
+  });
+
+  it('normalizes empty Custom to Muted and filters populated Custom by topic', async () => {
+    const user = await createUser();
+    const { pool } = await createGroupPool(user.id);
+    const context = { kind: 'POOL', poolId: pool.id } as const;
+    await setContextActivityPreference({
+      userId: user.id,
+      context,
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.CUSTOM,
+      customTopics: [],
+      source: 'test-empty',
+    });
+    let resolved = await getContextNotificationPreference({
+      userId: user.id,
+      context,
+    });
+    expect(resolved.activityLevel).toBe(NOTIFICATION_ACTIVITY_LEVELS.MUTED);
+
+    await setContextActivityPreference({
+      userId: user.id,
+      context,
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.CUSTOM,
+      customTopics: [NOTIFICATION_TOPICS.FRIEND_REQUESTS],
+      source: 'test-custom',
+    });
+    resolved = await getContextNotificationPreference({
+      userId: user.id,
+      context,
+    });
+    expect(
+      allowsContextActivity(
+        resolved,
+        NOTIFICATION_TOPICS.FRIEND_REQUESTS,
+        'ROUTINE',
+      ),
+    ).toBe(true);
+    expect(
+      allowsContextActivity(
+        resolved,
+        NOTIFICATION_TOPICS.BIRTHDAY_REMINDERS,
+        'IMPORTANT',
+      ),
+    ).toBe(false);
+  });
+
+  it('dismisses one mute cycle and shows the notice after a later re-mute', async () => {
+    vi.useFakeTimers();
+    const user = await createUser();
+    const { group } = await createGroupPool(user.id);
+    const context = { kind: 'GROUP', groupId: group.id } as const;
+    vi.setSystemTime(new Date('2026-07-13T12:00:00Z'));
+    await setContextActivityPreference({
+      userId: user.id,
+      context,
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.MUTED,
+      source: 'test-mute',
+    });
+    await dismissContextMutedNotice({
+      userId: user.id,
+      context,
+      source: 'test-dismiss',
+    });
+    let resolved = await getContextNotificationPreference({
+      userId: user.id,
+      context,
+    });
+    expect(resolved.noticeVisible).toBe(false);
+
+    vi.setSystemTime(new Date('2026-07-14T12:00:00Z'));
+    await setContextActivityPreference({
+      userId: user.id,
+      context,
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.ALL_ACTIVITY,
+      source: 'test-unmute',
+    });
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+    await setContextActivityPreference({
+      userId: user.id,
+      context,
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.MUTED,
+      source: 'test-remute',
+    });
+    resolved = await getContextNotificationPreference({
+      userId: user.id,
+      context,
+    });
+    expect(resolved.noticeVisible).toBe(true);
+    expect(resolved.noticeDismissedAt).toBeNull();
+  });
+
+  it('rejects context writes for non-members without persisting state', async () => {
+    const member = await createUser();
+    const outsider = await createUser();
+    const { group } = await createGroupPool(member.id);
+    await expect(
+      setContextActivityPreference({
+        userId: outsider.id,
+        context: { kind: 'GROUP', groupId: group.id },
+        activityLevel: NOTIFICATION_ACTIVITY_LEVELS.MUTED,
+        source: 'test-unauthorized',
+      }),
+    ).rejects.toMatchObject({ init: { status: 404 } });
+    await expect(
+      prisma.groupNotificationPreference.count({
+        where: { userId: outsider.id },
+      }),
+    ).resolves.toBe(0);
   });
 });

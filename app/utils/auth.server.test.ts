@@ -6,7 +6,11 @@ import {
   CURRENT_LEGAL_VERSION,
   LEGAL_DOCUMENT_TYPE,
 } from '#app/utils/legal.ts';
-import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  NOTIFICATION_TYPES,
+} from '#app/utils/notification-catalog.ts';
+import { getNotificationPreferences } from '#app/utils/notification-preferences.server.ts';
 
 const testConsent = {
   version: CURRENT_LEGAL_VERSION,
@@ -16,7 +20,6 @@ const testConsent = {
 
 describe('auth.server', () => {
   beforeEach(async () => {
-    await prisma.userNotificationPreference.deleteMany();
     await prisma.session.deleteMany({
       where: { user: { email: { contains: '@signup-test.com' } } },
     });
@@ -25,7 +28,7 @@ describe('auth.server', () => {
     });
   });
 
-  it('signup seeds a notification preference row for every registered type', async () => {
+  it('signup inherits sparse notification defaults without materializing rows', async () => {
     await prisma.role.upsert({
       where: { name: 'user' },
       update: {},
@@ -43,15 +46,15 @@ describe('auth.server', () => {
       consent: testConsent,
     });
 
-    const prefs = await prisma.userNotificationPreference.findMany({
-      where: { userId: session.userId },
-      select: { type: true, inAppEnabled: true, emailEnabled: true },
-    });
-
-    const seededTypes = new Set(prefs.map((p) => p.type));
+    const prefs = await getNotificationPreferences(session.userId);
     for (const type of Object.values(NOTIFICATION_TYPES)) {
-      expect(seededTypes.has(type)).toBe(true);
+      expect(prefs.get(type)).toEqual(DEFAULT_NOTIFICATION_PREFERENCES[type]);
     }
+    await expect(
+      prisma.notificationTopicPreference.count({
+        where: { userId: session.userId },
+      }),
+    ).resolves.toBe(0);
   });
 
   it('signup writes a consent row with the current legal version and age affirmation', async () => {

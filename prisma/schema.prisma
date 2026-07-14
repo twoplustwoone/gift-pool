@@ -44,8 +44,12 @@ model User {
   friendRequestsReceived       FriendRequest[]               @relation("FriendRequestToUser")
   friendshipsA                 Friendship[]                  @relation("FriendshipUserA")
   friendshipsB                 Friendship[]                  @relation("FriendshipUserB")
-  notificationPreferences      UserNotificationPreference[]
-  notificationPreferenceAudits NotificationPreferenceAudit[]
+  notificationChannelPreferences  NotificationChannelPreference[]
+  notificationCategoryPreferences NotificationCategoryPreference[]
+  notificationTopicPreferences    NotificationTopicPreference[]
+  groupNotificationPreferences    GroupNotificationPreference[]
+  poolNotificationPreferences     PoolNotificationPreference[]
+  notificationPreferenceAudits    NotificationPreferenceAudit[]
   notificationDeliveries       NotificationDelivery[]
   pushSubscriptions            PushSubscription[]
   friendInvitationsCreated     FriendInvitation[]            @relation("FriendInvitation_CreatedBy")
@@ -157,20 +161,45 @@ model NotificationDelivery {
   @@id([userId, sourceIdentifier])
 }
 
-model UserNotificationPreference {
-  userId       String
-  type         String
-  inAppEnabled Boolean  @default(true)
-  emailEnabled Boolean  @default(true)
-  // Web Push defaults OFF — unlike in-app/email it requires an explicit opt-in
-  // plus browser permission, so it can never be on by default.
-  pushEnabled  Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+// Sparse central notification preferences. Missing rows inherit the catalog
+// defaults; global channel gates are absolute ceilings over category/topic
+// choices. Channel/category/topic strings are validated against the catalog.
+model NotificationChannelPreference {
+  userId    String
+  channel   String
+  enabled   Boolean
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([userId, type])
-  @@index([type])
+  @@id([userId, channel])
+  @@index([channel])
+}
+
+model NotificationCategoryPreference {
+  userId    String
+  category  String
+  channel   String
+  enabled   Boolean
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, category, channel])
+  @@index([category, channel])
+}
+
+model NotificationTopicPreference {
+  userId    String
+  topic     String
+  channel   String
+  enabled   Boolean
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, topic, channel])
+  @@index([topic, channel])
 }
 
 model PushSubscription {
@@ -191,16 +220,19 @@ model PushSubscription {
 model NotificationPreferenceAudit {
   id            String   @id @default(cuid())
   userId        String
-  type          String
-  channel       String
-  previousValue Boolean
-  newValue      Boolean
+  kind          String
+  preferenceKey String?
+  channel       String?
+  contextKind   String?
+  contextId     String?
+  previousValue String?
+  newValue      String?
   source        String
   createdAt     DateTime @default(now())
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
-  @@index([type])
+  @@index([kind, preferenceKey])
   @@index([channel])
 }
 
@@ -222,6 +254,7 @@ model GiftGroup {
   reminders        GroupReminder[]
   joinRequests     JoinRequest[]
   groupMembers     UsersInGiftGroups[]
+  notificationPreferences GroupNotificationPreference[]
 
   @@index([createdById])
   @@map("Group")
@@ -368,11 +401,47 @@ model Pool {
   votes         IdeaVote[]
   activities    PoolActivity[]
   messages      PoolMessage[]
+  notificationPreferences PoolNotificationPreference[]
 
   @@index([giftGroupId])
   @@index([organizerId])
   @@index([recipientUserId])
   @@index([status])
+}
+
+// Context rows are also sparse. A null activityLevel means "inherit" and lets
+// the row retain a notice dismissal for an inherited group mute. customTopics
+// is a validated JSON array of stable notification-topic identifiers.
+model GroupNotificationPreference {
+  userId            String
+  giftGroupId       String
+  activityLevel     String?
+  customTopics      String?
+  mutedAt           DateTime?
+  noticeDismissedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  giftGroup         GiftGroup @relation(fields: [giftGroupId], references: [id], onDelete: Cascade)
+
+  @@id([userId, giftGroupId])
+  @@index([giftGroupId])
+}
+
+model PoolNotificationPreference {
+  userId            String
+  poolId            String
+  activityLevel     String?
+  customTopics      String?
+  mutedAt           DateTime?
+  noticeDismissedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pool              Pool      @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@id([userId, poolId])
+  @@index([poolId])
 }
 
 // One record per contributor per pool.

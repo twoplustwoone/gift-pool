@@ -5,24 +5,7 @@ import { safeRedirect } from 'remix-utils/safe-redirect';
 import { prisma } from './db.server.ts';
 import { LEGAL_DOCUMENT_TYPE } from './legal.ts';
 import { combineHeaders } from './misc.tsx';
-import {
-  DEFAULT_NOTIFICATION_PREFERENCES,
-  NOTIFICATION_TYPES,
-} from './notification-catalog.ts';
 import { authSessionStorage } from './session.server.ts';
-
-// Seed a row per notification type at user creation so we don't have to run
-// N upserts on the hot read/write path later. Reads still tolerate missing
-// rows (they fall back to defaults), so this is strictly an optimization for
-// the common case.
-const defaultNotificationPreferenceRows = Object.values(NOTIFICATION_TYPES).map(
-  (type) => ({
-    type,
-    inAppEnabled: DEFAULT_NOTIFICATION_PREFERENCES[type].inAppEnabled,
-    emailEnabled: DEFAULT_NOTIFICATION_PREFERENCES[type].emailEnabled,
-    pushEnabled: DEFAULT_NOTIFICATION_PREFERENCES[type].pushEnabled,
-  }),
-);
 
 export const SESSION_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 30;
 export const getSessionExpirationDate = () =>
@@ -151,9 +134,6 @@ export async function signup({
             create: {
               hash: hashedPassword,
             },
-          },
-          notificationPreferences: {
-            create: defaultNotificationPreferenceRows,
           },
           consents: {
             create: {

@@ -65,9 +65,7 @@ export async function action({
         ok: true,
         intent: 'toggle_admin',
         message:
-          target === 'grant'
-            ? 'Granted admin role.'
-            : 'Revoked admin role.',
+          target === 'grant' ? 'Granted admin role.' : 'Revoked admin role.',
       };
     }
 
@@ -90,7 +88,8 @@ export async function action({
       if (err.code === 'CANNOT_DEMOTE_SELF') {
         message = 'You cannot revoke your own admin role.';
       } else if (err.code === 'LAST_ADMIN') {
-        message = 'Cannot revoke the last admin. Grant admin to another user first.';
+        message =
+          'Cannot revoke the last admin. Grant admin to another user first.';
       } else {
         message = 'User not found.';
       }
@@ -100,11 +99,9 @@ export async function action({
   }
 }
 
-const formatDate = (date: Date | string) =>
-  new Date(date).toLocaleDateString();
+const formatDate = (date: Date | string) => new Date(date).toLocaleDateString();
 
-const formatDateTime = (date: Date | string) =>
-  new Date(date).toLocaleString();
+const formatDateTime = (date: Date | string) => new Date(date).toLocaleString();
 
 const AdminUserDetailRoute = () => {
   const { user } = useLoaderData<typeof loader>();
@@ -123,19 +120,17 @@ const AdminUserDetailRoute = () => {
           >
             ← Back to users
           </Link>
-          <h1 className="text-xl font-semibold">{user.name ?? user.username}</h1>
+          <h1 className="text-xl font-semibold">
+            {user.name ?? user.username}
+          </h1>
           <p className="text-muted-foreground">
             @{user.username} · {user.email}
           </p>
         </div>
       </div>
 
-      {toggleFetcher.data ? (
-        <ActionBanner data={toggleFetcher.data} />
-      ) : null}
-      {revokeFetcher.data ? (
-        <ActionBanner data={revokeFetcher.data} />
-      ) : null}
+      {toggleFetcher.data ? <ActionBanner data={toggleFetcher.data} /> : null}
+      {revokeFetcher.data ? <ActionBanner data={revokeFetcher.data} /> : null}
 
       <section className="grid gap-4 lg:grid-cols-2">
         {/* --- profile --- */}
@@ -261,15 +256,9 @@ const AdminUserDetailRoute = () => {
         </SectionCard>
 
         {/* --- wishlist --- */}
-        <SectionCard
-          title="Wishlist"
-          description="Items owned by this user."
-        >
+        <SectionCard title="Wishlist" description="Items owned by this user.">
           <dl className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 text-sm">
-            <DLRow
-              label="Items"
-              value={user.counts.wishlistItems.toString()}
-            />
+            <DLRow label="Items" value={user.counts.wishlistItems.toString()} />
             <DLRow
               label="View public profile"
               value={
@@ -304,7 +293,7 @@ const AdminUserDetailRoute = () => {
       {/* --- notification prefs --- */}
       <SectionCard
         title="Notification preferences"
-        description="Per-type in-app + email toggles from UserNotificationPreference."
+        description="Effective per-type choices after global, category, topic, and catalog inheritance."
       >
         {user.notificationPreferences.length === 0 ? (
           <EmptyRow>No preferences recorded (using defaults).</EmptyRow>

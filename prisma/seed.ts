@@ -6,7 +6,6 @@ import {
 	getUserImages,
 	img,
 } from '#tests/db-utils.ts'
-import { ensureNotificationPreferencesForUser } from '#app/utils/notification-preferences.server.ts'
 import {
 	POOL_STATUS,
 	DECISION_MODE,
@@ -136,7 +135,6 @@ async function seed() {
 			},
 		},
 	})
-	await ensureNotificationPreferencesForUser(wade.id)
 
 	// Marco — birthday in +22 days. Lives in Book Club with Wade (see below),
 	// but intentionally NOT in The Crew because that's his birthday pool.
@@ -153,7 +151,6 @@ async function seed() {
 			birthday: birthdayInDays(22, 31),
 		},
 	})
-	await ensureNotificationPreferencesForUser(marco.id)
 
 	// NP — The Crew member. Birthday in +37 days.
 	const np = await prisma.user.create({
@@ -170,7 +167,6 @@ async function seed() {
 			birthday: birthdayInDays(37, 28),
 		},
 	})
-	await ensureNotificationPreferencesForUser(np.id)
 
 	// Alvaro — The Crew member. Birthday in +54 days (edge: just inside window).
 	const alvaro = await prisma.user.create({
@@ -186,7 +182,6 @@ async function seed() {
 			birthday: birthdayInDays(54, 29),
 		},
 	})
-	await ensureNotificationPreferencesForUser(alvaro.id)
 
 	// Sofia — The Crew member. Birthday in +88 days (edge: OUTSIDE 60-day
 	// window). This is deliberate — we want at least one friend whose birthday
@@ -203,7 +198,6 @@ async function seed() {
 			birthday: birthdayInDays(88, 32),
 		},
 	})
-	await ensureNotificationPreferencesForUser(sofia.id)
 
 	// Hana — Book Club. Birthday TOMORROW (imminent edge case).
 	// Wade's friend. Rich wishlist + past items.
@@ -223,7 +217,6 @@ async function seed() {
 			birthday: birthdayInDays(1, 27),
 		},
 	})
-	await ensureNotificationPreferencesForUser(hana.id)
 
 	// Leo — Wade's friend, deliberately empty wishlist (edge case). Book Club.
 	// Birthday in +25 days.
@@ -239,7 +232,6 @@ async function seed() {
 			birthday: birthdayInDays(25, 33),
 		},
 	})
-	await ensureNotificationPreferencesForUser(leo.id)
 
 	// Zoe — NOT Wade's friend. Has sent Wade a pending friend request.
 	// Has a small wishlist which Wade should NOT be able to see until accept.
@@ -255,7 +247,6 @@ async function seed() {
 			birthday: birthdayInDays(200, 26),
 		},
 	})
-	await ensureNotificationPreferencesForUser(zoe.id)
 
 	// Ben — NOT Wade's friend. Wade has sent them a pending friend request.
 	const ben = await prisma.user.create({
@@ -270,7 +261,6 @@ async function seed() {
 			birthday: birthdayInDays(150, 36),
 		},
 	})
-	await ensureNotificationPreferencesForUser(ben.id)
 
 	console.timeEnd('👤 Created named users...')
 

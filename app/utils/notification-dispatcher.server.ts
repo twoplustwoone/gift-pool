@@ -48,7 +48,11 @@ export async function dispatchNotification(
   intent: NotificationIntent,
 ): Promise<NotificationDispatchResult> {
   const [policy, occurrenceKey] = await Promise.all([
-    resolveNotificationPolicy({ userId: intent.userId, type: intent.type }),
+    resolveNotificationPolicy({
+      userId: intent.userId,
+      type: intent.type,
+      context: intent.context,
+    }),
     Promise.resolve(getNotificationOccurrenceKey(intent)),
   ]);
   const definition = getNotificationEventDefinition(intent.type);
