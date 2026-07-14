@@ -757,19 +757,34 @@ describe('pool server utilities', () => {
         {
           contributionCents: 2000,
           hasPaid: true,
-          user: { id: 'user-1', name: 'Alex', username: 'alex' },
+          user: {
+            id: 'user-1',
+            image: { id: 'image-1', altText: 'Alex profile photo' },
+            name: 'Alex',
+            username: 'alex',
+          },
           userId: 'user-1',
         },
         {
           contributionCents: 2000,
           hasPaid: false,
-          user: { id: 'user-2', name: 'Blake', username: 'blake' },
+          user: {
+            id: 'user-2',
+            image: { id: 'image-2', altText: null },
+            name: 'Blake',
+            username: 'blake',
+          },
           userId: 'user-2',
         },
         {
           contributionCents: 2000,
           hasPaid: false,
-          user: { id: 'user-3', name: 'Casey', username: 'casey' },
+          user: {
+            id: 'user-3',
+            image: null,
+            name: 'Casey',
+            username: 'casey',
+          },
           userId: 'user-3',
         },
       ],
@@ -782,13 +797,23 @@ describe('pool server utilities', () => {
         {
           hasPaid: true,
           owedCents: 1500,
-          user: { id: 'user-1', name: 'Alex', username: 'alex' },
+          user: {
+            id: 'user-1',
+            image: { id: 'image-1', altText: 'Alex profile photo' },
+            name: 'Alex',
+            username: 'alex',
+          },
           userId: 'user-1',
         },
         {
           hasPaid: false,
           owedCents: 1500,
-          user: { id: 'user-2', name: 'Blake', username: 'blake' },
+          user: {
+            id: 'user-2',
+            image: { id: 'image-2', altText: null },
+            name: 'Blake',
+            username: 'blake',
+          },
           userId: 'user-2',
         },
       ],
@@ -797,6 +822,28 @@ describe('pool server utilities', () => {
       shortfallCents: 0,
       surplusCents: 1000,
       totalAvailableCents: 4000,
+    });
+    expect(poolFindUnique).toHaveBeenCalledWith({
+      where: { id: 'pool-1' },
+      select: {
+        finalPriceCents: true,
+        purchaserId: true,
+        contributors: {
+          select: {
+            userId: true,
+            contributionCents: true,
+            hasPaid: true,
+            user: {
+              select: {
+                id: true,
+                username: true,
+                name: true,
+                image: { select: { id: true, altText: true } },
+              },
+            },
+          },
+        },
+      },
     });
   });
 });
