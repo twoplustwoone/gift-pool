@@ -21,9 +21,10 @@ import {
   ORGANIZER_NUDGE_KIND_COOLDOWN_MS,
   ORGANIZER_NUDGE_KINDS,
   ORGANIZER_NUDGE_POOL_WINDOW_MS,
-  OrganizerNudgeError,
+  getOrganizerNudgeAvailability,
   previewOrganizerNudge,
   sendOrganizerNudge,
+  type OrganizerNudgeError,
 } from './organizer-nudges.server.ts';
 
 const createdUserIds: string[] = [];
@@ -50,6 +51,36 @@ afterEach(async () => {
 });
 
 describe('organizer nudge module', () => {
+  it('keeps page availability independent from preference-resolved counts', async () => {
+    const [organizer, muted] = await createUsers('availability', 2);
+    const pool = await createPool({
+      organizerId: organizer.id,
+      status: 'OPEN',
+      contributors: [
+        { userId: organizer.id, contributionCents: 2500 },
+        { userId: muted.id, contributionCents: null },
+      ],
+    });
+    await prisma.poolNotificationPreference.create({
+      data: { userId: muted.id, poolId: pool.id, activityLevel: 'MUTED' },
+    });
+
+    await expect(
+      getOrganizerNudgeAvailability({
+        poolId: pool.id,
+        senderId: organizer.id,
+        kind: ORGANIZER_NUDGE_KINDS.CONTRIBUTION,
+      }),
+    ).resolves.toMatchObject({ status: 'AVAILABLE' });
+    await expect(
+      previewOrganizerNudge({
+        poolId: pool.id,
+        senderId: organizer.id,
+        kind: ORGANIZER_NUDGE_KINDS.CONTRIBUTION,
+      }),
+    ).resolves.toMatchObject({ status: 'NO_ELIGIBLE' });
+  });
+
   it('returns only an aggregate count after privacy and preference suppression', async () => {
     const [organizer, eligible, muted, recipient] = await createUsers(
       'preview',

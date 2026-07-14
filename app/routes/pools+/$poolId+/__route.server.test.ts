@@ -43,6 +43,7 @@ const canViewWishlistOf = vi.fn();
 const queueLogEvent = vi.fn();
 const redirectWithToast = vi.fn();
 const getContextNotificationAwareness = vi.fn();
+const getOrganizerNudgeAvailability = vi.fn();
 
 vi.mock('#app/utils/auth.server.ts', () => ({
   requireUserId: (...args: Array<unknown>) => requireUserId(...args),
@@ -119,6 +120,17 @@ vi.mock('#app/utils/toast.server.ts', () => ({
 vi.mock('#app/utils/notification-preferences.server.ts', () => ({
   getContextNotificationAwareness: (...args: Array<unknown>) =>
     getContextNotificationAwareness(...args),
+}));
+
+vi.mock('#app/utils/organizer-nudges.server.ts', () => ({
+  ORGANIZER_NUDGE_KINDS: {
+    CONTRIBUTION: 'CONTRIBUTION',
+    DELIVERY: 'DELIVERY',
+    PURCHASE: 'PURCHASE',
+    VOTE: 'VOTE',
+  },
+  getOrganizerNudgeAvailability: (...args: Array<unknown>) =>
+    getOrganizerNudgeAvailability(...args),
 }));
 
 import { action, loader } from './__route.server.ts';
@@ -211,6 +223,13 @@ beforeEach(() => {
     reason: null,
     preference: { activityLevel: 'IMPORTANT_ONLY' },
   });
+  getOrganizerNudgeAvailability.mockImplementation(
+    async ({ kind }: { kind: string }) => ({
+      kind,
+      latestNudge: null,
+      status: 'AVAILABLE',
+    }),
+  );
 });
 
 describe('pool detail route loader', () => {
@@ -323,6 +342,7 @@ describe('pool detail route loader', () => {
       inviteUrl: 'https://giftpool.app/pools/join/invite-123',
       isOrganizer: false,
       myVoteIdeaId: 'idea-1',
+      organizerReminderStates: {},
       viewer: { userId: 'viewer-1' },
     });
     expect(getContributionBreakdown).toHaveBeenCalledWith('pool-1');
@@ -342,8 +362,35 @@ describe('pool detail route loader', () => {
     await expect(getRouteResultData(result)).resolves.toMatchObject({
       contributionBreakdown: null,
       myVoteIdeaId: null,
+      organizerReminderStates: {
+        CONTRIBUTION: { status: 'AVAILABLE' },
+      },
+    });
+    expect(getOrganizerNudgeAvailability).toHaveBeenCalledTimes(1);
+    expect(getOrganizerNudgeAvailability).toHaveBeenCalledWith({
+      kind: 'CONTRIBUTION',
+      poolId: 'pool-1',
+      senderId: 'viewer-1',
     });
     expect(getContributionBreakdown).not.toHaveBeenCalled();
+  });
+
+  it('loads voting reminder availability without resolving recipient counts', async () => {
+    const result = await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: new Request('https://giftpool.app/pools/pool-1'),
+      }),
+    );
+
+    await expect(getRouteResultData(result)).resolves.toMatchObject({
+      organizerReminderStates: {
+        CONTRIBUTION: { status: 'AVAILABLE' },
+        VOTE: { status: 'AVAILABLE' },
+      },
+    });
+    expect(getOrganizerNudgeAvailability).toHaveBeenCalledTimes(2);
   });
 });
 
