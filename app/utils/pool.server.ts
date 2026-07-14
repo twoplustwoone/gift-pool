@@ -397,22 +397,17 @@ export async function deleteIdea(
 
 // Transition pool to VOTING status. Only valid from OPEN.
 export async function callVote(poolId: string, actorId: string) {
-	const pool = await prisma.pool.findUnique({
-		where: { id: poolId },
-		select: { status: true },
+	const transition = await prisma.pool.updateMany({
+		where: { id: poolId, status: POOL_STATUS.OPEN },
+		data: { status: POOL_STATUS.VOTING },
 	})
 
-	if (pool?.status !== POOL_STATUS.OPEN) {
+	if (transition.count !== 1) {
 		throw data(
 			{ error: 'A vote can only be called when the pool is open.' },
 			{ status: 400 },
 		)
 	}
-
-	await prisma.pool.update({
-		where: { id: poolId },
-		data: { status: POOL_STATUS.VOTING },
-	})
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.VOTE_CALLED, { actorId })
 
@@ -508,14 +503,22 @@ export async function chooseIdea(
 
 	const resolvedPrice = finalPriceCents ?? idea.estimatedPriceCents ?? null
 
-	await prisma.pool.update({
-		where: { id: poolId },
+	const decision = await prisma.pool.updateMany({
+		where: {
+			id: poolId,
+			OR: [
+				{ status: { not: POOL_STATUS.DECIDED } },
+				{ chosenIdeaId: null },
+				{ chosenIdeaId: { not: ideaId } },
+			],
+		},
 		data: {
 			status: POOL_STATUS.DECIDED,
 			chosenIdeaId: ideaId,
 			finalPriceCents: resolvedPrice,
 		},
 	})
+	if (decision.count === 0) return
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.IDEA_CHOSEN, {
 		actorId,
@@ -560,10 +563,14 @@ export async function assignPurchaser(
 	userId: string,
 	actorId: string,
 ) {
-	await prisma.pool.update({
-		where: { id: poolId },
+	const assignment = await prisma.pool.updateMany({
+		where: {
+			id: poolId,
+			OR: [{ purchaserId: null }, { purchaserId: { not: userId } }],
+		},
 		data: { purchaserId: userId },
 	})
+	if (assignment.count === 0) return
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.PURCHASER_ASSIGNED, {
 		actorId,
@@ -590,10 +597,14 @@ export async function assignDeliverer(
 	userId: string,
 	actorId: string,
 ) {
-	await prisma.pool.update({
-		where: { id: poolId },
+	const assignment = await prisma.pool.updateMany({
+		where: {
+			id: poolId,
+			OR: [{ delivererId: null }, { delivererId: { not: userId } }],
+		},
 		data: { delivererId: userId },
 	})
+	if (assignment.count === 0) return
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.DELIVERER_ASSIGNED, {
 		actorId,
@@ -650,10 +661,11 @@ export async function markDelivered(poolId: string, actorId: string) {
 }
 
 export async function cancelPool(poolId: string, actorId: string) {
-	await prisma.pool.update({
-		where: { id: poolId },
+	const cancellation = await prisma.pool.updateMany({
+		where: { id: poolId, status: { not: POOL_STATUS.CANCELLED } },
 		data: { status: POOL_STATUS.CANCELLED },
 	})
+	if (cancellation.count === 0) return
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_CANCELLED, { actorId })
 
