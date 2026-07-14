@@ -11,6 +11,14 @@ const loaderDataSnapshot = {
   // True only for an empty "mistake" pool the organizer may hard-delete;
   // anything with memory shows Cancel instead. See settings loader.
   canHardDelete: true,
+  invitationState: {
+    poolId: 'pool-1',
+    poolTitle: 'Alex Birthday Pool',
+    recipientLabel: 'Alex',
+    isActive: true,
+    candidates: [],
+    pendingInvitations: [],
+  },
   pool: {
     id: 'pool-1',
     title: 'Alex Birthday Pool',

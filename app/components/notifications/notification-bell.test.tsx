@@ -3,8 +3,9 @@
  */
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import React from 'react';
+import type * as ReactModule from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NotificationBell } from './notification-bell.tsx';
 import { NotificationsProvider } from './notifications-context.tsx';
 
 const {
@@ -67,6 +68,8 @@ vi.mock('#app/utils/i18n.tsx', () => ({
         'notifications.loading': 'Loading notifications',
         'notifications.markAllRead': 'Mark all as read',
         'notifications.markAllReadSuccess': 'All notifications marked as read.',
+        'notifications.poolInvitation.acceptSuccess': 'Pool joined',
+        'notifications.poolInvitation.declineSuccess': 'Invitation declined',
         'notifications.title': 'Notifications',
         'notifications.viewMore': 'View more',
         'toasts.genericError': 'Something went wrong',
@@ -75,7 +78,7 @@ vi.mock('#app/utils/i18n.tsx', () => ({
 }));
 
 vi.mock('#app/components/ui/popover.tsx', async () => {
-  const React = await vi.importActual<typeof import('react')>('react');
+  const React = await vi.importActual<typeof ReactModule>('react');
 
   const PopoverContext = React.createContext<{
     onOpenChange?: (open: boolean) => void;
@@ -90,7 +93,7 @@ vi.mock('#app/components/ui/popover.tsx', async () => {
       onOpenChange,
       open = false,
     }: {
-      children: React.ReactNode;
+      children: ReactModule.ReactNode;
       onOpenChange?: (open: boolean) => void;
       open?: boolean;
     }) => (
@@ -98,7 +101,7 @@ vi.mock('#app/components/ui/popover.tsx', async () => {
         {children}
       </PopoverContext.Provider>
     ),
-    PopoverContent: ({ children }: { children: React.ReactNode }) => {
+    PopoverContent: ({ children }: { children: ReactModule.ReactNode }) => {
       const context = React.useContext(PopoverContext);
       return context.open ? <div role="dialog">{children}</div> : null;
     },
@@ -107,12 +110,12 @@ vi.mock('#app/components/ui/popover.tsx', async () => {
       children,
     }: {
       asChild?: boolean;
-      children: React.ReactElement;
+      children: ReactModule.ReactElement;
     }) => {
       const context = React.useContext(PopoverContext);
       if (asChild) {
         return React.cloneElement(children, {
-          onClick: (event: React.MouseEvent) => {
+          onClick: (event: ReactModule.MouseEvent) => {
             children.props.onClick?.(event);
             context.onOpenChange?.(!context.open);
           },
@@ -132,19 +135,19 @@ vi.mock('#app/components/ui/popover.tsx', async () => {
 });
 
 vi.mock('#app/components/ui/tooltip.tsx', () => ({
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  TooltipContent: ({ children }: { children: React.ReactNode }) => (
+  Tooltip: ({ children }: { children: ReactModule.ReactNode }) => (
     <>{children}</>
   ),
-  TooltipProvider: ({ children }: { children: React.ReactNode }) => (
+  TooltipContent: ({ children }: { children: ReactModule.ReactNode }) => (
     <>{children}</>
   ),
-  TooltipTrigger: ({ children }: { children: React.ReactNode }) => (
+  TooltipProvider: ({ children }: { children: ReactModule.ReactNode }) => (
+    <>{children}</>
+  ),
+  TooltipTrigger: ({ children }: { children: ReactModule.ReactNode }) => (
     <>{children}</>
   ),
 }));
-
-import { NotificationBell } from './notification-bell.tsx';
 
 function jsonResponse(payload: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(payload), {
@@ -339,5 +342,64 @@ describe('NotificationBell', () => {
       success: true,
     });
     expect(toastSuccess).toHaveBeenCalledWith('Friend accepted');
+  });
+
+  it('keeps a pool invitation visible until the server accepts it', async () => {
+    let resolveAction: ((response: Response) => void) | undefined;
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          hasMore: false,
+          nextCursor: null,
+          notifications: [
+            {
+              actions: [
+                { kind: 'POOL_INVITATION_ACCEPT', label: 'Accept' },
+                { kind: 'POOL_INVITATION_DECLINE', label: 'Decline' },
+              ],
+              createdAt: '2026-03-31T12:00:00.000Z',
+              friendRequestId: null,
+              poolInvitationId: 'invitation-1',
+              id: 'notification-1',
+              messageKey: 'pool.invitation.received',
+              messageParams: null,
+              metadata: null,
+              status: 'UNREAD',
+              targetUrl: '/pools/invitations/invitation-1',
+              type: 'POOL_INVITATION_RECEIVED',
+            },
+          ],
+          unreadCount: 1,
+        }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveAction = resolve;
+          }),
+      );
+
+    renderBell(1);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Notifications' }),
+    );
+    await screen.findByText('pool.invitation.received');
+    await userEvent.click(screen.getByRole('button', { name: 'Accept' }));
+
+    expect(screen.getByText('pool.invitation.received')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Decline' })).toBeDisabled();
+    resolveAction?.(jsonResponse({ unreadCount: 0, poolId: 'pool-1' }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('pool.invitation.received'),
+      ).not.toBeInTheDocument();
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/pool-invitations/invitation-1/accept',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(navigate).toHaveBeenCalledWith('/pools/pool-1');
+    expect(toastSuccess).toHaveBeenCalledWith('Pool joined');
   });
 });

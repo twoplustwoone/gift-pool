@@ -43,6 +43,7 @@ interface ApiNotification {
   metadata?: Record<string, unknown> | null;
   actions: NotificationActionPayload[];
   friendRequestId?: string | null;
+  poolInvitationId?: string | null;
 }
 
 interface NotificationsResponse {
@@ -80,6 +81,8 @@ const NOTIFICATIONS_ENDPOINT = '/api/notifications';
 const MARK_ALL_ENDPOINT = '/api/notifications/read-all';
 
 const FRIEND_ACCEPT_EVENT = 'FRIEND_ACCEPT';
+const POOL_INVITATION_ACCEPT_EVENT = 'POOL_INVITATION_ACCEPT';
+const POOL_INVITATION_DECLINE_EVENT = 'POOL_INVITATION_DECLINE';
 
 type PendingActionKey = `${string}:${string}`;
 type NotificationTranslator = ReturnType<typeof useTranslation>['t'];
@@ -105,15 +108,21 @@ function NotificationRowActions({
     <div className="flex items-center gap-2 px-4 pb-3">
       {notification.actions.map((action) => {
         const actionKey: PendingActionKey = `${notification.id}:${action.kind}`;
-        const isPending = pendingActionKeys.has(actionKey);
+        const isPending = [...pendingActionKeys].some((key) =>
+          key.startsWith(`${notification.id}:`),
+        );
 
         return (
           <Button
             key={actionKey}
             size="sm"
             variant={
-              action.kind === FRIEND_ACCEPT_EVENT ? 'default' : 'secondary'
+              action.kind === FRIEND_ACCEPT_EVENT ||
+              action.kind === POOL_INVITATION_ACCEPT_EVENT
+                ? 'default'
+                : 'secondary'
             }
+            className="min-h-11"
             onClick={() => onAction(notification, action)}
             disabled={isPending}
           >
@@ -604,6 +613,68 @@ export const NotificationBell = () => {
     [pendingActionKeys, setUnreadCount, t],
   );
 
+  const handlePoolInvitationAction = useCallback(
+    async (
+      notification: ApiNotification,
+      action: NotificationActionPayload,
+    ) => {
+      if (!notification.poolInvitationId) return;
+      const actionKey: PendingActionKey = `${notification.id}:${action.kind}`;
+      if (pendingActionKeys.has(actionKey)) return;
+      setPendingActionKeys((prev) => new Set(prev).add(actionKey));
+      const operation =
+        action.kind === POOL_INVITATION_ACCEPT_EVENT ? 'accept' : 'decline';
+      try {
+        const response = await fetch(
+          `/api/pool-invitations/${notification.poolInvitationId}/${operation}`,
+          {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          },
+        );
+        if (!response.ok) throw new Error('Pool invitation action failed');
+        const payload = (await response.json()) as {
+          unreadCount?: number;
+          poolId?: string;
+        };
+        setNotifications((prev) =>
+          prev.filter((item) => item.id !== notification.id),
+        );
+        if (typeof payload.unreadCount === 'number') {
+          setUnreadCount(payload.unreadCount);
+        }
+        track('notification_action_completed', {
+          kind: action.kind,
+          success: true,
+        });
+        toast.success(
+          operation === 'accept'
+            ? t('notifications.poolInvitation.acceptSuccess')
+            : t('notifications.poolInvitation.declineSuccess'),
+        );
+        if (operation === 'accept' && payload.poolId) {
+          setOpen(false);
+          await Promise.resolve(navigate(`/pools/${payload.poolId}`));
+        }
+      } catch (err) {
+        console.error(err);
+        track('notification_action_completed', {
+          kind: action.kind,
+          success: false,
+        });
+        toast.error(t('toasts.genericError'));
+      } finally {
+        setPendingActionKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(actionKey);
+          return next;
+        });
+      }
+    },
+    [navigate, pendingActionKeys, setUnreadCount, t],
+  );
+
   const displayCount = unreadCount > 9 ? '9+' : unreadCount.toString();
 
   const handleDeleteNotificationClick = useCallback(
@@ -619,11 +690,18 @@ export const NotificationBell = () => {
     },
     [handleNotificationClick],
   );
-  const handleFriendNotificationAction = useCallback(
+  const handleNotificationAction = useCallback(
     (notification: ApiNotification, action: NotificationActionPayload) => {
+      if (
+        action.kind === POOL_INVITATION_ACCEPT_EVENT ||
+        action.kind === POOL_INVITATION_DECLINE_EVENT
+      ) {
+        handlePoolInvitationAction(notification, action).catch(() => {});
+        return;
+      }
       handleFriendAction(notification, action).catch(() => {});
     },
-    [handleFriendAction],
+    [handleFriendAction, handlePoolInvitationAction],
   );
   const handleLoadMore = useCallback(() => {
     loadNotifications({
@@ -687,7 +765,7 @@ export const NotificationBell = () => {
           notifications={notifications}
           onDelete={handleDeleteNotificationClick}
           onOpen={handleNotificationOpen}
-          onAction={handleFriendNotificationAction}
+          onAction={handleNotificationAction}
           pendingActionKeys={pendingActionKeys}
           pendingDeleteIds={pendingDeleteIds}
           t={t}

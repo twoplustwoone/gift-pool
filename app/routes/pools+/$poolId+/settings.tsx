@@ -5,13 +5,14 @@ import {
 	type SubmissionResult,
 } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
-import { useCallback, useEffect, useState } from 'react';
-import { LuClipboard, LuLink } from 'react-icons/lu';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { LuClipboard, LuLink, LuSearch, LuUserPlus } from 'react-icons/lu';
 import {
 	useFetcher,
 	useLoaderData,
 	type LoaderFunctionArgs,
 } from 'react-router';
+import { toast } from 'sonner';
 import { z } from 'zod';
 import {
 	EditableSection,
@@ -19,11 +20,22 @@ import {
 	useExitOnSubmitSuccess,
 } from '#app/components/editable-section.tsx';
 import { ErrorList, Field } from '#app/components/forms.tsx';
+import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
+import { Checkbox } from '#app/components/ui/checkbox.tsx';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
+import {
+	ResponsiveDialog,
+	ResponsiveDialogContent,
+	ResponsiveDialogDescription,
+	ResponsiveDialogFooter,
+	ResponsiveDialogHeader,
+	ResponsiveDialogTitle,
+	ResponsiveDialogTrigger,
+} from '#app/components/ui/responsive-dialog.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Flex, Stack, Text } from '#app/components/ui-kit';
 import { requireUserId } from '#app/utils/auth.server.ts';
@@ -36,6 +48,7 @@ import {
 	type DecisionMode,
 	type OccasionType,
 } from '#app/utils/pool-constants.ts';
+import { getPoolInvitationManagerState } from '#app/utils/pool-invitations.server.ts';
 import {
 	canManagePool,
 	isPoolOrganizer,
@@ -95,11 +108,13 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		: null;
 
 	const isOrganizer = isPoolOrganizer(userId, poolForPerms);
+	const invitationState = await getPoolInvitationManagerState(pool.id, userId);
 
 	return {
 		pool,
 		inviteUrl,
 		isOrganizer,
+		invitationState,
 		// Hard delete is only offered for an empty "mistake" pool (no ideas, no
 		// contributors beyond the organizer). Anything with memory shows Cancel.
 		canHardDelete: isOrganizer && (await isPoolEmptyForDeletion(pool.id)),
@@ -125,7 +140,8 @@ function toDateInputValue(value: Date | string | null | undefined) {
 }
 
 const PoolSettings = () => {
-	const { pool, inviteUrl, canHardDelete } = useLoaderData<typeof loader>();
+	const { pool, inviteUrl, invitationState, canHardDelete } =
+		useLoaderData<typeof loader>();
 	const isClosed =
 		pool.status === POOL_STATUS.DELIVERED ||
 		pool.status === POOL_STATUS.CANCELLED;
@@ -143,7 +159,11 @@ const PoolSettings = () => {
 			</div>
 
 			<PoolDetailsCard pool={pool} isClosed={isClosed} />
-			<InviteSection poolId={pool.id} inviteUrl={inviteUrl} />
+			<InviteSection
+				poolId={pool.id}
+				inviteUrl={inviteUrl}
+				invitationState={invitationState}
+			/>
 			{!isClosed && (
 				<DangerZone
 					poolId={pool.id}
@@ -320,11 +340,22 @@ function PoolDetailsCard({
 const InviteSection = ({
 	poolId,
 	inviteUrl,
+	invitationState,
 }: {
 	poolId: string;
 	inviteUrl: string | null;
+	invitationState: Awaited<ReturnType<typeof getPoolInvitationManagerState>>;
 }) => {
 	const fetcher = useFetcher<{ inviteUrl?: string }>();
+	const [dialogOpen, setDialogOpen] = useState(false);
+	const [query, setQuery] = useState('');
+	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+	const [sending, setSending] = useState(false);
+	const [cancellingId, setCancellingId] = useState<string | null>(null);
+	const [candidates, setCandidates] = useState(invitationState.candidates);
+	const [pendingInvitations, setPendingInvitations] = useState(
+		invitationState.pendingInvitations,
+	);
 	const freshUrl =
 		fetcher.data && 'inviteUrl' in (fetcher.data as object)
 			? (fetcher.data as { inviteUrl: string }).inviteUrl
@@ -341,44 +372,295 @@ const InviteSection = ({
 		}
 	}, [fetcher.state, fetcher.data]);
 
+	const filteredCandidates = useMemo(() => {
+		const normalized = query.trim().toLowerCase();
+		if (!normalized) return candidates;
+		return candidates.filter(
+			(candidate) =>
+				(candidate.name ?? '').toLowerCase().includes(normalized) ||
+				candidate.username.toLowerCase().includes(normalized),
+		);
+	}, [candidates, query]);
+
+	const sendInvitations = async () => {
+		if (selectedIds.size === 0 || sending) return;
+		setSending(true);
+		try {
+			const response = await fetch(`/api/pools/${poolId}/invitations`, {
+				method: 'POST',
+				credentials: 'same-origin',
+				headers: {
+					Accept: 'application/json',
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ inviteeIds: [...selectedIds] }),
+			});
+			const payload = (await response.json()) as {
+				error?: string;
+				invitations?: Array<{ id: string; inviteeId: string }>;
+			};
+			if (!response.ok) {
+				throw new Error(payload.error ?? 'Unable to invite people.');
+			}
+			const sentCount = selectedIds.size;
+			const candidateById = new Map(
+				candidates.map((candidate) => [candidate.id, candidate]),
+			);
+			const sentRows = (payload.invitations ?? []).flatMap((invitation) => {
+				const invitee = candidateById.get(invitation.inviteeId);
+				return invitee
+					? [{ ...invitation, createdAt: new Date(), invitee }]
+					: [];
+			});
+			setCandidates((previous) =>
+				previous.filter((candidate) => !selectedIds.has(candidate.id)),
+			);
+			setPendingInvitations((previous) => [...sentRows, ...previous]);
+			toast.success(
+				sentCount === 1 ? 'Invitation sent.' : `${sentCount} invitations sent.`,
+			);
+			setDialogOpen(false);
+			setSelectedIds(new Set());
+			setQuery('');
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : 'Unable to invite people.',
+			);
+		} finally {
+			setSending(false);
+		}
+	};
+
+	const cancelInvitation = async (invitationId: string) => {
+		if (cancellingId) return;
+		const cancelledInvitation = pendingInvitations.find(
+			(invitation) => invitation.id === invitationId,
+		);
+		setCancellingId(invitationId);
+		try {
+			const response = await fetch(
+				`/api/pool-invitations/${invitationId}/cancel`,
+				{
+					method: 'POST',
+					credentials: 'same-origin',
+					headers: { Accept: 'application/json' },
+				},
+			);
+			if (!response.ok) throw new Error('Unable to cancel the invitation.');
+			setPendingInvitations((previous) =>
+				previous.filter((invitation) => invitation.id !== invitationId),
+			);
+			if (cancelledInvitation) {
+				setCandidates((previous) => [
+					...previous,
+					{ ...cancelledInvitation.invitee, contributionCents: null },
+				]);
+			}
+			toast.success('Invitation cancelled.');
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: 'Unable to cancel the invitation.',
+			);
+		} finally {
+			setCancellingId(null);
+		}
+	};
+
 	return (
 		<Card className="p-4">
-			<Stack gap={3}>
+			<Stack gap={4}>
 				<Text size="lg" weight="semibold">
 					Invite contributors
 				</Text>
-				<p className="text-xs text-muted-foreground">
-					Anyone with this link can join as a contributor.
+				<p className="text-sm text-muted-foreground">
+					Send a private invitation to eligible people, or share a link.
 				</p>
-				{freshUrl ? (
-					<Flex gap={2}>
-						<Input value={freshUrl} readOnly className="flex-1 text-xs" />
+
+				<ResponsiveDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+					<ResponsiveDialogTrigger asChild>
 						<Button
 							type="button"
-							size="sm"
-							variant="outline"
-							onClick={() => navigator.clipboard.writeText(freshUrl)}
-							className="shrink-0 gap-1.5"
+							className="w-full gap-2 sm:w-fit"
+							disabled={!invitationState.isActive || candidates.length === 0}
 						>
-							<LuClipboard size={13} /> Copy
+							<LuUserPlus className="size-4" aria-hidden />
+							Invite people
 						</Button>
-					</Flex>
-				) : (
-					<fetcher.Form method="post">
-						<input type="hidden" name="intent" value="generate-invite" />
-						<input type="hidden" name="poolId" value={poolId} />
-						<Button
-							type="submit"
-							size="sm"
-							variant="outline"
-							className="gap-1.5"
-							disabled={fetcher.state !== 'idle'}
-						>
-							<LuLink size={13} />
-							Generate invite link
-						</Button>
-					</fetcher.Form>
-				)}
+					</ResponsiveDialogTrigger>
+					<ResponsiveDialogContent className="sm:max-w-lg">
+						<ResponsiveDialogHeader>
+							<ResponsiveDialogTitle>Invite people</ResponsiveDialogTitle>
+							<ResponsiveDialogDescription>
+								Choose eligible people to invite to {invitationState.poolTitle}.
+								They decide whether to join.
+							</ResponsiveDialogDescription>
+						</ResponsiveDialogHeader>
+
+						<div className="relative">
+							<LuSearch
+								className="absolute left-3 top-3 size-4 text-muted-foreground"
+								aria-hidden
+							/>
+							<Input
+								value={query}
+								onChange={(event) => setQuery(event.target.value)}
+								placeholder="Search by name or username"
+								className="pl-9"
+							/>
+						</div>
+
+						<div className="max-h-72 overflow-y-auto rounded-md border">
+							{filteredCandidates.length > 0 ? (
+								filteredCandidates.map((candidate) => {
+									const checked = selectedIds.has(candidate.id);
+									const displayName = candidate.name ?? candidate.username;
+									return (
+										<label
+											key={candidate.id}
+											className="flex min-h-14 cursor-pointer items-center gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50"
+										>
+											<Checkbox
+												checked={checked}
+												onCheckedChange={(next) => {
+													setSelectedIds((previous) => {
+														const updated = new Set(previous);
+														if (next) updated.add(candidate.id);
+														else updated.delete(candidate.id);
+														return updated;
+													});
+												}}
+												aria-label={`Invite ${displayName}`}
+											/>
+											<Avatar
+												user={candidate}
+												image={candidate.image}
+												size="s"
+											/>
+											<span className="min-w-0">
+												<span className="block truncate text-sm font-medium">
+													{displayName}
+												</span>
+												<span className="block truncate text-xs text-muted-foreground">
+													@{candidate.username}
+												</span>
+											</span>
+										</label>
+									);
+								})
+							) : (
+								<p className="p-6 text-center text-sm text-muted-foreground">
+									No eligible people match your search.
+								</p>
+							)}
+						</div>
+
+						<ResponsiveDialogFooter>
+							<Button
+								type="button"
+								onClick={() => void sendInvitations()}
+								disabled={selectedIds.size === 0 || sending}
+								className="min-h-11"
+							>
+								{sending
+									? 'Sending…'
+									: `Send ${selectedIds.size || ''} invitation${
+											selectedIds.size === 1 ? '' : 's'
+										}`}
+							</Button>
+						</ResponsiveDialogFooter>
+					</ResponsiveDialogContent>
+				</ResponsiveDialog>
+
+				{candidates.length === 0 && invitationState.isActive ? (
+					<p className="text-xs text-muted-foreground">
+						Everyone eligible is already a contributor or has been invited.
+					</p>
+				) : null}
+
+				{pendingInvitations.length > 0 ? (
+					<div className="space-y-2 border-t pt-4">
+						<p className="text-sm font-medium">Pending invitations</p>
+						{pendingInvitations.map((invitation) => {
+							const displayName =
+								invitation.invitee.name ?? invitation.invitee.username;
+							return (
+								<div
+									key={invitation.id}
+									className="flex items-center justify-between gap-3 rounded-lg border p-3"
+								>
+									<div className="flex min-w-0 items-center gap-3">
+										<Avatar
+											user={invitation.invitee}
+											image={invitation.invitee.image}
+											size="s"
+										/>
+										<div className="min-w-0">
+											<p className="truncate text-sm font-medium">
+												{displayName}
+											</p>
+											<p className="text-xs text-muted-foreground">
+												Awaiting response
+											</p>
+										</div>
+									</div>
+									<ConfirmDialog
+										title="Cancel this invitation?"
+										description={`${displayName} will no longer be able to accept it.`}
+										confirmText="Cancel invitation"
+										onConfirm={() => void cancelInvitation(invitation.id)}
+									>
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											disabled={cancellingId === invitation.id}
+										>
+											Cancel
+										</Button>
+									</ConfirmDialog>
+								</div>
+							);
+						})}
+					</div>
+				) : null}
+
+				<div className="space-y-2 border-t pt-4">
+					<p className="text-sm font-medium">Share a link instead</p>
+					<p className="text-xs text-muted-foreground">
+						Anyone with the link can join as a contributor.
+					</p>
+					{freshUrl ? (
+						<Flex gap={2}>
+							<Input value={freshUrl} readOnly className="flex-1 text-xs" />
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								onClick={() => navigator.clipboard.writeText(freshUrl)}
+								className="shrink-0 gap-1.5"
+							>
+								<LuClipboard size={13} /> Copy
+							</Button>
+						</Flex>
+					) : (
+						<fetcher.Form method="post">
+							<input type="hidden" name="intent" value="generate-invite" />
+							<input type="hidden" name="poolId" value={poolId} />
+							<Button
+								type="submit"
+								size="sm"
+								variant="outline"
+								className="gap-1.5"
+								disabled={fetcher.state !== 'idle'}
+							>
+								<LuLink size={13} />
+								Generate invite link
+							</Button>
+						</fetcher.Form>
+					)}
+				</div>
 			</Stack>
 		</Card>
 	);
