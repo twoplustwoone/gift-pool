@@ -62,6 +62,7 @@ type PreferenceAudit = {
 type Delivery = {
   userId: string;
   poolId: string;
+  groupId: string | null;
   channels: string[];
   createdAt: Date;
 };
@@ -114,6 +115,7 @@ export async function getOrganizerReminderMetrics({
       select: {
         id: true,
         poolId: true,
+        pool: { select: { giftGroupId: true } },
         kind: true,
         targetCount: true,
       },
@@ -156,7 +158,7 @@ export async function getOrganizerReminderMetrics({
     }),
   ]);
 
-  const nudgeIds = new Set(nudges.map((nudge) => nudge.id));
+  const nudgesById = new Map(nudges.map((nudge) => [nudge.id, nudge]));
   const kindByNotificationType = new Map(
     KIND_DEFINITIONS.map((definition) => [
       definition.notificationType,
@@ -192,11 +194,14 @@ export async function getOrganizerReminderMetrics({
     if (!properties) continue;
 
     if (event.name === 'organizer_reminder_sent') {
+      const nudge =
+        typeof properties.organizerNudgeId === 'string'
+          ? nudgesById.get(properties.organizerNudgeId)
+          : undefined;
       if (
         !event.userId ||
-        typeof properties.organizerNudgeId !== 'string' ||
-        !nudgeIds.has(properties.organizerNudgeId) ||
-        typeof properties.poolId !== 'string' ||
+        !nudge ||
+        properties.poolId !== nudge.poolId ||
         !Array.isArray(properties.channels)
       ) {
         continue;
@@ -209,7 +214,8 @@ export async function getOrganizerReminderMetrics({
       counts.delivered += 1;
       deliveries.push({
         userId: event.userId,
-        poolId: properties.poolId,
+        poolId: nudge.poolId,
+        groupId: nudge.pool.giftGroupId,
         channels: properties.channels.filter(
           (channel): channel is string => typeof channel === 'string',
         ),
@@ -293,9 +299,13 @@ function auditReducesReminderDelivery(
   delivery: Delivery,
 ) {
   if (audit.kind === 'CONTEXT_ACTIVITY') {
+    const matchesDeliveryContext =
+      (audit.contextKind === 'POOL' && audit.contextId === delivery.poolId) ||
+      (delivery.groupId !== null &&
+        audit.contextKind === 'GROUP' &&
+        audit.contextId === delivery.groupId);
     return (
-      audit.contextKind === 'POOL' &&
-      audit.contextId === delivery.poolId &&
+      matchesDeliveryContext &&
       contextValueDisablesOrganizerReminders(audit.newValue)
     );
   }

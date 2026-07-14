@@ -225,6 +225,59 @@ describe('organizer reminder admin metrics', () => {
       settingsReducedWithin7Days: 0,
     });
   });
+
+  it('counts a parent-group preference reduction inherited by a pool', async () => {
+    const now = new Date('2030-07-14T12:00:00.000Z');
+    const [organizer, recipient] = await Promise.all([
+      prisma.user.create({ data: createUser() }),
+      prisma.user.create({ data: createUser() }),
+    ]);
+    const group = await prisma.giftGroup.create({
+      data: { name: 'Reminder group' },
+    });
+    const pool = await prisma.pool.create({
+      data: {
+        title: 'Group reminder pool',
+        organizerId: organizer.id,
+        giftGroupId: group.id,
+      },
+    });
+    const deliveredAt = daysBefore(now, 2);
+    const nudge = await createNudge({
+      poolId: pool.id,
+      senderId: organizer.id,
+      kind: 'CONTRIBUTION',
+      targetCount: 1,
+      createdAt: deliveredAt,
+    });
+    await createEvent({
+      name: 'organizer_reminder_sent',
+      userId: recipient.id,
+      createdAt: deliveredAt,
+      properties: deliveryProperties(
+        nudge.id,
+        pool.id,
+        'POOL_CONTRIBUTION_REMINDER',
+        ['IN_APP'],
+      ),
+    });
+    await prisma.notificationPreferenceAudit.create({
+      data: {
+        userId: recipient.id,
+        kind: 'CONTEXT_ACTIVITY',
+        contextKind: 'GROUP',
+        contextId: group.id,
+        previousValue: null,
+        newValue: JSON.stringify({ activityLevel: 'MUTED' }),
+        source: 'test',
+        createdAt: daysAfter(deliveredAt, 1),
+      },
+    });
+
+    await expect(
+      getOrganizerReminderMetrics({ days: 30, now }),
+    ).resolves.toMatchObject({ settingsReducedWithin7Days: 1 });
+  });
 });
 
 function createNudge({
