@@ -352,7 +352,7 @@ describe('app/routes/pools+/new.tsx', () => {
     ).toBeInTheDocument();
   });
 
-  it('creates a group-backed pool with re-derived member defaults', async () => {
+  it('creates a group-backed pool with re-derived member defaults, including the organizer', async () => {
     // Organizer is a member of the group
     usersInGiftGroupsFindUnique
       .mockResolvedValueOnce({ userId: 'viewer-1' })
@@ -369,7 +369,7 @@ describe('app/routes/pools+/new.tsx', () => {
         context: {} as never,
         params: {},
         request: createFormRequest({
-          contributorIds: 'viewer-1,member-2',
+          contributorIds: 'member-2',
           decisionMode: 'VOTE',
           eventDate: '2026-06-14',
           giftGroupId: 'group-1',
@@ -393,6 +393,14 @@ describe('app/routes/pools+/new.tsx', () => {
       recipientName: null,
       recipientUserId: 'recipient-1',
       title: 'Recipient Birthday Pool',
+    });
+    expect(usersInGiftGroupsFindMany).toHaveBeenCalledWith({
+      where: {
+        giftGroupId: 'group-1',
+        userId: { in: ['member-2', 'viewer-1'] },
+        removedAt: null,
+      },
+      select: { userId: true, contributionCents: true },
     });
     expect(result).toBeInstanceOf(Response);
     expect((result as Response).status).toBe(302);

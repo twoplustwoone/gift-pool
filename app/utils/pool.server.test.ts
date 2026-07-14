@@ -146,7 +146,7 @@ describe('pool server utilities', () => {
     await createPool({
       decisionMode: 'ORGANIZER_PICKS',
       groupMemberDefaults: [
-        { contributionCents: 0, userId: 'organizer-1' },
+        { contributionCents: 3500, userId: 'organizer-1' },
         { contributionCents: 2500, userId: 'friend-1' },
         { contributionCents: 0, userId: 'friend-2' },
       ],
@@ -159,7 +159,7 @@ describe('pool server utilities', () => {
       data: {
         contributors: {
           create: [
-            { contributionCents: null, userId: 'organizer-1' },
+            { contributionCents: 3500, userId: 'organizer-1' },
             { contributionCents: 2500, userId: 'friend-1' },
             { contributionCents: null, userId: 'friend-2' },
           ],
@@ -179,6 +179,24 @@ describe('pool server utilities', () => {
       actorId: 'organizer-1',
       payload: { title: 'Birthday Pool' },
     });
+  });
+
+  it('createPool leaves the organizer contribution unset when the group default is zero', async () => {
+    await createPool({
+      groupMemberDefaults: [{ contributionCents: 0, userId: 'organizer-1' }],
+      organizerId: 'organizer-1',
+      title: 'Birthday Pool',
+    });
+
+    expect(poolCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          contributors: {
+            create: [{ contributionCents: null, userId: 'organizer-1' }],
+          },
+        }),
+      }),
+    );
   });
 
   it('createPool rejects a pool whose recipient is the organizer', async () => {
