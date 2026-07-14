@@ -15,6 +15,17 @@ const layoutLoaderData = {
     ],
   },
   viewer: { userId: 'viewer-1', role: 'OWNER' as const },
+  notificationAwareness: {
+    notificationOff: false,
+    noticeVisible: false,
+    reason: null,
+    preference: {
+      activityLevel: 'IMPORTANT_ONLY',
+      source: 'application_default',
+      customTopics: [],
+    },
+  },
+  notificationTopics: [],
 };
 
 const location = { pathname: '/groups/group-1' };
@@ -66,6 +77,14 @@ vi.mock('#app/components/groups/RoleBadge.tsx', () => ({
   RoleBadge: ({ role }: { role: string }) => <span>{role}</span>,
 }));
 
+vi.mock(
+  '#app/components/notifications/context-notification-controls.tsx',
+  () => ({
+    ContextNotificationControl: () => <button>Important</button>,
+    ContextNotificationAwarenessNotice: () => null,
+  }),
+);
+
 import GroupLayout from './_layout.tsx';
 
 beforeEach(() => {
@@ -81,6 +100,9 @@ describe('group layout shell', () => {
     // Group header (not the settings header) with the group name.
     expect(screen.getByText('Family')).toBeInTheDocument();
     expect(screen.getByText('2 members')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Important' }),
+    ).toBeInTheDocument();
     // Two-tab bar, Activity removed.
     expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Members' })).toBeInTheDocument();

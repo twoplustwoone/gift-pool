@@ -30,6 +30,25 @@ export const NOTIFICATION_CATEGORY_VALUES = Object.values(
   NOTIFICATION_CATEGORIES,
 );
 
+type NotificationCategoryDefinition = {
+  label: string;
+  description: string;
+};
+
+export const NOTIFICATION_CATEGORY_CATALOG = {
+  [NOTIFICATION_CATEGORIES.SOCIAL]: {
+    label: 'Friend activity',
+    description: 'Requests and updates from people you connect with.',
+  },
+  [NOTIFICATION_CATEGORIES.OCCASIONS]: {
+    label: 'Reminders',
+    description: 'Timely reminders about occasions you can see.',
+  },
+} as const satisfies Record<
+  NotificationCategory,
+  NotificationCategoryDefinition
+>;
+
 export const NOTIFICATION_TOPICS = {
   FRIEND_REQUESTS: 'FRIEND_REQUESTS',
   BIRTHDAY_REMINDERS: 'BIRTHDAY_REMINDERS',
@@ -64,6 +83,8 @@ type NotificationEventDefinition = {
 
 type NotificationTopicDefinition = {
   category: NotificationCategory;
+  label: string;
+  description: string;
   defaults: NotificationPreferenceDefaults;
 };
 
@@ -73,6 +94,8 @@ const allChannels = NOTIFICATION_CHANNEL_VALUES;
 export const NOTIFICATION_TOPIC_CATALOG = {
   [NOTIFICATION_TOPICS.FRIEND_REQUESTS]: {
     category: NOTIFICATION_CATEGORIES.SOCIAL,
+    label: 'Friend requests',
+    description: 'When you receive a request or someone accepts yours.',
     defaults: {
       inAppEnabled: true,
       emailEnabled: true,
@@ -81,6 +104,8 @@ export const NOTIFICATION_TOPIC_CATALOG = {
   },
   [NOTIFICATION_TOPICS.BIRTHDAY_REMINDERS]: {
     category: NOTIFICATION_CATEGORIES.OCCASIONS,
+    label: 'Upcoming birthdays',
+    description: 'A heads-up before a visible friend or group birthday.',
     defaults: {
       inAppEnabled: true,
       emailEnabled: false,
@@ -90,9 +115,8 @@ export const NOTIFICATION_TOPIC_CATALOG = {
 } as const satisfies Record<NotificationTopic, NotificationTopicDefinition>;
 
 /**
- * Typed source of truth for event policy. User-facing topic/category copy will
- * be added with the scoped-preference UI; the stable identifiers live here now
- * so new events no longer have to become new preference concepts.
+ * Typed source of truth for event policy and user-facing preference copy. The
+ * stable identifiers let new events reuse existing preference concepts.
  */
 export const NOTIFICATION_EVENT_CATALOG = {
   [NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED]: {
@@ -138,11 +162,29 @@ export function getNotificationTopicDefinition(topic: NotificationTopic) {
   return NOTIFICATION_TOPIC_CATALOG[topic];
 }
 
+export function getNotificationCategoryDefinition(
+  category: NotificationCategory,
+) {
+  return NOTIFICATION_CATEGORY_CATALOG[category];
+}
+
 export function getNotificationCategoryTopics(
   category: NotificationCategory,
 ): Array<NotificationTopic> {
   return NOTIFICATION_TOPIC_VALUES.filter(
     (topic) => NOTIFICATION_TOPIC_CATALOG[topic].category === category,
+  );
+}
+
+export function getNotificationTopicsForContext(
+  contextKind: Exclude<NotificationContextKind, 'NONE'>,
+): Array<NotificationTopic> {
+  const eligibleContexts =
+    contextKind === 'GROUP' ? new Set(['GROUP', 'POOL']) : new Set(['POOL']);
+  return NOTIFICATION_TOPIC_VALUES.filter((topic) =>
+    Object.values(NOTIFICATION_EVENT_CATALOG).some(
+      (event) => event.topic === topic && eligibleContexts.has(event.context),
+    ),
   );
 }
 
@@ -179,6 +221,15 @@ export function isNotificationCategory(
     Object.values(NOTIFICATION_CATEGORIES).includes(
       value as NotificationCategory,
     )
+  );
+}
+
+export function isNotificationChannel(
+  value: unknown,
+): value is NotificationChannel {
+  return (
+    typeof value === 'string' &&
+    NOTIFICATION_CHANNEL_VALUES.includes(value as NotificationChannel)
   );
 }
 

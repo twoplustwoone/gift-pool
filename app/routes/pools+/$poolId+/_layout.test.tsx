@@ -7,6 +7,18 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const loaderDataSnapshot = {
+  canManage: true,
+  notificationAwareness: {
+    notificationOff: false,
+    noticeVisible: false,
+    reason: null,
+    preference: {
+      activityLevel: 'IMPORTANT_ONLY',
+      source: 'application_default',
+      customTopics: [],
+    },
+  },
+  notificationTopics: [],
   pool: {
     id: 'pool-1',
     occasionType: 'BIRTHDAY',
@@ -19,6 +31,11 @@ const loaderDataSnapshot = {
     title: 'Alex Birthday Pool',
   },
 };
+
+vi.mock('#app/components/notifications/context-notification-controls.tsx', () => ({
+  ContextNotificationControl: () => <button>Important</button>,
+  ContextNotificationAwarenessNotice: () => null,
+}));
 
 vi.mock('react-router', async () => {
   const actual = await vi.importActual<typeof import('react-router')>(
@@ -61,6 +78,9 @@ describe('app/routes/pools+/$poolId+/_layout.tsx', () => {
       screen.getByText((_, element) => element?.textContent === 'Birthday for Alex'),
     ).toBeInTheDocument();
     expect(screen.getByText('Voting')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Important' }),
+    ).toBeInTheDocument();
     expect(screen.getByText('Pool overview content')).toBeInTheDocument();
   });
 

@@ -7,6 +7,10 @@ import {
 } from 'react-router';
 import { type RelationshipState } from '#app/utils/friends.ts';
 import {
+  getNotificationTopicDefinition,
+  getNotificationTopicsForContext,
+} from '#app/utils/notification-catalog.ts';
+import {
   CreateInviteLinkFormSchema,
   DeleteFormSchema,
   DestroyInviteLinkFormSchema,
@@ -22,6 +26,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const { getInviteLink } =
     await import('#app/utils/group-invitations.server.ts');
   const userId = await requireUserIdInGroup(request, groupId);
+  const { getContextNotificationAwareness } =
+    await import('#app/utils/notification-preferences.server.ts');
   const giftGroup = await prisma.giftGroup.findUnique({
     where: {
       id: groupId,
@@ -245,6 +251,14 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       ? getInviteLink(existingInvitation.code, request)
       : null,
     groupInvitationId: existingInvitation?.id,
+    notificationAwareness: await getContextNotificationAwareness({
+      userId,
+      context: { kind: 'GROUP', groupId },
+      requireAccess: false,
+    }),
+    notificationTopics: getNotificationTopicsForContext('GROUP').map(
+      (topic) => ({ topic, ...getNotificationTopicDefinition(topic) }),
+    ),
   };
 }
 export async function action({ request }: ActionFunctionArgs) {

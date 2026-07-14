@@ -35,7 +35,7 @@ test('users can optimistically toggle notification channels while request is pen
       return;
     }
     const body = request.postData() ?? '';
-    if (!body.includes('intent=toggle')) {
+    if (!body.includes('intent=topic-channel')) {
       await route.continue();
       return;
     }
@@ -43,11 +43,8 @@ test('users can optimistically toggle notification channels while request is pen
     await route.continue();
   });
 
-  const receivedRow = page.getByRole('row', {
-    name: /friend request received/i,
-  });
-  const receivedEmailToggle = receivedRow.getByRole('checkbox', {
-    name: /enable email/i,
+  const receivedEmailToggle = page.getByRole('switch', {
+    name: 'Friend requests: Email',
   });
 
   await expect(receivedEmailToggle).toBeChecked();
@@ -78,11 +75,8 @@ test('users can optimistically toggle notification channels while request is pen
 
   await expect(receivedEmailToggle).not.toBeDisabled();
   await page.reload();
-  const finalRow = page.getByRole('row', {
-    name: /friend request received/i,
-  });
-  const finalToggle = finalRow.getByRole('checkbox', {
-    name: /enable email/i,
+  const finalToggle = page.getByRole('switch', {
+    name: 'Friend requests: Email',
   });
   await expect(finalToggle).not.toBeChecked({ timeout: 10000 });
 
@@ -104,7 +98,7 @@ test('failed toggle requests rollback optimistic notification channel updates', 
       return;
     }
     const params = new URLSearchParams(request.postData() ?? '');
-    if (params.get('intent') !== 'toggle') {
+    if (params.get('intent') !== 'topic-channel') {
       await route.continue();
       return;
     }
@@ -117,11 +111,8 @@ test('failed toggle requests rollback optimistic notification channel updates', 
     await route.fulfill({ status: 200, contentType, body });
   });
 
-  const receivedRow = page.getByRole('row', {
-    name: /friend request received/i,
-  });
-  const receivedEmailToggle = receivedRow.getByRole('checkbox', {
-    name: /enable email/i,
+  const receivedEmailToggle = page.getByRole('switch', {
+    name: 'Friend requests: Email',
   });
 
   const initiallyChecked =
@@ -164,7 +155,7 @@ test('failed toggle requests rollback optimistic notification channel updates', 
   await page.unroute('**/settings/profile/notifications*');
 });
 
-test('users can disable all email notifications at once', async ({
+test('users can disable the global email delivery channel', async ({
   page,
   login,
 }) => {
@@ -172,19 +163,12 @@ test('users can disable all email notifications at once', async ({
   await page.goto('/settings/profile/notifications');
   await dismissInstallPrompt(page);
 
-  const friendActivityEmailToggles = page
-    .getByRole('row', { name: /friend request (received|accepted)/i })
-    .getByRole('checkbox', { name: /enable email/i });
-
-  await expect(friendActivityEmailToggles.first()).toBeChecked();
-  await expect(friendActivityEmailToggles.nth(1)).toBeChecked();
-
-  await page
-    .getByRole('button', { name: /turn off all email notifications/i })
-    .click();
-
-  await expect(friendActivityEmailToggles.first()).not.toBeChecked();
-  await expect(friendActivityEmailToggles.nth(1)).not.toBeChecked();
+  const emailChannel = page.getByRole('switch', {
+    name: 'Email notifications',
+  });
+  await expect(emailChannel).toBeChecked();
+  await emailChannel.click();
+  await expect(emailChannel).not.toBeChecked();
 
   const updatedPreference = await waitFor(
     async () => {

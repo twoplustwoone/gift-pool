@@ -42,6 +42,7 @@ const wishlistItemFindFirst = vi.fn();
 const canViewWishlistOf = vi.fn();
 const queueLogEvent = vi.fn();
 const redirectWithToast = vi.fn();
+const getContextNotificationAwareness = vi.fn();
 
 vi.mock('#app/utils/auth.server.ts', () => ({
   requireUserId: (...args: Array<unknown>) => requireUserId(...args),
@@ -113,6 +114,11 @@ vi.mock('#app/utils/pool.server.ts', () => ({
 
 vi.mock('#app/utils/toast.server.ts', () => ({
   redirectWithToast: (...args: Array<unknown>) => redirectWithToast(...args),
+}));
+
+vi.mock('#app/utils/notification-preferences.server.ts', () => ({
+  getContextNotificationAwareness: (...args: Array<unknown>) =>
+    getContextNotificationAwareness(...args),
 }));
 
 import { action, loader } from './__route.server.ts';
@@ -199,6 +205,12 @@ beforeEach(() => {
       status: 302,
     }),
   );
+  getContextNotificationAwareness.mockReset().mockResolvedValue({
+    notificationOff: false,
+    noticeVisible: false,
+    reason: null,
+    preference: { activityLevel: 'IMPORTANT_ONLY' },
+  });
 });
 
 describe('pool detail route loader', () => {

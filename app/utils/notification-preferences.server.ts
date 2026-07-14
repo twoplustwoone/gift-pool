@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { type Prisma } from '@prisma/client';
 import { data } from 'react-router';
 import { prisma } from '#app/utils/db.server.ts';
 import {
@@ -19,16 +19,18 @@ import {
   type NotificationTopic,
   type NotificationType,
 } from '#app/utils/notification-catalog.ts';
+import {
+  isNotificationActivityLevel,
+  NOTIFICATION_ACTIVITY_LEVELS,
+  type ContextNotificationAwarenessReason,
+  type NotificationActivityLevel,
+} from '#app/utils/notification-context.ts';
 
-export const NOTIFICATION_ACTIVITY_LEVELS = {
-  ALL_ACTIVITY: 'ALL_ACTIVITY',
-  IMPORTANT_ONLY: 'IMPORTANT_ONLY',
-  MUTED: 'MUTED',
-  CUSTOM: 'CUSTOM',
-} as const;
-
-export type NotificationActivityLevel =
-  (typeof NOTIFICATION_ACTIVITY_LEVELS)[keyof typeof NOTIFICATION_ACTIVITY_LEVELS];
+export {
+  isNotificationActivityLevel,
+  NOTIFICATION_ACTIVITY_LEVELS,
+  type NotificationActivityLevel,
+} from '#app/utils/notification-context.ts';
 
 export type CentralPreferenceSource =
   | 'catalog_default'
@@ -48,6 +50,22 @@ export type ResolvedCentralNotificationPreferences = {
   channels: Record<NotificationChannel, CentralChannelPreference>;
 };
 
+export type ResolvedGlobalChannelPreference = {
+  enabled: boolean;
+  source: 'application_default' | 'user_override';
+};
+
+export type ResolvedNotificationTopicPreferences = {
+  topic: NotificationTopic;
+  category: NotificationCategory;
+  channels: Record<NotificationChannel, CentralChannelPreference>;
+};
+
+export type CentralNotificationSettings = {
+  channels: Record<NotificationChannel, ResolvedGlobalChannelPreference>;
+  topics: Array<ResolvedNotificationTopicPreferences>;
+};
+
 export type ResolvedContextNotificationPreference = {
   context: NotificationContext;
   activityLevel: NotificationActivityLevel;
@@ -55,8 +73,18 @@ export type ResolvedContextNotificationPreference = {
   customTopics: Array<NotificationTopic>;
   mutedAt: Date | null;
   noticeDismissedAt: Date | null;
+  noticeDismissedKey: string | null;
+  noticeKey: string | null;
   noticeVisible: boolean;
   controllingContext: NotificationContext | null;
+};
+
+export type ContextNotificationAwareness = {
+  preference: ResolvedContextNotificationPreference;
+  notificationOff: boolean;
+  reason: ContextNotificationAwarenessReason | null;
+  noticeKey: string | null;
+  noticeVisible: boolean;
 };
 
 const DEFAULT_GLOBAL_CHANNEL_PREFERENCES: Record<NotificationChannel, boolean> =
@@ -83,6 +111,30 @@ export async function resolveCentralNotificationPreferences({
     type,
     await loadCentralPreferenceState(userId),
   );
+}
+
+export async function getCentralNotificationSettings(
+  userId: string,
+): Promise<CentralNotificationSettings> {
+  const state = await loadCentralPreferenceState(userId);
+  return {
+    channels: Object.fromEntries(
+      NOTIFICATION_CHANNEL_VALUES.map((channel) => [
+        channel,
+        {
+          enabled:
+            state.gates.get(channel) ??
+            DEFAULT_GLOBAL_CHANNEL_PREFERENCES[channel],
+          source: state.gates.has(channel)
+            ? ('user_override' as const)
+            : ('application_default' as const),
+        },
+      ]),
+    ) as Record<NotificationChannel, ResolvedGlobalChannelPreference>,
+    topics: NOTIFICATION_TOPIC_VALUES.map((topic) =>
+      resolveTopicFromState(topic, state, false),
+    ),
+  };
 }
 
 export async function getNotificationPreferences(userId: string) {
@@ -360,6 +412,8 @@ export async function setContextActivityPreference({
       mutedAt,
       noticeDismissedAt:
         isMuted && wasMuted ? existing?.noticeDismissedAt : null,
+      noticeDismissedKey:
+        isMuted && wasMuted ? existing?.noticeDismissedKey : null,
     });
     await auditPreferenceChange(tx, {
       userId,
@@ -391,6 +445,7 @@ export async function clearContextActivityPreference({
       customTopics: null,
       mutedAt: null,
       noticeDismissedAt: null,
+      noticeDismissedKey: null,
     });
     await auditPreferenceChange(tx, {
       userId,
@@ -413,10 +468,26 @@ export async function dismissContextMutedNotice({
   context: NotificationContext;
   source: string;
 }) {
+  return dismissContextNotificationNotice({ userId, context, source });
+}
+
+export async function dismissContextNotificationNotice({
+  userId,
+  context,
+  source,
+}: {
+  userId: string;
+  context: NotificationContext;
+  source: string;
+}) {
   await prisma.$transaction(async (tx) => {
     await requireContextAccess(tx, userId, context);
-    const resolved = await resolveContextInTransaction(tx, userId, context);
-    if (!resolved.mutedAt || !resolved.noticeVisible) return;
+    const awareness = await resolveContextAwarenessInTransaction(
+      tx,
+      userId,
+      context,
+    );
+    if (!awareness.noticeKey || !awareness.noticeVisible) return;
     const dismissedAt = new Date();
     const existing = await findContextPreference(tx, userId, context);
     await upsertContextPreference(tx, userId, context, {
@@ -424,14 +495,15 @@ export async function dismissContextMutedNotice({
       customTopics: existing?.customTopics ?? null,
       mutedAt: existing?.mutedAt ?? null,
       noticeDismissedAt: dismissedAt,
+      noticeDismissedKey: awareness.noticeKey,
     });
     await auditPreferenceChange(tx, {
       userId,
       kind: 'MUTED_NOTICE',
       contextKind: context.kind,
       contextId: contextId(context),
-      previousValue: resolved.noticeDismissedAt?.toISOString() ?? null,
-      newValue: dismissedAt.toISOString(),
+      previousValue: existing?.noticeDismissedKey ?? null,
+      newValue: awareness.noticeKey,
       source,
     });
   });
@@ -449,6 +521,21 @@ export async function getContextNotificationPreference({
   return prisma.$transaction(async (tx) => {
     if (requireAccess) await requireContextAccess(tx, userId, context);
     return resolveContextInTransaction(tx, userId, context);
+  });
+}
+
+export async function getContextNotificationAwareness({
+  userId,
+  context,
+  requireAccess = true,
+}: {
+  userId: string;
+  context: NotificationContext;
+  requireAccess?: boolean;
+}): Promise<ContextNotificationAwareness> {
+  return prisma.$transaction(async (tx) => {
+    if (requireAccess) await requireContextAccess(tx, userId, context);
+    return resolveContextAwarenessInTransaction(tx, userId, context);
   });
 }
 
@@ -523,17 +610,28 @@ function resolveCentralFromState(
   state: CentralPreferenceState,
 ): ResolvedCentralNotificationPreferences {
   const event = getNotificationEventDefinition(type);
-  const topicDefinition = getNotificationTopicDefinition(event.topic);
+  return {
+    type,
+    ...resolveTopicFromState(event.topic, state),
+  };
+}
+
+function resolveTopicFromState(
+  topic: NotificationTopic,
+  state: CentralPreferenceState,
+  applyGlobalGate = true,
+): ResolvedNotificationTopicPreferences {
+  const topicDefinition = getNotificationTopicDefinition(topic);
   const entries = NOTIFICATION_CHANNEL_VALUES.map((channel) => {
     const gate =
       state.gates.get(channel) ?? DEFAULT_GLOBAL_CHANNEL_PREFERENCES[channel];
-    if (!gate) {
+    if (applyGlobalGate && !gate) {
       return [
         channel,
         { enabled: false, source: 'global_channel' as const },
       ] as const;
     }
-    const topicValue = state.topics.get(preferenceKey(event.topic, channel));
+    const topicValue = state.topics.get(preferenceKey(topic, channel));
     if (topicValue !== undefined) {
       return [
         channel,
@@ -558,8 +656,7 @@ function resolveCentralFromState(
     ] as const;
   });
   return {
-    type,
-    topic: event.topic,
+    topic,
     category: topicDefinition.category,
     channels: Object.fromEntries(entries) as Record<
       NotificationChannel,
@@ -649,6 +746,7 @@ async function resolveContextInTransaction(
       source: row?.activityLevel ? 'group_override' : 'application_default',
       controllingContext: row?.activityLevel ? context : null,
       noticeDismissedAt: row?.noticeDismissedAt ?? null,
+      noticeDismissedKey: row?.noticeDismissedKey ?? null,
     });
   }
 
@@ -671,6 +769,7 @@ async function resolveContextInTransaction(
       source: 'pool_override',
       controllingContext: context,
       noticeDismissedAt: poolRow.noticeDismissedAt,
+      noticeDismissedKey: poolRow.noticeDismissedKey,
     });
   }
   const groupContext = pool.giftGroupId
@@ -692,7 +791,61 @@ async function resolveContextInTransaction(
     source: groupRow?.activityLevel ? 'group_override' : 'application_default',
     controllingContext: groupRow?.activityLevel ? groupContext : null,
     noticeDismissedAt: poolRow?.noticeDismissedAt ?? null,
+    noticeDismissedKey: poolRow?.noticeDismissedKey ?? null,
   });
+}
+
+async function resolveContextAwarenessInTransaction(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  context: NotificationContext,
+): Promise<ContextNotificationAwareness> {
+  const preference = await resolveContextInTransaction(tx, userId, context);
+  if (preference.activityLevel === NOTIFICATION_ACTIVITY_LEVELS.MUTED) {
+    return {
+      preference,
+      notificationOff: true,
+      reason:
+        preference.source === 'group_override' && context.kind === 'POOL'
+          ? 'inherited_mute'
+          : 'explicit_mute',
+      noticeKey: preference.noticeKey,
+      noticeVisible: preference.noticeVisible,
+    };
+  }
+
+  const channelRows = await tx.notificationChannelPreference.findMany({
+    where: { userId },
+    select: { channel: true, enabled: true, updatedAt: true },
+  });
+  const disabledChannels = new Map(
+    channelRows.map((row) => [row.channel, row] as const),
+  );
+  const allChannelsDisabled = NOTIFICATION_CHANNEL_VALUES.every(
+    (channel) => disabledChannels.get(channel)?.enabled === false,
+  );
+  if (!allChannelsDisabled) {
+    return {
+      preference,
+      notificationOff: false,
+      reason: null,
+      noticeKey: null,
+      noticeVisible: false,
+    };
+  }
+
+  const revision = channelRows.reduce(
+    (latest, row) => (row.updatedAt > latest ? row.updatedAt : latest),
+    new Date(0),
+  );
+  const noticeKey = `no_channels:GLOBAL:${userId}:${revision.toISOString()}`;
+  return {
+    preference,
+    notificationOff: true,
+    reason: 'no_channels',
+    noticeKey,
+    noticeVisible: preference.noticeDismissedKey !== noticeKey,
+  };
 }
 
 function resolvedContext({
@@ -701,6 +854,7 @@ function resolvedContext({
   source,
   controllingContext,
   noticeDismissedAt,
+  noticeDismissedKey,
 }: {
   context: NotificationContext;
   row: {
@@ -711,14 +865,19 @@ function resolvedContext({
   source: ResolvedContextNotificationPreference['source'];
   controllingContext: NotificationContext | null;
   noticeDismissedAt: Date | null;
+  noticeDismissedKey: string | null;
 }): ResolvedContextNotificationPreference {
-  const activityLevel = isActivityLevel(row?.activityLevel)
+  const activityLevel = isNotificationActivityLevel(row?.activityLevel)
     ? row.activityLevel
     : NOTIFICATION_ACTIVITY_LEVELS.IMPORTANT_ONLY;
   const customTopics = deserializeTopics(row?.customTopics);
   const mutedAt =
     activityLevel === NOTIFICATION_ACTIVITY_LEVELS.MUTED
       ? (row?.mutedAt ?? null)
+      : null;
+  const noticeKey =
+    mutedAt && controllingContext
+      ? `mute:${controllingContext.kind}:${contextId(controllingContext)}:${mutedAt.toISOString()}`
       : null;
   return {
     context,
@@ -727,9 +886,9 @@ function resolvedContext({
     customTopics,
     mutedAt,
     noticeDismissedAt,
-    noticeVisible: Boolean(
-      mutedAt && (!noticeDismissedAt || mutedAt > noticeDismissedAt),
-    ),
+    noticeDismissedKey,
+    noticeKey,
+    noticeVisible: Boolean(noticeKey && noticeDismissedKey !== noticeKey),
     controllingContext,
   };
 }
@@ -759,6 +918,7 @@ async function upsertContextPreference(
     customTopics: string | null;
     mutedAt: Date | null;
     noticeDismissedAt: Date | null | undefined;
+    noticeDismissedKey: string | null | undefined;
   },
 ) {
   const data = {
@@ -766,6 +926,7 @@ async function upsertContextPreference(
     customTopics: values.customTopics,
     mutedAt: values.mutedAt,
     noticeDismissedAt: values.noticeDismissedAt ?? null,
+    noticeDismissedKey: values.noticeDismissedKey ?? null,
   };
   if (context.kind === 'GROUP') {
     return tx.groupNotificationPreference.upsert({
@@ -799,15 +960,6 @@ function deserializeTopics(value: string | null | undefined) {
   } catch {
     return [];
   }
-}
-
-function isActivityLevel(value: unknown): value is NotificationActivityLevel {
-  return (
-    typeof value === 'string' &&
-    Object.values(NOTIFICATION_ACTIVITY_LEVELS).includes(
-      value as NotificationActivityLevel,
-    )
-  );
 }
 
 function contextId(context: NotificationContext) {

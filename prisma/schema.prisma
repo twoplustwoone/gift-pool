@@ -419,6 +419,7 @@ model GroupNotificationPreference {
   customTopics      String?
   mutedAt           DateTime?
   noticeDismissedAt DateTime?
+  noticeDismissedKey String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -435,6 +436,7 @@ model PoolNotificationPreference {
   customTopics      String?
   mutedAt           DateTime?
   noticeDismissedAt DateTime?
+  noticeDismissedKey String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)

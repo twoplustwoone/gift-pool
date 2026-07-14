@@ -1,6 +1,12 @@
 import { invariantResponse } from '@epic-web/invariant';
 import React from 'react';
 import {
+  LuBell,
+  LuChevronDown,
+  LuMail,
+  LuMonitorSmartphone,
+} from 'react-icons/lu';
+import {
   data,
   redirect,
   type ActionFunctionArgs,
@@ -10,675 +16,517 @@ import {
   useLoaderData,
   useRevalidator,
 } from 'react-router';
+import { PreferenceSwitch } from '#app/components/notifications/preference-switch.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
-import { Checkbox } from '#app/components/ui/checkbox.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
 import { useWebPush } from '#app/hooks/use-web-push.ts';
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts';
 import { cn } from '#app/utils/misc.tsx';
 import {
-  channelToColumn,
-  DEFAULT_NOTIFICATION_PREFERENCES,
+  getNotificationCategoryDefinition,
+  getNotificationTopicDefinition,
+  isNotificationCategory,
+  isNotificationChannel,
+  isNotificationTopic,
   isNotificationType,
+  NOTIFICATION_CATEGORY_VALUES,
   NOTIFICATION_CHANNELS,
-  NOTIFICATION_TYPES,
+  NOTIFICATION_CHANNEL_VALUES,
+  type NotificationCategory,
   type NotificationChannel,
-  type NotificationType,
+  type NotificationTopic,
 } from '#app/utils/notification-catalog.ts';
 import { verifyPreferenceToken } from '#app/utils/notification-preference-token.server.ts';
 import {
   disableEmailForAll,
-  getNotificationPreferences,
+  getCentralNotificationSettings,
+  setCategoryChannelPreference,
+  setGlobalChannelPreference,
   setNotificationPreference,
+  setTopicChannelPreference,
 } from '#app/utils/notification-preferences.server.ts';
-const preferenceGroups: Array<{
-  id: string;
-  title: string;
-  description?: string;
-  items: Array<{
-    type: NotificationType;
-    label: string;
-    description: string;
-    emailDefault: boolean;
-    disabled?: boolean;
-  }>;
-}> = [
-  {
-    id: 'friend-activity',
-    title: 'Friend activity',
-    items: [
-      {
-        type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
-        label: 'Friend request received',
-        description: 'When someone sends you a friend request.',
-        emailDefault: true,
-      },
-      {
-        type: NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED,
-        label: 'Friend request accepted',
-        description: 'When someone accepts your friend request.',
-        emailDefault: true,
-      },
-    ],
-  },
-  {
-    id: 'reminders',
-    title: 'Reminders',
-    items: [
-      {
-        type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
-        label: 'Upcoming birthdays',
-        description:
-          "Sent once, about a week before a friend's or group member's birthday you can see.",
-        emailDefault: false,
-      },
-    ],
-  },
-];
+
+const SOURCE = 'settings:notifications';
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await getUserId(request);
-  const url = new URL(request.url);
-  const tokenParam = url.searchParams.get('token');
-  const tokenPayload = tokenParam ? verifyPreferenceToken(tokenParam) : null;
+  const token = new URL(request.url).searchParams.get('token');
+  const tokenPayload = token ? verifyPreferenceToken(token) : null;
   const targetUserId = tokenPayload?.uid ?? userId ?? null;
   if (!targetUserId) {
     throw redirect('/login?redirectTo=/settings/profile/notifications');
   }
-  const canReadPreferences =
-    (userId && userId === targetUserId) || tokenPayload?.uid === targetUserId;
-  const preferencesMap = canReadPreferences
-    ? await getNotificationPreferences(targetUserId)
-    : null;
-  const preferences = new Map<
-    NotificationType,
-    {
-      inAppEnabled: boolean;
-      emailEnabled: boolean;
-      pushEnabled: boolean;
-    }
-  >();
-  if (preferencesMap) {
-    for (const [type, value] of preferencesMap.entries()) {
-      preferences.set(type, value);
-    }
-  }
+
+  const tokenValid = tokenPayload?.uid === targetUserId;
+  const canRead = userId === targetUserId || tokenValid;
+  invariantResponse(canRead, 'Invalid notification preference link', {
+    status: 403,
+  });
+
   return {
+    canEdit: userId === targetUserId,
     isAuthenticated: Boolean(userId),
-    viewerUserId: userId,
     targetUserId,
-    tokenValid: tokenPayload?.uid === targetUserId,
-    preferences: Array.from(preferences.entries()).map(([type, pref]) => ({
-      type,
-      inAppEnabled: pref.inAppEnabled,
-      emailEnabled: pref.emailEnabled,
-      pushEnabled: pref.pushEnabled,
-    })),
+    tokenValid,
+    settings: await getCentralNotificationSettings(targetUserId),
   };
 }
+
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const intent = formData.get('intent');
-  const requestIdValue = formData.get('requestId');
-  const requestId = typeof requestIdValue === 'string' ? requestIdValue : null;
+  const requestId = stringValue(formData.get('requestId'));
   const userId = await requireUserId(request);
+  const enabledValue = formData.get('enabled');
+  const enabled = enabledValue === 'true';
+
+  if (intent === 'global-channel') {
+    const channel = formData.get('channel');
+    invariantResponse(isNotificationChannel(channel), 'Invalid channel');
+    invariantResponse(isBooleanString(enabledValue), 'Invalid enabled value');
+    await setGlobalChannelPreference({
+      userId,
+      channel,
+      enabled,
+      source: SOURCE,
+    });
+    return { ok: true, requestId };
+  }
+
+  if (intent === 'category-channel') {
+    const category = formData.get('category');
+    const channel = formData.get('channel');
+    invariantResponse(isNotificationCategory(category), 'Invalid category');
+    invariantResponse(isNotificationChannel(channel), 'Invalid channel');
+    invariantResponse(isBooleanString(enabledValue), 'Invalid enabled value');
+    await setCategoryChannelPreference({
+      userId,
+      category,
+      channel,
+      enabled,
+      source: SOURCE,
+    });
+    return { ok: true, requestId };
+  }
+
+  if (intent === 'topic-channel') {
+    const topic = formData.get('topic');
+    const channel = formData.get('channel');
+    invariantResponse(isNotificationTopic(topic), 'Invalid topic');
+    invariantResponse(isNotificationChannel(channel), 'Invalid channel');
+    invariantResponse(isBooleanString(enabledValue), 'Invalid enabled value');
+    await setTopicChannelPreference({
+      userId,
+      topic,
+      channel,
+      enabled,
+      source: SOURCE,
+    });
+    return { ok: true, requestId };
+  }
+
+  // Keep accepting the old payloads while links or an open tab can still be
+  // running the previous UI during a deploy.
   if (intent === 'toggle') {
     const type = formData.get('type');
     const channel = formData.get('channel');
-    const enabled = formData.get('enabled');
     invariantResponse(isNotificationType(type), 'Invalid notification type');
-    invariantResponse(
-      typeof channel === 'string' && channel in NOTIFICATION_CHANNELS,
-      'Invalid channel',
-    );
-    invariantResponse(typeof enabled === 'string', 'Invalid enabled value');
-    const normalizedEnabled = enabled === 'true';
-    await setNotificationPreference(
-      userId,
-      type as NotificationType,
-      channel as NotificationChannel,
-      normalizedEnabled,
-      'settings:notifications',
-    );
-    return {
-      ok: true,
-      requestId,
-    };
+    invariantResponse(isNotificationChannel(channel), 'Invalid channel');
+    invariantResponse(isBooleanString(enabledValue), 'Invalid enabled value');
+    await setNotificationPreference(userId, type, channel, enabled, SOURCE);
+    return { ok: true, requestId };
   }
+
   if (intent === 'disable-email') {
-    await disableEmailForAll(userId, 'settings:notifications');
-    return {
-      ok: true,
-      requestId,
-    };
+    await disableEmailForAll(userId, SOURCE);
+    return { ok: true, requestId };
   }
-  return data(
-    {
-      ok: false,
-      requestId,
-    },
-    {
-      status: 400,
-    },
-  );
+
+  return data({ ok: false, requestId }, { status: 400 });
 }
-type NotificationPreferenceState = Record<
-  NotificationType,
-  {
-    inAppEnabled: boolean;
-    emailEnabled: boolean;
-    pushEnabled: boolean;
-  }
->;
-type PreferenceKey = `${NotificationType}:${NotificationChannel}`;
-type PreferencesActionResult = {
-  ok: boolean;
-  requestId?: string | null;
-};
+
+const channelDetails = {
+  [NOTIFICATION_CHANNELS.IN_APP]: {
+    label: 'In-app',
+    description: 'Show updates in your Gift Pool notification center.',
+    icon: LuBell,
+  },
+  [NOTIFICATION_CHANNELS.EMAIL]: {
+    label: 'Email',
+    description: 'Send selected updates to your account email.',
+    icon: LuMail,
+  },
+  [NOTIFICATION_CHANNELS.WEB_PUSH]: {
+    label: 'Push',
+    description: 'Send selected updates to subscribed devices.',
+    icon: LuMonitorSmartphone,
+  },
+} as const;
+
+type ActionResult = { ok: boolean; requestId?: string | null };
+
 const NotificationsSettingsRoute = () => {
-  const data = useLoaderData<typeof loader>();
+  const loaderData = useLoaderData<typeof loader>();
   const push = useWebPush();
-  const pushColumnVisible =
-    data.isAuthenticated &&
-    push.status !== 'unsupported' &&
-    push.status !== 'loading';
-  const columnCount = pushColumnVisible ? 5 : 4;
-  const toggleFetcher = useFetcher<PreferencesActionResult>();
-  const disableEmailFetcher = useFetcher<PreferencesActionResult>();
-  const [preferences, setPreferences] =
-    React.useState<NotificationPreferenceState>(() =>
-      buildPreferenceState(data.preferences),
-    );
-  const [pendingKeys, setPendingKeys] = React.useState<Set<PreferenceKey>>(
-    () => new Set(),
-  );
-  const requestCounterRef = React.useRef(0);
-  const togglePendingRef = React.useRef<{
-    requestId: string;
-    key: PreferenceKey;
-    type: NotificationType;
-    channel: NotificationChannel;
-    previousValue: boolean;
-  } | null>(null);
-  const toggleFetcherWasPendingRef = React.useRef(false);
-  const disableEmailPendingRef = React.useRef<{
-    requestId: string;
-    previousValues: Record<NotificationType, boolean>;
-    keys: PreferenceKey[];
-  } | null>(null);
-  const disableEmailFetcherWasPendingRef = React.useRef(false);
-  React.useEffect(() => {
-    setPreferences(buildPreferenceState(data.preferences));
-  }, [data.preferences]);
-  const createRequestId = React.useCallback(() => {
-    requestCounterRef.current += 1;
-    return `notifications-${Date.now()}-${requestCounterRef.current}`;
-  }, []);
-  const submitTogglePreference = (formData: FormData) => {
-    Promise.resolve(
-      toggleFetcher.submit(formData, {
-        method: 'POST',
-      }),
-    ).catch(() => {});
-  };
-  const submitDisableAllEmail = (formData: FormData) => {
-    Promise.resolve(
-      disableEmailFetcher.submit(formData, {
-        method: 'POST',
-      }),
-    ).catch(() => {});
-  };
-  const handleToggle = (
-    type: NotificationType,
-    channel: NotificationChannel,
-    enabled: boolean,
-  ) => {
-    if (toggleFetcher.state !== 'idle') return;
-    const key = getPreferenceKey(type, channel);
-    if (pendingKeys.has(key)) return;
-    const nextEnabled = !enabled;
-    const requestId = createRequestId();
-    const channelField = getChannelField(channel);
-    togglePendingRef.current = {
-      requestId,
-      key,
-      type,
-      channel,
-      previousValue: enabled,
-    };
-    setPreferences((previous) => ({
-      ...previous,
-      [type]: {
-        ...previous[type],
-        [channelField]: nextEnabled,
-      },
-    }));
-    setPendingKeys((previous) => {
-      const next = new Set(previous);
-      next.add(key);
-      return next;
-    });
-    const formData = new FormData();
-    formData.set('intent', 'toggle');
-    formData.set('type', type);
-    formData.set('channel', channel);
-    formData.set('enabled', String(nextEnabled));
-    formData.set('requestId', requestId);
-    submitTogglePreference(formData);
-  };
-  const handleDisableAllEmail = React.useCallback(() => {
-    if (disableEmailFetcher.state !== 'idle') return;
-    const requestId = createRequestId();
-    const previousValues = {} as Record<NotificationType, boolean>;
-    const keys: PreferenceKey[] = [];
-    for (const type of PREFERENCE_TYPES) {
-      previousValues[type] = preferences[type].emailEnabled;
-      keys.push(getPreferenceKey(type, NOTIFICATION_CHANNELS.EMAIL));
-    }
-    disableEmailPendingRef.current = {
-      requestId,
-      previousValues,
-      keys,
-    };
-    setPreferences((previous) => {
-      const next = {
-        ...previous,
-      };
-      for (const type of PREFERENCE_TYPES) {
-        next[type] = {
-          ...next[type],
-          emailEnabled: false,
-        };
-      }
-      return next;
-    });
-    setPendingKeys((previous) => {
-      const next = new Set(previous);
-      for (const key of keys) next.add(key);
-      return next;
-    });
-    const formData = new FormData();
-    formData.set('intent', 'disable-email');
-    formData.set('requestId', requestId);
-    submitDisableAllEmail(formData);
-  }, [createRequestId, disableEmailFetcher, preferences]);
-  React.useEffect(() => {
-    if (toggleFetcher.state !== 'idle') {
-      toggleFetcherWasPendingRef.current = true;
-      return;
-    }
-    if (!toggleFetcherWasPendingRef.current) return;
-    toggleFetcherWasPendingRef.current = false;
-    const pending = togglePendingRef.current;
-    if (!pending) return;
-    const didSucceed =
-      toggleFetcher.data?.ok === true &&
-      toggleFetcher.data.requestId === pending.requestId;
-    if (!didSucceed) {
-      const channelField = getChannelField(pending.channel);
-      setPreferences((previous) => ({
-        ...previous,
-        [pending.type]: {
-          ...previous[pending.type],
-          [channelField]: pending.previousValue,
-        },
-      }));
-    }
-    setPendingKeys((previous) => {
-      const next = new Set(previous);
-      next.delete(pending.key);
-      return next;
-    });
-    togglePendingRef.current = null;
-  }, [toggleFetcher.data, toggleFetcher.state]);
-  React.useEffect(() => {
-    if (disableEmailFetcher.state !== 'idle') {
-      disableEmailFetcherWasPendingRef.current = true;
-      return;
-    }
-    if (!disableEmailFetcherWasPendingRef.current) return;
-    disableEmailFetcherWasPendingRef.current = false;
-    const pending = disableEmailPendingRef.current;
-    if (!pending) return;
-    const didSucceed =
-      disableEmailFetcher.data?.ok === true &&
-      disableEmailFetcher.data.requestId === pending.requestId;
-    if (!didSucceed) {
-      setPreferences((previous) => {
-        const next = {
-          ...previous,
-        };
-        for (const type of PREFERENCE_TYPES) {
-          next[type] = {
-            ...next[type],
-            emailEnabled: pending.previousValues[type],
-          };
-        }
-        return next;
-      });
-    }
-    setPendingKeys((previous) => {
-      const next = new Set(previous);
-      for (const key of pending.keys) next.delete(key);
-      return next;
-    });
-    disableEmailPendingRef.current = null;
-  }, [disableEmailFetcher.data, disableEmailFetcher.state]);
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
         <Heading>Notifications</Heading>
-        <p className="text-sm text-muted-foreground">
-          Choose how you want to hear from us. Transactional emails may still be
-          sent for critical account activity.
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Choose which updates matter and where they can reach you. Critical
+          account and security messages are managed separately.
         </p>
       </div>
 
-      <Card padding="lg" className="space-y-6">
-        {data.isAuthenticated ? null : (
-          <div className="rounded-md border border-dashed border-muted-foreground/50 bg-muted px-4 py-3 text-sm text-muted-foreground">
-            <p>
-              You are viewing notification preferences with a one-time link.
-            </p>
-            <p>
-              <Link
-                className="underline"
-                to={`/login?redirectTo=/settings/profile/notifications`}
-              >
-                Sign in to update your preferences.
-              </Link>
-            </p>
-          </div>
-        )}
+      {!loaderData.canEdit ? <ReadOnlyNotice /> : null}
 
-        {data.isAuthenticated && push.status !== 'unsupported' ? (
-          <PushStatusBanner push={push} />
-        ) : null}
-
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3">Notification</th>
-                <th className="px-4 py-3">Description</th>
-                <th className="px-4 py-3">In-app</th>
-                <th className="px-4 py-3">Email</th>
-                {pushColumnVisible ? <th className="px-4 py-3">Push</th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {preferenceGroups.map((group) => (
-                <React.Fragment key={group.id}>
-                  <tr className="bg-muted/60">
-                    <td
-                      className="px-4 py-3 font-semibold"
-                      colSpan={columnCount}
-                    >
-                      {group.title}
-                    </td>
-                  </tr>
-                  {group.description ? (
-                    <tr className="bg-muted/40 text-xs text-muted-foreground">
-                      <td className="px-4 pb-2" colSpan={columnCount}>
-                        {group.description}
-                      </td>
-                    </tr>
-                  ) : null}
-                  {group.items.map((item) => {
-                    const pref = preferences[item.type];
-                    const pendingInApp = pendingKeys.has(
-                      getPreferenceKey(item.type, NOTIFICATION_CHANNELS.IN_APP),
-                    );
-                    const pendingEmail = pendingKeys.has(
-                      getPreferenceKey(item.type, NOTIFICATION_CHANNELS.EMAIL),
-                    );
-                    const pendingPush = pendingKeys.has(
-                      getPreferenceKey(
-                        item.type,
-                        NOTIFICATION_CHANNELS.WEB_PUSH,
-                      ),
-                    );
-                    const disableToggles =
-                      item.disabled || !data.isAuthenticated;
-                    return (
-                      <tr key={item.type} className="even:bg-muted/10">
-                        <td className="px-4 py-3 font-medium">{item.label}</td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {item.description}
-                        </td>
-                        <td className="px-4 py-3">
-                          <PreferenceCheckbox
-                            checked={pref.inAppEnabled}
-                            label="Enable in-app"
-                            disabled={disableToggles || pendingInApp}
-                            onChange={() =>
-                              handleToggle(
-                                item.type,
-                                NOTIFICATION_CHANNELS.IN_APP,
-                                pref.inAppEnabled,
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <PreferenceCheckbox
-                            checked={pref.emailEnabled}
-                            label="Enable email"
-                            disabled={
-                              disableToggles ||
-                              (!item.emailDefault && item.disabled) ||
-                              pendingEmail
-                            }
-                            onChange={() =>
-                              handleToggle(
-                                item.type,
-                                NOTIFICATION_CHANNELS.EMAIL,
-                                pref.emailEnabled,
-                              )
-                            }
-                          />
-                        </td>
-                        {pushColumnVisible ? (
-                          <td className="px-4 py-3">
-                            <PreferenceCheckbox
-                              checked={pref.pushEnabled}
-                              label="Enable push"
-                              // Push toggles only act once the device is
-                              // subscribed; otherwise use the banner above.
-                              disabled={
-                                disableToggles ||
-                                push.status !== 'subscribed' ||
-                                pendingPush
-                              }
-                              onChange={() =>
-                                handleToggle(
-                                  item.type,
-                                  NOTIFICATION_CHANNELS.WEB_PUSH,
-                                  pref.pushEnabled,
-                                )
-                              }
-                            />
-                          </td>
-                        ) : null}
-                      </tr>
-                    );
-                  })}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
+      <Card padding="none" className="overflow-hidden">
+        <div className="border-b border-border px-4 py-4 sm:px-6">
+          <h2 className="font-semibold">Delivery channels</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A channel must be on here and for a topic below before it can send.
+          </p>
         </div>
-
-        {data.isAuthenticated ? (
-          <Button
-            type="button"
-            variant="ghost"
-            className="text-sm"
-            disabled={disableEmailFetcher.state !== 'idle'}
-            onClick={handleDisableAllEmail}
-          >
-            Turn off all email notifications
-          </Button>
-        ) : null}
+        <div className="divide-y divide-border">
+          {NOTIFICATION_CHANNEL_VALUES.map((channel) => {
+            const details = channelDetails[channel];
+            const Icon = details.icon;
+            return (
+              <div
+                key={channel}
+                className="flex min-h-20 items-center gap-3 px-3 py-3 sm:px-5"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">{details.label}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {details.description}
+                  </p>
+                </div>
+                <MutationSwitch
+                  intent="global-channel"
+                  channel={channel}
+                  checked={loaderData.settings.channels[channel].enabled}
+                  disabled={!loaderData.canEdit}
+                  label={`${details.label} notifications`}
+                />
+              </div>
+            );
+          })}
+        </div>
       </Card>
+
+      <PushCapabilityStatus push={push} canEdit={loaderData.canEdit} />
+
+      <section className="space-y-3" aria-labelledby="notification-topics">
+        <div>
+          <h2 id="notification-topics" className="font-semibold">
+            Notification topics
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Fine-tune each kind of update. Category actions change every topic
+            in that category at once.
+          </p>
+        </div>
+        {NOTIFICATION_CATEGORY_VALUES.map((category) => (
+          <CategoryCard
+            key={category}
+            category={category}
+            topics={loaderData.settings.topics.filter(
+              (topic) => topic.category === category,
+            )}
+            canEdit={loaderData.canEdit}
+          />
+        ))}
+      </section>
     </div>
   );
 };
+
 export default NotificationsSettingsRoute;
-const DEFAULT_CHANNEL_FALLBACK: Record<
-  NotificationType,
-  {
-    inAppEnabled: boolean;
-    emailEnabled: boolean;
-    pushEnabled: boolean;
-  }
-> = Object.fromEntries(
-  Object.entries(DEFAULT_NOTIFICATION_PREFERENCES).map(([key, value]) => [
-    key,
-    value,
-  ]),
-) as Record<
-  NotificationType,
-  {
-    inAppEnabled: boolean;
-    emailEnabled: boolean;
-    pushEnabled: boolean;
-  }
->;
-const PREFERENCE_TYPES = preferenceGroups.flatMap((group) =>
-  group.items.map((item) => item.type),
-);
-function buildPreferenceState(
-  preferences: Array<{
-    type: NotificationType;
-    inAppEnabled: boolean;
-    emailEnabled: boolean;
-    pushEnabled: boolean;
-  }>,
-): NotificationPreferenceState {
-  const next = {
-    ...DEFAULT_CHANNEL_FALLBACK,
-  } as NotificationPreferenceState;
-  for (const pref of preferences) {
-    next[pref.type] = {
-      inAppEnabled: pref.inAppEnabled,
-      emailEnabled: pref.emailEnabled,
-      pushEnabled: pref.pushEnabled,
-    };
-  }
-  return next;
-}
-function getChannelField(channel: NotificationChannel) {
-  return channelToColumn(channel);
-}
-function getPreferenceKey(
-  type: NotificationType,
-  channel: NotificationChannel,
-): PreferenceKey {
-  return `${type}:${channel}`;
-}
-function PushStatusBanner({
-  push,
-}: Readonly<{ push: ReturnType<typeof useWebPush> }>) {
-  const revalidator = useRevalidator();
-  // After enabling/disabling push the server flips pushEnabled on the prefs
-  // rows; revalidate so the per-type push checkboxes reflect the new state.
-  const revalidate = () => {
-    void revalidator.revalidate();
-  };
-  const className =
-    'flex flex-col gap-2 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between';
 
-  if (push.status === 'ios-needs-install') {
-    return (
-      <div className={className}>
-        <span className="text-muted-foreground">
-          Add GiftPool to your home screen to turn on push notifications.
-        </span>
-        <Link className="font-medium underline" to="/pwa-install">
-          How to install
-        </Link>
-      </div>
-    );
-  }
-
-  if (push.status === 'denied') {
-    return (
-      <div className={className}>
-        <span className="text-muted-foreground">
-          Push notifications are blocked. Enable them for this site in your
-          browser settings, then reload.
-        </span>
-      </div>
-    );
-  }
-
-  if (push.status === 'subscribed') {
-    return (
-      <div className={className}>
-        <span className="text-muted-foreground">
-          Push notifications are on for this device.
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={push.isBusy}
-          onClick={() => {
-            void push.unsubscribe().then(revalidate);
-          }}
-        >
-          Turn off on this device
-        </Button>
-      </div>
-    );
-  }
-
-  // status === 'default'
+function ReadOnlyNotice() {
   return (
-    <div className={className}>
-      <span className="text-muted-foreground">
-        Get notified on this device even when GiftPool isn&apos;t open.
-      </span>
-      <Button
-        type="button"
-        disabled={push.isBusy}
-        onClick={() => {
-          void push.subscribe().then(revalidate);
-        }}
-      >
-        Enable push notifications
+    <div className="rounded-xl border border-dashed border-muted-foreground/50 bg-muted px-4 py-3 text-sm text-muted-foreground">
+      <p>You are viewing notification preferences with a one-time link.</p>
+      <Button asChild variant="link" className="h-auto justify-start p-0">
+        <Link to="/login?redirectTo=/settings/profile/notifications">
+          Sign in to edit notification preferences
+        </Link>
       </Button>
     </div>
   );
 }
-function PreferenceCheckbox({
+
+function CategoryCard({
+  category,
+  topics,
+  canEdit,
+}: Readonly<{
+  category: NotificationCategory;
+  topics: Array<{
+    topic: NotificationTopic;
+    category: NotificationCategory;
+    channels: Record<NotificationChannel, { enabled: boolean }>;
+  }>;
+  canEdit: boolean;
+}>) {
+  const [expanded, setExpanded] = React.useState(true);
+  const definition = getNotificationCategoryDefinition(category);
+
+  return (
+    <Card padding="none" className="overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+        className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left outline-none ring-inset ring-ring focus-visible:ring-2 sm:px-6"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">{definition.label}</span>
+          <span className="block text-sm text-muted-foreground">
+            {definition.description}
+          </span>
+        </span>
+        <LuChevronDown
+          aria-hidden="true"
+          className={cn(
+            'h-5 w-5 shrink-0 transition-transform',
+            expanded && 'rotate-180',
+          )}
+        />
+      </button>
+
+      {expanded ? (
+        <div className="border-t border-border">
+          <div className="grid gap-2 bg-muted/40 px-4 py-3 sm:grid-cols-3 sm:px-6">
+            {NOTIFICATION_CHANNEL_VALUES.map((channel) => {
+              const allOn = topics.every(
+                (topic) => topic.channels[channel].enabled,
+              );
+              const someOn = topics.some(
+                (topic) => topic.channels[channel].enabled,
+              );
+              return (
+                <CategoryBulkAction
+                  key={channel}
+                  category={category}
+                  channel={channel}
+                  enabled={allOn}
+                  mixed={someOn && !allOn}
+                  disabled={!canEdit}
+                />
+              );
+            })}
+          </div>
+          <div className="divide-y divide-border">
+            {topics.map((topic) => (
+              <TopicRow key={topic.topic} topic={topic} canEdit={canEdit} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function CategoryBulkAction({
+  category,
+  channel,
+  enabled,
+  mixed,
+  disabled,
+}: Readonly<{
+  category: NotificationCategory;
+  channel: NotificationChannel;
+  enabled: boolean;
+  mixed: boolean;
+  disabled: boolean;
+}>) {
+  const fetcher = useFetcher<ActionResult>();
+  const pending = fetcher.state !== 'idle';
+  const nextEnabled = !enabled;
+  const details = channelDetails[channel];
+  let stateLabel = 'All off';
+  if (enabled) stateLabel = 'All on';
+  else if (mixed) stateLabel = 'Mixed · turn on';
+  return (
+    <fetcher.Form method="post">
+      <input type="hidden" name="intent" value="category-channel" />
+      <input type="hidden" name="category" value={category} />
+      <input type="hidden" name="channel" value={channel} />
+      <input type="hidden" name="enabled" value={String(nextEnabled)} />
+      <Button
+        type="submit"
+        variant="outline"
+        size="sm"
+        className="w-full justify-between rounded-lg"
+        disabled={disabled || pending}
+        aria-label={`${enabled ? 'Turn off' : 'Turn on'} all ${getNotificationCategoryDefinition(category).label} ${details.label} notifications`}
+      >
+        <span>{details.label}</span>
+        <span className="text-xs text-muted-foreground">{stateLabel}</span>
+      </Button>
+    </fetcher.Form>
+  );
+}
+
+function TopicRow({
+  topic,
+  canEdit,
+}: Readonly<{
+  topic: {
+    topic: NotificationTopic;
+    channels: Record<NotificationChannel, { enabled: boolean }>;
+  };
+  canEdit: boolean;
+}>) {
+  const definition = getNotificationTopicDefinition(topic.topic);
+  return (
+    <div className="px-4 py-4 sm:px-6">
+      <p className="font-medium">{definition.label}</p>
+      <p className="mt-0.5 text-sm text-muted-foreground">
+        {definition.description}
+      </p>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {NOTIFICATION_CHANNEL_VALUES.map((channel) => (
+          <div
+            key={channel}
+            className="flex min-w-0 flex-col items-center rounded-lg border border-border px-1 py-1 sm:flex-row sm:justify-between sm:px-2"
+          >
+            <span className="truncate text-xs text-muted-foreground">
+              {channelDetails[channel].label}
+            </span>
+            <MutationSwitch
+              intent="topic-channel"
+              topic={topic.topic}
+              channel={channel}
+              checked={topic.channels[channel].enabled}
+              disabled={!canEdit}
+              label={`${definition.label}: ${channelDetails[channel].label}`}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MutationSwitch({
+  intent,
+  channel,
+  topic,
   checked,
-  onChange,
   disabled,
   label,
 }: Readonly<{
+  intent: 'global-channel' | 'topic-channel';
+  channel: NotificationChannel;
+  topic?: NotificationTopic;
   checked: boolean;
-  onChange: () => void;
-  disabled?: boolean;
+  disabled: boolean;
   label: string;
 }>) {
+  const fetcher = useFetcher<ActionResult>();
+  const pendingEnabled = fetcher.formData?.get('enabled');
+  const optimisticChecked =
+    typeof pendingEnabled === 'string' ? pendingEnabled === 'true' : checked;
   return (
-    <label
-      className={cn(
-        'flex items-center justify-center text-sm',
-        disabled && 'opacity-50',
-      )}
-    >
-      <Checkbox
-        checked={checked}
-        disabled={disabled}
-        onCheckedChange={(_value) => {
-          if (!disabled) onChange();
+    <>
+      <PreferenceSwitch
+        checked={optimisticChecked}
+        disabled={disabled || fetcher.state !== 'idle'}
+        label={label}
+        onCheckedChange={(enabled) => {
+          const formData = new FormData();
+          formData.set('intent', intent);
+          formData.set('channel', channel);
+          formData.set('enabled', String(enabled));
+          if (topic) formData.set('topic', topic);
+          void fetcher.submit(formData, { method: 'post' });
         }}
       />
-      {/* The column header already names the channel — keep the per-row label
-          for screen readers only so the table fits narrow viewports. */}
-      <span className="sr-only">{label}</span>
-    </label>
+      {fetcher.data?.ok === false ? (
+        <output className="sr-only">
+          Could not save {label}. Try again.
+        </output>
+      ) : null}
+    </>
   );
+}
+
+function PushCapabilityStatus({
+  push,
+  canEdit,
+}: Readonly<{
+  push: ReturnType<typeof useWebPush>;
+  canEdit: boolean;
+}>) {
+  const revalidator = useRevalidator();
+  if (push.status === 'unsupported' || push.status === 'loading') return null;
+
+  const className =
+    'flex flex-col gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between';
+  let message = 'Push notifications are available for this device.';
+  if (push.status === 'ios-needs-install') {
+    message =
+      'Add Gift Pool to your home screen to enable push on this device.';
+  } else if (push.status === 'denied') {
+    message = 'Push is blocked for this site in your browser settings.';
+  } else if (push.status === 'subscribed') {
+    message = 'Push notifications are enabled on this device.';
+  }
+
+  let action: React.ReactNode = null;
+  if (canEdit && push.status === 'ios-needs-install') {
+    action = (
+      <Button asChild variant="link" className="h-auto p-0">
+        <Link to="/pwa-install">How to install</Link>
+      </Button>
+    );
+  } else if (canEdit && push.status === 'subscribed') {
+    action = (
+      <Button
+        type="button"
+        variant="ghost"
+        disabled={push.isBusy}
+        onClick={() => {
+          void push.unsubscribe().then(() => revalidator.revalidate());
+        }}
+      >
+        Turn off on this device
+      </Button>
+    );
+  } else if (canEdit && push.status === 'default') {
+    action = (
+      <Button
+        type="button"
+        disabled={push.isBusy}
+        onClick={() => {
+          void push.subscribe().then(() => revalidator.revalidate());
+        }}
+      >
+        Enable on this device
+      </Button>
+    );
+  }
+
+  return (
+    <div className={className}>
+      <span className="text-muted-foreground">{message}</span>
+      {action}
+    </div>
+  );
+}
+
+function stringValue(value: FormDataEntryValue | null) {
+  return typeof value === 'string' ? value : null;
+}
+
+function isBooleanString(value: FormDataEntryValue | null) {
+  return value === 'true' || value === 'false';
 }
