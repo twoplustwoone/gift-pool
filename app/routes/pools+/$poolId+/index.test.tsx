@@ -14,13 +14,19 @@ const fetcherState = {
   state: 'idle' as 'idle' | 'loading' | 'submitting',
 };
 
+type UserImageFixture = { id: string; altText: string | null } | null;
+
 const loaderDataSnapshot = {
   canManage: true,
   contributionBreakdown: null as null | {
     breakdown: Array<{
       hasPaid: boolean;
       owedCents: number;
-      user: { name: string | null; username: string };
+      user: {
+        image: UserImageFixture;
+        name: string | null;
+        username: string;
+      };
       userId: string;
     }>;
     finalPriceCents: number;
@@ -45,21 +51,33 @@ const loaderDataSnapshot = {
         contributionCents: 3000,
         hasPaid: false,
         joinedAt: '2026-01-01T00:00:00.000Z',
-        user: { image: null, name: 'Taylor', username: 'taylor' },
+        user: {
+          image: null as UserImageFixture,
+          name: 'Taylor',
+          username: 'taylor',
+        },
         userId: 'viewer-1',
       },
       {
         contributionCents: 2000,
         hasPaid: true,
         joinedAt: '2026-01-02T00:00:00.000Z',
-        user: { image: null, name: 'Jordan', username: 'jordan' },
+        user: {
+          image: null as UserImageFixture,
+          name: 'Jordan',
+          username: 'jordan',
+        },
         userId: 'buyer-1',
       },
       {
         contributionCents: 2000,
         hasPaid: false,
         joinedAt: '2026-01-03T00:00:00.000Z',
-        user: { image: null, name: null, username: 'casey' },
+        user: {
+          image: null as UserImageFixture,
+          name: null,
+          username: 'casey',
+        },
         userId: 'deliverer-1',
       },
     ],
@@ -178,6 +196,9 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     loaderDataSnapshot.pool.finalPriceCents = null;
     loaderDataSnapshot.pool.purchaserId = 'buyer-1';
     loaderDataSnapshot.pool.status = 'VOTING';
+    for (const contributor of loaderDataSnapshot.pool.contributors) {
+      contributor.user.image = null;
+    }
     loaderDataSnapshot.recipientWishlistItems = [];
     loaderDataSnapshot.viewer.userId = 'viewer-1';
 
@@ -282,13 +303,13 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
         {
           hasPaid: false,
           owedCents: 1200,
-          user: { name: 'Taylor', username: 'taylor' },
+          user: { image: null, name: 'Taylor', username: 'taylor' },
           userId: 'viewer-1',
         },
         {
           hasPaid: true,
           owedCents: 1000,
-          user: { name: 'Jordan', username: 'jordan' },
+          user: { image: null, name: 'Jordan', username: 'jordan' },
           userId: 'buyer-1',
         },
       ],
@@ -311,6 +332,46 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     expect(screen.getByText('Assign roles')).toBeInTheDocument();
   });
 
+  it('renders profile photos on every contributor avatar surface', () => {
+    loaderDataSnapshot.pool.status = 'DECIDED';
+    loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
+    loaderDataSnapshot.pool.finalPriceCents = 2500;
+    loaderDataSnapshot.pool.purchaserId = 'viewer-1';
+    loaderDataSnapshot.viewer.userId = 'viewer-1';
+    loaderDataSnapshot.pool.contributors[1]!.user.image = {
+      id: 'jordan-image',
+      altText: null,
+    };
+    loaderDataSnapshot.contributionBreakdown = {
+      breakdown: [
+        {
+          hasPaid: true,
+          owedCents: 1000,
+          user: {
+            image: { id: 'jordan-image', altText: null },
+            name: 'Jordan',
+            username: 'jordan',
+          },
+          userId: 'buyer-1',
+        },
+      ],
+      finalPriceCents: 2500,
+      purchaserId: 'viewer-1',
+      shortfallCents: 0,
+    };
+
+    renderRoute();
+
+    const jordanAvatars = screen.getAllByRole('img', { name: 'Jordan' });
+    expect(jordanAvatars).toHaveLength(4);
+    for (const avatar of jordanAvatars) {
+      expect(avatar).toHaveAttribute(
+        'src',
+        '/resources/user-images/jordan-image?size=64',
+      );
+    }
+  });
+
   it('renders the delivery CTA for the assigned deliverer', () => {
     loaderDataSnapshot.pool.status = 'PURCHASED';
     loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
@@ -321,7 +382,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
         {
           hasPaid: false,
           owedCents: 1200,
-          user: { name: null, username: 'casey' },
+          user: { image: null, name: null, username: 'casey' },
           userId: 'deliverer-1',
         },
       ],
