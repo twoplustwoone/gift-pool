@@ -147,6 +147,47 @@ describe('pool invitation module', () => {
     });
   });
 
+  it('re-invites an accepted contributor after they leave the pool', async () => {
+    const manager = await createUser('manager');
+    const friend = await createUser('friend');
+    await createFriendship(manager.id, friend.id);
+    const pool = await createPool(manager.id);
+    const [first] = await sendPoolInvitations({
+      poolId: pool.id,
+      managerId: manager.id,
+      inviteeIds: [friend.id],
+    });
+    await prisma.notification.create({
+      data: {
+        userId: friend.id,
+        type: 'POOL_INVITATION_RECEIVED',
+        status: 'UNREAD',
+        messageKey: 'notifications.poolInvitation.message',
+        poolInvitationId: first!.id,
+      },
+    });
+    await acceptPoolInvitation(first!.id, friend.id);
+    await prisma.poolContributor.delete({
+      where: { poolId_userId: { poolId: pool.id, userId: friend.id } },
+    });
+
+    const [second] = await sendPoolInvitations({
+      poolId: pool.id,
+      managerId: manager.id,
+      inviteeIds: [friend.id],
+    });
+
+    expect(second!.id).toBe(first!.id);
+    await expect(
+      prisma.poolInvitation.findUnique({ where: { id: first!.id } }),
+    ).resolves.toMatchObject({ status: 'PENDING', respondedAt: null });
+    await expect(
+      prisma.notification.findUnique({
+        where: { poolInvitationId: first!.id },
+      }),
+    ).resolves.toBeNull();
+  });
+
   it('accepts with the current group default and clears the notification', async () => {
     const organizer = await createUser('organizer');
     const invitee = await createUser('invitee');

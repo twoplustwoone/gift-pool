@@ -128,7 +128,10 @@ async function listEligibleCandidates(
       select: { userId: true },
     }),
     tx.poolInvitation.findMany({
-      where: { poolId: pool.id, status: { not: 'CANCELLED' } },
+      where: {
+        poolId: pool.id,
+        status: { in: ['PENDING', 'DECLINED'] },
+      },
       select: { inviteeId: true },
     }),
   ]);
@@ -256,19 +259,24 @@ export async function sendPoolInvitations({
     });
     const invitations = [];
     for (const inviteeId of uniqueInviteeIds) {
-      invitations.push(
-        await tx.poolInvitation.upsert({
-          where: { poolId_inviteeId: { poolId, inviteeId } },
-          create: { poolId, invitedById: managerId, inviteeId },
-          update: {
-            invitedById: managerId,
-            status: 'PENDING',
-            respondedAt: null,
-            cancelledAt: null,
-          },
-          select: { id: true, inviteeId: true },
-        }),
-      );
+      const invitation = await tx.poolInvitation.upsert({
+        where: { poolId_inviteeId: { poolId, inviteeId } },
+        create: { poolId, invitedById: managerId, inviteeId },
+        update: {
+          invitedById: managerId,
+          status: 'PENDING',
+          respondedAt: null,
+          cancelledAt: null,
+        },
+        select: { id: true, inviteeId: true },
+      });
+      // Accepted invitations may be reopened after the contributor leaves.
+      // Remove the old read notification so ONE_SHOT delivery can create a
+      // fresh actionable row for the renewed invitation.
+      await tx.notification.deleteMany({
+        where: { poolInvitationId: invitation.id },
+      });
+      invitations.push(invitation);
     }
     return {
       invitations,
