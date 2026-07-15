@@ -381,6 +381,11 @@ const InviteSection = ({
 				candidate.username.toLowerCase().includes(normalized),
 		);
 	}, [candidates, query]);
+	const sendButtonLabel = sending
+		? 'Sending…'
+		: `Send ${selectedIds.size || ''} invitation${
+				selectedIds.size === 1 ? '' : 's'
+			}`;
 
 	const sendInvitations = async () => {
 		if (selectedIds.size === 0 || sending) return;
@@ -563,11 +568,7 @@ const InviteSection = ({
 								disabled={selectedIds.size === 0 || sending}
 								className="min-h-11"
 							>
-								{sending
-									? 'Sending…'
-									: `Send ${selectedIds.size || ''} invitation${
-											selectedIds.size === 1 ? '' : 's'
-										}`}
+								{sendButtonLabel}
 							</Button>
 						</ResponsiveDialogFooter>
 					</ResponsiveDialogContent>

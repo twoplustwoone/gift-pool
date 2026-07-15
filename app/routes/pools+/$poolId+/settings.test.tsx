@@ -2,9 +2,29 @@
  * @vitest-environment jsdom
  */
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+type InvitationPerson = {
+  id: string;
+  username: string;
+  name: string | null;
+  image: { id: string; altText: string | null } | null;
+};
+
+type InvitationCandidate = InvitationPerson & {
+  contributionCents: number | null;
+};
+
+type PendingInvitation = {
+  id: string;
+  createdAt: Date;
+  invitee: InvitationPerson;
+};
+
+const fetchMock = vi.fn<typeof fetch>();
 
 const loaderDataSnapshot = {
   inviteUrl: 'https://giftpool.app/pools/join/invite-1' as string | null,
@@ -16,8 +36,8 @@ const loaderDataSnapshot = {
     poolTitle: 'Alex Birthday Pool',
     recipientLabel: 'Alex',
     isActive: true,
-    candidates: [],
-    pendingInvitations: [],
+    candidates: [] as InvitationCandidate[],
+    pendingInvitations: [] as PendingInvitation[],
   },
   pool: {
     id: 'pool-1',
@@ -58,9 +78,13 @@ function renderRoute() {
 
 describe('app/routes/pools+/$poolId+/settings.tsx', () => {
   beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
     loaderDataSnapshot.pool.status = 'OPEN';
     loaderDataSnapshot.canHardDelete = true;
     loaderDataSnapshot.inviteUrl = 'https://giftpool.app/pools/join/invite-1';
+    loaderDataSnapshot.invitationState.candidates = [];
+    loaderDataSnapshot.invitationState.pendingInvitations = [];
   });
 
   it('opens pool details in read mode and surfaces invite + danger zone', () => {
@@ -125,4 +149,70 @@ describe('app/routes/pools+/$poolId+/settings.tsx', () => {
       screen.getByRole('button', { name: 'Cancel pool' }),
     ).toBeInTheDocument();
   });
+
+  it('selects and sends eligible people from the responsive picker', async () => {
+    const candidate = invitationPerson('naomi', 'Naomi');
+    loaderDataSnapshot.invitationState.candidates = [
+      { ...candidate, contributionCents: null },
+    ];
+    fetchMock.mockResolvedValue(
+      Response.json({
+        success: true,
+        invitations: [{ id: 'invitation-1', inviteeId: candidate.id }],
+      }),
+    );
+
+    renderRoute();
+    await userEvent.click(screen.getByRole('button', { name: 'Invite people' }));
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: 'Invite Naomi' }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Send 1 invitation' }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/pools/pool-1/invitations',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ inviteeIds: ['naomi'] }),
+      }),
+    );
+    expect(await screen.findByText('Awaiting response')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Everyone eligible is already a contributor or has been invited.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('returns a cancelled invitation to the eligible picker', async () => {
+    const invitee = invitationPerson('marco', 'Marco');
+    loaderDataSnapshot.invitationState.pendingInvitations = [
+      { id: 'invitation-1', createdAt: new Date(), invitee },
+    ];
+    fetchMock.mockResolvedValue(
+      Response.json({ success: true, poolId: 'pool-1' }),
+    );
+
+    renderRoute();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Cancel invitation' }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/pool-invitations/invitation-1/cancel',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(screen.queryByText('Awaiting response')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Invite people' }));
+    expect(
+      screen.getByRole('checkbox', { name: 'Invite Marco' }),
+    ).toBeInTheDocument();
+  });
 });
+
+function invitationPerson(id: string, name: string): InvitationPerson {
+  return { id, username: id, name, image: null };
+}

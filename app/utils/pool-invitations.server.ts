@@ -85,8 +85,7 @@ async function requireManager(
     select: { role: true, removedAt: true, bannedUntil: true },
   });
   const active =
-    membership &&
-    membership.removedAt === null &&
+    membership?.removedAt === null &&
     (membership.bannedUntil === null || membership.bannedUntil <= new Date());
   if (!active || (membership.role !== 'OWNER' && membership.role !== 'ADMIN')) {
     throw new PoolInvitationError(
@@ -414,8 +413,7 @@ export async function acceptPoolInvitation(
         },
       });
       const active =
-        membership &&
-        membership.removedAt === null &&
+        membership?.removedAt === null &&
         (membership.bannedUntil === null ||
           membership.bannedUntil <= new Date());
       if (!active) throwInviteeNotEligible();

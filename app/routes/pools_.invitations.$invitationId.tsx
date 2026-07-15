@@ -42,7 +42,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 export async function action({ request, params }: ActionFunctionArgs) {
   const userId = await requireUserId(request);
   if (!params.invitationId) throw new Response('Not Found', { status: 404 });
-  const intent = String((await request.formData()).get('intent'));
+  const rawIntent = (await request.formData()).get('intent');
+  const intent = typeof rawIntent === 'string' ? rawIntent : '';
   try {
     if (intent === 'accept') {
       const { poolId } = await acceptPoolInvitation(

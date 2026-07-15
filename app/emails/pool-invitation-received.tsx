@@ -16,7 +16,7 @@ export function PoolInvitationReceivedEmail({
   recipientLabel,
   invitationUrl,
   managePreferencesUrl,
-}: PoolInvitationReceivedEmailProps) {
+}: Readonly<PoolInvitationReceivedEmailProps>) {
   return (
     <E.Html lang="en" dir="ltr">
       <E.Container>
