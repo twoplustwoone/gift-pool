@@ -25,9 +25,10 @@ describe('notification catalog', () => {
     ).toBe(NOTIFICATION_TOPICS.FRIEND_REQUESTS);
   });
 
-  it('keeps email opt-in for new topics except grandfathered friend defaults', () => {
+  it('keeps email opt-in except for consent-bearing social invitations', () => {
     const grandfatheredEmailDefaults = new Set<string>([
       NOTIFICATION_TOPICS.FRIEND_REQUESTS,
+      NOTIFICATION_TOPICS.POOL_INVITATIONS,
     ]);
 
     for (const [topic, definition] of Object.entries(

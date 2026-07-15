@@ -1,15 +1,15 @@
 import { isValidElement, type ReactNode, useState } from 'react';
 import { Button } from './button';
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from './dialog';
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogClose as DialogClose,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogDescription as DialogDescription,
+  ResponsiveDialogFooter as DialogFooter,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+  ResponsiveDialogTrigger as DialogTrigger,
+} from './responsive-dialog';
 
 function renderDialogDescription(description?: ReactNode) {
   if (!description) {

@@ -250,6 +250,16 @@ export async function addContributor(
 		data: { poolId, userId, contributionCents: contributionCents ?? null },
 	})
 
+	await recordContributorJoined(poolId, userId)
+
+	return contributor
+}
+
+export async function recordContributorJoined(
+	poolId: string,
+	userId: string,
+	properties: Record<string, unknown> = {},
+) {
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.CONTRIBUTOR_JOINED, {
 		actorId: userId,
 		payload: { userId },
@@ -259,10 +269,8 @@ export async function addContributor(
 		name: 'pool_contributor_joined',
 		userId,
 		source: 'server',
-		properties: { poolId },
+		properties: { poolId, ...properties },
 	})
-
-	return contributor
 }
 
 export async function removeContributor(

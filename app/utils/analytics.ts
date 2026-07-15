@@ -18,6 +18,9 @@ export const ANALYTIC_EVENT_NAMES = [
   // Phase 1.5 — gifting workflow instrumentation
   'pool_created',
   'pool_contributor_joined',
+  'pool_invitation_sent',
+  'pool_invitation_accepted',
+  'pool_invitation_declined',
   'pool_vote_called',
   'pool_vote_cast',
   'pool_decided',
@@ -193,6 +196,9 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   // Phase 1.5 — every workflow event has a known actor (the acting user).
   'pool_created',
   'pool_contributor_joined',
+  'pool_invitation_sent',
+  'pool_invitation_accepted',
+  'pool_invitation_declined',
   'pool_vote_called',
   'pool_vote_cast',
   'pool_decided',

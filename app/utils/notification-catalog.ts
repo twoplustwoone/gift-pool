@@ -1,6 +1,7 @@
 export const NOTIFICATION_TYPES = {
   FRIEND_REQUEST_RECEIVED: 'FRIEND_REQUEST_RECEIVED',
   FRIEND_REQUEST_ACCEPTED: 'FRIEND_REQUEST_ACCEPTED',
+  POOL_INVITATION_RECEIVED: 'POOL_INVITATION_RECEIVED',
   UPCOMING_BIRTHDAY: 'UPCOMING_BIRTHDAY',
   POOL_VOTE_STARTED: 'POOL_VOTE_STARTED',
   POOL_GIFT_CHOSEN: 'POOL_GIFT_CHOSEN',
@@ -102,6 +103,7 @@ export const NOTIFICATION_CATEGORY_CATALOG = {
 
 export const NOTIFICATION_TOPICS = {
   FRIEND_REQUESTS: 'FRIEND_REQUESTS',
+  POOL_INVITATIONS: 'POOL_INVITATIONS',
   BIRTHDAY_REMINDERS: 'BIRTHDAY_REMINDERS',
   IDEAS_AND_VOTING: 'IDEAS_AND_VOTING',
   POOL_PROGRESS: 'POOL_PROGRESS',
@@ -167,6 +169,16 @@ export const NOTIFICATION_TOPIC_CATALOG = {
       pushEnabled: false,
     },
   },
+  [NOTIFICATION_TOPICS.POOL_INVITATIONS]: {
+    category: NOTIFICATION_CATEGORIES.POOL_COORDINATION,
+    label: 'Pool invitations',
+    description: 'When someone invites you to contribute to a gift pool.',
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: true,
+      pushEnabled: false,
+    },
+  },
   [NOTIFICATION_TOPICS.IDEAS_AND_VOTING]: {
     category: NOTIFICATION_CATEGORIES.POOL_COORDINATION,
     label: 'Ideas and voting',
@@ -223,6 +235,13 @@ export const NOTIFICATION_EVENT_CATALOG = {
   },
   [NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED]: {
     topic: NOTIFICATION_TOPICS.FRIEND_REQUESTS,
+    importance: 'IMPORTANT',
+    context: 'NONE',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'ONE_SHOT',
+  },
+  [NOTIFICATION_TYPES.POOL_INVITATION_RECEIVED]: {
+    topic: NOTIFICATION_TOPICS.POOL_INVITATIONS,
     importance: 'IMPORTANT',
     context: 'NONE',
     supportedChannels: allChannels,
@@ -424,6 +443,16 @@ type PoolActivityPayload = {
   actorUserId: string;
 };
 
+type PoolInvitationPayload = {
+  invitationId: string;
+  poolId: string;
+  poolTitle: string;
+  recipientLabel: string;
+  inviterUserId: string;
+  inviterDisplayName: string;
+  inviterAvatarId?: string | null;
+};
+
 type OrganizerNudgePayload = {
   nudgeId: string;
   poolId: string;
@@ -435,6 +464,7 @@ type OrganizerNudgePayload = {
 type PayloadByType = {
   [NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED]: FriendRequestPayload;
   [NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED]: FriendRequestPayload;
+  [NOTIFICATION_TYPES.POOL_INVITATION_RECEIVED]: PoolInvitationPayload;
   [NOTIFICATION_TYPES.UPCOMING_BIRTHDAY]: {
     targetUserId: string;
     birthdayUserId: string;
