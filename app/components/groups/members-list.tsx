@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { SystemLabel } from '#app/components/ui/system-label.tsx';
+import { formatMonthDay } from '#app/utils/dates.ts';
 import { type GroupRole } from '#app/utils/group-role.ts';
 import { MemberActionsMenu } from './member-actions-menu.tsx';
 import { RoleBadge } from './RoleBadge.tsx';
@@ -22,7 +23,7 @@ function formatBirthday(birthday: Date | string | null): string {
   if (!birthday) return 'Birthday not set';
   const date = birthday instanceof Date ? birthday : new Date(birthday);
   if (Number.isNaN(date.getTime())) return 'Birthday not set';
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return formatMonthDay(date);
 }
 
 function MemberRow({
