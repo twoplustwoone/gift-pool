@@ -49,6 +49,7 @@ import {
 } from '#app/utils/group-invitations.server.ts';
 import { userHasGroupPermission } from '#app/utils/group-permissions.server.ts';
 import { GroupRoleSchema, type GroupRole } from '#app/utils/group-role.ts';
+import { optionalContributionCentsSchema } from '#app/utils/money-schema.ts';
 import {
   requireUserIdInGroup,
   addReminder,
@@ -272,7 +273,10 @@ const MemberDemoteMemberSchema = z.object({
 const MemberUpdateSelfSchema = z.object({
   intent: z.literal(SettingsIntent.MemberUpdateSelf),
   giftGroupId: z.string(),
-  contributionCents: z.string().optional(),
+  // Validate as a non-negative integer cents value (was a bare string, which
+  // let `abc` become NaN → 500 and negatives persist). Empty → undefined so
+  // this stays a partial update.
+  contributionCents: optionalContributionCentsSchema,
   // Use 'INHERIT' sentinel instead of empty string to avoid Select empty value issues
   budgetVisibilityOverride: z
     .enum(['INHERIT', 'EVERYONE', 'ADMINS', 'ONLY_SELF'])
@@ -383,9 +387,8 @@ export async function action({ request }: ActionFunctionArgs) {
     }
     case SettingsIntent.MemberUpdateSelf: {
       await updateOwnPreferences(request, v.giftGroupId, {
-        contributionCents: v.contributionCents
-          ? Number.parseInt(v.contributionCents, 10)
-          : undefined,
+        // Already coerced/validated to a non-negative integer (or undefined).
+        contributionCents: v.contributionCents,
         // Pass through as-is so this stays a partial update: the Overview
         // budget editor submits only contributionCents, and must NOT reset a
         // member's chosen visibility (ADMINS / ONLY_SELF) to INHERIT. An

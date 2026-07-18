@@ -13,6 +13,7 @@
 // raw 409 instead of replaying (see other/trigger-occasion-reminders.js).
 import * as Sentry from '@sentry/react-router';
 import { data, type ActionFunctionArgs } from 'react-router';
+import { verifyInternalCommandToken } from '#app/utils/internal-command.server.ts';
 import { ensurePrimary } from '#app/utils/litefs.server.ts';
 import { runOccasionReminderSweep } from '#app/utils/occasion-reminders.server.ts';
 
@@ -21,14 +22,9 @@ export async function action({ request }: ActionFunctionArgs) {
     return data({ error: 'Method not allowed' }, { status: 405 });
   }
 
-  // The Boolean(token) guard matters: env validation should make an unset
-  // token unreachable, but without it a missing env var would make
-  // `Bearer undefined` a valid credential.
-  const token = process.env.INTERNAL_COMMAND_TOKEN;
-  const isAuthorized =
-    Boolean(token) &&
-    request.headers.get('Authorization') === `Bearer ${token}`;
-  if (!isAuthorized) {
+  // Constant-time bearer check with an unset-token guard (shared with the
+  // cache write-forward endpoint) — see internal-command.server.ts.
+  if (!verifyInternalCommandToken(request)) {
     return data({ error: 'Unauthorized' }, { status: 401 });
   }
 

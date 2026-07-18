@@ -37,8 +37,13 @@ export default async function handleRequest(...args: DocRequestArgs) {
   const { currentInstance, primaryInstance } = await getInstanceInfo();
   responseHeaders.set('fly-region', process.env.FLY_REGION ?? 'unknown');
   responseHeaders.set('fly-app', process.env.FLY_APP_NAME ?? 'unknown');
-  responseHeaders.set('fly-primary-instance', primaryInstance);
-  responseHeaders.set('fly-instance', currentInstance);
+  // Internal LiteFS machine ids are useful for local/debug diagnostics but
+  // needlessly disclose deployment topology (which instance is primary) to
+  // every client in production — expose them off-prod only.
+  if (process.env.NODE_ENV !== 'production') {
+    responseHeaders.set('fly-primary-instance', primaryInstance);
+    responseHeaders.set('fly-instance', currentInstance);
+  }
 
   if (process.env.NODE_ENV === 'production' && process.env.SENTRY_DSN) {
     responseHeaders.append('Document-Policy', 'js-profiling');
@@ -90,8 +95,12 @@ export async function handleDataRequest(response: Response) {
   const { currentInstance, primaryInstance } = await getInstanceInfo();
   response.headers.set('fly-region', process.env.FLY_REGION ?? 'unknown');
   response.headers.set('fly-app', process.env.FLY_APP_NAME ?? 'unknown');
-  response.headers.set('fly-primary-instance', primaryInstance);
-  response.headers.set('fly-instance', currentInstance);
+  // See handleRequest: internal instance ids are diagnostics only, not for
+  // production clients.
+  if (process.env.NODE_ENV !== 'production') {
+    response.headers.set('fly-primary-instance', primaryInstance);
+    response.headers.set('fly-instance', currentInstance);
+  }
 
   return response;
 }
