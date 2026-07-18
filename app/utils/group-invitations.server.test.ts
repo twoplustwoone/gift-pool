@@ -96,8 +96,37 @@ describe('createInviteLink role clamping', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('allows an ADMIN to grant ADMIN (equal rank)', async () => {
+  it('rejects an ADMIN granting ADMIN (promotion is owner-only)', async () => {
     findUnique.mockResolvedValue({ role: 'ADMIN' });
+
+    const promise = createInviteLink(new Request('https://x'), {
+      ...args,
+      roleGranted: 'ADMIN',
+    });
+
+    await expect(promise).rejects.toBeDefined();
+    await promise.catch((err) => expect(statusOf(err)).toBe(403));
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('allows an ADMIN to grant MEMBER', async () => {
+    findUnique.mockResolvedValue({ role: 'ADMIN' });
+
+    await createInviteLink(new Request('https://x'), {
+      ...args,
+      roleGranted: 'MEMBER',
+    });
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ roleGranted: 'MEMBER' }),
+      }),
+    );
+  });
+
+  it('allows an OWNER to grant ADMIN', async () => {
+    findUnique.mockResolvedValue({ role: 'OWNER' });
 
     await createInviteLink(new Request('https://x'), {
       ...args,

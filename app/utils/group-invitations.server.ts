@@ -5,7 +5,6 @@ import { data } from 'react-router';
 import { prisma } from './db.server';
 import { logGroupActivity } from './group-activity.server';
 import {
-  GROUP_ROLE_RANK,
   getGroupRole,
   requireUserWithGroupPermission,
 } from './group-permissions.server';
@@ -57,19 +56,17 @@ export const createInviteLink = async (
     'manageInvites',
   );
 
-  // Clamp the granted role to the creator's own role. Without this an ADMIN
-  // (who holds `manageInvites`) could mint an OWNER-granting invite and take
-  // over the group. Only an OWNER may grant OWNER/ADMIN.
+  // Only an OWNER may grant elevated roles (ADMIN or OWNER). An ADMIN holds
+  // `manageInvites` but NOT `promoteAdmin` (owner-only), so letting them mint
+  // an ADMIN/OWNER invite would bypass owner-only promotion and, for OWNER,
+  // enable a full takeover. Non-owners may invite MEMBERs only.
   const requestedRole: GroupRole = GroupRoleSchema.catch('MEMBER').parse(
     roleGranted ?? 'MEMBER',
   );
   const creatorRole = await getGroupRole(userId, giftGroupId);
-  if (
-    !creatorRole ||
-    GROUP_ROLE_RANK[requestedRole] > GROUP_ROLE_RANK[creatorRole]
-  ) {
+  if (requestedRole !== 'MEMBER' && creatorRole !== 'OWNER') {
     throw data(
-      { error: 'You cannot grant a role higher than your own.' },
+      { error: 'Only an owner can grant admin or owner roles.' },
       { status: 403 },
     );
   }
