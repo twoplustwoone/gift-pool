@@ -1,12 +1,6 @@
 // form utilities are not needed here anymore
 import { parseWithZod } from '@conform-to/zod';
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   data,
   type LoaderFunctionArgs,
@@ -25,7 +19,6 @@ import {
   useRouteError,
 } from 'react-router';
 import { HoneypotProvider } from 'remix-utils/honeypot/react';
-import { toast } from 'sonner';
 import { useSpinDelay } from 'spin-delay';
 import { z } from 'zod';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
@@ -37,13 +30,11 @@ import { TopBar } from './components/nav/top-bar.tsx';
 import { NotificationsProvider } from './components/notifications/notifications-context.tsx';
 import { NotificationPolling } from './components/notifications/notification-polling.tsx';
 import { EpicProgress } from './components/progress-bar.tsx';
-import { PwaInstallBanner } from './components/pwa-install-banner.tsx';
 import { SiteFooter } from './components/site-footer.tsx';
 import { useToast } from './components/toaster.tsx';
 import { href as iconsHref } from './components/ui/icon.tsx';
 import { EpicToaster } from './components/ui/sonner.tsx';
 import { WishlistRouteSkeleton } from './components/wishlist/wishlist-route-skeleton.tsx';
-import { usePwaInstallPrompt } from './hooks/use-pwa-install-prompt.ts';
 import nunitoStyleSheet from './styles/nunito-font.css?url';
 import tailwindStyleSheetUrl from './styles/tailwind.css?url';
 import { getUserId, logout } from './utils/auth.server.ts';
@@ -292,68 +283,11 @@ const App = () => {
     setPrefetchCacheScope(data.user?.id ?? null);
   }, [data.user?.id]);
   useToast(data.toast);
-  const {
-    capability: installCapability,
-    dismissBanner: dismissInstallBanner,
-    isPrompting,
-    manualPlatform,
-    promptInstall,
-    shouldShowBanner: showPwaInstallBanner,
-  } = usePwaInstallPrompt();
   useEffect(() => {
     void trackClientEnvironmentOncePerDay();
   }, []);
-  const handleInstallClick = useCallback(async () => {
-    if (installCapability !== 'prompt') {
-      return 'unavailable' as const;
-    }
-    const outcome = await promptInstall();
-    if (outcome === 'manual') {
-      return outcome;
-    }
-    if (outcome === 'accepted') {
-      toast.success('GiftPool installed', {
-        description: 'You can now launch it from your Home Screen.',
-      });
-    } else if (outcome === 'dismissed') {
-      toast.info('Install dismissed', {
-        description: 'You can try again later from this banner.',
-      });
-    } else if (outcome === 'unavailable') {
-      toast.error('Install not available', {
-        description: 'Your browser did not expose an install option.',
-      });
-    } else if (outcome === 'error') {
-      toast.error('Install failed', {
-        description: 'Something went wrong. Please try again.',
-      });
-    }
-    return outcome;
-  }, [installCapability, promptInstall]);
   const [hideHeader, setHideHeader] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const bannerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = bannerRef.current;
-    if (!el) {
-      document.documentElement.style.setProperty('--pwa-banner-height', '0px');
-      return;
-    }
-    const measure = () => {
-      document.documentElement.style.setProperty(
-        '--pwa-banner-height',
-        `${el.getBoundingClientRect().height}px`,
-      );
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => {
-      ro.disconnect();
-      document.documentElement.style.setProperty('--pwa-banner-height', '0px');
-    };
-  }, [showPwaInstallBanner]);
   const location = useLocation();
   const navigation = useNavigation();
   const lastRouteKey = useRef(
@@ -444,27 +378,6 @@ const App = () => {
         >
           {data.notifications ? <NotificationPolling /> : null}
           <div className="flex max-h-[100dvh] min-h-[100dvh] flex-col overflow-hidden">
-            {showPwaInstallBanner ? (
-              <div ref={bannerRef}>
-                <PwaInstallBanner
-                  capability={installCapability}
-                  isPrompting={isPrompting}
-                  manualHref={
-                    installCapability === 'manual' && manualPlatform
-                      ? `/pwa-install?platform=${manualPlatform}`
-                      : '/pwa-install'
-                  }
-                  manualPlatform={manualPlatform}
-                  onDismiss={dismissInstallBanner}
-                  onDismissPermanently={() =>
-                    dismissInstallBanner({
-                      persist: true,
-                    })
-                  }
-                  onPromptInstall={handleInstallClick}
-                />
-              </div>
-            ) : null}
             <TopBar hidden={hideHeader} />
 
             <div
