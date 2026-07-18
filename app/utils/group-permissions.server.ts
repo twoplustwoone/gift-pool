@@ -94,6 +94,29 @@ export async function requireUserWithGroupRole(
   }
   return userId;
 }
+// Higher number = more privilege. Used to clamp granted roles to the grantor's
+// own level (an OWNER can grant anything; an ADMIN can grant at most ADMIN).
+export const GROUP_ROLE_RANK: Record<GroupRole, number> = {
+  OWNER: 2,
+  ADMIN: 1,
+  MEMBER: 0,
+};
+
+// Resolves a user's current role in a group (parsed, least-privilege on an
+// unrecognised stored value), or undefined if they are not a member.
+export async function getGroupRole(
+  userId: string,
+  groupId: string,
+): Promise<GroupRole | undefined> {
+  const membership = await prisma.usersInGiftGroups.findUnique({
+    where: { userId_giftGroupId: { userId, giftGroupId: groupId } },
+    select: { role: true },
+  });
+  return membership?.role
+    ? GroupRoleSchema.catch('MEMBER').parse(membership.role)
+    : undefined;
+}
+
 export async function requireUserWithGroupPermission(
   request: Request,
   groupId: string,

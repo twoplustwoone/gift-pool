@@ -1,9 +1,15 @@
 import { invariantResponse } from '@epic-web/invariant';
-// Using string literals for roles/status to support SQLite
 import { nanoid } from 'nanoid';
+import { data } from 'react-router';
+// Using string literals for roles/status to support SQLite
 import { prisma } from './db.server';
 import { logGroupActivity } from './group-activity.server';
-import { requireUserWithGroupPermission } from './group-permissions.server';
+import {
+  GROUP_ROLE_RANK,
+  getGroupRole,
+  requireUserWithGroupPermission,
+} from './group-permissions.server';
+import { GroupRoleSchema, type GroupRole } from './group-role.ts';
 import { getDomainUrl } from './misc.tsx';
 import { createToastHeaders } from './toast.server';
 
@@ -50,6 +56,24 @@ export const createInviteLink = async (
     giftGroupId,
     'manageInvites',
   );
+
+  // Clamp the granted role to the creator's own role. Without this an ADMIN
+  // (who holds `manageInvites`) could mint an OWNER-granting invite and take
+  // over the group. Only an OWNER may grant OWNER/ADMIN.
+  const requestedRole: GroupRole = GroupRoleSchema.catch('MEMBER').parse(
+    roleGranted ?? 'MEMBER',
+  );
+  const creatorRole = await getGroupRole(userId, giftGroupId);
+  if (
+    !creatorRole ||
+    GROUP_ROLE_RANK[requestedRole] > GROUP_ROLE_RANK[creatorRole]
+  ) {
+    throw data(
+      { error: 'You cannot grant a role higher than your own.' },
+      { status: 403 },
+    );
+  }
+
   await prisma.groupInvitation.create({
     data: {
       giftGroupId,
@@ -57,8 +81,7 @@ export const createInviteLink = async (
       expiresAt,
       createdById: userId,
       label: label ?? '',
-      roleGranted:
-        (roleGranted as 'OWNER' | 'ADMIN' | 'MEMBER' | undefined) ?? 'MEMBER',
+      roleGranted: requestedRole,
       maxUses: maxUses ? Number.parseInt(maxUses, 10) : null,
       requireApproval: requireApproval === 'on' ? true : false,
     },
