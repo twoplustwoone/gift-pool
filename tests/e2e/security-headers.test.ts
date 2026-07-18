@@ -1,28 +1,36 @@
 import { expect, test } from '#tests/playwright-utils.ts';
 
 /**
- * Regression guard: confirms the server sends a Content-Security-Policy header
- * (in report-only mode) with the expected nonce-based script-src directives.
- *
- * The CSP is intentionally kept in report-only mode until React Router v7 adds
- * nonce support for its streaming continuation scripts (the inline <script> tags
- * emitted after </html> to populate the deferred ReadableStream). Those scripts
- * currently have no nonce, so strict-dynamic blocks them when enforced, which
- * prevents React from hydrating. Once upstream support lands this test should be
- * updated to assert the enforced header instead.
+ * Regression guard: every document and React Router continuation script must
+ * share the request nonce advertised by the report-only CSP header. Enforcement
+ * remains a separate rollout after production violation telemetry is reviewed.
  */
-test('homepage sends a Content-Security-Policy-Report-Only header with nonce-based script-src', async ({
+test('homepage gives every streamed script the report-only CSP nonce', async ({
   page,
 }) => {
   const response = await page.request.get('/');
   const headers = response.headers();
+  const html = await response.text();
+  const reportOnlyCsp = headers['content-security-policy-report-only'];
 
   // The report-only header must be present and contain the nonce-based script-src.
-  expect(headers['content-security-policy-report-only']).toBeTruthy();
-  expect(headers['content-security-policy-report-only']).toContain('script-src');
-  expect(headers['content-security-policy-report-only']).toContain('strict-dynamic');
+  expect(reportOnlyCsp).toBeTruthy();
+  expect(reportOnlyCsp).toContain('script-src');
+  expect(reportOnlyCsp).toContain('strict-dynamic');
 
-  // The enforced header must be absent — its presence would mean enforcement
-  // is on, which breaks React hydration via the streaming script issue above.
+  const scriptTags = [...html.matchAll(/<script\b[^>]*>/gi)].map(
+    ([scriptTag]) => scriptTag,
+  );
+  const scriptNonces = scriptTags.map((scriptTag) => {
+    const match = scriptTag.match(/\bnonce=(?:"([^"]*)"|'([^']*)')/i);
+    return match?.[1] ?? match?.[2] ?? '';
+  });
+
+  expect(scriptTags.length).toBeGreaterThan(0);
+  expect(scriptNonces.every(Boolean)).toBe(true);
+  expect(new Set(scriptNonces).size).toBe(1);
+  expect(reportOnlyCsp).toContain(`'nonce-${scriptNonces[0]}'`);
+
+  // Enforcement is intentionally a separate production rollout.
   expect(headers['content-security-policy']).toBeFalsy();
 });
