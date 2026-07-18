@@ -170,6 +170,47 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       });
     }
   }
+  // Mutual-friend (friend-of-friend) membership for the FRIENDS_OF_FRIENDS
+  // birthday-visibility tier: a co-member who isn't a direct friend but shares
+  // a friend with the viewer. Batched into two queries for the whole roster
+  // (rather than a per-member isFriendOfFriend check) so the roster honors the
+  // same rule the profile page does.
+  const nonFriendMemberIds = memberUserIds.filter(
+    (id) => relationshipMap.get(id)?.state !== 'FRIENDS',
+  );
+  const mutualFriendIds = new Set<string>();
+  if (nonFriendMemberIds.length > 0) {
+    const viewerFriendships = await prisma.friendship.findMany({
+      where: { OR: [{ userAId: userId }, { userBId: userId }] },
+      select: { userAId: true, userBId: true },
+    });
+    const viewerFriendIds = viewerFriendships.map((f) =>
+      f.userAId === userId ? f.userBId : f.userAId,
+    );
+    if (viewerFriendIds.length > 0) {
+      const mutualLinks = await prisma.friendship.findMany({
+        where: {
+          OR: [
+            {
+              userAId: { in: nonFriendMemberIds },
+              userBId: { in: viewerFriendIds },
+            },
+            {
+              userBId: { in: nonFriendMemberIds },
+              userAId: { in: viewerFriendIds },
+            },
+          ],
+        },
+        select: { userAId: true, userBId: true },
+      });
+      const nonFriendSet = new Set(nonFriendMemberIds);
+      for (const link of mutualLinks) {
+        mutualFriendIds.add(
+          nonFriendSet.has(link.userAId) ? link.userAId : link.userBId,
+        );
+      }
+    }
+  }
   const groupMembersWithFriendState = giftGroup.groupMembers.map((member) => {
     if (member.user.id === userId) {
       return {
@@ -190,7 +231,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     // bypassed both shareBirthday and birthdayVisibility).
     const user = gateBirthday(member.user, {
       isDirectFriend: relationship.state === 'FRIENDS',
-      isMutualFriend: false,
+      isMutualFriend: mutualFriendIds.has(member.user.id),
       sharesActiveBirthdayGroup: member.shareBirthday,
     });
     return {
