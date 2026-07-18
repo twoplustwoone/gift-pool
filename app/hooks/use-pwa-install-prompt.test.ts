@@ -3,6 +3,7 @@
  */
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { testConsole } from '#tests/setup/setup-test-env.ts';
 
 const trackPwaLifecycleEvent = vi.hoisted(() => vi.fn());
 
@@ -55,6 +56,39 @@ afterEach(() => {
 });
 
 describe('usePwaInstallPrompt analytics', () => {
+  it('reports unsupported browsers without exposing an install action', async () => {
+    const { result } = renderHook(() => usePwaInstallPrompt());
+
+    await waitFor(() => expect(result.current.capability).toBe('unsupported'));
+    expect(result.current.isInstalled).toBe(false);
+    expect(result.current.manualPlatform).toBeNull();
+  });
+
+  it('reports manual installation for iOS Safari', async () => {
+    setUserAgent(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1',
+    );
+    const { result } = renderHook(() => usePwaInstallPrompt());
+
+    await waitFor(() => expect(result.current.capability).toBe('manual'));
+    expect(result.current.manualPlatform).toBe('ios-safari');
+  });
+
+  it('suppresses installation when already running standalone', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query === '(display-mode: standalone)',
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const { result } = renderHook(() => usePwaInstallPrompt());
+
+    await waitFor(() => expect(result.current.isInstalled).toBe(true));
+    expect(result.current.capability).toBe('unsupported');
+  });
+
   it('tracks when the browser install prompt becomes available', async () => {
     const { result } = renderHook(() => usePwaInstallPrompt());
     const event = makeBeforeInstallPromptEvent();
@@ -105,13 +139,53 @@ describe('usePwaInstallPrompt analytics', () => {
     );
   });
 
-  it('tracks appinstalled events', () => {
-    renderHook(() => usePwaInstallPrompt());
+  it('returns unavailable when no native prompt is active', async () => {
+    const { result } = renderHook(() => usePwaInstallPrompt());
+
+    let outcome: string | undefined;
+    await act(async () => {
+      outcome = await result.current.promptInstall();
+    });
+
+    expect(outcome).toBe('unavailable');
+  });
+
+  it('contains native prompt failures', async () => {
+    testConsole.error.mockImplementation(() => {});
+    const { result } = renderHook(() => usePwaInstallPrompt());
+    const event = makeBeforeInstallPromptEvent();
+    event.prompt.mockRejectedValue(new Error('prompt failed'));
+
+    act(() => {
+      window.dispatchEvent(event);
+    });
+    await waitFor(() => expect(result.current.capability).toBe('prompt'));
+
+    let outcome: string | undefined;
+    await act(async () => {
+      outcome = await result.current.promptInstall();
+    });
+
+    expect(outcome).toBe('error');
+    expect(result.current.capability).toBe('unsupported');
+  });
+
+  it('tracks appinstalled events', async () => {
+    const { result } = renderHook(() => usePwaInstallPrompt());
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query === '(display-mode: standalone)',
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
 
     act(() => {
       window.dispatchEvent(new Event('appinstalled'));
     });
 
     expect(trackPwaLifecycleEvent).toHaveBeenCalledWith('pwa_appinstalled');
+    await waitFor(() => expect(result.current.isInstalled).toBe(true));
   });
 });
