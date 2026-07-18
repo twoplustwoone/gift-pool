@@ -7,9 +7,11 @@ import {
   LuUsers,
 } from 'react-icons/lu';
 import { Form, Link } from 'react-router';
+import { usePwaInstallPrompt } from '#app/hooks/use-pwa-install-prompt.ts';
 import { useTranslation } from '#app/utils/i18n.tsx';
 import { getUserImgSrc } from '#app/utils/misc.tsx';
 import { useUser, userHasRole } from '#app/utils/user.ts';
+import { PwaInstallMenuItem } from './pwa-install-menu-item.tsx';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -26,6 +28,7 @@ export const UserDropdown = () => {
   const formRef = useRef<HTMLFormElement>(null);
   const { t } = useTranslation();
   const isAdmin = userHasRole(user, 'admin');
+  const pwaInstall = usePwaInstallPrompt();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -79,6 +82,7 @@ export const UserDropdown = () => {
               </Flex>
             </Link>
           </DropdownMenuItem>
+          <PwaInstallMenuItem {...pwaInstall} />
           {isAdmin ? (
             <DropdownMenuItem asChild>
               <Link prefetch="intent" to={`/admin`}>

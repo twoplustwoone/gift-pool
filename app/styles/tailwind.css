@@ -75,15 +75,19 @@
     --pool: 174 66% 47%; /* #2EC4B6 in HSL */
     --pool-foreground: 0 0% 100%;
     --pool-badge-foreground: 0 0% 100%;
-    /* Height of top bar — updated at runtime by ResizeObserver in top-bar.tsx */
-    --top-bar-height: 3.5rem;
-    /* Height of PWA install banner — updated at runtime in root.tsx; 0 when not shown */
-    --pwa-banner-height: 0px;
+    /* Fixed top-bar height, shared by the header and content reservation. */
+    --top-bar-height: 4.0625rem;
     /* Height of bottom nav including safe area for PWAs/iOS */
     --bottom-nav-height: calc(3.5rem + env(safe-area-inset-bottom));
 
     --brand-gradient-start: var(--gift);
     --brand-gradient-end: 356 75% 62;
+  }
+
+  @media (min-width: 640px) {
+    :root {
+      --top-bar-height: 4.5625rem;
+    }
   }
 
   .dark {
