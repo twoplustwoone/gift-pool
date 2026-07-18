@@ -11,7 +11,6 @@ const useNavigation = vi.fn();
 const useFetchers = vi.fn();
 const useRequestInfo = vi.fn();
 const useHints = vi.fn();
-const usePwaInstallPrompt = vi.fn();
 const useToast = vi.fn();
 const setPrefetchCacheScope = vi.fn();
 const trackClientEnvironmentOncePerDay = vi.fn();
@@ -37,14 +36,6 @@ vi.mock('remix-utils/honeypot/react', () => ({
   HoneypotProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
-}));
-
-vi.mock('sonner', () => ({
-  toast: {
-    error: vi.fn(),
-    info: vi.fn(),
-    success: vi.fn(),
-  },
 }));
 
 vi.mock('./components/error-boundary.tsx', () => ({
@@ -81,10 +72,6 @@ vi.mock('./components/progress-bar.tsx', () => ({
   EpicProgress: () => <div data-testid="epic-progress" />,
 }));
 
-vi.mock('./components/pwa-install-banner.tsx', () => ({
-  PwaInstallBanner: () => <div>install banner</div>,
-}));
-
 vi.mock('./components/toaster.tsx', () => ({
   useToast: (...args: Array<unknown>) => useToast(...args),
 }));
@@ -103,11 +90,6 @@ vi.mock('./components/friends/friends-route-skeleton.tsx', () => ({
 
 vi.mock('./components/wishlist/wishlist-route-skeleton.tsx', () => ({
   WishlistRouteSkeleton: () => <div data-testid="wishlist-route-skeleton" />,
-}));
-
-vi.mock('./hooks/use-pwa-install-prompt.ts', () => ({
-  usePwaInstallPrompt: (...args: Array<unknown>) =>
-    usePwaInstallPrompt(...args),
 }));
 
 vi.mock('./utils/auth.server.ts', () => ({
@@ -219,14 +201,6 @@ beforeEach(() => {
     userPrefs: { theme: 'light' },
   });
   useHints.mockReturnValue({ theme: 'light' });
-  usePwaInstallPrompt.mockReturnValue({
-    capability: 'unavailable',
-    dismissBanner: vi.fn(),
-    isPrompting: false,
-    manualPlatform: null,
-    promptInstall: vi.fn(),
-    shouldShowBanner: false,
-  });
   useToast.mockReset();
   setPrefetchCacheScope.mockReset();
   trackClientEnvironmentOncePerDay.mockReset();
