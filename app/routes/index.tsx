@@ -57,6 +57,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
         where: {
           contributors: { some: { userId } },
           status: { in: ACTIVE_POOL_STATUSES },
+          // Defense-in-depth: never surface a pool to its own recipient.
+          recipientUserId: { not: userId },
         },
         select: {
           id: true,

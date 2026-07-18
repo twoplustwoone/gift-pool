@@ -24,6 +24,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const pools = await prisma.pool.findMany({
 		where: {
 			contributors: { some: { userId } },
+			// Defense-in-depth: never show a pool to its own recipient, even if a
+			// stray contributor row exists for them.
+			recipientUserId: { not: userId },
 		},
 		select: {
 			id: true,

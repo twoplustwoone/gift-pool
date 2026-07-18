@@ -12,6 +12,7 @@ import {
 } from '#app/utils/pool-constants.ts'
 import { calculateContributions } from '#app/utils/pool-contributions.ts'
 import { queuePoolActivityNotifications } from '#app/utils/pool-notifications.server.ts'
+import { assertPoolStatus } from '#app/utils/pool-permissions.server.ts'
 import type { DecisionMode, OccasionType } from '#app/utils/pool-constants.ts'
 
 // ─── Selects ──────────────────────────────────────────────────────────────────
@@ -246,6 +247,21 @@ export async function addContributor(
 	userId: string,
 	contributionCents?: number | null,
 ) {
+	// The recipient must never become a contributor — that would surface the
+	// surprise pool to them in their pool/home lists. This is the shared seam
+	// every add path flows through (including the assign-purchaser/deliverer
+	// intents that pass an arbitrary userId), so guarding here closes them all.
+	const pool = await prisma.pool.findUnique({
+		where: { id: poolId },
+		select: { recipientUserId: true },
+	})
+	if (pool?.recipientUserId === userId) {
+		throw data(
+			{ error: 'The pool recipient cannot be added as a contributor.' },
+			{ status: 400 },
+		)
+	}
+
 	const contributor = await prisma.poolContributor.create({
 		data: { poolId, userId, contributionCents: contributionCents ?? null },
 	})
@@ -293,6 +309,18 @@ export async function updateContribution(
 	userId: string,
 	contributionCents: number | null,
 ) {
+	// Contributions are locked once the gift is decided: the owed-money
+	// breakdown is derived live from these values, so allowing edits after
+	// DECIDED lets a contributor retroactively repudiate their share.
+	const pool = await prisma.pool.findUnique({
+		where: { id: poolId },
+		select: { status: true },
+	})
+	if (!pool) {
+		throw data({ error: 'Pool not found.' }, { status: 404 })
+	}
+	assertPoolStatus(pool, [POOL_STATUS.OPEN, POOL_STATUS.VOTING])
+
 	const contributor = await prisma.poolContributor.update({
 		where: { poolId_userId: { poolId, userId } },
 		data: { contributionCents },
@@ -402,12 +430,39 @@ export async function deleteIdea(
 	ideaId: string,
 	actorId: string,
 ) {
-	const idea = await prisma.giftIdea.findFirst({
-		where: { id: ideaId, poolId },
-		select: { poolId: true, name: true },
-	})
+	const [idea, pool] = await Promise.all([
+		prisma.giftIdea.findFirst({
+			where: { id: ideaId, poolId },
+			select: { poolId: true, name: true },
+		}),
+		prisma.pool.findUnique({
+			where: { id: poolId },
+			select: { status: true, chosenIdeaId: true },
+		}),
+	])
 	if (!idea) {
 		throw data({ error: 'Idea not found.' }, { status: 404 })
+	}
+	if (!pool) {
+		throw data({ error: 'Pool not found.' }, { status: 404 })
+	}
+
+	// Only removable before a decision: deleting after DECIDED would either null
+	// the chosen gift (onDelete: SetNull) or leave the pool inconsistent.
+	assertPoolStatus(pool, [POOL_STATUS.OPEN, POOL_STATUS.VOTING])
+	if (pool.chosenIdeaId === ideaId) {
+		throw data({ error: 'The chosen idea cannot be deleted.' }, { status: 409 })
+	}
+	// During voting, deleting an idea would cascade-wipe its votes and silently
+	// change the tally — refuse if any votes have been cast for it.
+	if (pool.status === POOL_STATUS.VOTING) {
+		const voteCount = await prisma.ideaVote.count({ where: { ideaId } })
+		if (voteCount > 0) {
+			throw data(
+				{ error: 'An idea with votes cannot be deleted during voting.' },
+				{ status: 409 },
+			)
+		}
 	}
 
 	await prisma.giftIdea.delete({ where: { id: ideaId } })
@@ -531,6 +586,12 @@ export async function chooseIdea(
 	const decision = await prisma.pool.updateMany({
 		where: {
 			id: poolId,
+			// Forward-only: a gift can be (re)chosen while OPEN/VOTING/DECIDED, but
+			// never from a terminal/purchased state — that would resurrect a
+			// CANCELLED pool or roll a DELIVERED one back to DECIDED.
+			status: {
+				in: [POOL_STATUS.OPEN, POOL_STATUS.VOTING, POOL_STATUS.DECIDED],
+			},
 			OR: [
 				{ status: { not: POOL_STATUS.DECIDED } },
 				{ chosenIdeaId: null },
@@ -654,10 +715,21 @@ export async function assignDeliverer(
 // ─── Status transitions ───────────────────────────────────────────────────────
 
 export async function markPurchased(poolId: string, actorId: string) {
-	await prisma.pool.update({
-		where: { id: poolId },
+	// Forward-only + idempotent: only a DECIDED (or already-PURCHASED) pool can
+	// be marked purchased — never OPEN/VOTING/DELIVERED/CANCELLED.
+	const result = await prisma.pool.updateMany({
+		where: {
+			id: poolId,
+			status: { in: [POOL_STATUS.DECIDED, POOL_STATUS.PURCHASED] },
+		},
 		data: { status: POOL_STATUS.PURCHASED },
 	})
+	if (result.count === 0) {
+		throw data(
+			{ error: "This pool can't be marked purchased yet." },
+			{ status: 409 },
+		)
+	}
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.MARKED_PURCHASED, { actorId })
 
@@ -670,10 +742,21 @@ export async function markPurchased(poolId: string, actorId: string) {
 }
 
 export async function markDelivered(poolId: string, actorId: string) {
-	await prisma.pool.update({
-		where: { id: poolId },
+	// Forward-only + idempotent: only a PURCHASED (or already-DELIVERED) pool can
+	// be marked delivered.
+	const result = await prisma.pool.updateMany({
+		where: {
+			id: poolId,
+			status: { in: [POOL_STATUS.PURCHASED, POOL_STATUS.DELIVERED] },
+		},
 		data: { status: POOL_STATUS.DELIVERED },
 	})
+	if (result.count === 0) {
+		throw data(
+			{ error: "This pool can't be marked delivered yet." },
+			{ status: 409 },
+		)
+	}
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.MARKED_DELIVERED, { actorId })
 
