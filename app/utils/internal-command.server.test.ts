@@ -32,8 +32,10 @@ describe('verifyInternalCommandToken', () => {
     expect(verifyInternalCommandToken(req())).toBe(false);
   });
 
-  it('rejects when the env token is unset (no Bearer undefined bypass)', () => {
-    delete process.env.INTERNAL_COMMAND_TOKEN;
+  it('rejects when the env token is unset/empty (no Bearer undefined bypass)', () => {
+    // Env vars are typed as required strings here, so clear via assignment
+    // rather than `delete`; an empty token is falsy and must still reject.
+    process.env.INTERNAL_COMMAND_TOKEN = '';
     expect(verifyInternalCommandToken(req('Bearer undefined'))).toBe(false);
     expect(verifyInternalCommandToken(req('Bearer '))).toBe(false);
   });
