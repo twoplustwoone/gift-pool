@@ -23,26 +23,13 @@ export type InstallOutcome =
 export type { ManualInstallPlatform };
 export type InstallCapability = 'prompt' | 'manual' | 'unsupported';
 
-const DISMISS_STORAGE_KEY = 'pwa-install-banner-dismissed';
-
 export const usePwaInstallPrompt = () => {
   const [installEvent, setInstallEvent] =
     useState<BeforeInstallPromptEvent | null>(null);
-  const [isDismissed, setIsDismissed] = useState(false);
-  const [isPermanentlyDismissed, setIsPermanentlyDismissed] = useState(false);
-  const [hasCheckedDismissal, setHasCheckedDismissal] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isPrompting, setIsPrompting] = useState(false);
   const [manualPlatform, setManualPlatform] =
     useState<ManualInstallPlatform | null>(null);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const storedDismissal = window.localStorage.getItem(DISMISS_STORAGE_KEY);
-    setIsPermanentlyDismissed(storedDismissal === 'true');
-    setHasCheckedDismissal(true);
-  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -64,7 +51,6 @@ export const usePwaInstallPrompt = () => {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       setInstallEvent(event as BeforeInstallPromptEvent);
-      setIsDismissed(false);
       setManualPlatform(null);
       trackPwaLifecycleEvent('pwa_prompt_available');
     };
@@ -112,12 +98,6 @@ export const usePwaInstallPrompt = () => {
     return 'unsupported';
   }, [installEvent, manualPlatform]);
 
-  const shouldShowBanner = useMemo(() => {
-    if (!hasCheckedDismissal) return false;
-    if (isInstalled || isDismissed || isPermanentlyDismissed) return false;
-    return true;
-  }, [hasCheckedDismissal, isDismissed, isInstalled, isPermanentlyDismissed]);
-
   const promptInstall = useCallback(async (): Promise<InstallOutcome> => {
     if (!installEvent) return 'unavailable';
 
@@ -132,7 +112,6 @@ export const usePwaInstallPrompt = () => {
         trackPwaLifecycleEvent('pwa_install_accepted');
         return 'accepted';
       }
-      setIsDismissed(true);
       trackPwaLifecycleEvent('pwa_install_dismissed');
       return 'dismissed';
     } catch (error) {
@@ -144,22 +123,12 @@ export const usePwaInstallPrompt = () => {
     }
   }, [installEvent]);
 
-  const dismissBanner = useCallback((options?: { persist?: boolean }) => {
-    setIsDismissed(true);
-    if (options?.persist && typeof window !== 'undefined') {
-      window.localStorage.setItem(DISMISS_STORAGE_KEY, 'true');
-      setIsPermanentlyDismissed(true);
-    }
-  }, []);
-
   return {
     capability,
-    dismissBanner,
     isInstalled,
     isPrompting: capability === 'prompt' ? isPrompting : false,
     manualPlatform,
     promptInstall,
-    shouldShowBanner,
   };
 };
 
