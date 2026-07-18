@@ -302,6 +302,10 @@ describe('app/routes/index.tsx', () => {
       where: {
         contributors: { some: { userId: 'user-42' } },
         status: { in: ['OPEN', 'VOTING', 'DECIDED', 'PURCHASED'] },
+        OR: [
+          { recipientUserId: null },
+          { recipientUserId: { not: 'user-42' } },
+        ],
       },
     });
   });

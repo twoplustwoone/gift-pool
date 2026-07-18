@@ -12,6 +12,7 @@ const giftIdeaCreate = vi.fn();
 const giftIdeaDelete = vi.fn();
 const giftIdeaFindFirst = vi.fn();
 const ideaVoteUpsert = vi.fn();
+const ideaVoteCount = vi.fn();
 const logPoolActivity = vi.fn();
 const poolContributorCreate = vi.fn();
 const poolContributorDelete = vi.fn();
@@ -43,6 +44,7 @@ vi.mock('#app/utils/db.server.ts', () => ({
     },
     ideaVote: {
       upsert: (...args: Array<unknown>) => ideaVoteUpsert(...args),
+      count: (...args: Array<unknown>) => ideaVoteCount(...args),
     },
     pool: {
       create: (...args: Array<unknown>) => poolCreate(...args),
@@ -54,7 +56,8 @@ vi.mock('#app/utils/db.server.ts', () => ({
     poolContributor: {
       create: (...args: Array<unknown>) => poolContributorCreate(...args),
       delete: (...args: Array<unknown>) => poolContributorDelete(...args),
-      findUnique: (...args: Array<unknown>) => poolContributorFindUnique(...args),
+      findUnique: (...args: Array<unknown>) =>
+        poolContributorFindUnique(...args),
       update: (...args: Array<unknown>) => poolContributorUpdate(...args),
     },
   },
@@ -103,10 +106,13 @@ import {
 beforeEach(() => {
   nanoid.mockReset().mockReturnValue('invite-123');
   captureMessage.mockReset();
-  giftIdeaCreate.mockReset().mockResolvedValue({ id: 'idea-1', name: 'Speaker' });
+  giftIdeaCreate
+    .mockReset()
+    .mockResolvedValue({ id: 'idea-1', name: 'Speaker' });
   giftIdeaDelete.mockReset().mockResolvedValue(undefined);
   giftIdeaFindFirst.mockReset();
   ideaVoteUpsert.mockReset().mockResolvedValue(undefined);
+  ideaVoteCount.mockReset().mockResolvedValue(0);
   logPoolActivity.mockReset().mockResolvedValue(undefined);
   poolContributorCreate.mockReset().mockResolvedValue({ id: 'contrib-1' });
   poolContributorDelete.mockReset().mockResolvedValue(undefined);
@@ -264,10 +270,14 @@ describe('pool server utilities', () => {
     expect(poolContributorCreate).toHaveBeenCalledWith({
       data: { contributionCents: 3000, poolId: 'pool-1', userId: 'user-2' },
     });
-    expect(logPoolActivity).toHaveBeenCalledWith('pool-1', 'contributor.joined', {
-      actorId: 'user-2',
-      payload: { userId: 'user-2' },
-    });
+    expect(logPoolActivity).toHaveBeenCalledWith(
+      'pool-1',
+      'contributor.joined',
+      {
+        actorId: 'user-2',
+        payload: { userId: 'user-2' },
+      },
+    );
   });
 
   it('removes contributors and logs the removal actor', async () => {
@@ -276,23 +286,32 @@ describe('pool server utilities', () => {
     expect(poolContributorDelete).toHaveBeenCalledWith({
       where: { poolId_userId: { poolId: 'pool-1', userId: 'user-2' } },
     });
-    expect(logPoolActivity).toHaveBeenCalledWith('pool-1', 'contributor.removed', {
-      actorId: 'manager-1',
-      payload: { userId: 'user-2' },
-    });
+    expect(logPoolActivity).toHaveBeenCalledWith(
+      'pool-1',
+      'contributor.removed',
+      {
+        actorId: 'manager-1',
+        payload: { userId: 'user-2' },
+      },
+    );
   });
 
   it('updates contributions and logs the contributor amount', async () => {
+    poolFindUnique.mockResolvedValueOnce({ status: 'OPEN' });
     await updateContribution('pool-1', 'user-2', 4500);
 
     expect(poolContributorUpdate).toHaveBeenCalledWith({
       data: { contributionCents: 4500 },
       where: { poolId_userId: { poolId: 'pool-1', userId: 'user-2' } },
     });
-    expect(logPoolActivity).toHaveBeenCalledWith('pool-1', 'contributor.updated', {
-      actorId: 'user-2',
-      payload: { contributionCents: 4500 },
-    });
+    expect(logPoolActivity).toHaveBeenCalledWith(
+      'pool-1',
+      'contributor.updated',
+      {
+        actorId: 'user-2',
+        payload: { contributionCents: 4500 },
+      },
+    );
   });
 
   it('marks contributor payment state', async () => {
@@ -316,7 +335,9 @@ describe('pool server utilities', () => {
   it('joinPoolViaInvite rejects missing invites', async () => {
     poolFindUnique.mockResolvedValue(null);
 
-    await expect(joinPoolViaInvite('missing-code', 'user-1')).rejects.toMatchObject({
+    await expect(
+      joinPoolViaInvite('missing-code', 'user-1'),
+    ).rejects.toMatchObject({
       init: { status: 404 },
     });
   });
@@ -328,7 +349,9 @@ describe('pool server utilities', () => {
       status: 'CANCELLED',
     });
 
-    await expect(joinPoolViaInvite('invite-123', 'user-1')).rejects.toMatchObject({
+    await expect(
+      joinPoolViaInvite('invite-123', 'user-1'),
+    ).rejects.toMatchObject({
       init: { status: 410 },
     });
 
@@ -338,7 +361,9 @@ describe('pool server utilities', () => {
       status: 'OPEN',
     });
 
-    await expect(joinPoolViaInvite('invite-123', 'user-1')).rejects.toMatchObject({
+    await expect(
+      joinPoolViaInvite('invite-123', 'user-1'),
+    ).rejects.toMatchObject({
       init: { status: 403 },
     });
   });
@@ -406,7 +431,9 @@ describe('pool server utilities', () => {
   it('deleteIdea rejects idea ids that do not belong to the pool', async () => {
     giftIdeaFindFirst.mockResolvedValue(null);
 
-    await expect(deleteIdea('pool-1', 'idea-1', 'user-1')).rejects.toMatchObject({
+    await expect(
+      deleteIdea('pool-1', 'idea-1', 'user-1'),
+    ).rejects.toMatchObject({
       init: { status: 404 },
     });
 
@@ -422,6 +449,10 @@ describe('pool server utilities', () => {
     giftIdeaFindFirst.mockResolvedValue({
       name: 'Speaker',
       poolId: 'pool-1',
+    });
+    poolFindUnique.mockResolvedValueOnce({
+      status: 'OPEN',
+      chosenIdeaId: null,
     });
 
     await deleteIdea('pool-1', 'idea-1', 'user-1');
@@ -519,7 +550,9 @@ describe('pool server utilities', () => {
   it('chooseIdea rejects ideas from another pool', async () => {
     giftIdeaFindFirst.mockResolvedValue(null);
 
-    await expect(chooseIdea('pool-1', 'idea-2', 'user-1')).rejects.toMatchObject({
+    await expect(
+      chooseIdea('pool-1', 'idea-2', 'user-1'),
+    ).rejects.toMatchObject({
       init: { status: 404 },
     });
 
@@ -542,6 +575,7 @@ describe('pool server utilities', () => {
       },
       where: {
         id: 'pool-1',
+        status: { in: ['OPEN', 'VOTING', 'DECIDED'] },
         OR: [
           { status: { not: 'DECIDED' } },
           { chosenIdeaId: null },
@@ -609,14 +643,24 @@ describe('pool server utilities', () => {
         OR: [{ delivererId: null }, { delivererId: { not: 'user-3' } }],
       },
     });
-    expect(logPoolActivity).toHaveBeenNthCalledWith(1, 'pool-1', 'purchaser.assigned', {
-      actorId: 'manager-1',
-      payload: { userId: 'user-2' },
-    });
-    expect(logPoolActivity).toHaveBeenNthCalledWith(2, 'pool-1', 'deliverer.assigned', {
-      actorId: 'manager-1',
-      payload: { userId: 'user-3' },
-    });
+    expect(logPoolActivity).toHaveBeenNthCalledWith(
+      1,
+      'pool-1',
+      'purchaser.assigned',
+      {
+        actorId: 'manager-1',
+        payload: { userId: 'user-2' },
+      },
+    );
+    expect(logPoolActivity).toHaveBeenNthCalledWith(
+      2,
+      'pool-1',
+      'deliverer.assigned',
+      {
+        actorId: 'manager-1',
+        payload: { userId: 'user-3' },
+      },
+    );
     expect(queuePoolActivityNotifications).toHaveBeenNthCalledWith(1, {
       type: NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED,
       poolId: 'pool-1',
@@ -660,31 +704,52 @@ describe('pool server utilities', () => {
     await cancelPool('pool-1', 'user-1');
     await deletePool('pool-1', 'user-1');
 
-    expect(poolUpdate).toHaveBeenNthCalledWith(1, {
+    // markPurchased/markDelivered are now forward-only conditional updateMany.
+    expect(poolUpdateMany).toHaveBeenNthCalledWith(1, {
       data: { status: 'PURCHASED' },
-      where: { id: 'pool-1' },
+      where: { id: 'pool-1', status: { in: ['DECIDED', 'PURCHASED'] } },
     });
-    expect(poolUpdate).toHaveBeenNthCalledWith(2, {
+    expect(poolUpdateMany).toHaveBeenNthCalledWith(2, {
       data: { status: 'DELIVERED' },
-      where: { id: 'pool-1' },
+      where: { id: 'pool-1', status: { in: ['PURCHASED', 'DELIVERED'] } },
     });
     expect(poolUpdateMany).toHaveBeenCalledWith({
       data: { status: 'CANCELLED' },
       where: { id: 'pool-1', status: { not: 'CANCELLED' } },
     });
     expect(poolDelete).toHaveBeenCalledWith({ where: { id: 'pool-1' } });
-    expect(logPoolActivity).toHaveBeenNthCalledWith(1, 'pool-1', 'pool.purchased', {
-      actorId: 'user-1',
-    });
-    expect(logPoolActivity).toHaveBeenNthCalledWith(2, 'pool-1', 'pool.delivered', {
-      actorId: 'user-1',
-    });
-    expect(logPoolActivity).toHaveBeenNthCalledWith(3, 'pool-1', 'pool.cancelled', {
-      actorId: 'user-1',
-    });
-    expect(logPoolActivity).toHaveBeenNthCalledWith(4, 'pool-1', 'pool.deleted', {
-      actorId: 'user-1',
-    });
+    expect(logPoolActivity).toHaveBeenNthCalledWith(
+      1,
+      'pool-1',
+      'pool.purchased',
+      {
+        actorId: 'user-1',
+      },
+    );
+    expect(logPoolActivity).toHaveBeenNthCalledWith(
+      2,
+      'pool-1',
+      'pool.delivered',
+      {
+        actorId: 'user-1',
+      },
+    );
+    expect(logPoolActivity).toHaveBeenNthCalledWith(
+      3,
+      'pool-1',
+      'pool.cancelled',
+      {
+        actorId: 'user-1',
+      },
+    );
+    expect(logPoolActivity).toHaveBeenNthCalledWith(
+      4,
+      'pool-1',
+      'pool.deleted',
+      {
+        actorId: 'user-1',
+      },
+    );
     expect(queuePoolActivityNotifications).toHaveBeenCalledWith({
       type: NOTIFICATION_TYPES.POOL_CANCELLED,
       poolId: 'pool-1',
@@ -862,6 +927,67 @@ describe('pool server utilities', () => {
           },
         },
       },
+    });
+  });
+
+  it('addContributor refuses to add the pool recipient (finding #6)', async () => {
+    poolFindUnique.mockResolvedValueOnce({ recipientUserId: 'recipient-1' });
+
+    await expect(addContributor('pool-1', 'recipient-1')).rejects.toMatchObject(
+      { init: { status: 400 } },
+    );
+    expect(poolContributorCreate).not.toHaveBeenCalled();
+  });
+
+  it('updateContribution is locked once the pool is DECIDED (finding #12)', async () => {
+    poolFindUnique.mockResolvedValueOnce({ status: 'DECIDED' });
+
+    await expect(
+      updateContribution('pool-1', 'user-2', 0),
+    ).rejects.toMatchObject({ init: { status: 409 } });
+    expect(poolContributorUpdate).not.toHaveBeenCalled();
+  });
+
+  it('markPurchased refuses to run from a non-DECIDED status (finding #9)', async () => {
+    poolUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(markPurchased('pool-1', 'user-1')).rejects.toMatchObject({
+      init: { status: 409 },
+    });
+  });
+
+  it('deleteIdea refuses to delete the chosen idea (finding #14)', async () => {
+    giftIdeaFindFirst.mockResolvedValue({ name: 'Speaker', poolId: 'pool-1' });
+    poolFindUnique.mockResolvedValueOnce({
+      status: 'DECIDED',
+      chosenIdeaId: 'idea-1',
+    });
+
+    await expect(
+      deleteIdea('pool-1', 'idea-1', 'user-1'),
+    ).rejects.toMatchObject({ init: { status: 409 } });
+    expect(giftIdeaDelete).not.toHaveBeenCalled();
+  });
+
+  it('deleteIdea refuses to delete an idea with votes during VOTING (finding #14)', async () => {
+    giftIdeaFindFirst.mockResolvedValue({ name: 'Speaker', poolId: 'pool-1' });
+    poolFindUnique.mockResolvedValueOnce({
+      status: 'VOTING',
+      chosenIdeaId: null,
+    });
+    ideaVoteCount.mockResolvedValueOnce(3);
+
+    await expect(
+      deleteIdea('pool-1', 'idea-1', 'user-1'),
+    ).rejects.toMatchObject({ init: { status: 409 } });
+    expect(giftIdeaDelete).not.toHaveBeenCalled();
+  });
+
+  it('markDelivered refuses to run from a non-PURCHASED status (finding #9)', async () => {
+    poolUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(markDelivered('pool-1', 'user-1')).rejects.toMatchObject({
+      init: { status: 409 },
     });
   });
 });

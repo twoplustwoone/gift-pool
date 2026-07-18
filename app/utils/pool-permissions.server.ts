@@ -1,5 +1,6 @@
 import { data } from 'react-router'
 import { prisma } from '#app/utils/db.server.ts'
+import { POOL_STATUS, type PoolStatus } from '#app/utils/pool-constants.ts'
 
 // A minimal pool shape — enough for permission checks without fetching
 // the entire pool every time.
@@ -8,6 +9,44 @@ export type PoolForPermissions = {
 	organizerId: string
 	giftGroupId: string | null
 	status: string
+}
+
+// ─── Lifecycle guard ──────────────────────────────────────────────────────────
+
+// The forward-only lifecycle. For each status, the statuses a pool may be in for
+// a transition INTO it to be valid. Terminal states (DELIVERED, CANCELLED) have
+// no successors, so a pool can never be resurrected out of them. Single source
+// of truth for "is this transition allowed"; mutations either gate on it via
+// `assertPoolStatus` or encode the predecessor set in a conditional updateMany.
+export const POOL_STATUS_PREDECESSORS: Record<PoolStatus, PoolStatus[]> = {
+	OPEN: [],
+	VOTING: [POOL_STATUS.OPEN],
+	DECIDED: [POOL_STATUS.OPEN, POOL_STATUS.VOTING],
+	PURCHASED: [POOL_STATUS.DECIDED],
+	DELIVERED: [POOL_STATUS.PURCHASED],
+	CANCELLED: [
+		POOL_STATUS.OPEN,
+		POOL_STATUS.VOTING,
+		POOL_STATUS.DECIDED,
+		POOL_STATUS.PURCHASED,
+	],
+}
+
+// Throws 409 unless the pool's current status is one of `allowed`. Keeps a
+// mutation from acting on a pool in a terminal or otherwise-invalid state
+// (e.g. editing a contribution after the gift is decided).
+export function assertPoolStatus(
+	pool: { status: string },
+	allowed: PoolStatus[],
+): void {
+	if (!allowed.includes(pool.status as PoolStatus)) {
+		throw data(
+			{
+				error: `This action isn't available while the pool is ${pool.status.toLowerCase()}.`,
+			},
+			{ status: 409 },
+		)
+	}
 }
 
 // ─── Role checks ──────────────────────────────────────────────────────────────
