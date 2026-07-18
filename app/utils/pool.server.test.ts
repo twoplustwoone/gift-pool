@@ -968,4 +968,26 @@ describe('pool server utilities', () => {
     ).rejects.toMatchObject({ init: { status: 409 } });
     expect(giftIdeaDelete).not.toHaveBeenCalled();
   });
+
+  it('deleteIdea refuses to delete an idea with votes during VOTING (finding #14)', async () => {
+    giftIdeaFindFirst.mockResolvedValue({ name: 'Speaker', poolId: 'pool-1' });
+    poolFindUnique.mockResolvedValueOnce({
+      status: 'VOTING',
+      chosenIdeaId: null,
+    });
+    ideaVoteCount.mockResolvedValueOnce(3);
+
+    await expect(
+      deleteIdea('pool-1', 'idea-1', 'user-1'),
+    ).rejects.toMatchObject({ init: { status: 409 } });
+    expect(giftIdeaDelete).not.toHaveBeenCalled();
+  });
+
+  it('markDelivered refuses to run from a non-PURCHASED status (finding #9)', async () => {
+    poolUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(markDelivered('pool-1', 'user-1')).rejects.toMatchObject({
+      init: { status: 409 },
+    });
+  });
 });
