@@ -4,9 +4,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const dnsLookup = vi.fn();
-const fetchMock = vi.fn<typeof fetch>();
+const fetchMock = vi.fn();
 
-vi.stubGlobal('fetch', fetchMock);
+// Outbound HTML fetches go through undici (IP-pinned dispatcher); mock it.
+vi.mock('undici', () => ({
+  fetch: (...args: Array<unknown>) => fetchMock(...args),
+  Agent: class {
+    close() {
+      return Promise.resolve();
+    }
+  },
+}));
 
 vi.mock('node:dns/promises', () => ({
   default: {
