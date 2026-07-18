@@ -32,6 +32,7 @@ import { Icon } from '#app/components/ui/icon.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Flex, Stack, Text } from '#app/components/ui-kit';
 import { track } from '#app/utils/analytics.client.ts';
+import { formatMonthDay } from '#app/utils/dates.ts';
 import {
   ACTION_TYPE,
   type ActionItem,
@@ -419,10 +420,7 @@ const PoolRow = ({ pool }: { pool: PoolSummary }) => {
                 <>
                   <span className="text-muted-foreground">·</span>
                   <Text size="xs" className="text-muted-foreground">
-                    {new Date(pool.eventDate).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                    })}
+                    {formatMonthDay(pool.eventDate)}
                   </Text>
                 </>
               )}

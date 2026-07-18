@@ -1,9 +1,11 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { hydrateRoot } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const clipboardWriteText = vi.fn();
@@ -342,8 +344,58 @@ describe('group detail overview route', () => {
     expect(screen.getByText('Active pools')).toBeInTheDocument();
     expect(screen.getByText("Marco's Birthday")).toBeInTheDocument();
     expect(screen.getByText(/birthday for/i)).toBeInTheDocument();
+    expect(screen.getByText('May 3')).toBeInTheDocument();
     expect(screen.getByText('Open')).toBeInTheDocument();
     expect(screen.getByText('Organizing')).toBeInTheDocument();
+  });
+
+  it('hydrates midnight-UTC pool dates without shifting the calendar day', async () => {
+    overviewData.activePools = [
+      {
+        id: 'pool-1',
+        title: "Marco's Birthday",
+        occasionType: 'BIRTHDAY',
+        eventDate: '2026-05-03T00:00:00.000Z',
+        status: 'OPEN',
+        recipientName: 'Marco',
+        recipientUsername: 'marco',
+        ideaCount: 3,
+        contributorCount: 4,
+        paidCount: 0,
+        viewerRole: 'organizing' as const,
+        viewerContributionCents: 2500,
+      },
+    ];
+
+    const originalTimeZone = process.env.TZ;
+    const container = document.createElement('div');
+    document.body.append(container);
+    const recoverableErrors: Array<unknown> = [];
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+
+    try {
+      process.env.TZ = 'UTC';
+      container.innerHTML = renderToString(<GroupsDetailOverview />);
+
+      process.env.TZ = 'America/New_York';
+      await act(async () => {
+        root = hydrateRoot(container, <GroupsDetailOverview />, {
+          onRecoverableError: (error) => recoverableErrors.push(error),
+        });
+        await Promise.resolve();
+      });
+
+      expect(container).toHaveTextContent('May 3');
+      expect(container).not.toHaveTextContent('May 2');
+      expect(recoverableErrors).toEqual([]);
+    } finally {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+      if (originalTimeZone === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTimeZone;
+    }
   });
 
   it('renders the upcoming occasions section with start-pool links', () => {

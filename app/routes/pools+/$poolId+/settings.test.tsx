@@ -96,6 +96,7 @@ describe('app/routes/pools+/$poolId+/settings.tsx', () => {
     // Read mode: values shown, no title input yet.
     expect(screen.getByText('Alex Birthday Pool')).toBeInTheDocument();
     expect(screen.getByText('Organizer chooses')).toBeInTheDocument();
+    expect(screen.getByText('May 1, 2026')).toBeInTheDocument();
     expect(
       document.querySelector('input[name="title"]'),
     ).not.toBeInTheDocument();

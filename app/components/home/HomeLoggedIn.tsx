@@ -3,6 +3,7 @@ import { LuActivity, LuCalendar, LuGift, LuUsers } from 'react-icons/lu';
 import { Link, useFetcher } from 'react-router';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
+import { formatMonthDay } from '#app/utils/dates.ts';
 import { Flex } from '../ui-kit/flex.tsx';
 import { type UpcomingBirthday, type RecentActivityItem } from './HomePanels';
 import { HOME_COPY } from './home-copy';
@@ -49,13 +50,6 @@ const statusLabels: Record<string, string> = {
   PURCHASED: 'Purchased',
 };
 
-const formatPoolEventDate = (eventDate: string) =>
-  new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(eventDate));
-
 // ── Pool card ────────────────────────────────────────────────────────────────
 
 const PoolCard = ({ pool }: { pool: ActivePool }) => {
@@ -100,7 +94,7 @@ const PoolCard = ({ pool }: { pool: ActivePool }) => {
             <span>·</span>
             <span className="flex items-center gap-1">
               <LuCalendar size={11} />
-              {formatPoolEventDate(pool.eventDate)}
+              {formatMonthDay(pool.eventDate)}
             </span>
           </>
         )}

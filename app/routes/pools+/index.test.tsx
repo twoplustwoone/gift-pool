@@ -151,11 +151,6 @@ describe('app/routes/pools+/index.tsx', () => {
 
   it('renders active and completed pool sections', () => {
     const eventDate = '2026-06-14T00:00:00.000Z';
-    const expectedEventDate = new Date(eventDate).toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
 
     renderRoute({
       active: [
@@ -199,7 +194,7 @@ describe('app/routes/pools+/index.tsx', () => {
     expect(
       screen.getByText((_, element) => element?.textContent === 'Birthday for Alex'),
     ).toBeInTheDocument();
-    expect(screen.getByText(expectedEventDate)).toBeInTheDocument();
+    expect(screen.getByText('June 14, 2026')).toBeInTheDocument();
     expect(screen.getByText('Open')).toBeInTheDocument();
 
     // Switch to Past tab — shows completed pool
