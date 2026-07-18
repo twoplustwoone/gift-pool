@@ -10,6 +10,7 @@ import {
   getNotificationTopicDefinition,
   getNotificationTopicsForContext,
 } from '#app/utils/notification-catalog.ts';
+import { gateBirthday } from '#app/utils/public-user.server.ts';
 import {
   CreateInviteLinkFormSchema,
   DeleteFormSchema,
@@ -46,6 +47,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
               username: true,
               name: true,
               birthday: true,
+              // Selected so the birthday can be gated before serialization.
+              birthdayVisibility: true,
               image: {
                 select: {
                   id: true,
@@ -57,6 +60,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
           role: true,
           contributionCents: true,
           budgetVisibilityOverride: true,
+          // The member's per-group opt-in — the group-share override input.
+          shareBirthday: true,
         },
       },
     },
@@ -177,10 +182,21 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
         },
       };
     }
+    const relationship =
+      relationshipMap.get(member.user.id) ?? emptyRelationship();
+    // Gate the birthday before it enters the serialized payload — a co-member
+    // must not receive a birthday the target didn't share for this group and
+    // didn't expose via their global visibility (fixes the roster leak that
+    // bypassed both shareBirthday and birthdayVisibility).
+    const user = gateBirthday(member.user, {
+      isDirectFriend: relationship.state === 'FRIENDS',
+      isMutualFriend: false,
+      sharesActiveBirthdayGroup: member.shareBirthday,
+    });
     return {
       ...member,
-      friendRelationship:
-        relationshipMap.get(member.user.id) ?? emptyRelationship(),
+      user,
+      friendRelationship: relationship,
     };
   });
   const canDelete = await userHasGroupPermission(
