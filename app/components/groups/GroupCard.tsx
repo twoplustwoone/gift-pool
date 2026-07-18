@@ -2,7 +2,6 @@ import { LuSettings } from 'react-icons/lu';
 import { Link } from 'react-router';
 import { RoleBadge } from '#app/components/groups/RoleBadge.tsx';
 import { Card } from '#app/components/ui/card.tsx';
-import { formatAbsoluteDate } from '#app/utils/dates.ts';
 import { Stack, Text } from '#app/components/ui-kit';
 import { usePressFeedback } from '#app/components/wishlist/hooks/use-press-feedback.ts';
 import { type GroupRole } from '#app/utils/group-role.ts';
@@ -12,7 +11,7 @@ export type GroupCardData = {
   name: string;
   description?: string | null;
   memberCount: number;
-  createdAt: string | Date;
+  createdAtDisplay: string;
   myRole: GroupRole;
 };
 
@@ -67,9 +66,7 @@ export function GroupCard({
           <div className="h-px w-full" />
           <div className="flex items-center justify-between text-sm">
             <div className="text-muted-foreground">Created</div>
-            <div className="font-medium">
-              {formatAbsoluteDate(g.createdAt)}
-            </div>
+            <div className="font-medium">{g.createdAtDisplay}</div>
           </div>
         </Stack>
       </Stack>

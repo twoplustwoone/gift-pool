@@ -18,11 +18,13 @@ import {
   formatBirthdayLabel,
   getUpcomingBirthday,
 } from '#app/utils/birthday.ts';
-import { formatAbsoluteDate } from '#app/utils/dates.ts';
+import { getHints } from '#app/utils/client-hints.tsx';
+import { formatTimestampDate } from '#app/utils/dates.ts';
 import { prisma } from '#app/utils/db.server.ts';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
+  const { timeZone } = getHints(request);
   const user = await prisma.user.findFirst({
     select: {
       id: true,
@@ -74,7 +76,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   return {
     user,
-    userJoinedDisplay: formatAbsoluteDate(user.createdAt),
+    userJoinedDisplay: formatTimestampDate(user.createdAt, timeZone),
     wishlistPreview: {
       items: wishlistItems,
       totalCount: wishlistTotalCount,

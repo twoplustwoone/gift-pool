@@ -7,7 +7,7 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
 import { Flex, Stack, Text } from '#app/components/ui-kit'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { formatAbsoluteDate } from '#app/utils/dates.ts'
+import { formatCalendarDate } from '#app/utils/dates.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
@@ -90,7 +90,7 @@ const PoolCard = ({ pool }: { pool: Pool }) => {
 						</Text>
 						{pool.eventDate && (
 							<Text size="xs" className="text-muted-foreground">
-								{formatAbsoluteDate(pool.eventDate)}
+								{formatCalendarDate(pool.eventDate)}
 							</Text>
 						)}
 						<Flex gap={2} align="center" className="mt-1">

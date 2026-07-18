@@ -96,7 +96,7 @@ describe('group surface components', () => {
     renderWithRouter(
       <GroupCard
         g={{
-          createdAt: '2026-03-31T00:00:00.000Z',
+          createdAtDisplay: 'March 30, 2026',
           description: 'Birthday planning',
           id: 'group-1',
           memberCount: 4,
@@ -110,6 +110,7 @@ describe('group surface components', () => {
     expect(screen.getByText('Birthday planning')).toBeInTheDocument();
     expect(screen.getByText('Members')).toBeInTheDocument();
     expect(screen.getByText('4')).toBeInTheDocument();
+    expect(screen.getByText('March 30, 2026')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /manage/i }),
     ).toHaveAttribute('href', '/groups/group-1');
@@ -129,7 +130,7 @@ describe('group surface components', () => {
     renderWithRouter(
       <GroupCard
         g={{
-          createdAt: '2026-03-31T00:00:00.000Z',
+          createdAtDisplay: 'March 30, 2026',
           description: null,
           id: 'group-2',
           memberCount: 2,

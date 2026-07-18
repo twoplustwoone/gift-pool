@@ -103,6 +103,7 @@ describe('member gift history loader', () => {
         params: { giftGroupId: 'group-1', userId: 'marco' },
         request: new Request(
           'https://giftpool.app/groups/group-1/members/marco/history',
+          { headers: { Cookie: 'CH-time-zone=America%2FNew_York' } },
         ),
       }),
     );
@@ -114,6 +115,7 @@ describe('member gift history loader', () => {
           id: 'pool-1',
           title: "Marco's 30th Birthday",
           occasionType: 'BIRTHDAY',
+          dateDisplay: 'May 3, 2025',
           giftName: 'Sony headphones',
           totalCents: 15000,
         },
@@ -161,7 +163,7 @@ describe('member gift history loader', () => {
         title: 'Old pool',
         occasionType: 'BIRTHDAY',
         eventDate: null,
-        updatedAt: new Date('2025-01-01'),
+        updatedAt: new Date('2025-01-01T01:00:00.000Z'),
         finalPriceCents: null,
         chosenIdea: null,
         contributors: [
@@ -178,10 +180,12 @@ describe('member gift history loader', () => {
         params: { giftGroupId: 'group-1', userId: 'marco' },
         request: new Request(
           'https://giftpool.app/groups/group-1/members/marco/history',
+          { headers: { Cookie: 'CH-time-zone=America%2FNew_York' } },
         ),
       }),
     );
 
     expect(result.gifts[0]?.totalCents).toBe(5000);
+    expect(result.gifts[0]?.dateDisplay).toBe('December 31, 2024');
   });
 });
