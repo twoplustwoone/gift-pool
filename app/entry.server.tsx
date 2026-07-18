@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import { isbot } from 'isbot';
 import { renderToPipeableStream } from 'react-dom/server';
 import {
+  isRouteErrorResponse,
   ServerRouter,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
@@ -101,6 +102,17 @@ export function handleError(
 ): void {
   // Skip capturing if the request was aborted.
   if (request.signal.aborted) {
+    return;
+  }
+  // Router-internal client errors are not app failures — e.g. a scanner URL
+  // with encoded newlines matches no route (not even the splat, whose regex
+  // can't cross newlines) and surfaces here as an internal 404 ErrorResponse.
+  if (isRouteErrorResponse(error) && error.status < 500) {
+    console.warn(
+      chalk.yellow(
+        `Client error ${error.status} for ${request.method} ${request.url}: ${error.data}`,
+      ),
+    );
     return;
   }
   if (error instanceof Error) {
