@@ -57,8 +57,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
         where: {
           contributors: { some: { userId } },
           status: { in: ACTIVE_POOL_STATUSES },
-          // Defense-in-depth: never surface a pool to its own recipient.
-          recipientUserId: { not: userId },
+          // Defense-in-depth: never surface a pool to its own recipient. The
+          // explicit null branch keeps pools with no linked recipient user
+          // (recipientName only) — a bare `{ not: userId }` drops NULL rows.
+          OR: [
+            { recipientUserId: null },
+            { recipientUserId: { not: userId } },
+          ],
         },
         select: {
           id: true,

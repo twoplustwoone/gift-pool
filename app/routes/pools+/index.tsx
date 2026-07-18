@@ -25,8 +25,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		where: {
 			contributors: { some: { userId } },
 			// Defense-in-depth: never show a pool to its own recipient, even if a
-			// stray contributor row exists for them.
-			recipientUserId: { not: userId },
+			// stray contributor row exists. The explicit null branch keeps pools
+			// with no linked recipient user — a bare `{ not: userId }` drops NULL
+			// rows in SQL.
+			OR: [{ recipientUserId: null }, { recipientUserId: { not: userId } }],
 		},
 		select: {
 			id: true,
