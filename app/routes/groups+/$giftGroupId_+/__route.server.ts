@@ -10,6 +10,7 @@ import {
   getNotificationTopicDefinition,
   getNotificationTopicsForContext,
 } from '#app/utils/notification-catalog.ts';
+import { gateBirthday } from '#app/utils/public-user.server.ts';
 import {
   CreateInviteLinkFormSchema,
   DeleteFormSchema,
@@ -46,6 +47,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
               username: true,
               name: true,
               birthday: true,
+              // Selected so the birthday can be gated before serialization.
+              birthdayVisibility: true,
               image: {
                 select: {
                   id: true,
@@ -57,6 +60,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
           role: true,
           contributionCents: true,
           budgetVisibilityOverride: true,
+          // The member's per-group opt-in — the group-share override input.
+          shareBirthday: true,
         },
       },
     },
@@ -165,6 +170,47 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       });
     }
   }
+  // Mutual-friend (friend-of-friend) membership for the FRIENDS_OF_FRIENDS
+  // birthday-visibility tier: a co-member who isn't a direct friend but shares
+  // a friend with the viewer. Batched into two queries for the whole roster
+  // (rather than a per-member isFriendOfFriend check) so the roster honors the
+  // same rule the profile page does.
+  const nonFriendMemberIds = memberUserIds.filter(
+    (id) => relationshipMap.get(id)?.state !== 'FRIENDS',
+  );
+  const mutualFriendIds = new Set<string>();
+  if (nonFriendMemberIds.length > 0) {
+    const viewerFriendships = await prisma.friendship.findMany({
+      where: { OR: [{ userAId: userId }, { userBId: userId }] },
+      select: { userAId: true, userBId: true },
+    });
+    const viewerFriendIds = viewerFriendships.map((f) =>
+      f.userAId === userId ? f.userBId : f.userAId,
+    );
+    if (viewerFriendIds.length > 0) {
+      const mutualLinks = await prisma.friendship.findMany({
+        where: {
+          OR: [
+            {
+              userAId: { in: nonFriendMemberIds },
+              userBId: { in: viewerFriendIds },
+            },
+            {
+              userBId: { in: nonFriendMemberIds },
+              userAId: { in: viewerFriendIds },
+            },
+          ],
+        },
+        select: { userAId: true, userBId: true },
+      });
+      const nonFriendSet = new Set(nonFriendMemberIds);
+      for (const link of mutualLinks) {
+        mutualFriendIds.add(
+          nonFriendSet.has(link.userAId) ? link.userAId : link.userBId,
+        );
+      }
+    }
+  }
   const groupMembersWithFriendState = giftGroup.groupMembers.map((member) => {
     if (member.user.id === userId) {
       return {
@@ -177,10 +223,21 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
         },
       };
     }
+    const relationship =
+      relationshipMap.get(member.user.id) ?? emptyRelationship();
+    // Gate the birthday before it enters the serialized payload — a co-member
+    // must not receive a birthday the target didn't share for this group and
+    // didn't expose via their global visibility (fixes the roster leak that
+    // bypassed both shareBirthday and birthdayVisibility).
+    const user = gateBirthday(member.user, {
+      isDirectFriend: relationship.state === 'FRIENDS',
+      isMutualFriend: mutualFriendIds.has(member.user.id),
+      sharesActiveBirthdayGroup: member.shareBirthday,
+    });
     return {
       ...member,
-      friendRelationship:
-        relationshipMap.get(member.user.id) ?? emptyRelationship(),
+      user,
+      friendRelationship: relationship,
     };
   });
   const canDelete = await userHasGroupPermission(
