@@ -1,7 +1,9 @@
 import dns from 'node:dns/promises';
 import { isIP } from 'node:net';
+import ipaddr from 'ipaddr.js';
 import { parse } from 'node-html-parser';
 import sharp from 'sharp';
+import { Agent, fetch as undiciFetch } from 'undici';
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB limit for uploads/downloads
 const MAX_PROCESSED_IMAGE_BYTES = 5 * 1024 * 1024; // compress down to <= 5MB before storage
@@ -29,30 +31,40 @@ type ProcessedImage = {
   contentType: string;
 };
 
-function isPrivateIPv4(address: string) {
-  const [a, b = Number.NaN] = address.split('.').map(Number);
-  if (Number.isNaN(a) || Number.isNaN(b)) return false;
-  if (a === 10) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  if (a === 127) return true;
-  if (a === 169 && b === 254) return true; // link-local (AWS IMDSv1 uses 169.254.169.254)
-  if (a === 0) return true; // 0.0.0.0/8
-  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT (RFC 6598)
-  return false;
+// `URL.hostname` keeps the brackets around an IPv6 literal (e.g. `[::1]`);
+// strip them so `isIP` / `ipaddr.parse` see the bare address.
+function stripIpBrackets(hostname: string) {
+  return hostname.replace(/^\[|\]$/g, '');
 }
 
-function isPrivateIPv6(address: string) {
-  const normalized = address.toLowerCase();
-  return (
-    normalized === '::1' ||
-    normalized.startsWith('fc') ||
-    normalized.startsWith('fd') ||
-    normalized.startsWith('fe80')
-  );
+// Default-DENY classification: an address is safe only if it is a globally
+// routable unicast address. Anything else — loopback, private, link-local,
+// unique-local, CGNAT, reserved, multicast, NAT64/mapped, or unparseable —
+// is blocked. Using ipaddr.js (rather than hand-rolled octet math) also
+// normalizes IPv4-mapped IPv6 (`::ffff:127.0.0.1`) to its embedded IPv4
+// before classifying, closing the mapped-address SSRF bypass.
+export function isBlockedAddress(address: string): boolean {
+  let parsed: ipaddr.IPv4 | ipaddr.IPv6;
+  try {
+    parsed = ipaddr.parse(address);
+  } catch {
+    return true; // unparseable → deny
+  }
+  if (parsed.kind() === 'ipv6') {
+    const v6 = parsed as ipaddr.IPv6;
+    if (v6.isIPv4MappedAddress()) {
+      parsed = v6.toIPv4Address();
+    }
+  }
+  return parsed.range() !== 'unicast';
 }
 
-async function assertSafeUrl(target: URL) {
+// Resolves and validates the target, returning the set of validated IPs.
+// Callers MUST connect only to these addresses (see `pinnedDispatcher`) so the
+// address that passed validation is the address that is actually dialed — this
+// is what closes the DNS-rebinding TOCTOU. Node's global fetch would otherwise
+// re-resolve the hostname independently at connect time.
+async function assertSafeUrl(target: URL): Promise<string[]> {
   if (!target.hostname) {
     throw new Error('Invalid URL host');
   }
@@ -61,26 +73,57 @@ async function assertSafeUrl(target: URL) {
     throw new Error('Blocked host');
   }
 
-  const parsedIpFamily = isIP(target.hostname);
-  if (parsedIpFamily === 4 && isPrivateIPv4(target.hostname)) {
-    throw new Error('Blocked private address');
+  const host = stripIpBrackets(target.hostname);
+  if (isIP(host)) {
+    if (isBlockedAddress(host)) {
+      throw new Error('Blocked private address');
+    }
+    return [host];
   }
-  if (parsedIpFamily === 6 && isPrivateIPv6(target.hostname)) {
-    throw new Error('Blocked private address');
-  }
-  if (parsedIpFamily) return;
 
   const lookups = await dns.lookup(target.hostname, {
     all: true,
     verbatim: true,
   });
-  const unsafe = lookups.some((entry) => {
-    if (entry.family === 4) return isPrivateIPv4(entry.address);
-    return isPrivateIPv6(entry.address);
-  });
-  if (unsafe) {
-    throw new Error('Blocked private address');
+  if (lookups.length === 0) {
+    throw new Error('DNS resolution failed');
   }
+  for (const entry of lookups) {
+    if (isBlockedAddress(entry.address)) {
+      throw new Error('Blocked private address');
+    }
+  }
+  return lookups.map((entry) => entry.address);
+}
+
+// Builds an undici dispatcher whose DNS lookup is pinned to the already-
+// validated addresses, so the connection can only reach a vetted IP while the
+// request still carries the original hostname for Host header / TLS SNI.
+function pinnedDispatcher(addresses: string[]) {
+  if (addresses.length === 0) {
+    throw new Error('No validated address to pin');
+  }
+  const resolved = addresses.map((address) => ({
+    address,
+    family: isIP(address) === 6 ? 6 : 4,
+  }));
+  const primary = resolved[0]!;
+  return new Agent({
+    connect: {
+      lookup(_hostname, options, callback) {
+        if (options && (options as { all?: boolean }).all) {
+          (callback as (err: null, addrs: typeof resolved) => void)(
+            null,
+            resolved,
+          );
+        } else {
+          (
+            callback as (err: null, address: string, family: number) => void
+          )(null, primary.address, primary.family);
+        }
+      },
+    },
+  });
 }
 
 function ensureImageContentType(contentType: string | null) {
@@ -174,16 +217,23 @@ async function fetchValidatedResponse(
   currentUrl: URL,
   controller: AbortController,
   options: FetchWithLimitOptions,
+  dispatchers: Agent[],
 ) {
-  await assertSafeUrl(currentUrl);
+  const validatedIps = await assertSafeUrl(currentUrl);
+  const dispatcher = pinnedDispatcher(validatedIps);
+  dispatchers.push(dispatcher);
 
-  const response = await fetch(currentUrl, {
+  const response = await undiciFetch(currentUrl, {
     signal: controller.signal,
     redirect: 'manual',
     headers: buildRequestHeaders(options),
+    dispatcher,
   });
 
-  const redirectTarget = resolveRedirectTarget(response, currentUrl);
+  const redirectTarget = resolveRedirectTarget(
+    response as unknown as Response,
+    currentUrl,
+  );
   if (redirectTarget) {
     return { redirectTarget, response: null };
   }
@@ -201,7 +251,11 @@ async function fetchValidatedResponse(
     );
   }
 
-  return { redirectTarget: null, response, contentType };
+  return {
+    redirectTarget: null,
+    response: response as unknown as Response,
+    contentType,
+  };
 }
 
 async function fetchWithLimit(
@@ -213,11 +267,19 @@ async function fetchWithLimit(
 }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  // Each hop gets its own IP-pinned dispatcher; close them all at the end so
+  // pooled sockets don't leak.
+  const dispatchers: Agent[] = [];
   try {
     let currentUrl = url;
     let redirectCount = 0;
     while (redirectCount <= MAX_REDIRECTS) {
-      const result = await fetchValidatedResponse(currentUrl, controller, options);
+      const result = await fetchValidatedResponse(
+        currentUrl,
+        controller,
+        options,
+        dispatchers,
+      );
       if (result.redirectTarget) {
         redirectCount += 1;
         if (redirectCount > MAX_REDIRECTS) {
@@ -238,6 +300,7 @@ async function fetchWithLimit(
     throw new Error('Too many redirects');
   } finally {
     clearTimeout(timeout);
+    await Promise.all(dispatchers.map((d) => d.close().catch(() => {})));
   }
 }
 

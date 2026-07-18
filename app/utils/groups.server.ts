@@ -273,6 +273,27 @@ export async function banMember(
     giftGroupId,
     'banMember',
   );
+  const [actor, target] = await Promise.all([
+    prisma.usersInGiftGroups.findUnique({
+      where: { userId_giftGroupId: { userId: actorId, giftGroupId } },
+      select: { role: true },
+    }),
+    prisma.usersInGiftGroups.findUnique({
+      where: { userId_giftGroupId: { userId: memberUserId, giftGroupId } },
+      select: { role: true },
+    }),
+  ]);
+  if (!target) {
+    throw data({ error: 'Member not found' }, { status: 404 });
+  }
+  // Mirror removeMember's target-role guards: the owner is never bannable, and
+  // an admin may only act on plain members (not the owner or peer admins).
+  if (target.role === 'OWNER') {
+    throw data({ error: 'Cannot ban the owner' }, { status: 400 });
+  }
+  if (actor?.role === 'ADMIN' && target.role !== 'MEMBER') {
+    throw data({ error: 'Admins can only ban members' }, { status: 403 });
+  }
   await prisma.usersInGiftGroups.update({
     where: {
       userId_giftGroupId: {
@@ -401,9 +422,12 @@ export async function removeReminder(
     giftGroupId,
     'manageReminders',
   );
-  await prisma.groupReminder.delete({
+  // Scope the delete to the authorized group so a manager of one group cannot
+  // delete another group's reminder by passing its id (cross-group IDOR).
+  await prisma.groupReminder.deleteMany({
     where: {
       id: reminderId,
+      giftGroupId,
     },
   });
   await logGroupActivity(giftGroupId, actorId, 'reminder.remove', {

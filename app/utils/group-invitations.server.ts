@@ -1,9 +1,14 @@
 import { invariantResponse } from '@epic-web/invariant';
-// Using string literals for roles/status to support SQLite
 import { nanoid } from 'nanoid';
+import { data } from 'react-router';
+// Using string literals for roles/status to support SQLite
 import { prisma } from './db.server';
 import { logGroupActivity } from './group-activity.server';
-import { requireUserWithGroupPermission } from './group-permissions.server';
+import {
+  getGroupRole,
+  requireUserWithGroupPermission,
+} from './group-permissions.server';
+import { GroupRoleSchema, type GroupRole } from './group-role.ts';
 import { getDomainUrl } from './misc.tsx';
 import { createToastHeaders } from './toast.server';
 
@@ -50,6 +55,22 @@ export const createInviteLink = async (
     giftGroupId,
     'manageInvites',
   );
+
+  // Only an OWNER may grant elevated roles (ADMIN or OWNER). An ADMIN holds
+  // `manageInvites` but NOT `promoteAdmin` (owner-only), so letting them mint
+  // an ADMIN/OWNER invite would bypass owner-only promotion and, for OWNER,
+  // enable a full takeover. Non-owners may invite MEMBERs only.
+  const requestedRole: GroupRole = GroupRoleSchema.catch('MEMBER').parse(
+    roleGranted ?? 'MEMBER',
+  );
+  const creatorRole = await getGroupRole(userId, giftGroupId);
+  if (requestedRole !== 'MEMBER' && creatorRole !== 'OWNER') {
+    throw data(
+      { error: 'Only an owner can grant admin or owner roles.' },
+      { status: 403 },
+    );
+  }
+
   await prisma.groupInvitation.create({
     data: {
       giftGroupId,
@@ -57,8 +78,7 @@ export const createInviteLink = async (
       expiresAt,
       createdById: userId,
       label: label ?? '',
-      roleGranted:
-        (roleGranted as 'OWNER' | 'ADMIN' | 'MEMBER' | undefined) ?? 'MEMBER',
+      roleGranted: requestedRole,
       maxUses: maxUses ? Number.parseInt(maxUses, 10) : null,
       requireApproval: requireApproval === 'on' ? true : false,
     },

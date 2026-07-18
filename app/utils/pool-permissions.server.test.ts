@@ -22,6 +22,8 @@ vi.mock('#app/utils/db.server.ts', () => ({
 }));
 
 import {
+  POOL_STATUS_PREDECESSORS,
+  assertPoolStatus,
   canManagePool,
   isGroupAdminOfPool,
   isPoolContributor,
@@ -122,5 +124,38 @@ describe('pool permissions', () => {
     poolContributorFindUnique.mockResolvedValueOnce({ id: 'contributor-1' });
 
     await expect(requirePoolVisible('viewer-1', 'pool-1')).resolves.toBeUndefined();
+  });
+});
+
+describe('assertPoolStatus', () => {
+  it('passes when the status is allowed', () => {
+    expect(() =>
+      assertPoolStatus({ status: 'OPEN' }, ['OPEN', 'VOTING']),
+    ).not.toThrow();
+  });
+
+  it('throws 409 when the status is not allowed', () => {
+    try {
+      assertPoolStatus({ status: 'DECIDED' }, ['OPEN', 'VOTING']);
+      throw new Error('should have thrown');
+    } catch (err) {
+      expect((err as { init?: { status?: number } }).init?.status).toBe(409);
+    }
+  });
+});
+
+describe('POOL_STATUS_PREDECESSORS', () => {
+  it('encodes a forward-only lifecycle with terminal states', () => {
+    // Terminal states have no successors.
+    expect(POOL_STATUS_PREDECESSORS.DELIVERED).toEqual(['PURCHASED']);
+    expect(POOL_STATUS_PREDECESSORS.OPEN).toEqual([]);
+    // CANCELLED reachable from any active status.
+    expect(POOL_STATUS_PREDECESSORS.CANCELLED).toContain('OPEN');
+    expect(POOL_STATUS_PREDECESSORS.CANCELLED).toContain('PURCHASED');
+    // No status lists a terminal state as a predecessor (can't come back).
+    for (const preds of Object.values(POOL_STATUS_PREDECESSORS)) {
+      expect(preds).not.toContain('DELIVERED');
+      expect(preds).not.toContain('CANCELLED');
+    }
   });
 });

@@ -4,9 +4,11 @@ import { prisma } from '#app/utils/db.server.ts';
 import {
   acceptFriendRequest,
   canViewWishlistOf,
+  getIncomingFriendRequests,
   getRelationshipDetails,
   getRelationshipState,
   isFriendOfFriend,
+  listFriends,
   sendFriendRequest,
 } from '#app/utils/friends.server.ts';
 
@@ -195,5 +197,85 @@ describe('friends.server', () => {
         sourceIdentifier: `friend-request:${request.id}:accepted`,
       }),
     );
+  });
+});
+
+describe('friends.server birthday gating', () => {
+  beforeEach(async () => {
+    await prisma.friendRequest.deleteMany();
+    await prisma.friendship.deleteMany();
+    await prisma.user.deleteMany({
+      where: { email: { contains: '@example.com' } },
+    });
+  });
+
+  const createUserWithBirthday = (visibility: string) =>
+    prisma.user.create({
+      select: { id: true, username: true },
+      data: {
+        email: `user-${randomUUID()}@example.com`,
+        username: `user_${randomUUID().slice(0, 8)}`,
+        name: 'Birthday User',
+        birthday: new Date('1990-05-01'),
+        birthdayVisibility: visibility,
+        roles: {
+          connectOrCreate: {
+            where: { name: 'user' },
+            create: { name: 'user' },
+          },
+        },
+      },
+    });
+
+  it('nulls a NOBODY friend birthday in the listFriends payload', async () => {
+    const [viewer, friend] = await Promise.all([
+      createUserWithBirthday('EVERYONE'),
+      createUserWithBirthday('NOBODY'),
+    ]);
+    const [a, b] =
+      viewer.id < friend.id ? [viewer.id, friend.id] : [friend.id, viewer.id];
+    await prisma.friendship.create({ data: { userAId: a, userBId: b } });
+
+    const friends = await listFriends(viewer.id);
+    const entry = friends.find((f) => f.user.id === friend.id);
+
+    expect(entry?.user.birthday).toBeNull();
+    expect(entry?.user.birthdayVisible).toBe(false);
+  });
+
+  it('exposes a FRIENDS friend birthday in the listFriends payload', async () => {
+    const [viewer, friend] = await Promise.all([
+      createUserWithBirthday('EVERYONE'),
+      createUserWithBirthday('FRIENDS'),
+    ]);
+    const [a, b] =
+      viewer.id < friend.id ? [viewer.id, friend.id] : [friend.id, viewer.id];
+    await prisma.friendship.create({ data: { userAId: a, userBId: b } });
+
+    const friends = await listFriends(viewer.id);
+    const entry = friends.find((f) => f.user.id === friend.id);
+
+    expect(entry?.user.birthday).not.toBeNull();
+    expect(entry?.user.birthdayVisible).toBe(true);
+  });
+
+  it('never leaks a pending requester birthday to the recipient (finding #5)', async () => {
+    const [recipient, requester] = await Promise.all([
+      createUserWithBirthday('EVERYONE'),
+      createUserWithBirthday('FRIENDS'),
+    ]);
+    await prisma.friendRequest.create({
+      data: {
+        fromUserId: requester.id,
+        toUserId: recipient.id,
+        status: 'PENDING',
+      },
+    });
+
+    const incoming = await getIncomingFriendRequests(recipient.id);
+    const entry = incoming.find((r) => r.fromUser.id === requester.id);
+
+    // Requester set FRIENDS but is not yet a friend → birthday must be stripped.
+    expect(entry?.fromUser.birthday).toBeNull();
   });
 });
