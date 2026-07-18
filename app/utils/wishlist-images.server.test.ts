@@ -6,9 +6,18 @@ import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const dnsLookup = vi.fn();
-const fetchMock = vi.fn<typeof fetch>();
+const fetchMock = vi.fn();
 
-vi.stubGlobal('fetch', fetchMock);
+// Outbound fetches go through undici (so the connection can be pinned to the
+// validated IP); mock undici's fetch + a no-op Agent for the dispatcher.
+vi.mock('undici', () => ({
+  fetch: (...args: Array<unknown>) => fetchMock(...args),
+  Agent: class {
+    close() {
+      return Promise.resolve();
+    }
+  },
+}));
 
 vi.mock('node:dns/promises', () => ({
   default: {
@@ -21,6 +30,7 @@ import {
   WISHLIST_IMAGE_HEADERS,
   autoDetectImageUrl,
   fetchHtml,
+  isBlockedAddress,
   processImageFromFile,
   processImageFromUrl,
 } from './wishlist-images.server.ts';
@@ -150,5 +160,76 @@ describe('wishlist-images.server.ts', () => {
     ).rejects.toThrow('Blocked private address');
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks a hostname that resolves to an IPv4-mapped IPv6 private address (finding #2)', async () => {
+    // The classic bypass: an AAAA record pointing at ::ffff:169.254.169.254.
+    dnsLookup.mockResolvedValue([
+      { address: '::ffff:169.254.169.254', family: 6 },
+    ]);
+
+    await expect(
+      processImageFromUrl('http://rebind.evil.example/x'),
+    ).rejects.toThrow('Blocked private address');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('pins the connection to the validated IP via a dispatcher (finding #4)', async () => {
+    const imageBuffer = await fs.readFile(imageFixturePath());
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock.mockResolvedValue(
+      new Response(imageBuffer, {
+        headers: {
+          'content-length': String(imageBuffer.length),
+          'content-type': 'image/jpeg',
+        },
+        status: 200,
+      }),
+    );
+
+    await processImageFromUrl('https://example.com/image.jpg');
+
+    // The fetch must carry an IP-pinned dispatcher so the connection cannot be
+    // re-resolved to a different (private) address at connect time.
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL('https://example.com/image.jpg'),
+      expect.objectContaining({ dispatcher: expect.anything() }),
+    );
+  });
+});
+
+describe('isBlockedAddress', () => {
+  it('blocks IPv4-mapped IPv6 forms of private/loopback/metadata addresses', () => {
+    expect(isBlockedAddress('::ffff:127.0.0.1')).toBe(true);
+    expect(isBlockedAddress('::ffff:169.254.169.254')).toBe(true);
+    expect(isBlockedAddress('::ffff:10.0.0.1')).toBe(true);
+  });
+
+  it('blocks loopback, unspecified, ULA, link-local, and NAT64', () => {
+    expect(isBlockedAddress('::1')).toBe(true);
+    expect(isBlockedAddress('::')).toBe(true);
+    expect(isBlockedAddress('fd00::1')).toBe(true);
+    expect(isBlockedAddress('fe80::1')).toBe(true);
+    expect(isBlockedAddress('64:ff9b::1')).toBe(true); // NAT64
+  });
+
+  it('blocks private / CGNAT / reserved IPv4', () => {
+    expect(isBlockedAddress('10.0.0.1')).toBe(true);
+    expect(isBlockedAddress('192.168.1.1')).toBe(true);
+    expect(isBlockedAddress('172.16.0.1')).toBe(true);
+    expect(isBlockedAddress('127.0.0.1')).toBe(true);
+    expect(isBlockedAddress('169.254.169.254')).toBe(true);
+    expect(isBlockedAddress('100.64.0.1')).toBe(true);
+    expect(isBlockedAddress('0.0.0.1')).toBe(true);
+  });
+
+  it('default-denies unparseable input', () => {
+    expect(isBlockedAddress('not-an-ip')).toBe(true);
+    expect(isBlockedAddress('')).toBe(true);
+  });
+
+  it('allows globally-routable public unicast addresses', () => {
+    expect(isBlockedAddress('93.184.216.34')).toBe(false);
+    expect(isBlockedAddress('2606:2800:220:1:248:1893:25c8:1946')).toBe(false);
   });
 });
