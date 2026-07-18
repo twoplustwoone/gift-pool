@@ -1,6 +1,7 @@
 import { redirect, type ActionFunctionArgs } from 'react-router';
 import { z } from 'zod';
 import { cache } from '#app/utils/cache.server.ts';
+import { verifyInternalCommandToken } from '#app/utils/internal-command.server.ts';
 import {
   getInstanceInfo,
   getInternalInstanceDomain,
@@ -39,10 +40,9 @@ export async function action({ request }: ActionFunctionArgs) {
       `${request.url} should only be called on the primary instance (${primaryInstance})}`,
     );
   }
-  const token = process.env.INTERNAL_COMMAND_TOKEN;
-  const isAuthorized =
-    request.headers.get('Authorization') === `Bearer ${token}`;
-  if (!isAuthorized) {
+  // Constant-time bearer check with an unset-token guard (shared with the
+  // occasion-reminder trigger) — see internal-command.server.ts.
+  if (!verifyInternalCommandToken(request)) {
     // nah, you can't be here...
     return redirect('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   }
