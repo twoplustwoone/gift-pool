@@ -82,7 +82,7 @@ const sampleGroups: GroupCardData[] = [
     name: 'Family Gift Exchange',
     description: 'Annual holiday exchange with the whole family.',
     memberCount: 8,
-    createdAt: new Date('2024-11-15'),
+    createdAtDisplay: 'November 15, 2024',
     myRole: 'OWNER',
   },
   {
@@ -90,7 +90,7 @@ const sampleGroups: GroupCardData[] = [
     name: 'Office Secret Santa',
     description: 'Coworkers-only gift swap. $25 limit.',
     memberCount: 12,
-    createdAt: new Date('2024-10-01'),
+    createdAtDisplay: 'October 1, 2024',
     myRole: 'ADMIN',
   },
   {
@@ -98,7 +98,7 @@ const sampleGroups: GroupCardData[] = [
     name: 'Neighborhood Potluck',
     description: null,
     memberCount: 6,
-    createdAt: new Date('2024-08-20'),
+    createdAtDisplay: 'August 20, 2024',
     myRole: 'MEMBER',
   },
 ];

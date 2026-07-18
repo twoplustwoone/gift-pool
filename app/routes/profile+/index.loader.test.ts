@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest';
-import { formatAbsoluteDate } from '#app/utils/dates.ts';
+import { formatTimestampDate } from '#app/utils/dates.ts';
 
 const requireUserId = vi.fn();
 const findFirst = vi.fn();
@@ -31,7 +31,7 @@ describe('app/routes/profile+/index.tsx loader', () => {
   it('loads the signed-in profile summary with wishlist preview', async () => {
     requireUserId.mockResolvedValue('user-1');
     findFirst.mockResolvedValue({
-      createdAt: new Date('2024-05-12T00:00:00.000Z'),
+      createdAt: new Date('2024-05-12T01:00:00.000Z'),
       id: 'user-1',
       image: { id: 'image-1' },
       name: 'Taylor',
@@ -54,7 +54,9 @@ describe('app/routes/profile+/index.tsx loader', () => {
     const result = await loader({
       context: {},
       params: {},
-      request: new Request('https://giftpool.app/me'),
+      request: new Request('https://giftpool.app/me', {
+        headers: { Cookie: 'CH-time-zone=America%2FNew_York' },
+      }),
     } as never);
 
     expect(findFirst).toHaveBeenCalledWith({
@@ -73,7 +75,7 @@ describe('app/routes/profile+/index.tsx loader', () => {
 
     expect(result).toEqual({
       user: {
-        createdAt: new Date('2024-05-12T00:00:00.000Z'),
+        createdAt: new Date('2024-05-12T01:00:00.000Z'),
         id: 'user-1',
         image: { id: 'image-1' },
         name: 'Taylor',
@@ -82,7 +84,10 @@ describe('app/routes/profile+/index.tsx loader', () => {
         birthday: null,
         birthdayVisibility: 'FRIENDS',
       },
-      userJoinedDisplay: formatAbsoluteDate(new Date('2024-05-12T00:00:00.000Z')),
+      userJoinedDisplay: formatTimestampDate(
+        new Date('2024-05-12T01:00:00.000Z'),
+        'America/New_York',
+      ),
       wishlistPreview: {
         items: [
           {

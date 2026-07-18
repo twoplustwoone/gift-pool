@@ -1,12 +1,9 @@
 import { LuChevronLeft, LuGift } from 'react-icons/lu';
-import {
-  type LoaderFunctionArgs,
-  Link,
-  useLoaderData,
-} from 'react-router';
+import { type LoaderFunctionArgs, Link, useLoaderData } from 'react-router';
 import { Card } from '#app/components/ui/card.tsx';
 import { Flex, Stack, Text } from '#app/components/ui-kit';
-import { formatAbsoluteDate } from '#app/utils/dates.ts';
+import { getHints } from '#app/utils/client-hints.tsx';
+import { formatCalendarDate, formatTimestampDate } from '#app/utils/dates.ts';
 import {
   OCCASION_TYPE_LABELS,
   POOL_STATUS,
@@ -16,12 +13,11 @@ import {
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
   const memberUserId = params.userId!;
-  const { requireUserIdInGroup } = await import(
-    '#app/utils/groups.server.ts'
-  );
+  const { requireUserIdInGroup } = await import('#app/utils/groups.server.ts');
   const { prisma } = await import('#app/utils/db.server.ts');
 
   const viewerId = await requireUserIdInGroup(request, groupId);
+  const { timeZone } = getHints(request);
 
   // Privacy: the target member must never see their own gift history.
   // 404 (indistinguishable from nonexistent route).
@@ -74,15 +70,13 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     id: pool.id,
     title: pool.title,
     occasionType: pool.occasionType,
-    eventDate: pool.eventDate,
-    deliveredAt: pool.updatedAt,
+    dateDisplay: pool.eventDate
+      ? formatCalendarDate(pool.eventDate)
+      : formatTimestampDate(pool.updatedAt, timeZone),
     giftName: pool.chosenIdea?.name ?? null,
     totalCents:
       pool.finalPriceCents ??
-      pool.contributors.reduce(
-        (sum, c) => sum + (c.contributionCents ?? 0),
-        0,
-      ),
+      pool.contributors.reduce((sum, c) => sum + (c.contributionCents ?? 0), 0),
   }));
 
   return {
@@ -147,17 +141,12 @@ const GiftHistoryRow = ({
     id: string;
     title: string;
     occasionType: string;
-    eventDate: Date | string | null;
-    deliveredAt: Date | string;
+    dateDisplay: string;
     giftName: string | null;
     totalCents: number;
   };
 }) => {
   const occasion = OCCASION_TYPE_LABELS[gift.occasionType as OccasionType];
-  const eventLabel = gift.eventDate
-    ? formatAbsoluteDate(gift.eventDate)
-    : formatAbsoluteDate(gift.deliveredAt);
-
   return (
     <Link to={`/pools/${gift.id}`} className="block">
       <Card padding="md" className="transition-shadow hover:shadow-md">
@@ -184,7 +173,7 @@ const GiftHistoryRow = ({
               )}
             </Text>
             <Text size="xs" className="text-muted-foreground">
-              {eventLabel}
+              {gift.dateDisplay}
             </Text>
           </Stack>
           {gift.totalCents > 0 && (

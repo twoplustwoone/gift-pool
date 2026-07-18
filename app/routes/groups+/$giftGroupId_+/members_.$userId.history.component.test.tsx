@@ -44,8 +44,7 @@ describe('MemberGiftHistoryPage component', () => {
           id: 'pool-1',
           title: "Marco's 30th",
           occasionType: 'BIRTHDAY',
-          eventDate: '2025-05-03T00:00:00.000Z',
-          deliveredAt: '2025-05-04T00:00:00.000Z',
+          dateDisplay: 'May 3, 2025',
           giftName: 'Sony WH-1000XM5',
           totalCents: 12500,
         },
@@ -53,8 +52,7 @@ describe('MemberGiftHistoryPage component', () => {
           id: 'pool-2',
           title: 'Anniversary thing',
           occasionType: 'ANNIVERSARY',
-          eventDate: null,
-          deliveredAt: '2024-12-01T00:00:00.000Z',
+          dateDisplay: 'November 30, 2024',
           giftName: null,
           totalCents: 0,
         },
@@ -64,6 +62,8 @@ describe('MemberGiftHistoryPage component', () => {
     expect(await screen.findByText("Marco's 30th")).toBeInTheDocument();
     expect(screen.getByText('Sony WH-1000XM5')).toBeInTheDocument();
     expect(screen.getByText('$125.00')).toBeInTheDocument();
+    expect(screen.getByText('May 3, 2025')).toBeInTheDocument();
+    expect(screen.getByText('November 30, 2024')).toBeInTheDocument();
     expect(
       screen.getByText('No specific gift recorded'),
     ).toBeInTheDocument();

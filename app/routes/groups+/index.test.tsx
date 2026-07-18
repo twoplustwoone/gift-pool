@@ -12,7 +12,7 @@ const requireUserId = vi.fn();
 const findMany = vi.fn();
 const loaderDataSnapshot: {
   groups: Array<{
-    createdAt: string;
+    createdAtDisplay: string;
     description?: string | null;
     id: string;
     memberCount: number;
@@ -66,10 +66,11 @@ beforeEach(() => {
   requireUserId.mockReset();
   findMany.mockReset();
   loaderDataSnapshot.groups = [];
+  document.cookie = 'CH-time-zone=America%2FNew_York; path=/';
 });
 
 function renderGroupsRoute(groups: Array<{
-  createdAt: string;
+  createdAtDisplay: string;
   description?: string | null;
   id: string;
   memberCount: number;
@@ -91,7 +92,7 @@ describe('app/routes/groups+/index.tsx', () => {
     findMany.mockResolvedValue([
       {
         _count: { groupMembers: 3 },
-        createdAt: new Date('2026-03-31T12:00:00.000Z'),
+        createdAt: new Date('2026-03-31T01:00:00.000Z'),
         description: 'Birthday planning',
         groupMembers: [{ role: 'OWNER' }],
         id: 'group-1',
@@ -99,7 +100,7 @@ describe('app/routes/groups+/index.tsx', () => {
       },
       {
         _count: { groupMembers: 2 },
-        createdAt: new Date('2026-02-01T12:00:00.000Z'),
+        createdAt: new Date('2026-02-01T01:00:00.000Z'),
         description: null,
         groupMembers: [{ role: 'NOT_A_REAL_ROLE' }],
         id: 'group-2',
@@ -111,12 +112,14 @@ describe('app/routes/groups+/index.tsx', () => {
       loader({
         context: {},
         params: {},
-        request: new Request('https://example.com/groups'),
+        request: new Request('https://example.com/groups', {
+          headers: { Cookie: 'CH-time-zone=America%2FNew_York' },
+        }),
       } as never),
     ).resolves.toEqual({
       groups: [
         {
-          createdAt: new Date('2026-03-31T12:00:00.000Z'),
+          createdAtDisplay: 'March 30, 2026',
           description: 'Birthday planning',
           id: 'group-1',
           memberCount: 3,
@@ -124,7 +127,7 @@ describe('app/routes/groups+/index.tsx', () => {
           name: 'Family',
         },
         {
-          createdAt: new Date('2026-02-01T12:00:00.000Z'),
+          createdAtDisplay: 'January 31, 2026',
           description: null,
           id: 'group-2',
           memberCount: 2,
@@ -177,7 +180,7 @@ describe('app/routes/groups+/index.tsx', () => {
   it('renders group cards and navigates to the selected group', async () => {
     renderGroupsRoute([
       {
-        createdAt: '2026-03-30T12:00:00.000Z',
+        createdAtDisplay: 'March 30, 2026',
         description: 'Birthday planning',
         id: 'group-1',
         memberCount: 3,
@@ -185,7 +188,7 @@ describe('app/routes/groups+/index.tsx', () => {
         name: 'Family',
       },
       {
-        createdAt: '2026-03-29T12:00:00.000Z',
+        createdAtDisplay: 'March 29, 2026',
         description: null,
         id: 'group-2',
         memberCount: 5,

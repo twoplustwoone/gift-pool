@@ -9,7 +9,7 @@ const base: GroupCardData = {
   name: 'Family Gift Exchange',
   description: 'Annual holiday exchange with the whole family.',
   memberCount: 8,
-  createdAt: new Date('2024-07-15'),
+  createdAtDisplay: 'July 15, 2024',
   myRole: 'MEMBER',
 };
 

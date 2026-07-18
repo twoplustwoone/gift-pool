@@ -39,7 +39,7 @@ import {
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Flex, Stack, Text } from '#app/components/ui-kit';
 import { requireUserId } from '#app/utils/auth.server.ts';
-import { formatAbsoluteDate } from '#app/utils/dates.ts';
+import { formatCalendarDate } from '#app/utils/dates.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import {
 	DECISION_MODE_LABELS,
@@ -228,7 +228,7 @@ function PoolDetailsCard({
 		pool.recipientUser?.username ??
 		'Someone special';
 	const eventDateDisplay = pool.eventDate
-		? formatAbsoluteDate(pool.eventDate)
+		? formatCalendarDate(pool.eventDate)
 		: 'Not set';
 
 	return (

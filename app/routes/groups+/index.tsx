@@ -13,11 +13,14 @@ import {
 } from '#app/components/ui/dialog.tsx';
 import { Flex, Text } from '#app/components/ui-kit';
 import { requireUserId } from '#app/utils/auth.server.ts';
+import { getHints } from '#app/utils/client-hints.tsx';
+import { formatTimestampDate } from '#app/utils/dates.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { GroupRoleSchema, type GroupRole } from '#app/utils/group-role.ts';
 import { CreateGroupCompactForm } from './__group-editor.tsx';
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
+  const { timeZone } = getHints(request);
   const groups = await prisma.giftGroup.findMany({
     where: {
       groupMembers: {
@@ -56,7 +59,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       id: g.id,
       name: g.name,
       description: g.description,
-      createdAt: g.createdAt,
+      createdAtDisplay: formatTimestampDate(g.createdAt, timeZone),
       memberCount: g._count.groupMembers,
       myRole: parsedRole as GroupRole,
     };
