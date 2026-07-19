@@ -17,22 +17,32 @@ const fetcherState = {
 type UserImageFixture = { id: string; altText: string | null } | null;
 
 const loaderDataSnapshot = {
+  availableBudgetCents: 0,
   canManage: true,
-  contributionBreakdown: null as null | {
-    breakdown: Array<{
-      hasPaid: boolean;
-      owedCents: number;
-      user: {
-        image: UserImageFixture;
-        name: string | null;
-        username: string;
-      };
-      userId: string;
-    }>;
-    finalPriceCents: number;
-    purchaserId: string | null;
-    shortfallCents: number;
-  },
+  contributionBreakdown: null as
+    | null
+    | {
+        kind: 'purchaser';
+        breakdown: Array<{
+          hasPaid: boolean;
+          owedCents: number;
+          user: {
+            image: UserImageFixture;
+            name: string | null;
+            username: string;
+          };
+          userId: string;
+        }>;
+        finalPriceCents: number;
+        purchaserId: string | null;
+        shortfallCents: number;
+      }
+    | {
+        kind: 'contributor';
+        viewerShare: { owedCents: number; hasPaid: boolean } | null;
+        shortfallCents: number;
+        allReceived: boolean;
+      },
   inviteUrl: 'https://giftpool.app/pools/join/invite-1' as string | null,
   isOrganizer: true,
   myVoteIdeaId: 'idea-1' as string | null,
@@ -48,8 +58,7 @@ const loaderDataSnapshot = {
     chosenIdeaId: null as string | null,
     contributors: [
       {
-        contributionCents: 3000,
-        hasPaid: false,
+        hasSetLimit: null as boolean | null,
         joinedAt: '2026-01-01T00:00:00.000Z',
         user: {
           image: null as UserImageFixture,
@@ -59,8 +68,7 @@ const loaderDataSnapshot = {
         userId: 'viewer-1',
       },
       {
-        contributionCents: 2000,
-        hasPaid: true,
+        hasSetLimit: null as boolean | null,
         joinedAt: '2026-01-02T00:00:00.000Z',
         user: {
           image: null as UserImageFixture,
@@ -70,8 +78,7 @@ const loaderDataSnapshot = {
         userId: 'buyer-1',
       },
       {
-        contributionCents: 2000,
-        hasPaid: false,
+        hasSetLimit: null as boolean | null,
         joinedAt: '2026-01-03T00:00:00.000Z',
         user: {
           image: null as UserImageFixture,
@@ -102,7 +109,12 @@ const loaderDataSnapshot = {
         proposedBy: { id: 'viewer-1', name: 'Taylor', username: 'taylor' },
         proposedById: 'viewer-1',
         url: 'https://example.com/headphones',
-        wishlistItem: { hasImage: false, id: 'wish-1', title: 'Headphones', url: null },
+        wishlistItem: {
+          hasImage: false,
+          id: 'wish-1',
+          title: 'Headphones',
+          url: null,
+        },
         wishlistItemId: 'wish-1',
       },
       {
@@ -149,9 +161,8 @@ const loaderDataSnapshot = {
 };
 
 vi.mock('react-router', async () => {
-  const actual = await vi.importActual<typeof import('react-router')>(
-    'react-router',
-  );
+  const actual =
+    await vi.importActual<typeof import('react-router')>('react-router');
 
   return {
     ...actual,
@@ -207,7 +218,10 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
         writeText: clipboardWriteText,
       },
     });
-    vi.stubGlobal('confirm', vi.fn(() => true));
+    vi.stubGlobal(
+      'confirm',
+      vi.fn(() => true),
+    );
   });
 
   function renderRoute() {
@@ -222,7 +236,9 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     renderRoute();
 
     expect(screen.getByText('Organizer controls')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Close vote' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Close vote' }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Remind voters' }),
     ).toBeInTheDocument();
@@ -249,7 +265,9 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
   it('moves invite tools and the danger zone off the main page (now on settings)', () => {
     renderRoute();
     // These live on /pools/:id/settings now, reached from the header gear.
-    expect(screen.queryByRole('button', { name: /copy/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /copy/i }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText('Danger zone')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Delete pool' }),
@@ -299,6 +317,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     loaderDataSnapshot.pool.purchaserId = 'viewer-1';
     loaderDataSnapshot.viewer.userId = 'viewer-1';
     loaderDataSnapshot.contributionBreakdown = {
+      kind: 'purchaser',
       breakdown: [
         {
           hasPaid: false,
@@ -321,13 +340,19 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     renderRoute();
 
     expect(screen.getByText('Chosen gift')).toBeInTheDocument();
-    expect(screen.getByTestId('final-price-display')).toHaveTextContent('$25.00');
+    expect(screen.getByTestId('final-price-display')).toHaveTextContent(
+      '$25.00',
+    );
     expect(screen.getByTestId('final-price-input')).toHaveValue('25.00');
-    expect(screen.getByRole('button', { name: 'I bought it' })).toBeInTheDocument();
-    expect(screen.getByText('What everyone owes the buyer')).toBeInTheDocument();
-    expect(screen.getByText('Buyer covers $3.00')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'I bought it' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('What everyone owes you')).toBeInTheDocument();
+    expect(screen.getByText('You cover $3.00')).toBeInTheDocument();
     expect(screen.getAllByTestId('contribution-breakdown-row')).toHaveLength(2);
-    expect(screen.getByText('Other ideas that were proposed')).toBeInTheDocument();
+    expect(
+      screen.getByText('Other ideas that were proposed'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Board game')).toBeInTheDocument();
     expect(screen.getByText('Assign roles')).toBeInTheDocument();
   });
@@ -343,6 +368,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
       altText: null,
     };
     loaderDataSnapshot.contributionBreakdown = {
+      kind: 'purchaser',
       breakdown: [
         {
           hasPaid: true,
@@ -378,17 +404,10 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     loaderDataSnapshot.pool.finalPriceCents = 2500;
     loaderDataSnapshot.viewer.userId = 'deliverer-1';
     loaderDataSnapshot.contributionBreakdown = {
-      breakdown: [
-        {
-          hasPaid: false,
-          owedCents: 1200,
-          user: { image: null, name: null, username: 'casey' },
-          userId: 'deliverer-1',
-        },
-      ],
-      finalPriceCents: 2500,
-      purchaserId: 'buyer-1',
+      kind: 'contributor',
+      viewerShare: { owedCents: 1200, hasPaid: false },
       shortfallCents: 0,
+      allReceived: false,
     };
 
     renderRoute();

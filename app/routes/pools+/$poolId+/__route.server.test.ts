@@ -163,7 +163,12 @@ function createPool(overrides: Record<string, unknown> = {}) {
         contributionCents: 3000,
         hasPaid: false,
         joinedAt: new Date('2026-01-01T00:00:00.000Z'),
-        user: { id: 'viewer-1', image: null, name: 'Viewer', username: 'viewer' },
+        user: {
+          id: 'viewer-1',
+          image: null,
+          name: 'Viewer',
+          username: 'viewer',
+        },
         userId: 'viewer-1',
       },
     ],
@@ -176,7 +181,12 @@ function createPool(overrides: Record<string, unknown> = {}) {
     ideas: [],
     inviteCode: 'invite-123',
     occasionType: 'BIRTHDAY',
-    organizer: { id: 'viewer-1', image: null, name: 'Viewer', username: 'viewer' },
+    organizer: {
+      id: 'viewer-1',
+      image: null,
+      name: 'Viewer',
+      username: 'viewer',
+    },
     organizerId: 'viewer-1',
     purchaser: null,
     purchaserId: 'viewer-1',
@@ -258,8 +268,195 @@ describe('pool detail route loader', () => {
     );
 
     expect(canViewWishlistOf).toHaveBeenCalledWith('viewer-1', 'recipient-1');
-    expect((result as { recipientWishlistItems: unknown[] }).recipientWishlistItems).toEqual([]);
+    expect(
+      (result as { recipientWishlistItems: unknown[] }).recipientWishlistItems,
+    ).toEqual([]);
     expect(wishlistItemFindMany).not.toHaveBeenCalled();
+  });
+
+  it('never ships peer contribution amounts or paid status (ADR 0001)', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({
+        contributors: [
+          {
+            contributionCents: 3000,
+            hasPaid: false,
+            joinedAt: new Date('2026-01-01T00:00:00.000Z'),
+            user: {
+              id: 'viewer-1',
+              image: null,
+              name: 'Viewer',
+              username: 'viewer',
+            },
+            userId: 'viewer-1',
+          },
+          {
+            contributionCents: 2000,
+            hasPaid: true,
+            joinedAt: new Date('2026-01-02T00:00:00.000Z'),
+            user: { id: 'peer-1', image: null, name: 'Peer', username: 'peer' },
+            userId: 'peer-1',
+          },
+          {
+            contributionCents: null,
+            hasPaid: false,
+            joinedAt: new Date('2026-01-03T00:00:00.000Z'),
+            user: {
+              id: 'peer-2',
+              image: null,
+              name: 'NoLimit',
+              username: 'nolimit',
+            },
+            userId: 'peer-2',
+          },
+        ],
+      }),
+    );
+
+    const result = (await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: new Request('https://giftpool.app/pools/pool-1'),
+      }),
+    )) as any;
+
+    for (const c of result.pool.contributors) {
+      expect(c).not.toHaveProperty('contributionCents');
+      expect(c).not.toHaveProperty('hasPaid');
+    }
+    // Manager (canManagePool → true in setup) sees limit-missing flags only.
+    expect(
+      Object.fromEntries(
+        result.pool.contributors.map((c: any) => [c.userId, c.hasSetLimit]),
+      ),
+    ).toEqual({ 'viewer-1': true, 'peer-1': true, 'peer-2': false });
+    // Aggregate Available Budget is shared; the viewer's own record is intact.
+    expect(result.availableBudgetCents).toBe(5000);
+    expect(result.limitsSetCount).toBe(2);
+    expect(result.viewer.contributionCents).toBe(3000);
+  });
+
+  it('hides limit-missing flags from non-managing contributors', async () => {
+    canManagePool.mockResolvedValue(false);
+    isPoolOrganizer.mockReturnValue(false);
+    poolFindUnique.mockResolvedValue(
+      createPool({
+        organizerId: 'peer-1',
+        purchaserId: null,
+        delivererId: null,
+        contributors: [
+          {
+            contributionCents: 3000,
+            hasPaid: false,
+            joinedAt: new Date('2026-01-01T00:00:00.000Z'),
+            user: {
+              id: 'viewer-1',
+              image: null,
+              name: 'Viewer',
+              username: 'viewer',
+            },
+            userId: 'viewer-1',
+          },
+          {
+            contributionCents: null,
+            hasPaid: false,
+            joinedAt: new Date('2026-01-02T00:00:00.000Z'),
+            user: { id: 'peer-1', image: null, name: 'Peer', username: 'peer' },
+            userId: 'peer-1',
+          },
+        ],
+      }),
+    );
+
+    const result = (await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: new Request('https://giftpool.app/pools/pool-1'),
+      }),
+    )) as any;
+
+    expect(result.pool.contributors.map((c: any) => c.hasSetLimit)).toEqual([
+      null,
+      null,
+    ]);
+  });
+
+  it('projects the breakdown to own-share-only for non-purchasers', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({ status: 'DECIDED', purchaserId: 'peer-1' }),
+    );
+    getContributionBreakdown.mockResolvedValue({
+      breakdown: [
+        {
+          userId: 'viewer-1',
+          owedCents: 1200,
+          hasPaid: false,
+          user: {
+            id: 'viewer-1',
+            image: null,
+            name: 'Viewer',
+            username: 'viewer',
+          },
+        },
+        {
+          userId: 'peer-2',
+          owedCents: 800,
+          hasPaid: true,
+          user: { id: 'peer-2', image: null, name: 'Other', username: 'other' },
+        },
+      ],
+      shortfallCents: 100,
+    });
+
+    const result = (await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: new Request('https://giftpool.app/pools/pool-1'),
+      }),
+    )) as any;
+
+    expect(result.contributionBreakdown).toEqual({
+      kind: 'contributor',
+      viewerShare: { owedCents: 1200, hasPaid: false },
+      shortfallCents: 100,
+      allReceived: false,
+    });
+  });
+
+  it('gives the purchaser the full breakdown with Received statuses', async () => {
+    poolFindUnique.mockResolvedValue(
+      createPool({ status: 'DECIDED', purchaserId: 'viewer-1' }),
+    );
+    getContributionBreakdown.mockResolvedValue({
+      breakdown: [
+        {
+          userId: 'peer-1',
+          owedCents: 800,
+          hasPaid: true,
+          user: { id: 'peer-1', image: null, name: 'Peer', username: 'peer' },
+        },
+      ],
+      shortfallCents: 0,
+    });
+
+    const result = (await loader(
+      toLoaderArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: new Request('https://giftpool.app/pools/pool-1'),
+      }),
+    )) as any;
+
+    expect(result.contributionBreakdown.kind).toBe('purchaser');
+    expect(result.contributionBreakdown.breakdown).toHaveLength(1);
+    expect(result.contributionBreakdown.breakdown[0]).toMatchObject({
+      userId: 'peer-1',
+      owedCents: 800,
+      hasPaid: true,
+    });
   });
 
   it('throws 404 when the pool cannot be loaded', async () => {
@@ -300,7 +497,12 @@ describe('pool detail route loader', () => {
             contributionCents: null,
             hasPaid: false,
             joinedAt: new Date('2026-01-01T00:00:00.000Z'),
-            user: { id: 'other-1', image: null, name: 'Other', username: 'other' },
+            user: {
+              id: 'other-1',
+              image: null,
+              name: 'Other',
+              username: 'other',
+            },
             userId: 'other-1',
           },
         ],
@@ -326,7 +528,12 @@ describe('pool detail route loader', () => {
             contributionCents: 3000,
             hasPaid: true,
             joinedAt: new Date('2026-01-01T00:00:00.000Z'),
-            user: { id: 'viewer-1', image: null, name: 'Viewer', username: 'viewer' },
+            user: {
+              id: 'viewer-1',
+              image: null,
+              name: 'Viewer',
+              username: 'viewer',
+            },
             userId: 'viewer-1',
           },
         ],
@@ -336,7 +543,9 @@ describe('pool detail route loader', () => {
     isPoolOrganizer.mockReturnValue(false);
     canManagePool.mockResolvedValue(true);
     ideaVoteFindUnique.mockResolvedValue({ ideaId: 'idea-1' });
-    getContributionBreakdown.mockResolvedValue({ breakdown: [{ actualCents: 3000 }] });
+    getContributionBreakdown.mockResolvedValue({
+      breakdown: [{ actualCents: 3000 }],
+    });
 
     const result = await loader(
       toLoaderArgs({
@@ -794,7 +1003,12 @@ describe('pool detail route action', () => {
     );
 
     expect(getRouteResultStatus(result)).toBe(200);
-    expect(chooseIdea).toHaveBeenCalledWith('pool-1', 'idea-1', 'viewer-1', 2500);
+    expect(chooseIdea).toHaveBeenCalledWith(
+      'pool-1',
+      'idea-1',
+      'viewer-1',
+      2500,
+    );
   });
 
   it('updates the current user contribution in cents', async () => {
@@ -831,7 +1045,11 @@ describe('pool detail route action', () => {
 
     expect(getRouteResultStatus(result)).toBe(200);
     expect(addContributor).toHaveBeenCalledWith('pool-1', 'friend-1');
-    expect(assignPurchaser).toHaveBeenCalledWith('pool-1', 'friend-1', 'viewer-1');
+    expect(assignPurchaser).toHaveBeenCalledWith(
+      'pool-1',
+      'friend-1',
+      'viewer-1',
+    );
   });
 
   it('assigns deliverers after ensuring they are contributors', async () => {
@@ -849,7 +1067,11 @@ describe('pool detail route action', () => {
 
     expect(getRouteResultStatus(result)).toBe(200);
     expect(addContributor).toHaveBeenCalledWith('pool-1', 'friend-2');
-    expect(assignDeliverer).toHaveBeenCalledWith('pool-1', 'friend-2', 'viewer-1');
+    expect(assignDeliverer).toHaveBeenCalledWith(
+      'pool-1',
+      'friend-2',
+      'viewer-1',
+    );
   });
 
   it('restricts purchased and delivered markers to their assigned users', async () => {
@@ -948,7 +1170,11 @@ describe('pool detail route action', () => {
     );
 
     expect(getRouteResultStatus(result)).toBe(200);
-    expect(markContributorPaid).toHaveBeenCalledWith('pool-1', 'friend-2', false);
+    expect(markContributorPaid).toHaveBeenCalledWith(
+      'pool-1',
+      'friend-2',
+      false,
+    );
   });
 
   it('updates final price using dollar input', async () => {
@@ -1000,7 +1226,11 @@ describe('pool detail route action', () => {
     );
 
     expect(getRouteResultStatus(result)).toBe(200);
-    expect(removeContributor).toHaveBeenCalledWith('pool-1', 'friend-1', 'viewer-1');
+    expect(removeContributor).toHaveBeenCalledWith(
+      'pool-1',
+      'friend-1',
+      'viewer-1',
+    );
   });
 
   it('prevents organizers from leaving and redirects other contributors', async () => {
@@ -1031,7 +1261,11 @@ describe('pool detail route action', () => {
     );
 
     expect(result).toBeInstanceOf(Response);
-    expect(removeContributor).toHaveBeenCalledWith('pool-1', 'viewer-1', 'viewer-1');
+    expect(removeContributor).toHaveBeenCalledWith(
+      'pool-1',
+      'viewer-1',
+      'viewer-1',
+    );
     expect(redirectWithToast).toHaveBeenCalledWith('/pools', {
       description: 'You have left the pool.',
       title: 'Left pool',
@@ -1097,9 +1331,7 @@ describe('pool detail route action', () => {
   });
 
   it('redirects to the parent group after deleting a group-backed pool', async () => {
-    poolFindUnique.mockResolvedValue(
-      createPool({ giftGroupId: 'group-42' }),
-    );
+    poolFindUnique.mockResolvedValue(createPool({ giftGroupId: 'group-42' }));
 
     await action(
       toActionArgs({
