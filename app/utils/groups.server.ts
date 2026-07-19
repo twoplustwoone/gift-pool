@@ -375,7 +375,6 @@ export async function updateGroupSettings(
   data: {
     name?: string;
     description?: string;
-    budgetVisibility?: any;
   },
 ) {
   const actorId = await requireUserWithGroupPermission(
@@ -539,13 +538,6 @@ export async function updateOwnPreferences(
   giftGroupId: string,
   prefs: {
     contributionCents?: number;
-    budgetVisibilityOverride?:
-      | 'EVERYONE'
-      | 'ADMINS'
-      | 'ONLY_SELF'
-      | 'INHERIT'
-      | ''
-      | null;
     shareWishlist?: boolean;
     shareBirthday?: boolean;
   },
@@ -564,11 +556,6 @@ export async function updateOwnPreferences(
     },
     data: {
       contributionCents: prefs.contributionCents ?? undefined,
-      budgetVisibilityOverride:
-        prefs.budgetVisibilityOverride === '' ||
-        prefs.budgetVisibilityOverride === 'INHERIT'
-          ? null
-          : (prefs.budgetVisibilityOverride ?? undefined),
       shareWishlist: prefs.shareWishlist ?? undefined,
       shareBirthday: prefs.shareBirthday ?? undefined,
     },

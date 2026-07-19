@@ -1,5 +1,5 @@
 import { prisma } from '#app/utils/db.server.ts';
-import { addContributor, chooseIdea, createPool, proposeIdea, updateContribution } from '#app/utils/pool.server.ts';
+import { addContributor, assignPurchaser, chooseIdea, createPool, proposeIdea, updateContribution } from '#app/utils/pool.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
 import { expect, loginWithPassword, test, waitFor } from '#tests/playwright-utils.ts';
 
@@ -47,6 +47,9 @@ async function setupDecidedPool() {
     estimatedPriceCents: 8000,
   });
   await chooseIdea(pool.id, idea.id, organizer.id, 8000);
+  // The full breakdown is purchaser-only (ADR 0001); the organizer is the
+  // purchaser here so the amount-correctness assertions can see every row.
+  await assignPurchaser(pool.id, organizer.id, organizer.id);
 
   return { contributorOne, contributorTwo, organizer, pool };
 }
@@ -154,9 +157,25 @@ test.describe('pool final price editor', () => {
       ]);
 
       await page.reload();
-      await expect(page.getByTestId('contribution-breakdown-row')).toHaveCount(3);
-      await expect(page.getByText('$8.33')).toHaveCount(2);
-      await expect(page.getByText('$8.34')).toHaveCount(1);
+      // Purchaser (organizer) sees every share owed to them — but the
+      // purchaser is excluded from the split, so two contributor rows.
+      await expect(page.getByTestId('contribution-breakdown-row')).toHaveCount(
+        2,
+      );
+      await expect(page.getByText('$12.50')).toHaveCount(2);
+
+      // A non-purchasing contributor sees only their own share (ADR 0001).
+      await page.context().clearCookies();
+      await loginWithPassword(page, {
+        username: contributorOne.username,
+        password: contributorOne.username,
+      });
+      await page.goto(`/pools/${pool.id}`);
+      await expect(page.getByTestId('viewer-share-card')).toBeVisible();
+      await expect(page.getByTestId('contribution-breakdown-row')).toHaveCount(
+        0,
+      );
+      await expect(page.getByText('$12.50')).toHaveCount(1);
     } finally {
       await prisma.pool.deleteMany({ where: { id: { in: createdPoolIds } } });
       await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });

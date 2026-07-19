@@ -53,7 +53,8 @@ export const SETTINGS_MEMBER_INTENTS = new Set([
 
 type SettingsMemberIntent = (typeof SETTINGS_MEMBER_INTENTS extends Set<infer T>
   ? T
-  : never) & string;
+  : never) &
+  string;
 type GroupMemberRole = 'ADMIN' | 'MEMBER' | 'OWNER';
 
 type PendingFetcher = {
@@ -71,7 +72,9 @@ export function getPathname(action: string | undefined) {
   }
 }
 
-function isSettingsMemberIntent(value: FormDataEntryValue | null): value is SettingsMemberIntent {
+function isSettingsMemberIntent(
+  value: FormDataEntryValue | null,
+): value is SettingsMemberIntent {
   return typeof value === 'string' && SETTINGS_MEMBER_INTENTS.has(value);
 }
 

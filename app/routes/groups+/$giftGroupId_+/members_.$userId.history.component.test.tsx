@@ -17,9 +17,7 @@ function renderWithLoader(loaderData: unknown) {
       Component: MemberGiftHistoryPage,
     },
   ]);
-  return render(
-    <App initialEntries={['/groups/g1/members/marco/history']} />,
-  );
+  return render(<App initialEntries={['/groups/g1/members/marco/history']} />);
 }
 
 describe('MemberGiftHistoryPage component', () => {
@@ -64,16 +62,15 @@ describe('MemberGiftHistoryPage component', () => {
     expect(screen.getByText('$125.00')).toBeInTheDocument();
     expect(screen.getByText('May 3, 2025')).toBeInTheDocument();
     expect(screen.getByText('November 30, 2024')).toBeInTheDocument();
-    expect(
-      screen.getByText('No specific gift recorded'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('No specific gift recorded')).toBeInTheDocument();
     // Back link is present
     expect(
       screen.getByRole('link', { name: /back to members/i }),
     ).toBeInTheDocument();
     // Both rows link to their pool
-    expect(
-      screen.getByRole('link', { name: /Marco's 30th/i }),
-    ).toHaveAttribute('href', '/pools/pool-1');
+    expect(screen.getByRole('link', { name: /Marco's 30th/i })).toHaveAttribute(
+      'href',
+      '/pools/pool-1',
+    );
   });
 });

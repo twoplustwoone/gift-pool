@@ -34,12 +34,10 @@ const GroupLayout = () => {
   const location = useLocation();
   // Settings is a distinct sub-page, not a tab: it gets its own header with a
   // back affordance to the group, and never shows the Overview/Members tab bar.
-  const isSettings =
-    location.pathname === `/groups/${giftGroup.id}/settings`;
+  const isSettings = location.pathname === `/groups/${giftGroup.id}/settings`;
   // Members is a tab under this same header. Its back should climb to the parent
   // group, not skip past it to the groups index (which is correct for Overview).
-  const isMembers =
-    location.pathname === `/groups/${giftGroup.id}/members`;
+  const isMembers = location.pathname === `/groups/${giftGroup.id}/members`;
 
   return (
     // min-w-0: this is a grid item in the app shell; without it the default

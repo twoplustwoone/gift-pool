@@ -82,7 +82,14 @@ vi.mock('react-router', async () => {
 
   return {
     ...actual,
-    Link: ({ to, children, ...rest }: { to: string; children: React.ReactNode }) => (
+    Link: ({
+      to,
+      children,
+      ...rest
+    }: {
+      to: string;
+      children: React.ReactNode;
+    }) => (
       <a href={to} {...rest}>
         {children}
       </a>
@@ -104,15 +111,25 @@ vi.mock('#app/utils/analytics.client.ts', () => ({
 }));
 
 vi.mock('#app/components/ui/dialog.tsx', () => ({
-  Dialog: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Dialog: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
   DialogClose: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   DialogContent: ({ children }: { children: React.ReactNode }) => (
     <div role="dialog">{children}</div>
   ),
-  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogTitle: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogTrigger: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 // The members rail's full row (Radix menu + confirm dialog) is covered by
@@ -122,7 +139,9 @@ vi.mock('#app/components/groups/members-list.tsx', () => ({
   MembersList: ({
     members,
   }: {
-    members: Array<{ user: { id: string; name: string | null; username: string } }>;
+    members: Array<{
+      user: { id: string; name: string | null; username: string };
+    }>;
   }) => (
     <ul data-testid="members-rail-list">
       {members.map((m) => (
@@ -283,9 +302,7 @@ describe('group detail overview route', () => {
     render(<GroupsDetailOverview />);
 
     expect(screen.getByText('For you')).toBeInTheDocument();
-    expect(
-      screen.getByText(/all caught up/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/all caught up/i)).toBeInTheDocument();
   });
 
   it('past gifts section toggles open and closed on click', async () => {
@@ -472,7 +489,7 @@ describe('group detail overview route', () => {
         daysUntilEvent: 3,
         ctaLabel: 'Close voting',
         ctaUrl: '/pools/pool-4',
-        description: '2 of 3 haven\'t voted yet — close voting?',
+        description: "2 of 3 haven't voted yet — close voting?",
       },
     ];
 
@@ -501,9 +518,10 @@ describe('group detail overview route', () => {
     const rail = screen.getByTestId('members-rail-list');
     expect(rail).toHaveTextContent('Ada');
     expect(rail).toHaveTextContent('Marco');
-    expect(
-      screen.getByRole('link', { name: 'Manage' }),
-    ).toHaveAttribute('href', '/groups/group-1/members');
+    expect(screen.getByRole('link', { name: 'Manage' })).toHaveAttribute(
+      'href',
+      '/groups/group-1/members',
+    );
   });
 
   it('edits the per-gift cap inline — no modal for a single number', async () => {

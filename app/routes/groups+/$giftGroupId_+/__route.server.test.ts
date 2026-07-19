@@ -137,13 +137,11 @@ describe('groups detail route server module', () => {
   it('maps loader data, permissions, invite state, and friend relationships', async () => {
     requireUserIdInGroup.mockResolvedValue('viewer-1');
     giftGroupFindUnique.mockResolvedValue({
-      budgetVisibility: 'MEMBERS',
       createdAt: new Date('2026-03-31T12:00:00.000Z'),
       description: 'Birthday planning',
       giftPlans: [],
       groupMembers: [
         {
-          budgetVisibilityOverride: null,
           contributionCents: 1000,
           role: 'OWNER',
           user: {
@@ -155,7 +153,6 @@ describe('groups detail route server module', () => {
           },
         },
         {
-          budgetVisibilityOverride: null,
           contributionCents: 2000,
           role: 'MEMBER',
           user: {
@@ -167,7 +164,6 @@ describe('groups detail route server module', () => {
           },
         },
         {
-          budgetVisibilityOverride: null,
           contributionCents: 3000,
           role: 'MEMBER',
           user: {

@@ -12,9 +12,7 @@ import { applyPendingSettingsMemberMutations } from './__route.shared';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
-  const { requireUserIdInGroup } = await import(
-    '#app/utils/groups.server.ts'
-  );
+  const { requireUserIdInGroup } = await import('#app/utils/groups.server.ts');
   // Membership gate — the roster itself comes from the layout loader.
   await requireUserIdInGroup(request, groupId);
   return null;

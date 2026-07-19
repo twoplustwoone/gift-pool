@@ -78,14 +78,12 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       id: true,
       name: true,
       description: true,
-      budgetVisibility: true,
       groupMembers: {
         select: {
           userId: true,
           role: true,
           bannedUntil: true,
           contributionCents: true,
-          budgetVisibilityOverride: true,
           shareWishlist: true,
           shareBirthday: true,
           user: {
@@ -172,7 +170,6 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       userId: true,
       role: true,
       contributionCents: true,
-      budgetVisibilityOverride: true,
       shareWishlist: true,
       shareBirthday: true,
     },
@@ -221,7 +218,6 @@ const UpdateSettingsSchema = z.object({
   giftGroupId: z.string(),
   name: z.string().min(1).max(100),
   description: z.string().max(1000),
-  budgetVisibility: z.enum(['EVERYONE', 'ADMINS', 'ONLY_SELF']),
 });
 const InviteCreateSchema = z.object({
   intent: z.literal(SettingsIntent.InviteCreate),
@@ -277,10 +273,6 @@ const MemberUpdateSelfSchema = z.object({
   // let `abc` become NaN → 500 and negatives persist). Empty → undefined so
   // this stays a partial update.
   contributionCents: optionalContributionCentsSchema,
-  // Use 'INHERIT' sentinel instead of empty string to avoid Select empty value issues
-  budgetVisibilityOverride: z
-    .enum(['INHERIT', 'EVERYONE', 'ADMINS', 'ONLY_SELF'])
-    .optional(),
   shareWishlist: z.string().optional(),
   shareBirthday: z.string().optional(),
 });
@@ -331,7 +323,6 @@ export async function action({ request }: ActionFunctionArgs) {
       await updateGroupSettings(request, v.giftGroupId, {
         name: v.name,
         description: v.description,
-        budgetVisibility: v.budgetVisibility,
       });
       return data(submission.reply(), {
         headers: await createToastHeaders({
@@ -389,11 +380,6 @@ export async function action({ request }: ActionFunctionArgs) {
       await updateOwnPreferences(request, v.giftGroupId, {
         // Already coerced/validated to a non-negative integer (or undefined).
         contributionCents: v.contributionCents,
-        // Pass through as-is so this stays a partial update: the Overview
-        // budget editor submits only contributionCents, and must NOT reset a
-        // member's chosen visibility (ADMINS / ONLY_SELF) to INHERIT. An
-        // explicit 'INHERIT' from the preferences form still clears it.
-        budgetVisibilityOverride: v.budgetVisibilityOverride as any,
         // Explicit booleans so a member can turn sharing OFF, not just on.
         shareWishlist:
           v.shareWishlist === undefined
@@ -653,7 +639,6 @@ const SettingsCard = ({
     defaultValue: {
       name: giftGroup.name,
       description: giftGroup.description,
-      budgetVisibility: giftGroup.budgetVisibility,
     },
   });
   useExitOnSubmitSuccess({
@@ -684,12 +669,6 @@ const SettingsCard = ({
         className="grid gap-3"
       >
         <input type="hidden" name="giftGroupId" value={giftGroup.id} />
-        {/* keep budget visibility using hidden to satisfy schema */}
-        <input
-          type="hidden"
-          name="budgetVisibility"
-          value={giftGroup.budgetVisibility}
-        />
         <Label htmlFor="name">Group name</Label>
         <Input id="name" name="name" defaultValue={giftGroup.name} />
         <Label htmlFor="description">Description</Label>
@@ -784,13 +763,6 @@ const RemindersSection = ({ giftGroup }: { giftGroup: any }) => {
 
 // GiftPlansSection removed (unused)
 
-const BUDGET_VISIBILITY_LABELS: Record<string, string> = {
-  INHERIT: 'Inherit group setting',
-  EVERYONE: 'Everyone',
-  ADMINS: 'Admins',
-  ONLY_SELF: 'Only self',
-};
-
 // Every member can see and edit their own preferences here, regardless of role
 // (P7.5). Contribution stays on the group Overview's dollar editor; this card
 // owns budget visibility + what you share with the group.
@@ -804,7 +776,6 @@ const MemberPreferencesCard = ({
   const fetcher = useFetcher<typeof action>();
   const [editing, setEditing] = React.useState(false);
   const stopEditing = React.useCallback(() => setEditing(false), []);
-  const currentVisibility = prefs?.budgetVisibilityOverride ?? 'INHERIT';
   const [shareWishlist, setShareWishlist] = React.useState(
     !!prefs?.shareWishlist,
   );
@@ -829,18 +800,11 @@ const MemberPreferencesCard = ({
   return (
     <EditableSection
       title="Your preferences"
-      description="Your budget visibility and sharing settings for this group."
+      description="What you share with this group. Your contribution stays private to you."
       editing={editing}
       onEdit={startEditing}
       read={
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <ReadField
-            label="Budget visibility"
-            value={
-              BUDGET_VISIBILITY_LABELS[currentVisibility] ??
-              'Inherit group setting'
-            }
-          />
           <ReadField
             label="Share wishlist"
             value={prefs?.shareWishlist ? 'Shared with group' : 'Hidden'}
@@ -875,23 +839,6 @@ const MemberPreferencesCard = ({
           name="shareBirthday"
           value={shareBirthday ? 'true' : 'false'}
         />
-        <div className="grid gap-1.5">
-          <Label htmlFor="budgetVisibilityOverride">Budget visibility</Label>
-          <Select
-            name="budgetVisibilityOverride"
-            defaultValue={currentVisibility}
-          >
-            <SelectTrigger id="budgetVisibilityOverride">
-              <SelectValue placeholder="Inherit group setting" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="INHERIT">Inherit group setting</SelectItem>
-              <SelectItem value="EVERYONE">Everyone</SelectItem>
-              <SelectItem value="ADMINS">Admins</SelectItem>
-              <SelectItem value="ONLY_SELF">Only self</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"

@@ -57,8 +57,10 @@ type GroupContext = {
     name: string;
     username: string;
     imageId: string | null;
-    contributionCents: number;
   }>;
+  // Recipient-excluded aggregate of member default caps (individual caps are
+  // private per ADR 0001; the action re-derives them server-side).
+  circleBudgetCents: number;
 };
 
 type RecipientCandidate = {
@@ -216,6 +218,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
     };
   }
 
+  // Individual default caps are private (ADR 0001) — the client gets member
+  // identities plus the recipient-excluded aggregate only. The action
+  // re-derives authoritative per-member defaults server-side on create.
   const members = group.groupMembers
     .filter((m) => m.userId !== recipientId)
     .map((m) => ({
@@ -223,8 +228,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
       name: m.user.name ?? m.user.username,
       username: m.user.username,
       imageId: m.user.image?.id ?? null,
-      contributionCents: m.contributionCents,
     }));
+  const circleBudgetCents = group.groupMembers
+    .filter((m) => m.userId !== recipientId)
+    .reduce((sum, m) => sum + (m.contributionCents ?? 0), 0);
 
   const groupContext: GroupContext = {
     groupId,
@@ -235,6 +242,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       username: recipientMember.user.username,
     },
     members,
+    circleBudgetCents,
   };
 
   return {
@@ -798,7 +806,6 @@ type PickerMember = {
   name: string;
   username: string;
   imageId: string | null;
-  contributionCents: number;
 };
 
 const ContributorPicker = ({ members }: { members: PickerMember[] }) => {
@@ -873,11 +880,6 @@ const ContributorPicker = ({ members }: { members: PickerMember[] }) => {
                   @{member.username}
                 </Text>
               </Stack>
-              {member.contributionCents > 0 && (
-                <Text size="xs" className="shrink-0 text-muted-foreground">
-                  ${(member.contributionCents / 100).toFixed(0)} cap
-                </Text>
-              )}
             </label>
           ))}
         </Stack>
