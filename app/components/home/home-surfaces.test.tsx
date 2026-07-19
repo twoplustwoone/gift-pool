@@ -11,11 +11,6 @@ const fetcherLoad = vi.fn();
 const fetcherSnapshot: {
   data:
     | {
-        activity: Array<{
-          description: string;
-          id: string;
-          timestampISO: string;
-        }>;
         birthdays: Array<{
           dateISO: string;
           dateLabel: string;
@@ -24,6 +19,21 @@ const fetcherSnapshot: {
           name: string;
           username?: string | null;
         }>;
+        forYou: Array<{
+          id: string;
+          kind: 'buy' | 'deliver' | 'vote' | 'settle' | 'plan';
+          title: string;
+          detail: string | null;
+          href: string;
+        }>;
+        memory: Array<{
+          id: string;
+          recipientLabel: string;
+          giftLabel: string;
+          contributorCount: number;
+          whenISO: string;
+        }>;
+        groups: Array<{ id: string; name: string }>;
       }
     | undefined;
   state: 'idle' | 'loading' | 'submitting';
@@ -54,7 +64,12 @@ import { HomepageMockup } from './HomepageMockup.tsx';
 describe('home surface components', () => {
   beforeEach(() => {
     fetcherLoad.mockReset();
-    fetcherSnapshot.data = { activity: [], birthdays: [] };
+    fetcherSnapshot.data = {
+      birthdays: [],
+      forYou: [],
+      memory: [],
+      groups: [],
+    };
     fetcherSnapshot.state = 'idle';
   });
 
@@ -293,27 +308,6 @@ describe('home surface components', () => {
     expect(
       screen.queryByRole('link', { name: 'View all pools →' }),
     ).not.toBeInTheDocument();
-  });
-
-  it('activity empty state contains a link to /pools/new', () => {
-    renderHomeLoggedIn({
-      activePools: [
-        {
-          id: 'pool-1',
-          title: 'Birthday Pool',
-          status: 'OPEN',
-          occasionType: 'BIRTHDAY',
-          recipientName: null,
-          eventDate: null,
-          contributorCount: 2,
-        },
-      ],
-    });
-
-    expect(screen.getByRole('link', { name: 'Start a pool' })).toHaveAttribute(
-      'href',
-      '/pools/new',
-    );
   });
 
   it('birthdays empty state contains a link to /friends', () => {
