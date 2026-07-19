@@ -37,6 +37,7 @@ import {
   declineOccasion,
   getOccasionYear,
   getPersonSurfaceAccess,
+  loadContinuePool,
   loadOpenPoolsForRecipient,
   loadPersonIdeation,
   loadPersonWishlistSource,
@@ -234,13 +235,16 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     : null;
 
   // ── Ideation block (circle-keyed reads, §7) ──
-  const [ideation, wishlistSource, openPools] = await Promise.all([
-    loadPersonIdeation(userId, user.id),
-    canViewWishlist
-      ? loadPersonWishlistSource(userId, user.id)
-      : Promise.resolve([]),
-    loadOpenPoolsForRecipient(userId, user.id),
-  ]);
+  const [ideation, wishlistSource, openPools, continuePool] = await Promise.all(
+    [
+      loadPersonIdeation(userId, user.id),
+      canViewWishlist
+        ? loadPersonWishlistSource(userId, user.id)
+        : Promise.resolve([]),
+      loadOpenPoolsForRecipient(userId, user.id),
+      loadContinuePool(userId, user.id),
+    ],
+  );
 
   return {
     unlocked: true,
@@ -260,6 +264,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     wishlistSource,
     ideation,
     openPools,
+    continuePool,
     postOccasion,
   } as const;
 }
@@ -501,6 +506,7 @@ const ProfileRoute = () => {
       wishlistSource={data.wishlistSource}
       ideation={data.ideation}
       openPools={data.openPools}
+      continuePool={data.continuePool}
       postOccasion={data.postOccasion}
     />
   );

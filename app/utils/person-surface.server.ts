@@ -7,7 +7,10 @@ import {
 } from '#app/utils/birthday.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getRelationshipDetails } from '#app/utils/friends.server.ts';
-import { POOL_STATUS } from '#app/utils/pool-constants.ts';
+import {
+  ACTIVE_POOL_STATUSES,
+  POOL_STATUS,
+} from '#app/utils/pool-constants.ts';
 import { createPool, proposeIdea } from '#app/utils/pool.server.ts';
 
 // Post-occasion detection window (spec §4): 14 days after the occasion.
@@ -495,6 +498,43 @@ export async function loadOpenPoolsForRecipient(
     select: { id: true, title: true },
     orderBy: { createdAt: 'desc' },
   });
+}
+
+// §6.3 continuation: the pool the viewer should continue rather than
+// duplicate. Any active-status pool for this recipient that the viewer
+// contributes to — visibility is contribution-scoped, so a pool the viewer
+// isn't in never surfaces here (and the recipient can never be a
+// contributor, so their own page never leaks a concealed pool).
+export async function loadContinuePool(
+  viewerId: string,
+  targetUserId: string,
+): Promise<{
+  id: string;
+  title: string;
+  status: string;
+  contributorCount: number;
+} | null> {
+  const pool = await prisma.pool.findFirst({
+    where: {
+      recipientUserId: targetUserId,
+      status: { in: ACTIVE_POOL_STATUSES },
+      contributors: { some: { userId: viewerId } },
+    },
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      _count: { select: { contributors: true } },
+    },
+    orderBy: { updatedAt: 'desc' },
+  });
+  if (!pool) return null;
+  return {
+    id: pool.id,
+    title: pool.title,
+    status: pool.status,
+    contributorCount: pool._count.contributors,
+  };
 }
 
 // Propose an idea (from the wishlist or a saved GiftListItem) into an existing

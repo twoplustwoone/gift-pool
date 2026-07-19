@@ -390,3 +390,55 @@ describe('person surface loader — post-occasion memory write', () => {
     expect(result.temporalState).toBe('cold');
   });
 });
+
+describe('person surface loader — pool continuation (§6.3)', () => {
+  it('returns the active pool the viewer contributes to for this recipient', async () => {
+    const viewer = await createUserRecord();
+    const target = await createUserRecord({ birthday: soon() });
+    await makeFriends(viewer.id, target.id);
+
+    const pool = await createDecidedPool({
+      recipientId: target.id,
+      contributorIds: [viewer.id],
+      chosenName: 'Vintage camera',
+      eventDate: null,
+      status: 'VOTING',
+    });
+
+    const result = (await runLoader(viewer.id, target.username)) as any;
+    expect(result.unlocked).toBe(true);
+    expect(result.continuePool).toMatchObject({
+      id: pool.id,
+      status: 'VOTING',
+      contributorCount: 1,
+    });
+  });
+
+  it('returns null for pools the viewer is not part of and for completed pools', async () => {
+    const viewer = await createUserRecord();
+    const target = await createUserRecord({ birthday: soon() });
+    const other = await createUserRecord();
+    await makeFriends(viewer.id, target.id);
+
+    // Someone else's pool for the same recipient must not leak here…
+    await createDecidedPool({
+      recipientId: target.id,
+      contributorIds: [other.id],
+      chosenName: 'Secret pool',
+      eventDate: null,
+      status: 'OPEN',
+    });
+    // …and the viewer's own completed pool is memory, not a continuation.
+    await createDecidedPool({
+      recipientId: target.id,
+      contributorIds: [viewer.id],
+      chosenName: 'Old delivered gift',
+      eventDate: null,
+      status: 'DELIVERED',
+    });
+
+    const result = (await runLoader(viewer.id, target.username)) as any;
+    expect(result.unlocked).toBe(true);
+    expect(result.continuePool).toBeNull();
+  });
+});
