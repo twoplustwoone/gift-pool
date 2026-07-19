@@ -22,7 +22,9 @@ import {
 } from './person-surface.tsx';
 
 // Shared capture slot — the mocked <form> writes the submitted FormData here.
-const captured = vi.hoisted(() => ({ formData: undefined as FormData | undefined }));
+const captured = vi.hoisted(() => ({
+  formData: undefined as FormData | undefined,
+}));
 
 vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactRouter>();
@@ -59,7 +61,9 @@ vi.mock('react-router', async (importOriginal) => {
 });
 
 vi.mock('#app/components/ui/responsive-dialog.tsx', () => {
-  const Pass = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
+  const Pass = ({ children }: { children?: React.ReactNode }) => (
+    <>{children}</>
+  );
   return {
     ResponsiveDialog: Pass,
     ResponsiveDialogContent: ({ children }: { children?: React.ReactNode }) => (
@@ -121,6 +125,7 @@ function baseData(
     wishlistSource: [],
     ideation: emptyIdeation,
     openPools: [],
+    continuePool: null,
     postOccasion: null,
     ...overrides,
   };
@@ -214,7 +219,10 @@ describe('PersonSurface form emission', () => {
     // renders a second SaveIdeaDialog and the "Idea" control is ambiguous.
     renderSurface(
       baseData({
-        ideation: { ...emptyIdeation, notes: [{ id: 'n1', body: 'Likes tea' }] },
+        ideation: {
+          ...emptyIdeation,
+          notes: [{ id: 'n1', body: 'Likes tea' }],
+        },
       }),
     );
 
@@ -251,5 +259,37 @@ describe('PersonSurface form emission', () => {
     expect(fd).toBeDefined();
     expect(fd.get('intent')).toBe('solo-commit');
     expect(fd.get('name')).toBe('Handmade mug');
+  });
+});
+
+describe('PersonSurface pool continuation (§6.3)', () => {
+  it('replaces Organize with Continue planning when an active pool exists', () => {
+    renderSurface(
+      baseData({
+        continuePool: {
+          id: 'p1',
+          title: "Casey's 30th",
+          status: 'VOTING',
+          contributorCount: 3,
+        },
+      }),
+    );
+
+    expect(
+      screen.getByRole('link', { name: /continue planning/i }),
+    ).toHaveAttribute('href', '/pools/p1');
+    expect(screen.getByText('3 friends in')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /organize/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps the Organize path when no active pool exists', () => {
+    renderSurface(baseData());
+
+    expect(
+      screen.getByRole('button', { name: /organize a gift/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('continue-planning')).not.toBeInTheDocument();
   });
 });

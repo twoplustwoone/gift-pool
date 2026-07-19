@@ -20,6 +20,7 @@ import {
 } from 'react-icons/lu';
 import { Form, Link, useFetcher, useNavigate } from 'react-router';
 import { FriendActionButton } from '#app/components/friends/friend-action-button.tsx';
+import { PoolStatusBadge } from '#app/components/pools/pool-status-badge.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Input } from '#app/components/ui/input.tsx';
@@ -118,6 +119,14 @@ export type PersonSurfaceViewData = {
     }>;
   };
   openPools: OpenPool[];
+  // §6.3 continuation: the active pool the viewer already participates in
+  // for this recipient — when present, Organize becomes Continue planning.
+  continuePool: {
+    id: string;
+    title: string;
+    status: string;
+    contributorCount: number;
+  } | null;
   postOccasion: PostOccasion | null;
 };
 
@@ -396,7 +405,14 @@ function ActionRow({
 }) {
   return (
     <div>
-      <OrganizeButton recipientId={data.user.id} groups={data.organizeGroups} />
+      {data.continuePool ? (
+        <ContinuePlanningCard pool={data.continuePool} />
+      ) : (
+        <OrganizeButton
+          recipientId={data.user.id}
+          groups={data.organizeGroups}
+        />
+      )}
       <div className="mt-2.5 flex gap-2">
         <SoloCommitDialog
           displayName={displayName}
@@ -412,6 +428,43 @@ function ActionRow({
         />
         <DeclineButton />
       </div>
+    </div>
+  );
+}
+
+// §6.3: when a pool already exists, show a compact status/participation
+// summary with Continue planning — never a second Organize path (a
+// wrong-duplicate in a secrecy product is the worst bug class), and never
+// pool controls reproduced on the person page.
+function ContinuePlanningCard({
+  pool,
+}: {
+  pool: NonNullable<PersonSurfaceViewData['continuePool']>;
+}) {
+  return (
+    <div data-testid="continue-planning" className="rounded-xl bg-pool/10 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="min-w-0 truncate text-sm font-semibold">{pool.title}</p>
+        <PoolStatusBadge
+          status={
+            pool.status as Parameters<typeof PoolStatusBadge>[0]['status']
+          }
+        />
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {pool.contributorCount === 1
+          ? 'Just you so far'
+          : `${pool.contributorCount} friends in`}
+      </p>
+      <Button
+        asChild
+        className="mt-3 h-12 w-full rounded-full bg-pool text-base font-extrabold text-pool-foreground hover:bg-pool/90"
+      >
+        <Link to={`/pools/${pool.id}`} prefetch="intent">
+          <LuGift size={20} className="mr-2" />
+          Continue planning
+        </Link>
+      </Button>
     </div>
   );
 }
