@@ -20,7 +20,7 @@ export const BottomNav = () => {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 w-full border-t border-surface-border bg-surface text-foreground sm:hidden"
+      className="fixed bottom-0 left-0 w-full border-t border-surface-border bg-surface text-foreground md:hidden"
       data-testid="bottom-nav"
     >
       <ul className="flex h-bottom-nav px-0">

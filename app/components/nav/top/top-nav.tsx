@@ -35,7 +35,7 @@ export const TopNav = () => {
           <Logo />
         </div>
         {/* desktop-only primary nav; mobile relies on BottomNav */}
-        <div className="hidden items-center justify-center sm:flex">
+        <div className="hidden items-center justify-center md:flex">
           <ul className="flex items-center gap-3 whitespace-nowrap" role="list">
             {links
               .filter((l) => !l.needsAuth || user)

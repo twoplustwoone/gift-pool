@@ -47,6 +47,7 @@ export default {
       ...extendedTheme,
       fontFamily: {
         sans: ['var(--font-sans)'],
+        display: ['var(--font-display)'],
       },
     },
   },

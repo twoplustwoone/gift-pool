@@ -1,0 +1,20 @@
+/* Self-hosted variable fonts (latin subset, fontsource builds).
+   Nunito Sans carries body/controls; Plus Jakarta Sans carries display/headings.
+   Replaces the old single-face Nunito ExtraLight loading, which left every
+   other weight synthetically bolded. */
+@font-face {
+  font-family: 'Nunito Sans';
+  src: url('/fonts/nunito-sans-latin-wght.woff2') format('woff2-variations');
+  font-weight: 200 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/fonts/plus-jakarta-sans-latin-wght.woff2')
+    format('woff2-variations');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}

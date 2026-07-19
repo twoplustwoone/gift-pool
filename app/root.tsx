@@ -35,7 +35,7 @@ import { useToast } from './components/toaster.tsx';
 import { href as iconsHref } from './components/ui/icon.tsx';
 import { EpicToaster } from './components/ui/sonner.tsx';
 import { WishlistRouteSkeleton } from './components/wishlist/wishlist-route-skeleton.tsx';
-import nunitoStyleSheet from './styles/nunito-font.css?url';
+import fontsStyleSheet from './styles/fonts.css?url';
 import tailwindStyleSheetUrl from './styles/tailwind.css?url';
 import { getUserId, logout } from './utils/auth.server.ts';
 import {
@@ -69,7 +69,14 @@ export const links: LinksFunction = () => [
   },
   {
     rel: 'preload',
-    href: '/fonts/Nunito/Nunito-ExtraLight.woff2',
+    href: '/fonts/nunito-sans-latin-wght.woff2',
+    as: 'font',
+    type: 'font/woff2',
+    crossOrigin: 'anonymous',
+  },
+  {
+    rel: 'preload',
+    href: '/fonts/plus-jakarta-sans-latin-wght.woff2',
     as: 'font',
     type: 'font/woff2',
     crossOrigin: 'anonymous',
@@ -99,12 +106,12 @@ export const links: LinksFunction = () => [
   },
   {
     rel: 'preload',
-    href: nunitoStyleSheet,
+    href: fontsStyleSheet,
     as: 'style',
   },
   {
     rel: 'stylesheet',
-    href: nunitoStyleSheet,
+    href: fontsStyleSheet,
   },
 ];
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
@@ -267,7 +274,7 @@ const Document = ({
 };
 const Footer = () => {
   return (
-    <div className="sm:hidden">
+    <div className="md:hidden">
       <BottomNav />
     </div>
   );
@@ -383,7 +390,7 @@ const App = () => {
             <div
               ref={scrollRef}
               style={{ paddingTop: 'var(--top-bar-height)' }}
-              className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-background to-background-muted pb-bottom-nav sm:pb-0"
+              className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-background to-background-muted pb-bottom-nav md:pb-0"
               data-testid="app-scroll-area"
             >
               <div className="flex min-h-full flex-col">
