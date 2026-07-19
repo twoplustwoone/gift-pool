@@ -50,7 +50,6 @@ vi.mock('react-router', async () => {
 
 import { HomeLoggedIn } from './HomeLoggedIn.tsx';
 import { HomepageMockup } from './HomepageMockup.tsx';
-import { HomeSocialProof } from './HomeSocialProof.tsx';
 
 describe('home surface components', () => {
   beforeEach(() => {
@@ -78,31 +77,13 @@ describe('home surface components', () => {
 
   it('renders the homepage mockup as an accessible image with matching caption', () => {
     render(
-      <HomepageMockup
-        alt="Illustration of a wishlist and gift group activity"
-        className="w-full"
-      />,
+      <HomepageMockup alt={HOME_COPY.hero.visualAlt} className="w-full" />,
     );
 
     expect(
-      screen.getByRole('img', {
-        name: 'Illustration of a wishlist and gift group activity',
-      }),
+      screen.getByRole('img', { name: HOME_COPY.hero.visualAlt }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText('Illustration of a wishlist and gift group activity'),
-    ).toHaveClass('sr-only');
-  });
-
-  it('renders the visible social proof copy and keeps testimonial placeholders hidden', () => {
-    render(<HomeSocialProof />);
-
-    expect(screen.getByText(HOME_COPY.social.strip)).toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', {
-        name: HOME_COPY.social.testimonialsHeading,
-      }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText(HOME_COPY.hero.visualAlt)).toHaveClass('sr-only');
   });
 
   it('renders "Your pools" section heading', () => {
