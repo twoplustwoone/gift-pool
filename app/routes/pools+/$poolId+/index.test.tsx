@@ -310,6 +310,35 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('Buy stage shows the available-budget-vs-price comparison', () => {
+    loaderDataSnapshot.pool.status = 'DECIDED';
+    loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
+    loaderDataSnapshot.pool.finalPriceCents = 10000;
+    loaderDataSnapshot.availableBudgetCents = 7500;
+    loaderDataSnapshot.viewer.userId = 'viewer-1';
+
+    renderRoute();
+
+    const card = screen.getByTestId('budget-vs-price');
+    expect(card).toHaveTextContent('$75.00 of $100.00 gift price');
+  });
+
+  it('hides the budget comparison without a price or without any limits set', () => {
+    loaderDataSnapshot.pool.status = 'DECIDED';
+    loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
+    loaderDataSnapshot.pool.finalPriceCents = null;
+    loaderDataSnapshot.availableBudgetCents = 7500;
+
+    const { unmount } = renderRoute();
+    expect(screen.queryByTestId('budget-vs-price')).not.toBeInTheDocument();
+    unmount();
+
+    loaderDataSnapshot.pool.finalPriceCents = 10000;
+    loaderDataSnapshot.availableBudgetCents = 0;
+    renderRoute();
+    expect(screen.queryByTestId('budget-vs-price')).not.toBeInTheDocument();
+  });
+
   it('Complete stage: memory leads, history collapses, settled settlement hidden (§6.5)', () => {
     loaderDataSnapshot.pool.status = 'DELIVERED';
     loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';

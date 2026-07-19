@@ -505,6 +505,77 @@ const ChosenGiftBanner = ({
   );
 };
 
+// Flat settlement check (viewer-scoped breakdown from the loader).
+function hasPendingSettlement(
+  breakdown: LoaderData['contributionBreakdown'],
+): boolean {
+  if (!breakdown) return false;
+  if (breakdown.kind === 'purchaser') {
+    return breakdown.breakdown.some((b) => !b.hasPaid);
+  }
+  return breakdown.viewerShare?.hasPaid === false;
+}
+
+// Buy stage (§6.5): Available Budget compared against the gift's price — the
+// price is the denominator, never a pool goal. Single teal fill.
+const BuyBudgetComparison = ({
+  availableBudgetCents,
+  finalPriceCents,
+}: {
+  availableBudgetCents: number;
+  finalPriceCents: number | null;
+}) => {
+  if (finalPriceCents === null || availableBudgetCents <= 0) return null;
+  return (
+    <Card className="p-4" data-testid="budget-vs-price">
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="text-muted-foreground">Available together</span>
+        <span className="font-semibold">
+          {formatCents(availableBudgetCents)} of {formatCents(finalPriceCents)}{' '}
+          gift price
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-pool"
+          style={{
+            width: `${Math.min(100, Math.round((availableBudgetCents / finalPriceCents) * 100))}%`,
+          }}
+        />
+      </div>
+    </Card>
+  );
+};
+
+// Complete stage (§6.5): factual memory — gift, recipient, price, headcount.
+// Never invented recipient sentiment.
+const GiftMemorySummary = ({
+  giftName,
+  recipientLabel,
+  finalPriceCents,
+  contributorCount,
+}: {
+  giftName: string;
+  recipientLabel: string | null;
+  finalPriceCents: number | null;
+  contributorCount: number;
+}) => (
+  <Card className="p-5" data-testid="gift-memory-summary">
+    <Stack gap={2}>
+      <SectionHeading>Gift memory</SectionHeading>
+      <p className="text-base font-semibold">{giftName}</p>
+      <p className="text-sm text-muted-foreground">
+        {recipientLabel ? `Given to ${recipientLabel}` : 'Given'}
+        {finalPriceCents !== null ? ` · ${formatCents(finalPriceCents)}` : ''}
+        {' · '}
+        {contributorCount === 1
+          ? 'a solo gift'
+          : `${contributorCount} gave together`}
+      </p>
+    </Stack>
+  </Card>
+);
+
 // Contribution breakdown (shown when DECIDED+). The purchaser sees every
 // share and Received status owed to them; every other contributor sees only
 // their own share (ADR 0001 — payment coordination is private between
@@ -879,11 +950,7 @@ const PoolIndex = () => {
     />
   ) : null;
 
-  const settlementPending = contributionBreakdown
-    ? contributionBreakdown.kind === 'purchaser'
-      ? contributionBreakdown.breakdown.some((b) => !b.hasPaid)
-      : contributionBreakdown.viewerShare?.hasPaid === false
-    : false;
+  const settlementPending = hasPendingSettlement(contributionBreakdown);
 
   const settlement = contributionBreakdown ? (
     <ContributionBreakdown
@@ -1004,50 +1071,22 @@ const PoolIndex = () => {
       {/* ── Chosen gift (Buy/Deliver stages) ── */}
       {!isDelivered && chosenBanner}
 
-      {/* ── Buy stage: Available Budget vs the gift's price (§6.5 — the
-            price is the denominator; never a pool goal). ── */}
-      {isDecided &&
-        pool.finalPriceCents !== null &&
-        availableBudgetCents > 0 && (
-          <Card className="p-4" data-testid="budget-vs-price">
-            <div className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="text-muted-foreground">Available together</span>
-              <span className="font-semibold">
-                {formatCents(availableBudgetCents)} of{' '}
-                {formatCents(pool.finalPriceCents)} gift price
-              </span>
-            </div>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-pool"
-                style={{
-                  width: `${Math.min(100, Math.round((availableBudgetCents / pool.finalPriceCents) * 100))}%`,
-                }}
-              />
-            </div>
-          </Card>
-        )}
+      {/* ── Buy stage: Available Budget vs the gift's price (§6.5) ── */}
+      {isDecided && (
+        <BuyBudgetComparison
+          availableBudgetCents={availableBudgetCents}
+          finalPriceCents={pool.finalPriceCents}
+        />
+      )}
 
       {/* ── Complete: factual Gift Memory leads (§6.5) ── */}
       {isDelivered && (
-        <Card className="p-5" data-testid="gift-memory-summary">
-          <Stack gap={2}>
-            <SectionHeading>Gift memory</SectionHeading>
-            <p className="text-base font-semibold">
-              {chosenIdea?.name ?? pool.title}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {recipientLabel ? `Given to ${recipientLabel}` : 'Given'}
-              {pool.finalPriceCents !== null
-                ? ` · ${formatCents(pool.finalPriceCents)}`
-                : ''}
-              {' · '}
-              {pool.contributors.length === 1
-                ? 'a solo gift'
-                : `${pool.contributors.length} gave together`}
-            </p>
-          </Stack>
-        </Card>
+        <GiftMemorySummary
+          giftName={chosenIdea?.name ?? pool.title}
+          recipientLabel={recipientLabel}
+          finalPriceCents={pool.finalPriceCents}
+          contributorCount={pool.contributors.length}
+        />
       )}
 
       {/* ── Purchaser CTA — right after the chosen gift so it's the next action ── */}
