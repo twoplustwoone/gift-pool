@@ -5,14 +5,12 @@ import { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
 
 type StatusTone = 'default' | 'success' | 'muted' | 'info';
 
+// Semantic token tones (dark values flip via the tokens themselves).
 const statusToneClasses: Record<StatusTone, string> = {
-  default:
-    'bg-blue-50 text-blue-900 ring-1 ring-inset ring-blue-200 dark:bg-blue-950/40 dark:text-blue-100 dark:ring-blue-800',
-  muted:
-    'bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-200 dark:bg-slate-950/40 dark:text-slate-200 dark:ring-slate-800',
-  success:
-    'bg-emerald-50 text-emerald-900 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-100 dark:ring-emerald-800',
-  info: 'bg-amber-50 text-amber-900 ring-1 ring-inset ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800',
+  default: 'bg-pool/10 text-pool ring-1 ring-inset ring-pool/25',
+  muted: 'bg-muted text-muted-foreground ring-1 ring-inset ring-border',
+  success: 'bg-success-muted text-success ring-1 ring-inset ring-success/30',
+  info: 'bg-warning-muted text-warning ring-1 ring-inset ring-warning/30',
 };
 
 const statusMeta: Record<

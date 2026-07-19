@@ -101,12 +101,12 @@ export const Avatar = ({
       />
       {statusIndicator && (
         <span
-          className={`absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white ${
+          className={`absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-background ${
             statusIndicator === 'online'
-              ? 'bg-green-400'
+              ? 'bg-success'
               : statusIndicator === 'offline'
-                ? 'bg-gray-400'
-                : 'bg-yellow-400'
+                ? 'bg-muted-foreground'
+                : 'bg-warning'
           }`}
           aria-label={statusIndicator}
         ></span>

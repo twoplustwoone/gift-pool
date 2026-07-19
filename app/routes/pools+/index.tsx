@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { LuGift, LuPlus } from 'react-icons/lu'
 import { Link, type LoaderFunctionArgs, useLoaderData } from 'react-router'
 import { PageHeader } from '#app/components/page-header.tsx'
+import { PoolStatusBadge } from '#app/components/pools/pool-status-badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
 import { Flex, Stack, Text } from '#app/components/ui-kit'
@@ -12,7 +13,6 @@ import { prisma } from '#app/utils/db.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	POOL_STATUS,
-	POOL_STATUS_LABELS,
 	OCCASION_TYPE_LABELS,
 	type PoolStatus,
 	type OccasionType,
@@ -58,15 +58,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	)
 
 	return { active, completed, userId }
-}
-
-const statusColors: Record<PoolStatus, string> = {
-	OPEN: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
-	VOTING: 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200',
-	DECIDED: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-	PURCHASED: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-	DELIVERED: 'bg-muted text-muted-foreground',
-	CANCELLED: 'bg-muted text-muted-foreground',
 }
 
 type Pool = Awaited<ReturnType<typeof loader>>['active'][number]
@@ -122,11 +113,7 @@ const PoolCard = ({ pool }: { pool: Pool }) => {
 							)}
 						</Flex>
 					</Stack>
-					<span
-						className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColors[status]}`}
-					>
-						{POOL_STATUS_LABELS[status]}
-					</span>
+					<PoolStatusBadge status={status} />
 				</Flex>
 			</Card>
 		</Link>

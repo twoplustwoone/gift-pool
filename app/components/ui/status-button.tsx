@@ -36,7 +36,7 @@ export const StatusButton = React.forwardRef<
         className="h-4 w-4 animate-spin text-muted-foreground"
       />
     ) : null,
-    success: <Icon name="check" className="h-4 w-4 text-emerald-600" />,
+    success: <Icon name="check" className="h-4 w-4 text-success" />,
     error: <Icon name="cross-1" className="h-4 w-4 text-destructive" />,
     idle: null,
   }[status];
