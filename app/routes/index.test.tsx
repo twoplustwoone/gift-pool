@@ -360,7 +360,12 @@ describe('app/routes/index.tsx', () => {
       screen.getByRole('heading', { name: HOME_COPY.hero.headline }),
     ).toBeInTheDocument();
     expect(screen.getByText(HOME_COPY.hero.visualAlt)).toBeInTheDocument();
-    expect(screen.getByText(HOME_COPY.features[0].title)).toBeInTheDocument();
+    expect(
+      screen.getByText(HOME_COPY.howItWorks.steps[1].title),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(HOME_COPY.maker.heading, { exact: false }),
+    ).toBeInTheDocument();
 
     await userEvent.click(
       screen.getByRole('link', { name: HOME_COPY.hero.primaryCta }),
@@ -370,10 +375,10 @@ describe('app/routes/index.tsx', () => {
     );
 
     expect(track).toHaveBeenNthCalledWith(1, 'home_cta_clicked', {
-      cta: 'create_wishlist',
+      cta: 'start_pool',
     });
     expect(track).toHaveBeenNthCalledWith(2, 'home_cta_clicked', {
-      cta: 'start_group',
+      cta: 'make_wishlist',
     });
     expect(prefetchSpy).toHaveBeenCalledWith({
       enabled: false,

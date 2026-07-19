@@ -5,9 +5,10 @@ import {
   useSearchParams,
 } from 'react-router';
 import { HOME_COPY } from '#app/components/home/home-copy';
-import { HomeFeatures } from '#app/components/home/HomeFeatures';
 import { HomeHero } from '#app/components/home/HomeHero';
+import { HomeHowItWorks } from '#app/components/home/HomeHowItWorks';
 import { HomeLoggedIn } from '#app/components/home/HomeLoggedIn';
+import { HomeMakerNote } from '#app/components/home/HomeMakerNote';
 import { useHomeBackgroundPrefetch } from '#app/hooks/use-background-route-prefetch.ts';
 import { track } from '#app/utils/analytics.client.ts';
 import { getUserId } from '#app/utils/auth.server.ts';
@@ -60,10 +61,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
           // Defense-in-depth: never surface a pool to its own recipient. The
           // explicit null branch keeps pools with no linked recipient user
           // (recipientName only) — a bare `{ not: userId }` drops NULL rows.
-          OR: [
-            { recipientUserId: null },
-            { recipientUserId: { not: userId } },
-          ],
+          OR: [{ recipientUserId: null }, { recipientUserId: { not: userId } }],
         },
         select: {
           id: true,
@@ -129,14 +127,13 @@ const Index = () => {
   return (
     <main role="main">
       <HomeHero
-        onPrimaryClick={() =>
-          track('home_cta_clicked', { cta: 'create_wishlist' })
-        }
+        onPrimaryClick={() => track('home_cta_clicked', { cta: 'start_pool' })}
         onSecondaryClick={() =>
-          track('home_cta_clicked', { cta: 'start_group' })
+          track('home_cta_clicked', { cta: 'make_wishlist' })
         }
       />
-      <HomeFeatures />
+      <HomeHowItWorks />
+      <HomeMakerNote />
     </main>
   );
 };

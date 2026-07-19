@@ -77,7 +77,7 @@ test.describe('dashboard', () => {
 
       await expect(page.getByRole('heading', { name: 'Your pools' })).toBeVisible();
       await expect(
-        page.getByRole('heading', { name: 'Group gifting, simplified.' }),
+        page.getByRole('heading', { name: 'Plan a gift together without spoiling the surprise.' }),
       ).toHaveCount(0);
     } finally {
       await prisma.pool.deleteMany({ where: { id: { in: createdPoolIds } } });
@@ -208,7 +208,7 @@ test.describe('dashboard', () => {
     await page.goto('/');
 
     await expect(
-      page.getByRole('heading', { name: 'Group gifting, simplified.' }),
+      page.getByRole('heading', { name: 'Plan a gift together without spoiling the surprise.' }),
     ).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Your pools' })).toHaveCount(0);
   });

@@ -29,15 +29,16 @@ export const HomepageMockup: React.FC<HomepageMockupProps> = ({
               <p className="truncate text-sm font-semibold">
                 Dad&rsquo;s 60th Birthday
               </p>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+              <span className="rounded-full bg-pool/15 px-2.5 py-0.5 text-xs font-medium text-pool">
                 Open
               </span>
             </div>
+            {/* Comparison against the gift's price (never a pool "goal"). */}
             <p className="mt-1 text-xs text-muted-foreground">
-              $135 of $180 · 5 chipping in
+              $135 committed toward the $180 gift · 5 friends in
             </p>
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div className="h-full w-3/4 rounded-full bg-primary" />
+              <div className="h-full w-3/4 rounded-full bg-pool" />
             </div>
           </div>
 
@@ -45,9 +46,7 @@ export const HomepageMockup: React.FC<HomepageMockupProps> = ({
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
                 <Heart className="h-4 w-4 shrink-0 text-primary" />
-                <p className="truncate text-sm font-medium">
-                  Espresso grinder
-                </p>
+                <p className="truncate text-sm font-medium">Espresso grinder</p>
               </div>
               <p className="text-sm text-muted-foreground">$89</p>
             </div>

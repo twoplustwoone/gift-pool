@@ -8,7 +8,7 @@ test.describe('Home page', () => {
     await page.goto('/');
 
     const hero = page.getByRole('heading', {
-      name: /Group gifting, simplified\./i,
+      name: /Plan a gift together without spoiling the surprise\./i,
     });
     await expect(hero).toBeVisible();
 
@@ -21,29 +21,27 @@ test.describe('Home page', () => {
     await expect(hero).toBeInViewport();
   });
 
-  test('CTAs render and point to correct routes', async ({ page }) => {
+  test('CTAs render organizer-first and point to correct routes', async ({
+    page,
+  }) => {
     await page.goto('/');
-    const createWishlist = page.getByTestId('home-cta-wishlist');
-    const startGroup = page.getByTestId('home-cta-group');
-    await expect(createWishlist).toBeVisible();
-    await expect(startGroup).toBeVisible();
+    const startPool = page.getByTestId('home-cta-pool');
+    const makeWishlist = page.getByTestId('home-cta-wishlist');
+    await expect(startPool).toBeVisible();
+    await expect(makeWishlist).toBeVisible();
 
-    // Verify target hrefs without requiring auth for navigation
-    await expect(createWishlist).toHaveAttribute('href', '/wishlist');
-    await expect(startGroup).toHaveAttribute('href', '/groups/new');
+    // Verify target hrefs without requiring auth for navigation — the
+    // auth gates on these routes carry the intent through redirectTo.
+    await expect(startPool).toHaveAttribute('href', '/pools/new');
+    await expect(makeWishlist).toHaveAttribute('href', '/wishlist');
   });
 
-  test('features render 3–4 items', async ({ page }) => {
+  test('how-it-works steps and maker note render', async ({ page }) => {
     await page.goto('/');
-    const features = [
-      'Wishlists made simple',
-      'Gift groups',
-      'Contribution limits',
-      'Reminders',
-    ];
-    for (const title of features) {
+    for (const title of ['Start a pool', 'Invite the group', 'Give the gift']) {
       await expect(page.getByRole('heading', { name: title })).toBeVisible();
     }
+    await expect(page.getByText('— A note from the maker')).toBeVisible();
   });
 
   test('empty states when mocking no data', async ({ page }) => {
@@ -85,13 +83,13 @@ test.describe('Home page', () => {
       const active = await page.evaluate(
         () => (document.activeElement as HTMLElement | null)?.textContent || '',
       );
-      if (active?.includes('Create Your Wishlist')) break;
+      if (active?.includes('Start a pool')) break;
       await page.keyboard.press('Tab');
     }
     const primaryActive = await page.evaluate(
       () => (document.activeElement as HTMLElement | null)?.textContent || '',
     );
-    expect(primaryActive).toContain('Create Your Wishlist');
+    expect(primaryActive).toContain('Start a pool');
 
     // Tab to a footer link (features section has no interactive links)
     while (attempts++ < 20) {

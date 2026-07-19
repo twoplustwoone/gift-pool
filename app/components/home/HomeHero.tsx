@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { LuHeart, LuUsers } from 'react-icons/lu';
+import { LuGift, LuHeart } from 'react-icons/lu';
 import { Link } from 'react-router';
 import { Button } from '#app/components/ui/button.tsx';
 import { Flex, Text } from '../ui-kit';
@@ -24,7 +24,7 @@ export const HomeHero: React.FC<HomeHeroProps> = ({
         <div>
           <h1
             id="home-hero-heading"
-            className="text-3xl font-bold tracking-tight md:text-5xl"
+            className="font-display text-3xl font-bold tracking-tight md:text-5xl"
           >
             {HOME_COPY.hero.headline}
           </h1>
@@ -32,16 +32,20 @@ export const HomeHero: React.FC<HomeHeroProps> = ({
             {HOME_COPY.hero.subhead}
           </p>
 
+          {/* Organizer-first (§6.1): starting a pool is the primary job the
+              page exists for; the wishlist is the secondary on-ramp. Both
+              targets are auth-gated, so the redirectTo chain carries the
+              intent through signup/login. */}
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Button
               asChild
               size="lg"
               onClick={onPrimaryClick}
-              data-testid="home-cta-wishlist"
+              data-testid="home-cta-pool"
             >
-              <Link to="/wishlist" prefetch="intent">
+              <Link to="/pools/new" prefetch="intent">
                 <Flex gap={2}>
-                  <LuHeart size={16} />
+                  <LuGift size={16} />
                   <Text weight="bold">{HOME_COPY.hero.primaryCta}</Text>
                 </Flex>
               </Link>
@@ -51,11 +55,11 @@ export const HomeHero: React.FC<HomeHeroProps> = ({
               size="lg"
               variant="outline"
               onClick={onSecondaryClick}
-              data-testid="home-cta-group"
+              data-testid="home-cta-wishlist"
             >
-              <Link to="/groups/new" prefetch="intent">
+              <Link to="/wishlist" prefetch="intent">
                 <Flex gap={2}>
-                  <LuUsers size={16} />
+                  <LuHeart size={16} />
                   <Text weight="bold">{HOME_COPY.hero.secondaryCta}</Text>
                 </Flex>
               </Link>

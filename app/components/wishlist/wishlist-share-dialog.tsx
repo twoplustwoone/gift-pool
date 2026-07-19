@@ -160,7 +160,7 @@ function PublicLinkCard({
         </div>
       ) : (
         <div className="mt-3 space-y-3">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <div className="rounded-lg border border-warning/30 bg-warning-muted px-3 py-2 text-xs text-warning">
             Only share with people you trust. Anyone with the link can view.
           </div>
           <Button
