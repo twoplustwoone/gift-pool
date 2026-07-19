@@ -2,6 +2,10 @@ import { type LoaderFunctionArgs } from 'react-router';
 import { getUserId } from '#app/utils/auth.server';
 import { canViewBirthday } from '#app/utils/birthday-visibility.server';
 import { prisma } from '#app/utils/db.server';
+import {
+  getForYouActions,
+  getRecentGiftMemory,
+} from '#app/utils/home-for-you.server';
 
 const SIXTY_DAYS_MS = 60 * 24 * 60 * 60 * 1000;
 
@@ -16,6 +20,7 @@ type GroupMemberUser = {
 type Membership = {
   giftGroup: {
     id: string;
+    name: string;
     groupMembers: Array<{ user: GroupMemberUser }>;
   };
 };
@@ -126,7 +131,7 @@ function buildFriendIdSet(
 
 function resolveMockPayload(mock: 'empty' | 'data' | undefined) {
   if (mock === 'empty') {
-    return { birthdays: [], activity: [] };
+    return { birthdays: [], forYou: [], memory: [], groups: [] };
   }
   if (mock === 'data') {
     const now = new Date();
@@ -146,14 +151,25 @@ function resolveMockPayload(mock: 'empty' | 'data' | undefined) {
           groupId: 'g_mock_1',
         },
       ],
-      activity: [
+      forYou: [
         {
-          id: 'a_mock_1',
-          description:
-            'Jamie added “Noise-cancelling headphones” to Family Gifts',
-          timestampISO: now.toISOString(),
+          id: 'plan:u_mock_1',
+          kind: 'plan' as const,
+          title: 'Plan a gift for Alex Johnson',
+          detail: `Birthday · ${formatDateLabel(in10)}`,
+          href: '/users/alex',
         },
       ],
+      memory: [
+        {
+          id: 'p_mock_1',
+          recipientLabel: 'Jamie',
+          giftLabel: 'Noise-cancelling headphones',
+          contributorCount: 4,
+          whenISO: now.toISOString(),
+        },
+      ],
+      groups: [{ id: 'g_mock_1', name: 'Family Gifts' }],
     };
   }
   return null;
@@ -170,7 +186,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   const userId = await getUserId(request);
   if (!userId) {
-    return { birthdays: [], activity: [] };
+    return { birthdays: [], forYou: [], memory: [], groups: [] };
   }
 
   // Upcoming birthdays for users sharing at least one group with the current
@@ -184,6 +200,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         giftGroup: {
           select: {
             id: true,
+            name: true,
             groupMembers: {
               select: {
                 user: {
@@ -256,11 +273,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
   );
   const birthdays = sortAndSliceUpcomingBirthdays(birthdayMap, now);
 
-  // TODO: Wire real recent activity once available.
-  const activity: Array<{
-    id: string;
-    description: string;
-    timestampISO: string;
-  }> = [];
-  return { birthdays, activity };
+  // "For you" actions + earned Gift Memory (§6.2). Replaces the old
+  // recent-activity stub — memory is factual completed-gift history only.
+  const [forYou, memory] = await Promise.all([
+    getForYouActions(
+      userId,
+      birthdays.map((b) => ({
+        id: b.id,
+        name: b.name,
+        username: b.username,
+        dateLabel: b.dateLabel,
+      })),
+    ),
+    getRecentGiftMemory(userId),
+  ]);
+
+  const groups = memberships
+    .map((m) => ({ id: m.giftGroup.id, name: m.giftGroup.name }))
+    .slice(0, 4);
+
+  return { birthdays, forYou, memory, groups };
 }

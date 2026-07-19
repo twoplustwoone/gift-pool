@@ -11,11 +11,6 @@ const fetcherLoad = vi.fn();
 const fetcherSnapshot: {
   data:
     | {
-        activity: Array<{
-          description: string;
-          id: string;
-          timestampISO: string;
-        }>;
         birthdays: Array<{
           dateISO: string;
           dateLabel: string;
@@ -24,6 +19,21 @@ const fetcherSnapshot: {
           name: string;
           username?: string | null;
         }>;
+        forYou: Array<{
+          id: string;
+          kind: 'buy' | 'deliver' | 'vote' | 'settle' | 'plan';
+          title: string;
+          detail: string | null;
+          href: string;
+        }>;
+        memory: Array<{
+          id: string;
+          recipientLabel: string;
+          giftLabel: string;
+          contributorCount: number;
+          whenISO: string;
+        }>;
+        groups: Array<{ id: string; name: string }>;
       }
     | undefined;
   state: 'idle' | 'loading' | 'submitting';
@@ -112,7 +122,6 @@ vi.mock('#app/utils/user.ts', () => ({
 }));
 
 import { HOME_COPY } from '#app/components/home/home-copy.ts';
-import { HomePanels } from '#app/components/home/HomePanels.tsx';
 import IndexRoute, { loader, meta } from './index.tsx';
 
 beforeEach(() => {
@@ -173,14 +182,6 @@ function renderIndexRoute({
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <IndexRoute />
-    </MemoryRouter>,
-  );
-}
-
-function renderPanels(props: React.ComponentProps<typeof HomePanels>) {
-  return render(
-    <MemoryRouter>
-      <HomePanels {...props} />
     </MemoryRouter>,
   );
 }
@@ -405,53 +406,8 @@ describe('app/routes/index.tsx', () => {
     });
   });
 
-  it('renders empty-state panels for logged-in users with no wishlist items or groups', () => {
-    renderPanels({
-      groupCount: 0,
-      isLoggedIn: true,
-      wishlistCount: 0,
-    });
-
-    expect(
-      screen.getByRole('heading', {
-        name: HOME_COPY.panels.emptyWishlistTitle,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: HOME_COPY.panels.emptyWishlistCta }),
-    ).toHaveAttribute('href', '/wishlist');
-    expect(
-      screen.getByRole('link', { name: HOME_COPY.panels.emptyGroupsCta }),
-    ).toHaveAttribute('href', '/groups/new');
-    expect(fetcherLoad).not.toHaveBeenCalled();
-  });
-
-  it('loads personalized panels and shows the fallback copy before data arrives', async () => {
-    renderPanels({
-      groupCount: 2,
-      isLoggedIn: true,
-      wishlistCount: 1,
-    });
-
-    expect(screen.getByTestId('panel-birthdays')).toBeInTheDocument();
-    expect(screen.getByTestId('panel-activity')).toBeInTheDocument();
-    expect(screen.getByText('No upcoming birthdays')).toBeInTheDocument();
-    expect(screen.getByText('Nothing new yet')).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(fetcherLoad).toHaveBeenCalledWith('/resources/home/panels');
-    });
-  });
-
-  it('renders loaded birthday and activity content from the fetcher', () => {
+  it('renders For you actions, occasions, groups, and gift memory from the fetcher', () => {
     fetcherSnapshot.data = {
-      activity: [
-        {
-          description: 'Jamie added a blender to Family',
-          id: 'activity-1',
-          timestampISO: '2026-03-31T10:00:00.000Z',
-        },
-      ],
       birthdays: [
         {
           dateISO: '2026-04-10',
@@ -461,42 +417,85 @@ describe('app/routes/index.tsx', () => {
           name: 'Alex Johnson',
           username: 'alex',
         },
+      ],
+      forYou: [
         {
-          dateISO: '2026-05-11',
-          dateLabel: 'May 11',
-          groupId: null,
-          id: 'birthday-2',
-          name: 'Sam Lee',
-          username: 'sam',
+          id: 'buy:p-1',
+          kind: 'buy' as const,
+          title: 'Buy the gift',
+          detail: 'Marco 30th',
+          href: '/pools/p-1',
         },
       ],
+      memory: [
+        {
+          id: 'p-2',
+          recipientLabel: 'Leo',
+          giftLabel: 'Travel kit',
+          contributorCount: 3,
+          whenISO: '2026-06-01T00:00:00.000Z',
+        },
+      ],
+      groups: [{ id: 'group-1', name: 'The Crew' }],
     };
 
-    renderPanels({
-      groupCount: 1,
-      isLoggedIn: true,
-      mock: 'data',
-      wishlistCount: 1,
+    renderIndexRoute({
+      loaderData: {
+        activePools: [],
+        groupCount: 1,
+        isLoggedIn: true,
+        mock: undefined,
+        wishlistCount: 1,
+      },
+      user: { id: 'user-7' },
     });
 
-    expect(screen.getByText('Alex Johnson')).toBeInTheDocument();
-    expect(screen.getByText('Apr 10')).toBeInTheDocument();
+    // For you leads and links to the responsibility.
+    expect(screen.getByTestId('for-you-buy')).toHaveAttribute(
+      'href',
+      '/pools/p-1',
+    );
+    // Occasions lead to the person page, not the group.
+    expect(screen.getByRole('link', { name: 'Alex Johnson' })).toHaveAttribute(
+      'href',
+      '/users/alex',
+    );
     expect(
       screen.getByRole('link', { name: HOME_COPY.panels.planGift }),
-    ).toHaveAttribute('href', '/groups/group-1');
-    expect(
-      screen.getByText('Jamie added a blender to Family'),
-    ).toBeInTheDocument();
-    expect(fetcherLoad).not.toHaveBeenCalled();
+    ).toHaveAttribute('href', '/users/alex');
+    // Groups section lists memberships.
+    expect(screen.getByRole('link', { name: 'The Crew' })).toHaveAttribute(
+      'href',
+      '/groups/group-1',
+    );
+    // Earned memory renders factual history.
+    expect(screen.getByTestId('panel-memory')).toBeInTheDocument();
+    expect(screen.getByText('Travel kit')).toBeInTheDocument();
   });
 
-  it('renders nothing when personalized panels are not available', () => {
-    const { container } = renderPanels({
-      groupCount: 0,
-      isLoggedIn: false,
-      wishlistCount: 0,
+  it('hides For you and gift memory until earned', () => {
+    fetcherSnapshot.data = {
+      birthdays: [],
+      forYou: [],
+      memory: [],
+      groups: [],
+    };
+
+    renderIndexRoute({
+      loaderData: {
+        activePools: [],
+        groupCount: 0,
+        isLoggedIn: true,
+        mock: undefined,
+        wishlistCount: 1,
+      },
+      user: { id: 'user-7' },
     });
 
-    expect(container).toBeEmptyDOMElement();
+    // No pools + no actions → the For you section stays absent (quiet).
+    expect(screen.queryByTestId('panel-for-you')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('panel-memory')).not.toBeInTheDocument();
+    // Empty-groups nudge still renders inside the groups section.
+    expect(screen.getByTestId('empty-groups-cta')).toBeInTheDocument();
   });
 });

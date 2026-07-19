@@ -46,30 +46,34 @@ test.describe('Home page', () => {
 
   test('empty states when mocking no data', async ({ page }) => {
     await page.goto('/?mock=empty');
+    // Brand-new account: first-item hero + groups nudge, no scaffolded panels.
     await expect(
-      page.getByRole('heading', { name: /Your wishlist is empty/i }),
+      page.getByRole('heading', { name: 'Start your wishlist' }),
     ).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: /No groups yet/i }),
-    ).toBeVisible();
-    await expect(page.getByTestId('empty-wishlist-cta')).toHaveAttribute(
+    await expect(page.getByTestId('first-item-cta')).toHaveAttribute(
       'href',
-      '/wishlist',
+      '/wishlist?add=1',
     );
     await expect(page.getByTestId('empty-groups-cta')).toHaveAttribute(
       'href',
       '/groups/new',
     );
+    await expect(page.getByTestId('panel-for-you')).toHaveCount(0);
+    await expect(page.getByTestId('panel-memory')).toHaveCount(0);
   });
 
   test('panels render with data when mocked', async ({ page }) => {
     await page.goto('/?mock=data');
     const birthdaysPanel = page.getByTestId('panel-birthdays');
-    const activityPanel = page.getByTestId('panel-activity');
     await expect(birthdaysPanel).toBeVisible();
-    await expect(activityPanel).toBeVisible();
     await expect(birthdaysPanel.getByRole('listitem').first()).toBeVisible();
-    await expect(activityPanel.getByRole('listitem').first()).toBeVisible();
+    // For you leads with the plan action from the mock payload…
+    await expect(page.getByTestId('for-you-plan')).toHaveAttribute(
+      'href',
+      '/users/alex',
+    );
+    // …and earned memory renders the factual completed gift.
+    await expect(page.getByTestId('panel-memory')).toBeVisible();
   });
 
   test('keyboard navigation focuses CTAs and footer links', async ({
@@ -105,11 +109,9 @@ test.describe('Home page', () => {
     expect(linkActive).toContain('About');
   });
 
-  // Snapshot tests can be enabled later once baselines are established
-  test.skip(
-    true,
-    'snapshots of hero at mobile and desktop (baselines not yet committed)',
-  );
+  // NOTE: a bare `test.skip(true, …)` at describe scope used to sit here —
+  // Playwright semantics made it skip the ENTIRE describe, so none of these
+  // home tests had run since it was added. Keep per-test skips only.
 });
 
 test.describe('Root route resilience', () => {

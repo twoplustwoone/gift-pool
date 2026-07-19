@@ -41,7 +41,9 @@ async function seedPool({
     eventDate,
   });
 
-  await Promise.all(contributorIds.map((userId) => addContributor(pool.id, userId)));
+  await Promise.all(
+    contributorIds.map((userId) => addContributor(pool.id, userId)),
+  );
 
   if (status !== 'OPEN') {
     await prisma.pool.update({
@@ -75,9 +77,13 @@ test.describe('dashboard', () => {
       });
       await page.goto('/');
 
-      await expect(page.getByRole('heading', { name: 'Your pools' })).toBeVisible();
       await expect(
-        page.getByRole('heading', { name: 'Plan a gift together without spoiling the surprise.' }),
+        page.getByRole('heading', { name: 'Your pools' }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('heading', {
+          name: 'Plan a gift together without spoiling the surprise.',
+        }),
       ).toHaveCount(0);
     } finally {
       await prisma.pool.deleteMany({ where: { id: { in: createdPoolIds } } });
@@ -107,7 +113,9 @@ test.describe('dashboard', () => {
       });
       await page.goto('/');
 
-      await expect(page.getByRole('link', { name: /Summer Pool/i })).toBeVisible();
+      await expect(
+        page.getByRole('link', { name: /Summer Pool/i }),
+      ).toBeVisible();
       await expect(page.getByText('Open')).toBeVisible();
       await expect(page.getByText('Jun 14')).toBeVisible();
     } finally {
@@ -175,16 +183,15 @@ test.describe('dashboard', () => {
       });
       await page.goto('/');
 
-      await expect(page.getByRole('link', { name: 'Add friends' })).toHaveAttribute(
-        'href',
-        '/friends',
-      );
+      await expect(
+        page.getByRole('link', { name: 'Add friends' }),
+      ).toHaveAttribute('href', '/friends');
     } finally {
       await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
     }
   });
 
-  test('activity panel empty state links to /pools/new', async ({ page }) => {
+  test('For you and gift memory stay hidden until earned', async ({ page }) => {
     const createdUserIds: string[] = [];
     const viewer = await createAppUser();
     createdUserIds.push(viewer.id);
@@ -196,20 +203,28 @@ test.describe('dashboard', () => {
       });
       await page.goto('/');
 
-      await expect(
-        page.getByTestId('panel-activity').getByRole('link', { name: 'Start a pool' }),
-      ).toHaveAttribute('href', '/pools/new');
+      // A fresh account has no responsibilities and no completed gifts —
+      // both sections are quiet/absent rather than scaffolded empty boxes.
+      await expect(page.getByTestId('panel-birthdays')).toBeVisible();
+      await expect(page.getByTestId('panel-for-you')).toHaveCount(0);
+      await expect(page.getByTestId('panel-memory')).toHaveCount(0);
     } finally {
       await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
     }
   });
 
-  test('logged-out user sees marketing page, not dashboard', async ({ page }) => {
+  test('logged-out user sees marketing page, not dashboard', async ({
+    page,
+  }) => {
     await page.goto('/');
 
     await expect(
-      page.getByRole('heading', { name: 'Plan a gift together without spoiling the surprise.' }),
+      page.getByRole('heading', {
+        name: 'Plan a gift together without spoiling the surprise.',
+      }),
     ).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Your pools' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Your pools' })).toHaveCount(
+      0,
+    );
   });
 });

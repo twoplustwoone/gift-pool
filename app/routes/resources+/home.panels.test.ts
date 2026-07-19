@@ -1,11 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getUserId = vi.fn();
 const findMany = vi.fn();
 const friendshipFindMany = vi.fn();
+const getForYouActions = vi.fn();
+const getRecentGiftMemory = vi.fn();
 
 vi.mock('#app/utils/auth.server', () => ({
   getUserId: (...args: Array<unknown>) => getUserId(...args),
@@ -21,6 +23,22 @@ vi.mock('#app/utils/db.server', () => ({
     },
   },
 }));
+
+// The For-you/memory aggregation has its own unit tests
+// (home-for-you.server.test.ts); here it is isolated so the loader tests
+// stay focused on birthday visibility.
+vi.mock('#app/utils/home-for-you.server', () => ({
+  getForYouActions: (...args: Array<unknown>) => getForYouActions(...args),
+  getRecentGiftMemory: (...args: Array<unknown>) =>
+    getRecentGiftMemory(...args),
+}));
+
+// eslint-disable-next-line epic-web/prefer-dispose-in-tests -- mock defaults must live in beforeEach: restoreMocks strips vi.fn factory implementations (see project test gotchas)
+beforeEach(() => {
+  // restoreMocks strips factory defaults — set them here, not at vi.fn().
+  getForYouActions.mockResolvedValue([]);
+  getRecentGiftMemory.mockResolvedValue([]);
+});
 
 import * as HomePanelsModule from './home.panels.tsx';
 import { loader } from './home.panels.tsx';
@@ -49,8 +67,10 @@ describe('app/routes/resources+/home.panels.tsx', () => {
         request: new Request('https://giftpool.app/resources/home.panels?mock=empty'),
       } as never),
     ).resolves.toEqual({
-      activity: [],
       birthdays: [],
+      forYou: [],
+      memory: [],
+      groups: [],
     });
 
     const result = await loader({
@@ -65,12 +85,16 @@ describe('app/routes/resources+/home.panels.tsx', () => {
       name: 'Alex Johnson',
       username: 'alex',
     });
-    expect(result.activity).toEqual([
+    expect(result.forYou).toEqual([
+      expect.objectContaining({ kind: 'plan', href: '/users/alex' }),
+    ]);
+    expect(result.memory).toEqual([
       expect.objectContaining({
-        description: 'Jamie added “Noise-cancelling headphones” to Family Gifts',
-        id: 'a_mock_1',
+        giftLabel: 'Noise-cancelling headphones',
+        recipientLabel: 'Jamie',
       }),
     ]);
+    expect(result.groups).toEqual([{ id: 'g_mock_1', name: 'Family Gifts' }]);
   });
 
   it('returns empty panels for signed-out viewers', async () => {
@@ -83,8 +107,10 @@ describe('app/routes/resources+/home.panels.tsx', () => {
         request: new Request('https://giftpool.app/resources/home.panels'),
       } as never),
     ).resolves.toEqual({
-      activity: [],
       birthdays: [],
+      forYou: [],
+      memory: [],
+      groups: [],
     });
 
     expect(findMany).not.toHaveBeenCalled();
@@ -200,6 +226,7 @@ describe('app/routes/resources+/home.panels.tsx', () => {
                 },
               },
               id: true,
+              name: true,
             },
           },
         },
@@ -208,7 +235,14 @@ describe('app/routes/resources+/home.panels.tsx', () => {
         },
       });
 
-      expect(result.activity).toEqual([]);
+      expect(result.memory).toEqual([]);
+      expect(getForYouActions).toHaveBeenCalledWith(
+        'viewer-1',
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'friend-soon' }),
+          expect.objectContaining({ id: 'friend-near' }),
+        ]),
+      );
       expect(result.birthdays).toHaveLength(2);
       expect(result.birthdays.map((birthday) => birthday.id)).toEqual([
         'friend-soon',
