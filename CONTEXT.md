@@ -1,5 +1,67 @@
 # Domain context
 
+## Gift coordination
+
+**Group**
+: A persistent set of people who coordinate gifts for one another across recurring occasions.
+
+_Avoid:_ “Circle” as a functional label for the object; use it only as conversational prose about close relationships.
+
+**Friend**
+: A user connected to another user through a mutually accepted direct friendship.
+
+_Avoid:_ Calling a shared Group member a Friend unless the direct friendship also exists.
+
+**Person Note**
+: A private observation one user records about another person for future gift planning, visible only to its author.
+
+_Avoid:_ Presenting Person Notes as shared group or pool memory.
+
+**Pool**
+: A private, occasion-specific effort in which contributors coordinate one gift for a recipient who cannot access the plan.
+
+_Avoid:_ Fund, campaign, collection, or language implying that Gift Pool holds money.
+
+**Pool Stage**
+: The current coordination phase of a Pool: Collect ideas, Choose the gift, Buy the gift, Deliver it, or Complete.
+
+_Avoid:_ Treating contributor membership such as “Joined” as a Pool Stage, or using “Celebrate” to conceal purchase and delivery work.
+
+**Contribution Limit**
+: The private maximum amount a contributor is comfortable covering for a Pool, visible only to that contributor.
+
+_Avoid:_ Pledge, payment, amount collected, configurable peer visibility, or language implying that Gift Pool moves money.
+
+**Available Budget**
+: The shared collective capacity of a Pool, derived from the current contributors’ private Contribution Limits.
+
+_Avoid:_ Treating it as an independently editable fundraising goal or amount collected.
+
+**Gift Price**
+: The estimated or final cost of a proposed or chosen gift.
+
+_Avoid:_ Calling the Gift Price the Pool’s goal or Available Budget.
+
+**Contribution Share**
+: The calculated portion of the Final Price that a contributor owes directly to the purchaser.
+
+_Avoid:_ Contribution Limit, payment processed by Gift Pool, charge, or transfer. The UI may shorten this to “your share” when the Pool context is clear.
+
+**Received**
+: The purchaser-confirmed state that a contributor’s Contribution Share was received outside Gift Pool.
+
+_Avoid:_ Letting contributors self-confirm payment or implying that Gift Pool verified the transfer.
+
+**Occasion Decline**
+: A private, undoable choice to sit out one specific occurrence of another person’s occasion.
+
+_Avoid:_ Group-visible participation status, permanent opt-out, or a general notification mute.
+
+**Gift Memory**
+: A durable record of what was given for a person and occasion, visible only to the people who participated in that gift intent.
+
+_Avoid:_ Social photo album, shallow activity log, or unverified claims about how the recipient felt.
+
 ## Notifications
 
 **Notification Event**
