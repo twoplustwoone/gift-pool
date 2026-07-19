@@ -5,9 +5,9 @@ import {
 	ContextNotificationControl,
 } from '#app/components/notifications/context-notification-controls.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
+import { PoolStatusBadge } from '#app/components/pools/pool-status-badge.tsx'
 import { Stack, Text } from '#app/components/ui-kit'
 import {
-	POOL_STATUS_LABELS,
 	OCCASION_TYPE_LABELS,
 	type PoolStatus,
 	type OccasionType,
@@ -15,15 +15,6 @@ import {
 import { type loader as routeLoader } from './__route.server'
 
 export { loader, action } from './__route.server'
-
-const statusColors: Record<PoolStatus, string> = {
-	OPEN: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
-	VOTING: 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200',
-	DECIDED: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-	PURCHASED: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-	DELIVERED: 'bg-muted text-muted-foreground',
-	CANCELLED: 'bg-muted text-muted-foreground line-through',
-}
 
 const PoolLayout = () => {
 	const { pool, canManage, notificationAwareness, notificationTopics } =
@@ -52,11 +43,7 @@ const PoolLayout = () => {
 				subtitle={`${OCCASION_TYPE_LABELS[occasion]} for ${recipientLabel}`}
 			>
 				<div className="flex shrink-0 items-center gap-2">
-					<span
-						className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColors[status]}`}
-					>
-						{POOL_STATUS_LABELS[status]}
-					</span>
+					<PoolStatusBadge status={status} className="px-2.5" />
 					<ContextNotificationControl
 						context={{ kind: 'POOL', poolId: pool.id }}
 						contextLabel={pool.title}

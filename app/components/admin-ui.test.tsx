@@ -34,7 +34,7 @@ describe('SummaryCard', () => {
     const { container } = render(
       <SummaryCard label="Stuck" value={2} tone="warn" />,
     );
-    const card = container.querySelector('[class*="amber"]');
+    const card = container.querySelector('[class*="warning"]');
     expect(card).not.toBeNull();
   });
 

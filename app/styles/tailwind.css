@@ -4,75 +4,77 @@
 
 @layer base {
   :root {
-    --font-sans: Nunito;
+    /* Warm palette per docs/product/giftpool-ui-rework-foundation-tokens.md */
+    --font-sans: 'Nunito Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
     /* --font-mono: here if you got it... */
 
     /* prefixed with foreground because it should look good on the background */
-    --foreground-destructive: 345 82.7% 40.8%;
+    --foreground-destructive: 0 75% 42%;
 
-    --background: 210 40% 98%;
-    --background-muted: 220 14% 96%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 13 100% 98%; /* #FFF8F6 warm canvas */
+    --background-muted: 17 68% 94%; /* #FAEBE5 */
+    --foreground: 18 18% 11%; /* #211A17 warm brown-black */
 
-    --muted: 210 40% 93%;
-    --muted-foreground: 215.4 16.3% 30%;
+    --muted: 15 48% 92%; /* #F4E5E0 */
+    --muted-foreground: 11 18% 29%; /* #58423D */
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 18 18% 11%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 16 100% 96%; /* #FFF1EC tonal tint on the canvas */
+    --card-foreground: 18 18% 11%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 11 37% 80%; /* #DFC0B9 */
+    --input: 11 37% 80%;
     --input-invalid: 0 84.2% 60.2%;
-    /* Field fill — distinct from both --background (98%) and --card (100%)
+    /* Field fill — distinct from both --background and --card
        so an input reads as a filled field on any surface (R1.1/R1.4). */
-    --input-bg: 210 40% 96%;
+    --input-bg: 17 68% 94%;
 
-    --primary: 0 100% 68%;
-    /* --primary: 222.2 47.4% 11.2%; */
+    --primary: 11 67% 39%; /* #A73921 terracotta — AA with white text */
     --primary-foreground: 0 0% 100%;
-    /* --primary-foreground: 210 40% 98%; */
 
-    --secondary: 210 20% 83%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 15 37% 89%; /* #EEDFDA */
+    --secondary-foreground: 18 18% 11%;
 
-    /* rgb(255, 92, 92) */
-    /* --accent: 0 100% 68%; */
-    --accent: 220 14.3% 95.9%;
-    /* --accent: 210 40% 90%; */
-    --accent-foreground: 0 100% 68%;
-    /* --accent-foreground: 222.2 47.4% 11.2%; */
+    --accent: 17 68% 94%;
+    --accent-foreground: 11 100% 68%; /* #FF7A5C coral — emphasis, never text-on-fill */
 
-    --destructive: 0 70% 50%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 75% 42%; /* #BA1A1A */
+    --destructive-foreground: 13 100% 98%;
 
-    --ring: 0 100% 68%;
-    /* --ring: 215 20.2% 65.1%; */
+    /* Semantic status roles (handoff §4) */
+    --success: 146 62% 30%; /* #1D7A46 — unambiguous success only */
+    --success-foreground: 0 0% 100%;
+    --success-muted: 143 56% 86%; /* #C9F0D8 */
+    --warning: 29 75% 32%; /* #8E4E14 — waiting, time-sensitive, blocked */
+    --warning-foreground: 0 0% 100%;
+    --warning-muted: 24 100% 88%; /* #FFDCC4 */
+
+    --ring: 11 100% 68%;
 
     --radius: 0.5rem;
 
-    /* Elevation tokens: E0→E5 */
-    --surface: 0 0% 100%; /* slightly tinted panel */
-    /* --surface: 210 40% 96%; */
+    /* Elevation tokens: E0→E5 — tonal: canvas → tint → white subcard */
+    --surface: 16 100% 96%;
     --surface-foreground: var(--foreground);
-    --surface-border: 214 25% 90%; /* a hair darker than --border for contrast */
+    --surface-border: 11 37% 80%;
 
     /* E3 subcard rows/pills */
     --subcard: 0 0% 100%;
-    --subcard-foreground: 222.2 84% 4.9%;
-    --subcard-border: 214 25% 92%;
+    --subcard-foreground: 18 18% 11%;
+    --subcard-border: 15 37% 89%;
 
     /* E5 modal and scrim */
     --modal: 0 0% 100%;
-    --modal-border: 214.3 31.8% 91.4%;
+    --modal-border: 11 37% 80%;
     --scrim: 0 0% 0% / 0.8;
 
-    --gift: 0 100% 68%; /* #FF5D5D in HSL */
+    --gift: 11 67% 39%; /* brand primary = terracotta */
     --gift-foreground: 0 0% 100%;
 
-    --pool: 174 66% 47%; /* #2EC4B6 in HSL */
+    --pool: 176 100% 21%; /* #006A63 teal — privacy, coordination, completion */
     --pool-foreground: 0 0% 100%;
     --pool-badge-foreground: 0 0% 100%;
     /* Fixed top-bar height, shared by the header and content reservation. */
@@ -80,74 +82,94 @@
     /* Height of bottom nav including safe area for PWAs/iOS */
     --bottom-nav-height: calc(3.5rem + env(safe-area-inset-bottom));
 
+    /* Brand moments only (logo lockups, marketing hero) — never progress or amounts */
     --brand-gradient-start: var(--gift);
-    --brand-gradient-end: 356 75% 62;
+    --brand-gradient-end: 11 100% 68%;
   }
 
-  @media (min-width: 640px) {
+  /* Taller bar when the desktop top nav appears (nav switch is 768px;
+     modal sheets keep their own 640px breakpoint by design). */
+  @media (min-width: 768px) {
     :root {
       --top-bar-height: 4.5625rem;
     }
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --background-muted: 222.2 14% 10%;
-    --foreground: 210 40% 98%;
+    /* Dedicated warm low-glare dark tokens — not a mechanical inversion */
+    --background: 18 24% 8%; /* #1A1310 deep warm brown-black */
+    --background-muted: 18 24% 11%;
+    --foreground: 17 84% 95%; /* #FDEEE8 warm off-white */
 
     /* prefixed with foreground because it should look good on the background */
-    --foreground-destructive: -4 84% 60%;
+    --foreground-destructive: 6 100% 84%; /* #FFB4AB */
 
-    --muted: 217.2 32.6% 12%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 20 21% 14%;
+    --muted-foreground: 14 27% 79%; /* #D8C2BB */
 
-    --popover: 222.2 84% 6.8%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 19 22% 13%;
+    --popover-foreground: 17 84% 95%;
 
-    --card: 222.2 84% 6.8%;
-    --card-foreground: 210 40% 98%;
+    --card: 18 22% 12%; /* #241B17 — surfaces get lighter and warmer with elevation */
+    --card-foreground: 17 84% 95%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 19 18% 21%;
+    --input: 19 18% 21%;
     --input-invalid: 0 62.8% 30.6%;
-    /* Field fill — a hair lighter than --card (6.8%) so it reads as a raised,
+    /* Field fill — a hair lighter than --card so it reads as a raised,
        fillable field rather than a hole on dark surfaces (R1.1/R1.4). */
-    --input-bg: 217.2 32.6% 14%;
+    --input-bg: 19 21% 15%;
 
-    --primary: 0 100% 68%;
-    --primary-foreground: 0 0% 100%;
-    /* --primary: 210 40% 98%; */
-    /* --primary-foreground: 222.2 47.4% 11.2%; */
+    --primary: 11 100% 82%; /* #FFB4A3 light coral — dark surfaces need light accents */
+    --primary-foreground: 6 100% 12%; /* #3D0600 */
 
-    --secondary: 217.2 20% 24%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 20 12% 19%; /* #372F2B */
+    --secondary-foreground: 17 84% 95%;
 
-    --accent: 0 0% 100%;
-    /* --accent: 217.2 32.6% 10%; */
-    --accent-foreground: 0 100% 68%;
+    --accent: 20 12% 19%;
+    --accent-foreground: 11 100% 68%;
 
-    --destructive: 0 60% 40%;
+    --destructive: 0 66% 42%;
     --destructive-foreground: 0 85.7% 97.3%;
 
-    /* --ring: 217.2 32.6% 60%; */
-    --ring: 0 100% 68%;
+    --success: 148 53% 67%; /* #7FD8A8 */
+    --success-foreground: 148 100% 11%;
+    --success-muted: 148 30% 16%;
+    --warning: 26 100% 75%; /* #FFB780 */
+    --warning-foreground: 26 100% 9%;
+    --warning-muted: 26 40% 16%;
 
-    --surface: 224 20% 12%;
+    --ring: 11 100% 68%;
+
+    --surface: 19 22% 12%;
     --surface-foreground: var(--foreground);
-    --surface-border: 224 12% 20%;
+    --surface-border: 19 18% 20%;
 
-    --subcard: 217.2 32.6% 14%;
-    --subcard-foreground: 210 40% 95%;
-    --subcard-border: 217.2 25% 22%;
+    --subcard: 19 21% 15%;
+    --subcard-foreground: 17 84% 95%;
+    --subcard-border: 19 18% 24%;
 
-    --modal: 222.2 84% 8%;
-    --modal-border: 217.2 32.6% 20%;
+    --modal: 19 22% 14%;
+    --modal-border: 19 18% 24%;
     --scrim: 0 0% 0% / 0.7;
 
-    --brand-gradient-start: 345 82.7% 40.8%;
-    --brand-gradient-end: 0 100% 68%;
+    --gift: 11 100% 82%;
+    --gift-foreground: 6 100% 12%;
 
-    --pool-badge-foreground: 0 0% 100%;
+    --pool: 174 56% 64%; /* #71D7CD */
+    --pool-foreground: 174 100% 6%;
+    --pool-badge-foreground: 174 100% 6%;
+
+    --brand-gradient-start: 11 100% 68%;
+    --brand-gradient-end: 11 100% 82%;
+  }
+
+  /* Display face for major headings; body/controls stay on --font-sans.
+     Route-family passes opt additional elements in via `font-display`. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
   }
 
   /* iOS renders native date/time inputs at an intrinsic width that ignores

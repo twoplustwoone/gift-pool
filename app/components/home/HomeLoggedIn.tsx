@@ -1,9 +1,11 @@
 import * as React from 'react';
 import { LuActivity, LuCalendar, LuGift, LuUsers } from 'react-icons/lu';
 import { Link, useFetcher } from 'react-router';
+import { PoolStatusBadge } from '#app/components/pools/pool-status-badge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { formatMonthDay } from '#app/utils/dates.ts';
+import { type PoolStatus } from '#app/utils/pool-constants.ts';
 import { Flex } from '../ui-kit/flex.tsx';
 import { type UpcomingBirthday, type RecentActivityItem } from './HomePanels';
 import { HOME_COPY } from './home-copy';
@@ -32,30 +34,10 @@ type PanelsLoaderData = {
   activity: RecentActivityItem[];
 };
 
-// ── Status styling ───────────────────────────────────────────────────────────
-
-const statusStyles: Record<string, string> = {
-  OPEN: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
-  VOTING:
-    'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200',
-  DECIDED: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  PURCHASED:
-    'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-};
-
-const statusLabels: Record<string, string> = {
-  OPEN: 'Open',
-  VOTING: 'Voting',
-  DECIDED: 'Decided',
-  PURCHASED: 'Purchased',
-};
-
 // ── Pool card ────────────────────────────────────────────────────────────────
+// Status badge styling and labels live in the shared PoolStatusBadge.
 
 const PoolCard = ({ pool }: { pool: ActivePool }) => {
-  const badge = statusStyles[pool.status] ?? 'bg-muted text-muted-foreground';
-  const label = statusLabels[pool.status] ?? pool.status;
-
   return (
     <Link
       to={`/pools/${pool.id}`}
@@ -77,11 +59,7 @@ const PoolCard = ({ pool }: { pool: ActivePool }) => {
             </p>
           )}
         </div>
-        <span
-          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${badge}`}
-        >
-          {label}
-        </span>
+        <PoolStatusBadge status={pool.status as PoolStatus} />
       </div>
       <div className="mt-2.5 flex items-center gap-3 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
@@ -228,7 +206,7 @@ export const HomeLoggedIn: React.FC<HomeLoggedInProps> = ({
         {/* Upcoming birthdays */}
         <Card className="p-5" data-testid="panel-birthdays">
           <Flex gap={2} align="center">
-            <LuCalendar size={16} className="shrink-0 text-blue-500" />
+            <LuCalendar size={16} className="shrink-0 text-pool" />
             <h3 className="text-sm font-semibold">
               {HOME_COPY.panels.birthdaysHeading}
             </h3>
@@ -270,7 +248,7 @@ export const HomeLoggedIn: React.FC<HomeLoggedInProps> = ({
         {/* Recent activity */}
         <Card className="p-5" data-testid="panel-activity">
           <Flex gap={2} align="center">
-            <LuActivity size={16} className="shrink-0 text-green-500" />
+            <LuActivity size={16} className="shrink-0 text-pool" />
             <h3 className="text-sm font-semibold">
               {HOME_COPY.panels.recentActivityHeading}
             </h3>

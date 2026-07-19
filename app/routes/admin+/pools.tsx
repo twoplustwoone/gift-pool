@@ -6,6 +6,7 @@ import {
 } from 'react-router';
 import { EmptyRow, SectionCard } from '#app/components/admin-ui.tsx';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
+import { poolStatusBadgeClasses } from '#app/components/pools/pool-status-badge.tsx';
 import { listAdminPools } from '#app/utils/admin.server.ts';
 import { cn } from '#app/utils/misc.tsx';
 import { requireUserWithRole } from '#app/utils/permissions.server.ts';
@@ -214,25 +215,13 @@ const PoolsRoute = () => {
   );
 };
 
+// Compact calm-operations variant of the shared pool status colors.
 const StatusBadge = ({ status }: { status: PoolStatus }) => {
-  const colorMap: Record<PoolStatus, string> = {
-    OPEN: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-    VOTING:
-      'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-    DECIDED:
-      'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-    PURCHASED:
-      'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
-    DELIVERED:
-      'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-    CANCELLED:
-      'bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400',
-  };
   return (
     <span
       className={cn(
         'inline-block rounded-md px-2 py-0.5 text-xs font-semibold',
-        colorMap[status],
+        poolStatusBadgeClasses[status],
       )}
     >
       {POOL_STATUS_LABELS[status]}

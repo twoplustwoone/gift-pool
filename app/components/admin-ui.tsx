@@ -18,7 +18,7 @@ export const SummaryCard = ({
 }) => {
   const TONE_CLASSES: Record<'default' | 'warn' | 'danger', string> = {
     danger: 'border-destructive/40 bg-destructive/5',
-    warn: 'border-amber-400/40 bg-amber-50/60 dark:bg-amber-950/20',
+    warn: 'border-warning/40 bg-warning-muted/60',
     default: 'border-border/60 bg-gradient-to-br from-card to-card/70',
   };
   const toneClass = TONE_CLASSES[tone];
