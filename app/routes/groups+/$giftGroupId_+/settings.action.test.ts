@@ -57,25 +57,7 @@ describe('settings action — member-update-self is a partial update', () => {
       'group-1',
       expect.objectContaining({
         contributionCents: 2500,
-        // undefined => leave the stored override untouched (not 'INHERIT',
-        // which would clear an ADMINS / ONLY_SELF choice).
-        budgetVisibilityOverride: undefined,
       }),
-    );
-  });
-
-  it('applies an explicit visibility choice from the preferences form', async () => {
-    await action({
-      request: memberUpdateSelfRequest({
-        contributionCents: '2500',
-        budgetVisibilityOverride: 'ADMINS',
-      }),
-    } as never);
-
-    expect(updateOwnPreferences).toHaveBeenCalledWith(
-      expect.any(Request),
-      'group-1',
-      expect.objectContaining({ budgetVisibilityOverride: 'ADMINS' }),
     );
   });
 });

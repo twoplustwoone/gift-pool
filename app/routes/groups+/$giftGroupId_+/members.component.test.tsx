@@ -19,7 +19,6 @@ const layoutLoaderData = {
         },
         role: 'OWNER' as const,
         contributionCents: 2000,
-        budgetVisibilityOverride: null,
         friendRelationship: {
           state: 'FRIENDS',
           friendshipId: null,
@@ -37,7 +36,6 @@ const layoutLoaderData = {
         },
         role: 'MEMBER' as const,
         contributionCents: 2000,
-        budgetVisibilityOverride: null,
         friendRelationship: {
           state: 'NONE',
           friendshipId: null,
@@ -55,7 +53,6 @@ const layoutLoaderData = {
         },
         role: 'MEMBER' as const,
         contributionCents: 2000,
-        budgetVisibilityOverride: null,
         friendRelationship: {
           state: 'NONE',
           friendshipId: null,

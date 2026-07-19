@@ -57,12 +57,9 @@ import { type action as settingsAction } from './settings';
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const groupId = params.giftGroupId!;
-  const { requireUserIdInGroup } = await import(
-    '#app/utils/groups.server.ts'
-  );
-  const { getGroupOverviewData } = await import(
-    '#app/utils/group-overview.server.ts'
-  );
+  const { requireUserIdInGroup } = await import('#app/utils/groups.server.ts');
+  const { getGroupOverviewData } =
+    await import('#app/utils/group-overview.server.ts');
   const viewerId = await requireUserIdInGroup(request, groupId);
   return getGroupOverviewData(groupId, viewerId);
 }
@@ -77,7 +74,9 @@ const actionIcons: Record<ActionType, React.ReactNode> = {
   [ACTION_TYPE.MARK_PAID]: <LuWallet className="text-emerald-500" />,
   [ACTION_TYPE.MARK_PURCHASED]: <LuPackage className="text-amber-500" />,
   [ACTION_TYPE.MARK_DELIVERED]: <LuTruck className="text-amber-500" />,
-  [ACTION_TYPE.SET_CONTRIBUTION]: <LuWallet className="text-muted-foreground" />,
+  [ACTION_TYPE.SET_CONTRIBUTION]: (
+    <LuWallet className="text-muted-foreground" />
+  ),
   [ACTION_TYPE.PROPOSE_IDEA]: <LuLightbulb className="text-yellow-500" />,
   [ACTION_TYPE.IDEA_CHOSEN]: <LuStar className="text-blue-500" />,
   [ACTION_TYPE.UPCOMING_OCCASION]: <LuCake className="text-pink-500" />,
@@ -209,7 +208,10 @@ const ForYouSection = ({
     {items.length > 0 ? (
       <Stack gap={2}>
         {items.map((item, i) => (
-          <ActionQueueItem key={`${item.type}-${item.poolId ?? item.memberId}-${i}`} item={item} />
+          <ActionQueueItem
+            key={`${item.type}-${item.poolId ?? item.memberId}-${i}`}
+            item={item}
+          />
         ))}
       </Stack>
     ) : (
@@ -252,8 +254,12 @@ const ActionQueueItem = ({ item }: { item: ActionItem }) => {
               {isUrgent && item.daysUntilEvent !== null && (
                 <Flex gap={1} align="center">
                   <LuAlarmClock className="text-amber-500" size={12} />
-                  <Text size="xs" className="text-amber-600 dark:text-amber-400">
-                    in {item.daysUntilEvent} {item.daysUntilEvent === 1 ? 'day' : 'days'}
+                  <Text
+                    size="xs"
+                    className="text-amber-600 dark:text-amber-400"
+                  >
+                    in {item.daysUntilEvent}{' '}
+                    {item.daysUntilEvent === 1 ? 'day' : 'days'}
                   </Text>
                 </Flex>
               )}
@@ -463,12 +469,7 @@ const OccasionRow = ({ occasion }: { occasion: UpcomingOccasion }) => (
           </Text>
         </Stack>
       </Flex>
-      <Button
-        asChild
-        variant="outline"
-        size="sm"
-        className="shrink-0"
-      >
+      <Button asChild variant="outline" size="sm" className="shrink-0">
         <Link
           to={`/pools/new?groupId=${occasion.groupId}&recipientId=${occasion.userId}`}
         >
@@ -540,7 +541,7 @@ const PastGiftRow = ({ gift }: { gift: PastGift }) => {
             <Text size="xs" className="truncate text-muted-foreground">
               {isCancelled
                 ? 'Cancelled'
-                : gift.chosenIdeaName ?? 'No gift chosen'}
+                : (gift.chosenIdeaName ?? 'No gift chosen')}
             </Text>
           </Stack>
           {!isCancelled && gift.totalCents > 0 && (
@@ -617,11 +618,7 @@ const GroupEssentialsCard = ({
           </Stack>
         </Flex>
         <div>
-          <Text
-            as="div"
-            size="xs"
-            className="mb-1.5 text-muted-foreground"
-          >
+          <Text as="div" size="xs" className="mb-1.5 text-muted-foreground">
             Invite link
           </Text>
           {resolvedInviteLink ? (
@@ -635,16 +632,9 @@ const GroupEssentialsCard = ({
               <Icon name="copy" className="mr-1.5" /> Copy invite link
             </Button>
           ) : canInvite ? (
-            <createFetcher.Form
-              method="post"
-              action={`/groups/${giftGroupId}`}
-            >
+            <createFetcher.Form method="post" action={`/groups/${giftGroupId}`}>
               <input type="hidden" name="giftGroupId" value={giftGroupId} />
-              <input
-                type="hidden"
-                name="intent"
-                value="create-invite-link"
-              />
+              <input type="hidden" name="intent" value="create-invite-link" />
               <input type="hidden" name="expiresInDays" value="7" />
               <Button
                 variant="outline"

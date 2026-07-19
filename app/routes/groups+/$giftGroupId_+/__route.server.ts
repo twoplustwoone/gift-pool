@@ -38,7 +38,6 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       description: true,
       id: true,
       createdAt: true,
-      budgetVisibility: true,
       groupMembers: {
         select: {
           user: {
@@ -58,8 +57,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
             },
           },
           role: true,
-          contributionCents: true,
-          budgetVisibilityOverride: true,
+          // Individual contribution amounts are private (ADR 0001); the
+          // viewer's own value ships via the dedicated viewer query below.
           // The member's per-group opt-in — the group-share override input.
           shareBirthday: true,
         },
