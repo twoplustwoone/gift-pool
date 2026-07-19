@@ -14,21 +14,21 @@ export const meta: MetaFunction = () => [{ title: 'About | GiftPool' }];
 const values = [
   {
     icon: <LuUsers className="h-5 w-5" aria-hidden />,
-    color: 'text-blue-500',
+    color: 'text-primary',
     title: 'People first',
     blurb:
       'Gifting is about the people, not the platform. We stay out of the way so you can focus on the people you care about.',
   },
   {
     icon: <LuDollarSign className="h-5 w-5" aria-hidden />,
-    color: 'text-green-500',
+    color: 'text-pool',
     title: 'No fees, no ads',
     blurb:
       'GiftPool is free. We don\u2019t take a cut, run ads, or sell your data. Your gift budget goes where it should.',
   },
   {
     icon: <LuShield className="h-5 w-5" aria-hidden />,
-    color: 'text-yellow-500',
+    color: 'text-pool',
     title: 'Privacy by default',
     blurb:
       'We collect only what we need to run the service. No third-party trackers, no analytics platforms watching you.',

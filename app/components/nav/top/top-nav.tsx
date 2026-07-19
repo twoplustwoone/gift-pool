@@ -60,7 +60,7 @@ export const TopNav = () => {
           ) : (
             <>
               <Button asChild size="lg" variant="ghost">
-                <Link to="/login">Log In</Link>
+                <Link to="/login">Log in</Link>
               </Button>
               <Button asChild size="lg">
                 <Link

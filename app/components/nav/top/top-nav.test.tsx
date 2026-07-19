@@ -89,7 +89,7 @@ describe('<TopNav />', () => {
     expect(screen.getByText('Notifications')).toBeInTheDocument();
     expect(screen.getByText('Theme light')).toBeInTheDocument();
     expect(screen.getByText('User menu')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Log In' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Log in' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Sign up' })).not.toBeInTheDocument();
   });
 
@@ -97,7 +97,7 @@ describe('<TopNav />', () => {
     renderTopNav(null);
 
     expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Log In' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute(
       'href',
       '/login',
     );
