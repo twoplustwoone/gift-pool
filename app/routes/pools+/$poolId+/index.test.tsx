@@ -310,6 +310,50 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('Complete stage: memory leads, history collapses, settled settlement hidden (§6.5)', () => {
+    loaderDataSnapshot.pool.status = 'DELIVERED';
+    loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
+    loaderDataSnapshot.pool.finalPriceCents = 2500;
+    loaderDataSnapshot.pool.purchaserId = 'buyer-1';
+    loaderDataSnapshot.viewer.userId = 'viewer-1';
+    loaderDataSnapshot.contributionBreakdown = {
+      kind: 'contributor',
+      viewerShare: { owedCents: 1200, hasPaid: true },
+      shortfallCents: 0,
+      allReceived: true,
+    };
+
+    renderRoute();
+
+    // Factual memory leads.
+    expect(screen.getByTestId('gift-memory-summary')).toBeInTheDocument();
+    // Prior work is collapsed into history, not gone.
+    expect(screen.getByTestId('pool-history')).toBeInTheDocument();
+    expect(screen.getByText('How it came together')).toBeInTheDocument();
+    // Settled settlement is inside history only (nothing operationally
+    // pending), so the share card is not shown at the top level twice.
+    expect(screen.getAllByTestId('viewer-share-card')).toHaveLength(1);
+  });
+
+  it('Complete stage keeps unsettled shares visible outside history', () => {
+    loaderDataSnapshot.pool.status = 'DELIVERED';
+    loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
+    loaderDataSnapshot.pool.finalPriceCents = 2500;
+    loaderDataSnapshot.pool.purchaserId = 'buyer-1';
+    loaderDataSnapshot.viewer.userId = 'viewer-1';
+    loaderDataSnapshot.contributionBreakdown = {
+      kind: 'contributor',
+      viewerShare: { owedCents: 1200, hasPaid: false },
+      shortfallCents: 0,
+      allReceived: false,
+    };
+
+    renderRoute();
+
+    expect(screen.getByTestId('gift-memory-summary')).toBeInTheDocument();
+    expect(screen.getByTestId('viewer-share-card')).toBeInTheDocument();
+  });
+
   it('renders the decided purchaser UI with contribution breakdown and role assignment', () => {
     loaderDataSnapshot.pool.status = 'DECIDED';
     loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';

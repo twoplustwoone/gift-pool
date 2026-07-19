@@ -867,6 +867,96 @@ const PoolIndex = () => {
 
   const navigation = useNavigation();
 
+  // ── Stage-adaptive composition (§6.5): the shell is stable, the main
+  // column changes by stage. In Complete, factual memory dominates and the
+  // operational sections collapse into history.
+  const chosenBanner = chosenIdea ? (
+    <ChosenGiftBanner
+      idea={chosenIdea}
+      finalPriceCents={pool.finalPriceCents}
+      poolId={pool.id}
+      canManage={canManage}
+    />
+  ) : null;
+
+  const settlementPending = contributionBreakdown
+    ? contributionBreakdown.kind === 'purchaser'
+      ? contributionBreakdown.breakdown.some((b) => !b.hasPaid)
+      : contributionBreakdown.viewerShare?.hasPaid === false
+    : false;
+
+  const settlement = contributionBreakdown ? (
+    <ContributionBreakdown
+      breakdown={contributionBreakdown}
+      poolId={pool.id}
+      purchaserName={
+        pool.purchaser ? (pool.purchaser.name ?? pool.purchaser.username) : null
+      }
+    />
+  ) : null;
+
+  const ideasRecap =
+    !isActive && pool.ideas.length > 1 ? (
+      <Card className="overflow-hidden p-0">
+        <div className="px-4 pb-2 pt-4">
+          <SectionHeading>Other ideas that were proposed</SectionHeading>
+        </div>
+        <div className="divide-y">
+          {pool.ideas
+            .filter((i) => i.id !== pool.chosenIdeaId)
+            .map((idea) => (
+              <div
+                key={idea.id}
+                className="flex items-center justify-between px-4 py-2.5 opacity-60"
+              >
+                <Text size="sm">{idea.name}</Text>
+                {idea.estimatedPriceCents !== null && (
+                  <Text
+                    size="xs"
+                    className="shrink-0 pl-3 text-muted-foreground"
+                  >
+                    {formatCents(idea.estimatedPriceCents)}
+                  </Text>
+                )}
+              </div>
+            ))}
+        </div>
+      </Card>
+    ) : null;
+
+  const contributorsSection = (
+    <ContributorsList
+      contributors={pool.contributors}
+      poolId={pool.id}
+      viewerUserId={viewer?.userId ?? ''}
+      viewerContributionCents={viewer?.contributionCents ?? null}
+      availableBudgetCents={availableBudgetCents}
+      organizerId={pool.organizerId}
+      purchaserId={pool.purchaserId}
+      delivererId={pool.delivererId}
+      canManage={canManage}
+      isDecided={isDecided || isPurchased || isDelivered}
+      reminderAction={
+        canManage && isActive && organizerReminderStates.CONTRIBUTION ? (
+          <OrganizerReminderAction
+            availability={organizerReminderStates.CONTRIBUTION}
+            kind="CONTRIBUTION"
+            poolId={pool.id}
+            poolTitle={pool.title}
+            senderDisplayName={senderDisplayName}
+            className="items-end"
+          />
+        ) : undefined
+      }
+    />
+  );
+
+  const recipientLabel =
+    pool.recipientName ??
+    pool.recipientUser?.name ??
+    pool.recipientUser?.username ??
+    null;
+
   return (
     <Stack gap={6}>
       {/* ── Organizer controls — only shown when there's a voting action to take ── */}
@@ -911,14 +1001,53 @@ const PoolIndex = () => {
           </Card>
         )}
 
-      {/* ── Chosen gift (DECIDED+) ── */}
-      {chosenIdea && (
-        <ChosenGiftBanner
-          idea={chosenIdea}
-          finalPriceCents={pool.finalPriceCents}
-          poolId={pool.id}
-          canManage={canManage}
-        />
+      {/* ── Chosen gift (Buy/Deliver stages) ── */}
+      {!isDelivered && chosenBanner}
+
+      {/* ── Buy stage: Available Budget vs the gift's price (§6.5 — the
+            price is the denominator; never a pool goal). ── */}
+      {isDecided &&
+        pool.finalPriceCents !== null &&
+        availableBudgetCents > 0 && (
+          <Card className="p-4" data-testid="budget-vs-price">
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="text-muted-foreground">Available together</span>
+              <span className="font-semibold">
+                {formatCents(availableBudgetCents)} of{' '}
+                {formatCents(pool.finalPriceCents)} gift price
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-pool"
+                style={{
+                  width: `${Math.min(100, Math.round((availableBudgetCents / pool.finalPriceCents) * 100))}%`,
+                }}
+              />
+            </div>
+          </Card>
+        )}
+
+      {/* ── Complete: factual Gift Memory leads (§6.5) ── */}
+      {isDelivered && (
+        <Card className="p-5" data-testid="gift-memory-summary">
+          <Stack gap={2}>
+            <SectionHeading>Gift memory</SectionHeading>
+            <p className="text-base font-semibold">
+              {chosenIdea?.name ?? pool.title}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {recipientLabel ? `Given to ${recipientLabel}` : 'Given'}
+              {pool.finalPriceCents !== null
+                ? ` · ${formatCents(pool.finalPriceCents)}`
+                : ''}
+              {' · '}
+              {pool.contributors.length === 1
+                ? 'a solo gift'
+                : `${pool.contributors.length} gave together`}
+            </p>
+          </Stack>
+        </Card>
       )}
 
       {/* ── Purchaser CTA — right after the chosen gift so it's the next action ── */}
@@ -961,18 +1090,9 @@ const PoolIndex = () => {
           </Card>
         )}
 
-      {/* ── Contribution breakdown (DECIDED+) ── */}
-      {contributionBreakdown && (
-        <ContributionBreakdown
-          breakdown={contributionBreakdown}
-          poolId={pool.id}
-          purchaserName={
-            pool.purchaser
-              ? (pool.purchaser.name ?? pool.purchaser.username)
-              : null
-          }
-        />
-      )}
+      {/* ── Settlement — inline until Complete; after delivery it stays
+            visible only while operationally necessary (something unpaid). ── */}
+      {(!isDelivered || settlementPending) && settlement}
 
       {/* ── Deliverer CTA — shown after purchase is confirmed ── */}
       {isPurchased && isDeliverer && (
@@ -1071,60 +1191,27 @@ const PoolIndex = () => {
         </Stack>
       )}
 
-      {/* ── Ideas recap (DECIDED+, non-chosen ideas) ── */}
-      {!isActive && pool.ideas.length > 1 && (
-        <Card className="overflow-hidden p-0">
-          <div className="px-4 pb-2 pt-4">
-            <SectionHeading>Other ideas that were proposed</SectionHeading>
-          </div>
-          <div className="divide-y">
-            {pool.ideas
-              .filter((i) => i.id !== pool.chosenIdeaId)
-              .map((idea) => (
-                <div
-                  key={idea.id}
-                  className="flex items-center justify-between px-4 py-2.5 opacity-60"
-                >
-                  <Text size="sm">{idea.name}</Text>
-                  {idea.estimatedPriceCents !== null && (
-                    <Text
-                      size="xs"
-                      className="shrink-0 pl-3 text-muted-foreground"
-                    >
-                      {formatCents(idea.estimatedPriceCents)}
-                    </Text>
-                  )}
-                </div>
-              ))}
-          </div>
-        </Card>
-      )}
+      {/* ── Operational sections — inline until Complete ── */}
+      {!isDelivered && ideasRecap}
+      {!isDelivered && contributorsSection}
 
-      {/* ── Contributors ── */}
-      <ContributorsList
-        contributors={pool.contributors}
-        poolId={pool.id}
-        viewerUserId={viewer?.userId ?? ''}
-        viewerContributionCents={viewer?.contributionCents ?? null}
-        availableBudgetCents={availableBudgetCents}
-        organizerId={pool.organizerId}
-        purchaserId={pool.purchaserId}
-        delivererId={pool.delivererId}
-        canManage={canManage}
-        isDecided={isDecided || isPurchased || isDelivered}
-        reminderAction={
-          canManage && isActive && organizerReminderStates.CONTRIBUTION ? (
-            <OrganizerReminderAction
-              availability={organizerReminderStates.CONTRIBUTION}
-              kind="CONTRIBUTION"
-              poolId={pool.id}
-              poolTitle={pool.title}
-              senderDisplayName={senderDisplayName}
-              className="items-end"
-            />
-          ) : undefined
-        }
-      />
+      {/* ── Complete: prior work collapses into history (§6.5) ── */}
+      {isDelivered && (
+        <details
+          className="rounded-xl border border-border/60"
+          data-testid="pool-history"
+        >
+          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-muted-foreground">
+            How it came together
+          </summary>
+          <Stack gap={4} className="px-4 pb-4 pt-1">
+            {chosenBanner}
+            {!settlementPending && settlement}
+            {ideasRecap}
+            {contributorsSection}
+          </Stack>
+        </details>
+      )}
 
       {/* ── Assign roles (organizer, DECIDED+, while roles still need setting) ── */}
       {canManage && (isDecided || isPurchased) && (

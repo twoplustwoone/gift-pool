@@ -77,7 +77,7 @@ describe('app/routes/pools+/$poolId+/_layout.tsx', () => {
     expect(
       screen.getByText((_, element) => element?.textContent === 'Birthday for Alex'),
     ).toBeInTheDocument();
-    expect(screen.getByText('Voting')).toBeInTheDocument();
+    expect(screen.getByText('Choose the gift')).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Important' }),
     ).toBeInTheDocument();

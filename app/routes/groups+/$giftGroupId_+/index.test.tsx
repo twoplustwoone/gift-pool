@@ -362,7 +362,7 @@ describe('group detail overview route', () => {
     expect(screen.getByText("Marco's Birthday")).toBeInTheDocument();
     expect(screen.getByText(/birthday for/i)).toBeInTheDocument();
     expect(screen.getByText('May 3')).toBeInTheDocument();
-    expect(screen.getByText('Open')).toBeInTheDocument();
+    expect(screen.getByText('Collect ideas')).toBeInTheDocument();
     expect(screen.getByText('Organizing')).toBeInTheDocument();
   });
 
