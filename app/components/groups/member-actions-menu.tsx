@@ -10,15 +10,6 @@ import { useFetcher } from 'react-router';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#app/components/ui/dialog.tsx';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -32,6 +23,15 @@ import {
   MobileBottomSheetTitle,
   MobileBottomSheetTrigger,
 } from '#app/components/ui/mobile-bottom-sheet.tsx';
+import {
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogClose as DialogClose,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogDescription as DialogDescription,
+  ResponsiveDialogFooter as DialogFooter,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+} from '#app/components/ui/responsive-dialog.tsx';
 import {
   type MemberMenuAction,
   memberMenuActions,
@@ -153,7 +153,7 @@ export function MemberActionsMenu({
                   key={action}
                   className={cn(
                     'gap-2 px-2 py-2 text-sm',
-                    meta.destructive && 'text-red-600 focus:text-red-700',
+                    meta.destructive && 'text-destructive focus:text-destructive',
                   )}
                   onSelect={(event) => {
                     // preventDefault stops Radix's own close+focus-restore from
@@ -217,7 +217,7 @@ export function MemberActionsMenu({
                   type="button"
                   className={cn(
                     'flex w-full items-center gap-3.5 px-5 py-4 text-left text-base font-medium transition-colors hover:bg-muted',
-                    meta.destructive ? 'text-red-600' : 'text-foreground',
+                    meta.destructive ? 'text-destructive' : 'text-foreground',
                   )}
                   onClick={() => {
                     setSheetOpen(false);

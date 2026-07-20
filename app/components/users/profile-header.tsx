@@ -75,7 +75,7 @@ export function ProfileHeader({
         <div className="flex flex-wrap items-center justify-center gap-2">
           {birthdayLabel ? (
             <span
-              className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 ring-1 ring-inset ring-amber-200"
+              className="inline-flex items-center gap-1.5 rounded-full bg-warning-muted px-3 py-1 text-xs font-semibold text-warning ring-1 ring-inset ring-warning/20"
               aria-label={`Birthday ${birthdayLabel}`}
             >
               <LuCake className="h-3.5 w-3.5" aria-hidden />

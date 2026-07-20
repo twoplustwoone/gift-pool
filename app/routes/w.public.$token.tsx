@@ -8,7 +8,7 @@ import {
   data,
   useLoaderData,
 } from 'react-router';
-import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
+import { ErrorFallback, GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import {
   ShareConversionBanner,
   ShareConversionCard,
@@ -234,8 +234,19 @@ export const ErrorBoundary = () => {
   return (
     <GeneralErrorBoundary
       statusHandlers={{
-        404: () => <p>Public wishlist link not found or revoked.</p>,
-        429: () => <p>Too many requests. Please try again soon.</p>,
+        404: () => (
+          <ErrorFallback
+            icon="magnifying-glass"
+            title="Public wishlist link not found or revoked"
+          />
+        ),
+        429: () => (
+          <ErrorFallback
+            icon="clock"
+            title="Too many requests"
+            description="Please try again soon."
+          />
+        ),
       }}
     />
   );

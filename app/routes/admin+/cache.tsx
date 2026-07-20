@@ -25,7 +25,7 @@ import {
   SectionCard,
   SummaryCard,
 } from '#app/components/admin-ui.tsx';
-import { GeneralErrorBoundary } from '#app/components/error-boundary';
+import { ErrorFallback, GeneralErrorBoundary } from '#app/components/error-boundary';
 import { Button } from '#app/components/ui/button.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import {
@@ -317,10 +317,7 @@ const CacheKeyRow = ({
         <div className="flex flex-wrap items-center gap-2">
           <span
             className={cn(
-              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-              type === 'sqlite'
-                ? 'bg-sky-100 text-sky-900 dark:bg-sky-950/40 dark:text-sky-200'
-                : 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200',
+              'inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground',
             )}
           >
             {type === 'sqlite' ? (
@@ -375,7 +372,11 @@ export const ErrorBoundary = () => {
     <GeneralErrorBoundary
       statusHandlers={{
         403: ({ error }) => (
-          <p>You are not allowed to do that: {error?.data.message}</p>
+          <ErrorFallback
+            icon="lock-closed"
+            title="You are not allowed to do that"
+            description={error?.data?.message}
+          />
         ),
       }}
     />

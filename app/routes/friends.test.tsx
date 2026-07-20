@@ -166,8 +166,8 @@ vi.mock('#app/components/ui/confirm-dialog.tsx', () => ({
   ),
 }));
 
-vi.mock('#app/components/ui/dialog.tsx', () => ({
-  Dialog: ({
+vi.mock('#app/components/ui/responsive-dialog.tsx', () => ({
+  ResponsiveDialog: ({
     children,
     open,
     onOpenChange,
@@ -183,16 +183,24 @@ vi.mock('#app/components/ui/dialog.tsx', () => ({
       {open === false ? null : children}
     </div>
   ),
-  DialogContent: ({ children }: { children: React.ReactNode }) => (
+  ResponsiveDialogContent: ({ children }: { children: React.ReactNode }) => (
     <div role="dialog">{children}</div>
   ),
-  DialogDescription: ({ children }: { children: React.ReactNode }) => (
+  ResponsiveDialogDescription: ({ children }: { children: React.ReactNode }) => (
     <p>{children}</p>
   ),
-  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogClose: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  ResponsiveDialogFooter: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  ResponsiveDialogHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  ResponsiveDialogTitle: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  ResponsiveDialogClose: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 vi.mock('#app/components/ui/empty-state.tsx', () => ({

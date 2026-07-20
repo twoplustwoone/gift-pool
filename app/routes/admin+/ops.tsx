@@ -214,7 +214,7 @@ const OpsRoute = () => {
         </div>
       ) : null}
       {justIntent ? (
-        <div className="rounded-md border border-emerald-400/50 bg-emerald-50/60 p-3 text-sm text-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200">
+        <div className="rounded-md border border-success/40 bg-success-muted p-3 text-sm text-success">
           {INTENT_LABEL[justIntent]}: {justCount}{' '}
           {justCount === 1 ? 'row' : 'rows'}{' '}
           {justIntent === 'expire_group_bans' ? 'lifted' : 'deleted'}.
@@ -289,7 +289,7 @@ const OpsRoute = () => {
                         </span>
                       ) : null}
                       {isPrimary ? (
-                        <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 font-semibold text-emerald-700 dark:text-emerald-300">
+                        <span className="rounded-md bg-success-muted px-2 py-0.5 font-semibold text-success">
                           primary
                         </span>
                       ) : null}
@@ -363,7 +363,7 @@ const CleanupJobCard = ({
           className={
             isEmpty
               ? 'rounded-md bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-muted-foreground'
-              : 'rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-amber-700 dark:text-amber-300'
+              : 'rounded-md bg-warning-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-warning'
           }
         >
           {total.toLocaleString()}

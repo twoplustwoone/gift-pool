@@ -83,7 +83,7 @@ export const FeedbackForm = ({
         )}
         role="status"
       >
-        <LuCircleCheck className="h-10 w-10 text-green-500" aria-hidden />
+        <LuCircleCheck className="h-10 w-10 text-success" aria-hidden />
         <p className="text-body-md font-semibold">Thanks for the feedback!</p>
         <p className="text-sm text-muted-foreground">
           We read every message. If you left an email, we&apos;ll be in touch.

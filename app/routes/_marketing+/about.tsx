@@ -122,7 +122,7 @@ const AboutRoute = () => {
 
       <section className="mt-16 rounded-xl border border-border/60 bg-card px-6 py-8 text-center">
         <LuCoffee
-          className="mx-auto h-8 w-8 text-yellow-600 dark:text-yellow-500"
+          className="mx-auto h-8 w-8 text-warning"
           aria-hidden
         />
         <h2 className="mt-3 text-lg font-semibold tracking-tight">
@@ -136,7 +136,7 @@ const AboutRoute = () => {
           href="https://buymeacoffee.com/twoplustwoone"
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-yellow-500 px-5 py-2.5 text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-yellow-400"
+          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-warning px-5 py-2.5 text-sm font-semibold text-warning-foreground shadow-sm transition-colors hover:opacity-90"
         >
           <LuCoffee className="h-4 w-4" aria-hidden />
           Buy me a coffee

@@ -178,10 +178,9 @@ const FeedbackRoute = () => {
 };
 
 const TYPE_BADGE: Record<FeedbackType, string> = {
-  BUG: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  FEATURE:
-    'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  QUESTION: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+  BUG: 'bg-warning-muted text-warning',
+  FEATURE: 'bg-success-muted text-success',
+  QUESTION: 'bg-pool/15 text-pool',
 };
 
 const FeedbackCard = ({

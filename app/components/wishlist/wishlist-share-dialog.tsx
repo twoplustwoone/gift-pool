@@ -6,23 +6,15 @@ import { toast } from 'sonner';
 import { useToast } from '#app/components/toaster.tsx';
 import { Badge } from '#app/components/ui/badge';
 import { Button } from '#app/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '#app/components/ui/dialog';
 import { Input } from '#app/components/ui/input';
 import {
-  MobileBottomSheet,
-  MobileBottomSheetContent,
-  MobileBottomSheetDescription,
-  MobileBottomSheetHeader,
-  MobileBottomSheetTitle,
-  MobileBottomSheetTrigger,
-} from '#app/components/ui/mobile-bottom-sheet';
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogDescription as DialogDescription,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+  ResponsiveDialogTrigger as DialogTrigger,
+} from '#app/components/ui/responsive-dialog';
 import {
   Tooltip,
   TooltipContent,
@@ -33,7 +25,6 @@ import { type action as shareAction } from '#app/routes/wishlist+/share';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 
 import { Stack } from '../ui-kit';
-import { useIsDesktop } from './hooks/use-is-desktop';
 
 type WishlistPublicShare = { token: string; createdAt: Date };
 
@@ -285,7 +276,6 @@ export const WishlistShareDialog = ({
 
   const hasPublicLink = Boolean(activeShare);
   const [confirmingRevoke, setConfirmingRevoke] = useState(false);
-  const isDesktop = useIsDesktop();
   const handleCopyPrivateLink = () => copyLink(privateLink, 'private');
   const handleCopyPublicLink = () => copyLink(publicLink, 'public');
   const handleStartRevoke = () => setConfirmingRevoke(true);
@@ -338,52 +328,25 @@ export const WishlistShareDialog = ({
     </>
   );
 
-  if (isDesktop) {
-    return (
-      <Dialog open={open} onOpenChange={setOpen}>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DialogTrigger asChild>{triggerButton}</DialogTrigger>
-            </TooltipTrigger>
-            <TooltipContent className="text-xs">Share wishlist</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Share wishlist</DialogTitle>
-            <DialogDescription>
-              Send a private link for friends or a public view-only link.
-            </DialogDescription>
-          </DialogHeader>
-          {shareBody}
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
   return (
-    <MobileBottomSheet open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <MobileBottomSheetTrigger asChild>
-              {triggerButton}
-            </MobileBottomSheetTrigger>
+            <DialogTrigger asChild>{triggerButton}</DialogTrigger>
           </TooltipTrigger>
           <TooltipContent className="text-xs">Share wishlist</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-
-      <MobileBottomSheetContent className="sm:max-w-lg">
-        <MobileBottomSheetHeader>
-          <MobileBottomSheetTitle>Share wishlist</MobileBottomSheetTitle>
-          <MobileBottomSheetDescription>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Share wishlist</DialogTitle>
+          <DialogDescription>
             Send a private link for friends or a public view-only link.
-          </MobileBottomSheetDescription>
-        </MobileBottomSheetHeader>
+          </DialogDescription>
+        </DialogHeader>
         {shareBody}
-      </MobileBottomSheetContent>
-    </MobileBottomSheet>
+      </DialogContent>
+    </Dialog>
   );
 };

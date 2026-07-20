@@ -67,20 +67,22 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 // ─── Action queue icon map ───────────────────────────────────────────────────
 
 const actionIcons: Record<ActionType, React.ReactNode> = {
-  [ACTION_TYPE.CAST_VOTE]: <LuVote className="text-violet-500" />,
-  [ACTION_TYPE.CLOSE_VOTE]: <LuHand className="text-violet-500" />,
-  [ACTION_TYPE.CALL_VOTE]: <LuVote className="text-violet-500" />,
-  [ACTION_TYPE.CHOOSE_GIFT]: <LuGift className="text-blue-500" />,
-  [ACTION_TYPE.MARK_PAID]: <LuWallet className="text-emerald-500" />,
-  [ACTION_TYPE.MARK_PURCHASED]: <LuPackage className="text-amber-500" />,
-  [ACTION_TYPE.MARK_DELIVERED]: <LuTruck className="text-amber-500" />,
+  [ACTION_TYPE.CAST_VOTE]: <LuVote className="text-pool" />,
+  [ACTION_TYPE.CLOSE_VOTE]: <LuHand className="text-pool" />,
+  [ACTION_TYPE.CALL_VOTE]: <LuVote className="text-pool" />,
+  [ACTION_TYPE.CHOOSE_GIFT]: <LuGift className="text-success" />,
+  [ACTION_TYPE.MARK_PAID]: <LuWallet className="text-success" />,
+  [ACTION_TYPE.MARK_PURCHASED]: <LuPackage className="text-warning" />,
+  [ACTION_TYPE.MARK_DELIVERED]: <LuTruck className="text-warning" />,
   [ACTION_TYPE.SET_CONTRIBUTION]: (
     <LuWallet className="text-muted-foreground" />
   ),
-  [ACTION_TYPE.PROPOSE_IDEA]: <LuLightbulb className="text-yellow-500" />,
-  [ACTION_TYPE.IDEA_CHOSEN]: <LuStar className="text-blue-500" />,
-  [ACTION_TYPE.UPCOMING_OCCASION]: <LuCake className="text-pink-500" />,
-  [ACTION_TYPE.POOL_STUCK]: <LuTriangleAlert className="text-orange-500" />,
+  [ACTION_TYPE.PROPOSE_IDEA]: <LuLightbulb className="text-pool" />,
+  [ACTION_TYPE.IDEA_CHOSEN]: <LuStar className="text-success" />,
+  [ACTION_TYPE.UPCOMING_OCCASION]: (
+    <LuCake className="text-muted-foreground" />
+  ),
+  [ACTION_TYPE.POOL_STUCK]: <LuTriangleAlert className="text-warning" />,
 };
 
 // ─── Page component ──────────────────────────────────────────────────────────
@@ -217,7 +219,7 @@ const ForYouSection = ({
     ) : (
       <Card padding="md">
         <Flex gap={3} align="center">
-          <LuCheck className="shrink-0 text-emerald-500" size={20} />
+          <LuCheck className="shrink-0 text-success" size={20} />
           <Text size="sm" className="text-muted-foreground">
             {nextOccasion
               ? `All caught up. Next: ${nextOccasion.name}'s birthday in ${nextOccasion.daysUntil} days.`
@@ -241,7 +243,7 @@ const ActionQueueItem = ({ item }: { item: ActionItem }) => {
         padding="md"
         className={cn(
           'transition-shadow hover:shadow-md',
-          isUrgent && 'border-amber-300 dark:border-amber-700',
+          isUrgent && 'border-warning/40',
         )}
       >
         <Flex justify="between" align="center" gap={3}>
@@ -253,11 +255,8 @@ const ActionQueueItem = ({ item }: { item: ActionItem }) => {
               </Text>
               {isUrgent && item.daysUntilEvent !== null && (
                 <Flex gap={1} align="center">
-                  <LuAlarmClock className="text-amber-500" size={12} />
-                  <Text
-                    size="xs"
-                    className="text-amber-600 dark:text-amber-400"
-                  >
+                  <LuAlarmClock className="text-warning" size={12} />
+                  <Text size="xs" className="text-warning">
                     in {item.daysUntilEvent}{' '}
                     {item.daysUntilEvent === 1 ? 'day' : 'days'}
                   </Text>

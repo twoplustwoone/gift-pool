@@ -128,7 +128,7 @@ test.describe('Organize routing', () => {
       await login(page, viewer);
       await page.goto(`/users/${target.username}`);
 
-      // No picker for a single group — the button names the circle directly.
+      // No picker for a single group — the button names the group directly.
       await page
         .getByRole('button', { name: 'Organize with Weekend Crew' })
         .click();
@@ -161,7 +161,7 @@ test.describe('Organize routing', () => {
       // Generic label — clicking must NOT auto-navigate; it opens a chooser.
       await page.getByRole('button', { name: 'Organize a gift' }).click();
       await expect(
-        page.getByRole('heading', { name: 'Organize with which circle?' }),
+        page.getByRole('heading', { name: 'Organize with which group?' }),
       ).toBeVisible();
       await expect(page).toHaveURL(new RegExp(`/users/${target.username}`));
 

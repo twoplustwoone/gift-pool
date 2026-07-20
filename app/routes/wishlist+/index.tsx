@@ -114,14 +114,4 @@ const WishlistIndex = () => {
   );
 };
 export default WishlistIndex;
-export const ErrorBoundary = () => {
-  return (
-    <GeneralErrorBoundary
-      statusHandlers={{
-        404: ({ params }) => (
-          <p>No user with the username "{params.username}" exists</p>
-        ),
-      }}
-    />
-  );
-};
+export const ErrorBoundary = () => <GeneralErrorBoundary />;

@@ -2,9 +2,12 @@ import { useState, type ReactNode } from 'react';
 import { Form } from 'react-router';
 import { z } from 'zod';
 import { Button } from '#app/components/ui/button.tsx';
-import { DialogFooter, DialogClose } from '#app/components/ui/dialog.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
+import {
+  ResponsiveDialogFooter as DialogFooter,
+  ResponsiveDialogClose as DialogClose,
+} from '#app/components/ui/responsive-dialog.tsx';
 import { Textarea } from '#app/components/ui/textarea.tsx';
 
 const nameMinLength = 1;

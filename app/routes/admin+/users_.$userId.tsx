@@ -298,7 +298,7 @@ const AdminUserDetailRoute = () => {
         {user.notificationPreferences.length === 0 ? (
           <EmptyRow>No preferences recorded (using defaults).</EmptyRow>
         ) : (
-          <div className="overflow-hidden rounded-md border border-border/50">
+          <div className="overflow-x-auto rounded-md border border-border/50">
             <table className="min-w-full divide-y divide-border/60 text-sm">
               <thead className="bg-muted/40">
                 <tr>
@@ -378,7 +378,7 @@ const ActionBanner = ({ data }: { data: ActionResult }) => (
   <div
     className={
       data.ok
-        ? 'rounded-md border border-emerald-400/50 bg-emerald-50/60 p-3 text-sm text-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200'
+        ? 'rounded-md border border-success/40 bg-success-muted p-3 text-sm text-success'
         : 'rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive'
     }
   >

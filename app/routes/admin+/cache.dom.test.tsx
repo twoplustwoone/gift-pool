@@ -4,7 +4,7 @@
 import { render, screen } from '@testing-library/react';
 import { type FormHTMLAttributes, type ReactNode } from 'react';
 import type * as ReactRouter from 'react-router';
-import { MemoryRouter } from 'react-router';
+import { createRoutesStub, data, MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
 const loaderDataSnapshot = {
@@ -61,7 +61,7 @@ vi.mock('#app/utils/permissions.server.ts', () => ({
   requireUserWithRole: vi.fn(),
 }));
 
-import CacheAdminRoute from './cache.tsx';
+import CacheAdminRoute, { ErrorBoundary } from './cache.tsx';
 
 const renderCache = () =>
   render(
@@ -91,5 +91,30 @@ describe('admin cache page', () => {
     expect(screen.getByText('admin:overview:counts:v1')).toBeInTheDocument();
     expect(screen.getByText('admin:dropoff:v1:30')).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: 'View' })).toHaveLength(3);
+  });
+});
+
+describe('admin cache page error boundary', () => {
+  it('renders a lock icon and the permission message on a 403', async () => {
+    const Stub = createRoutesStub([
+      {
+        path: '/admin/cache',
+        loader() {
+          throw data({ message: 'Unauthorized: required role admin' }, { status: 403 });
+        },
+        Component: () => null,
+        ErrorBoundary,
+      },
+    ]);
+    render(<Stub initialEntries={['/admin/cache']} />);
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'You are not allowed to do that',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Unauthorized: required role admin'),
+    ).toBeInTheDocument();
   });
 });

@@ -16,15 +16,11 @@ import {
 } from '#app/components/friends/friend-action-button.tsx';
 import { FriendRow as FriendRowCard } from '#app/components/friends/friend-row.tsx';
 import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
+import { PageHeader } from '#app/components/page-header.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#app/components/ui/dialog.tsx';
+import { EmptyState } from '#app/components/ui/empty-state.tsx';
+import { Input } from '#app/components/ui/input.tsx';
 import {
   MobileBottomSheet,
   MobileBottomSheetContent,
@@ -32,9 +28,13 @@ import {
   MobileBottomSheetHeader,
   MobileBottomSheetTitle,
 } from '#app/components/ui/mobile-bottom-sheet.tsx';
-import { EmptyState } from '#app/components/ui/empty-state.tsx';
-import { PageHeader } from '#app/components/page-header.tsx';
-import { Input } from '#app/components/ui/input.tsx';
+import {
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogFooter as DialogFooter,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+} from '#app/components/ui/responsive-dialog.tsx';
 import { Skeleton } from '#app/components/ui/skeleton.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
 import { useFriendWishlistPrefetch } from '#app/hooks/use-background-route-prefetch.ts';

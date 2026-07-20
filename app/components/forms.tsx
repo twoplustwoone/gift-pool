@@ -58,7 +58,7 @@ export const Field = ({
       <Label htmlFor={id} {...labelProps}>
         {labelProps.children}
         {inputProps.required && (
-          <span className="ml-1 text-red-500" aria-hidden="true">
+          <span className="ml-1 text-muted-foreground" aria-hidden="true">
             *
           </span>
         )}

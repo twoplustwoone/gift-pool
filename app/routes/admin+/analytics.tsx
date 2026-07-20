@@ -162,7 +162,7 @@ const EventTable = ({
     <div className="mb-3 flex items-center justify-between">
       <h3 className="text-lg font-semibold">{title}</h3>
     </div>
-    <div className="overflow-hidden rounded-md border border-border/50">
+    <div className="overflow-x-auto rounded-md border border-border/50">
       <table className="min-w-full divide-y divide-border/60">
         <thead className="bg-muted/40">
           <tr>
@@ -450,7 +450,7 @@ const BreakdownTable = ({
   rows: EnvironmentAnalytics['browsers'];
   showPercent?: boolean;
 }) => (
-  <div className="overflow-hidden rounded-md border border-border/50">
+  <div className="overflow-x-auto rounded-md border border-border/50">
     <div className="bg-muted/40 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
       {title}
     </div>
@@ -572,7 +572,7 @@ const DropOffSection = ({ dropOff }: { dropOff: DropOffFunnels }) => {
       {/* Invite landings → joins */}
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">Invite links</h3>
-        <div className="overflow-hidden rounded-md border border-border/50">
+        <div className="overflow-x-auto rounded-md border border-border/50">
           <table className="min-w-full divide-y divide-border/60 text-sm">
             <thead className="bg-muted/40">
               <tr>
@@ -710,7 +710,7 @@ const EnrichmentSection = ({
       {/* Failure breakdown */}
       {failures.byOutcome.length > 0 ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="overflow-hidden rounded-md border border-border/50">
+          <div className="overflow-x-auto rounded-md border border-border/50">
             <table className="min-w-full divide-y divide-border/60 text-sm">
               <thead className="bg-muted/40">
                 <tr>
@@ -736,7 +736,7 @@ const EnrichmentSection = ({
               </tbody>
             </table>
           </div>
-          <div className="overflow-hidden rounded-md border border-border/50">
+          <div className="overflow-x-auto rounded-md border border-border/50">
             <table className="min-w-full divide-y divide-border/60 text-sm">
               <thead className="bg-muted/40">
                 <tr>
@@ -779,7 +779,7 @@ const EnrichmentSection = ({
           />
         </div>
         {linkClicks.perDay.length > 0 ? (
-          <div className="overflow-hidden rounded-md border border-border/50">
+          <div className="overflow-x-auto rounded-md border border-border/50">
             <table className="min-w-full divide-y divide-border/60 text-sm">
               <thead className="bg-muted/40">
                 <tr>
@@ -906,7 +906,7 @@ const RetentionGrid = ({ cohorts }: { cohorts: RetentionCohort[] }) => (
 // ---------------------------------------------------------------------------
 
 const OptOutTable = ({ rows }: { rows: NotificationOptOutRow[] }) => (
-  <div className="overflow-hidden rounded-md border border-border/50">
+  <div className="overflow-x-auto rounded-md border border-border/50">
     <table className="min-w-full divide-y divide-border/60 text-sm">
       <thead className="bg-muted/40">
         <tr>
