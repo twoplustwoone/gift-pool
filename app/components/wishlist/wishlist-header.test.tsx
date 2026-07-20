@@ -29,10 +29,6 @@ vi.mock('#app/routes/wishlist+/__wishlist-item-editor', () => {
   return { WishlistItemEditor };
 });
 
-vi.mock('./category-manager', () => ({
-  CategoryManager: () => <div data-testid="category-manager" />,
-}));
-
 vi.mock('./wishlist-share-dialog', () => ({
   WishlistShareDialog: () => (
     <button type="button">Share wishlist stub</button>
@@ -75,9 +71,8 @@ describe('WishlistHeader', () => {
             isPublicView={false}
             hideOwnerControls={false}
             hideFloatingAddButton={false}
-            onStartItemReorder={() => {}}
-            onStartCategoryReorder={() => {}}
-            onCategoryMutationResult={() => {}}
+            showOrganize={false}
+            onStartOrganize={() => {}}
           />
         ),
       },
@@ -99,9 +94,8 @@ describe('WishlistHeader', () => {
             isPublicView={false}
             hideOwnerControls={false}
             hideFloatingAddButton={false}
-            onStartItemReorder={() => {}}
-            onStartCategoryReorder={() => {}}
-            onCategoryMutationResult={() => {}}
+            showOrganize={false}
+            onStartOrganize={() => {}}
           />
         ),
       },
@@ -123,9 +117,8 @@ describe('WishlistHeader', () => {
             isPublicView={false}
             hideOwnerControls={false}
             hideFloatingAddButton={false}
-            onStartItemReorder={() => {}}
-            onStartCategoryReorder={() => {}}
-            onCategoryMutationResult={() => {}}
+            showOrganize={false}
+            onStartOrganize={() => {}}
           />
         ),
       },
@@ -147,9 +140,8 @@ describe('WishlistHeader', () => {
             isPublicView={false}
             hideOwnerControls={false}
             hideFloatingAddButton={false}
-            onStartItemReorder={() => {}}
-            onStartCategoryReorder={() => {}}
-            onCategoryMutationResult={() => {}}
+            showOrganize={false}
+            onStartOrganize={() => {}}
           />
         ),
       },
@@ -158,7 +150,7 @@ describe('WishlistHeader', () => {
     expect(screen.getByText("Copy Jane's link stub")).toBeInTheDocument();
   });
 
-  it('shows owner controls when isOwner && !hideOwnerControls', () => {
+  it('shows the Organize control when isOwner && !hideOwnerControls && showOrganize', () => {
     const App = createRoutesStub([
       {
         path: '/',
@@ -171,15 +163,16 @@ describe('WishlistHeader', () => {
             isPublicView={false}
             hideOwnerControls={false}
             hideFloatingAddButton={false}
-            onStartItemReorder={() => {}}
-            onStartCategoryReorder={() => {}}
-            onCategoryMutationResult={() => {}}
+            showOrganize={true}
+            onStartOrganize={() => {}}
           />
         ),
       },
     ]);
     render(<App />);
-    expect(screen.getByTestId('category-manager')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Organize' }),
+    ).toBeInTheDocument();
   });
 
   it('hides owner controls when hideOwnerControls is true', () => {
@@ -195,14 +188,40 @@ describe('WishlistHeader', () => {
             isPublicView={false}
             hideOwnerControls={true}
             hideFloatingAddButton={true}
-            onStartItemReorder={() => {}}
-            onStartCategoryReorder={() => {}}
-            onCategoryMutationResult={() => {}}
+            showOrganize={true}
+            onStartOrganize={() => {}}
           />
         ),
       },
     ]);
     render(<App />);
-    expect(screen.queryByTestId('category-manager')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Organize' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('hides the Organize control when showOrganize is false', () => {
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <WishlistHeader
+            isOwner={true}
+            user={baseUser}
+            displayName="Jane"
+            publicShare={null}
+            isPublicView={false}
+            hideOwnerControls={false}
+            hideFloatingAddButton={false}
+            showOrganize={false}
+            onStartOrganize={() => {}}
+          />
+        ),
+      },
+    ]);
+    render(<App />);
+    expect(
+      screen.queryByRole('button', { name: 'Organize' }),
+    ).not.toBeInTheDocument();
   });
 });

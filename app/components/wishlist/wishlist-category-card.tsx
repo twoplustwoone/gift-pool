@@ -4,12 +4,16 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { type FormEvent, type ReactNode } from 'react';
-import { LuArrowUpDown, LuCheck, LuGripVertical, LuPencil, LuPlus, LuTrash, LuX } from 'react-icons/lu';
-import  { type useFetcher } from 'react-router';
+import { type ReactNode } from 'react';
+import {
+  LuChevronDown,
+  LuChevronUp,
+  LuFolderInput,
+  LuGripVertical,
+  LuPlus,
+} from 'react-icons/lu';
 
 import { Button } from '#app/components/ui/button';
-import { Input } from '#app/components/ui/input';
 import { cn } from '#app/utils/misc.tsx';
 import  { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
 
@@ -26,7 +30,7 @@ import {
 
 type SortableListeners = ReturnType<typeof useSortable>['listeners'];
 
-const DragHandle = ({
+export const DragHandle = ({
   label,
   disabled = false,
   active = false,
@@ -46,7 +50,7 @@ const DragHandle = ({
     ref={setActivatorNodeRef}
     aria-label={label}
     disabled={disabled}
-    className={`inline-flex h-10 w-10 touch-none items-center justify-center rounded-lg border border-transparent text-muted-foreground transition hover:bg-muted/70 hover:text-foreground active:scale-[0.98] ${active ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : ''
+    className={`inline-flex h-10 w-10 touch-none items-center justify-center rounded-lg border border-transparent text-muted-foreground transition hover:bg-muted/70 hover:text-foreground active:scale-[0.98] ${active ? 'border-pool/40 bg-pool/10 text-pool' : ''
       } disabled:cursor-not-allowed disabled:opacity-40`}
     onClick={(event) => event.stopPropagation()}
     onPointerDown={(event) => event.stopPropagation()}
@@ -55,6 +59,52 @@ const DragHandle = ({
   >
     <LuGripVertical className="h-4 w-4" aria-hidden />
   </button>
+);
+
+// Non-drag reorder alternative: one-slot up/down moves, keyboard and
+// switch-access friendly. Rendered next to every drag handle in Organize
+// mode so drag is never the only way to change order.
+export const MoveByOffsetButtons = ({
+  label,
+  canMoveUp,
+  canMoveDown,
+  onMove,
+}: {
+  label: string;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMove: (delta: -1 | 1) => void;
+}) => (
+  <div className="flex items-center">
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label={`Move ${label} up`}
+      disabled={!canMoveUp}
+      className="h-10 w-8 rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-40"
+      onClick={(event) => {
+        event.stopPropagation();
+        onMove(-1);
+      }}
+    >
+      <LuChevronUp className="h-4 w-4" aria-hidden />
+    </Button>
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label={`Move ${label} down`}
+      disabled={!canMoveDown}
+      className="h-10 w-8 rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-40"
+      onClick={(event) => {
+        event.stopPropagation();
+        onMove(1);
+      }}
+    >
+      <LuChevronDown className="h-4 w-4" aria-hidden />
+    </Button>
+  </div>
 );
 
 const HeaderDropTarget = ({
@@ -80,7 +130,7 @@ const HeaderDropTarget = ({
       ref={setNodeRef}
       data-drop-target={isActiveTarget ? 'true' : 'false'}
       className={`relative rounded-xl transition ${isActiveTarget
-          ? 'bg-emerald-50/90 ring-2 ring-emerald-300'
+          ? 'bg-pool/10 ring-2 ring-pool/40'
           : dragState === 'dragging-item'
             ? 'bg-background/70'
             : ''
@@ -89,7 +139,7 @@ const HeaderDropTarget = ({
       {children}
       {isActiveTarget && dragState === 'dragging-item' ? (
         <div className="pointer-events-none absolute right-3 top-2">
-          <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+          <span className="rounded-full bg-pool/10 px-2 py-1 text-[11px] font-semibold text-pool ring-1 ring-pool/25">
             Move to {categoryName}
           </span>
         </div>
@@ -147,12 +197,7 @@ export const SortableShell = ({
   );
 };
 
-export type CategoryHandle = {
-  attributes: DraggableAttributes;
-  listeners: SortableListeners;
-  setActivatorNodeRef: (element: HTMLElement | null) => void;
-  isDragging: boolean;
-};
+export type MoveTargetCategory = { id: string | null; name: string };
 
 export type CategoryCardProps = {
   category: { id: string | null; name: string; order: number };
@@ -162,22 +207,17 @@ export type CategoryCardProps = {
   isItemReorderMode: boolean;
   isCategoryReorderMode: boolean;
   isCollapsed: boolean;
-  isEditing: boolean;
   isCategoryDropHighlighted: boolean;
   dragState: 'idle' | 'dragging-item' | 'dragging-category';
   itemsForCategory: WishlistItem[];
   itemIds: string[];
   optimisticCategories: WishlistCategory[];
-  actionFetcher: ReturnType<typeof useFetcher>;
+  moveTargets: MoveTargetCategory[];
   onToggleCollapse: () => void;
-  onSetEditing: (id: string | null) => void;
-  onRequestDelete: (category: { id: string; name: string }) => void;
   onOpenQuickAdd: (categoryId: string | null) => void;
-  onStartItemReorder: () => void;
-  onStartCategoryReorder: () => void;
+  onMoveItemByOffset: (itemId: string, delta: -1 | 1) => void;
+  onMoveItemToCategory: (itemId: string, categoryId: string | null) => void;
   onStatusChange: (itemId: string, status: WishlistItemStatusValue) => void;
-  onAttachClientMutationId: (event: FormEvent<HTMLFormElement>) => void;
-  categoryHandle?: CategoryHandle;
 };
 type CategoryItemsGridProps = Readonly<
   Pick<
@@ -191,12 +231,23 @@ type CategoryItemsGridProps = Readonly<
   >
 >;
 type CategoryReorderBodyProps = Readonly<
-  Pick<CategoryCardProps, 'canReorder' | 'dragState' | 'itemIds' | 'itemsForCategory'>
+  Pick<
+    CategoryCardProps,
+    | 'canReorder'
+    | 'category'
+    | 'dragState'
+    | 'itemIds'
+    | 'itemsForCategory'
+    | 'moveTargets'
+    | 'onMoveItemByOffset'
+    | 'onMoveItemToCategory'
+  >
 >;
 type WishlistCategoryBodyProps = Readonly<
   Pick<
     CategoryCardProps,
     | 'canReorder'
+    | 'category'
     | 'dragState'
     | 'isCollapsed'
     | 'isItemReorderMode'
@@ -204,29 +255,11 @@ type WishlistCategoryBodyProps = Readonly<
     | 'isPublicView'
     | 'itemIds'
     | 'itemsForCategory'
+    | 'moveTargets'
+    | 'onMoveItemByOffset'
+    | 'onMoveItemToCategory'
     | 'onStatusChange'
     | 'optimisticCategories'
-  >
->;
-type CategoryActionsMenuProps = Readonly<
-  Pick<
-    CategoryCardProps,
-    | 'canReorder'
-    | 'category'
-    | 'isCategoryReorderMode'
-    | 'isItemReorderMode'
-    | 'isOwner'
-    | 'onOpenQuickAdd'
-    | 'onRequestDelete'
-    | 'onSetEditing'
-    | 'onStartCategoryReorder'
-    | 'onStartItemReorder'
-  >
->;
-type CategoryEditFormProps = Readonly<
-  Pick<
-    CategoryCardProps,
-    'actionFetcher' | 'category' | 'onAttachClientMutationId' | 'onSetEditing'
   >
 >;
 type CategoryTitleProps = Readonly<{
@@ -237,26 +270,17 @@ type CategoryHeaderProps = Readonly<
   Pick<
     CategoryCardProps,
     | 'category'
-    | 'categoryHandle'
-    | 'canReorder'
     | 'isCategoryReorderMode'
-    | 'isEditing'
     | 'isItemReorderMode'
     | 'isOwner'
     | 'isCollapsed'
     | 'itemsForCategory'
-    | 'actionFetcher'
-    | 'onAttachClientMutationId'
     | 'onOpenQuickAdd'
-    | 'onRequestDelete'
-    | 'onSetEditing'
-    | 'onStartCategoryReorder'
-    | 'onStartItemReorder'
     | 'onToggleCollapse'
   >
 >;
 
-function CategoryItemsGrid({
+export function CategoryItemsGrid({
   dragState,
   isOwner,
   isPublicView,
@@ -288,53 +312,123 @@ function CategoryItemsGrid({
   );
 }
 
-function CategoryReorderBody({
+function MoveToCategoryMenu({
+  itemTitle,
+  otherCategories,
+  onSelect,
+}: {
+  itemTitle: string;
+  otherCategories: MoveTargetCategory[];
+  onSelect: (categoryId: string | null) => void;
+}) {
+  if (otherCategories.length === 0) return null;
+
+  return (
+    <WishlistRowActionsMenu label={`Move ${itemTitle} to another category`}>
+      {otherCategories.map((target) => (
+        <WishlistRowActionsItem
+          key={target.id ?? 'default'}
+          onSelect={() => onSelect(target.id)}
+        >
+          <LuFolderInput className="h-4 w-4 text-muted-foreground" aria-hidden />
+          {target.name}
+        </WishlistRowActionsItem>
+      ))}
+    </WishlistRowActionsMenu>
+  );
+}
+
+type ReorderItemRowProps = Readonly<{
+  canMoveDown: boolean;
+  canMoveUp: boolean;
+  canReorder: boolean;
+  dragState: 'idle' | 'dragging-item' | 'dragging-category';
+  item: WishlistItem;
+  otherCategories: MoveTargetCategory[];
+  onMoveItemByOffset: (itemId: string, delta: -1 | 1) => void;
+  onMoveItemToCategory: (itemId: string, categoryId: string | null) => void;
+}>;
+
+function ReorderItemRow({
+  canMoveDown,
+  canMoveUp,
   canReorder,
+  dragState,
+  item,
+  otherCategories,
+  onMoveItemByOffset,
+  onMoveItemToCategory,
+}: ReorderItemRowProps) {
+  return (
+    <SortableShell key={item.id} id={toItemDragId(item.id)} disabled={!canReorder}>
+      {({ attributes, listeners, setActivatorNodeRef, isDragging }) => (
+        <div
+          data-testid="wishlist-item-row"
+          data-drag-state={dragState}
+          data-drop-target="false"
+          className={`flex items-center gap-2 rounded-xl border border-border/80 bg-card px-2 py-2 shadow-sm transition sm:gap-3 sm:px-3 ${
+            isDragging ? 'border-pool/40 bg-pool/10 ring-2 ring-pool/40' : ''
+          }`}
+        >
+          <DragHandle
+            label={`Drag item ${item.title}`}
+            active={isDragging}
+            attributes={attributes}
+            listeners={listeners}
+            setActivatorNodeRef={setActivatorNodeRef}
+          />
+          <Text weight="medium" className="min-w-0 flex-1 truncate">
+            {item.title}
+          </Text>
+          <MoveByOffsetButtons
+            label={item.title}
+            canMoveUp={canMoveUp}
+            canMoveDown={canMoveDown}
+            onMove={(delta) => onMoveItemByOffset(item.id, delta)}
+          />
+          <MoveToCategoryMenu
+            itemTitle={item.title}
+            otherCategories={otherCategories}
+            onSelect={(categoryId) => onMoveItemToCategory(item.id, categoryId)}
+          />
+        </div>
+      )}
+    </SortableShell>
+  );
+}
+
+export function CategoryReorderBody({
+  canReorder,
+  category,
   dragState,
   itemIds,
   itemsForCategory,
+  moveTargets,
+  onMoveItemByOffset,
+  onMoveItemToCategory,
 }: CategoryReorderBodyProps) {
+  const otherCategories = moveTargets.filter(
+    (target) => target.id !== category.id,
+  );
+
   return (
     <SortableContext
       items={itemIds.map((itemId) => toItemDragId(itemId))}
       strategy={rectSortingStrategy}
     >
       <div className="space-y-2">
-        {itemsForCategory.map((item) => (
-          <SortableShell
+        {itemsForCategory.map((item, index) => (
+          <ReorderItemRow
             key={item.id}
-            id={toItemDragId(item.id)}
-            disabled={!canReorder}
-          >
-            {({
-              attributes,
-              listeners,
-              setActivatorNodeRef,
-              isDragging,
-            }) => (
-              <div
-                data-testid="wishlist-item-row"
-                data-drag-state={dragState}
-                data-drop-target="false"
-                className={`flex items-center gap-3 rounded-xl border border-border/80 bg-card px-3 py-2 shadow-sm transition ${
-                  isDragging
-                    ? 'border-emerald-300 bg-emerald-50/80 ring-2 ring-emerald-300'
-                    : ''
-                }`}
-              >
-                <DragHandle
-                  label={`Drag item ${item.title}`}
-                  active={isDragging}
-                  attributes={attributes}
-                  listeners={listeners}
-                  setActivatorNodeRef={setActivatorNodeRef}
-                />
-                <Text weight="medium" className="truncate">
-                  {item.title}
-                </Text>
-              </div>
-            )}
-          </SortableShell>
+            canMoveUp={canReorder && index > 0}
+            canMoveDown={canReorder && index < itemsForCategory.length - 1}
+            canReorder={canReorder}
+            dragState={dragState}
+            item={item}
+            otherCategories={otherCategories}
+            onMoveItemByOffset={onMoveItemByOffset}
+            onMoveItemToCategory={onMoveItemToCategory}
+          />
         ))}
         {itemsForCategory.length === 0 ? (
           <div className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
@@ -348,6 +442,7 @@ function CategoryReorderBody({
 
 function WishlistCategoryBody({
   canReorder,
+  category,
   dragState,
   isCollapsed,
   isItemReorderMode,
@@ -355,6 +450,9 @@ function WishlistCategoryBody({
   isPublicView,
   itemIds,
   itemsForCategory,
+  moveTargets,
+  onMoveItemByOffset,
+  onMoveItemToCategory,
   onStatusChange,
   optimisticCategories,
 }: WishlistCategoryBodyProps) {
@@ -374,13 +472,17 @@ function WishlistCategoryBody({
       )}
     >
       <div className="min-h-0 overflow-hidden">
-        <div className="border-t border-card-border p-3 sm:p-4">
+        <div className="pb-1 pt-2">
           {isItemReorderMode ? (
             <CategoryReorderBody
               canReorder={canReorder}
+              category={category}
               dragState={dragState}
               itemIds={itemIds}
               itemsForCategory={itemsForCategory}
+              moveTargets={moveTargets}
+              onMoveItemByOffset={onMoveItemByOffset}
+              onMoveItemToCategory={onMoveItemToCategory}
             />
           ) : (
             <CategoryItemsGrid
@@ -395,105 +497,6 @@ function WishlistCategoryBody({
         </div>
       </div>
     </div>
-  );
-}
-
-function CategoryActionsMenu({
-  canReorder,
-  category,
-  isCategoryReorderMode,
-  isItemReorderMode,
-  isOwner,
-  onOpenQuickAdd,
-  onRequestDelete,
-  onSetEditing,
-  onStartCategoryReorder,
-  onStartItemReorder,
-}: CategoryActionsMenuProps) {
-  if (!isOwner || isItemReorderMode || isCategoryReorderMode) return null;
-
-  return (
-    <WishlistRowActionsMenu label={`Category actions for ${category.name}`}>
-      <WishlistRowActionsItem onSelect={() => onOpenQuickAdd(category.id ?? null)}>
-        <LuPlus className="h-4 w-4 text-muted-foreground" aria-hidden />
-        Add item
-      </WishlistRowActionsItem>
-      {canReorder ? (
-        <WishlistRowActionsItem onSelect={onStartItemReorder}>
-          <LuArrowUpDown className="h-4 w-4 text-muted-foreground" aria-hidden />
-          Reorder items
-        </WishlistRowActionsItem>
-      ) : null}
-      {canReorder ? (
-        <WishlistRowActionsItem onSelect={onStartCategoryReorder}>
-          <LuArrowUpDown className="h-4 w-4 text-muted-foreground" aria-hidden />
-          Reorder categories
-        </WishlistRowActionsItem>
-      ) : null}
-      {category.id ? (
-        <WishlistRowActionsItem onSelect={() => onSetEditing(category.id)}>
-          <LuPencil className="h-4 w-4 text-muted-foreground" aria-hidden />
-          Rename category
-        </WishlistRowActionsItem>
-      ) : null}
-      {category.id ? (
-        <WishlistRowActionsItem
-          className="text-red-600 focus:text-red-700"
-          onSelect={() =>
-            onRequestDelete({
-              id: category.id!,
-              name: category.name,
-            })
-          }
-        >
-          <LuTrash className="h-4 w-4" aria-hidden />
-          Delete category
-        </WishlistRowActionsItem>
-      ) : null}
-    </WishlistRowActionsMenu>
-  );
-}
-
-function CategoryEditForm({
-  actionFetcher,
-  category,
-  onAttachClientMutationId,
-  onSetEditing,
-}: CategoryEditFormProps) {
-  return (
-    <actionFetcher.Form
-      method="post"
-      action="/wishlist/categories"
-      className="flex items-center gap-2"
-      onClick={(event) => event.stopPropagation()}
-      onSubmit={onAttachClientMutationId}
-    >
-      <input type="hidden" name="intent" value="rename" />
-      <input type="hidden" name="id" value={category.id ?? ''} />
-      <input type="hidden" name="clientMutationId" value="" />
-      <Input name="name" defaultValue={category.name} className="h-8" />
-      <Button
-        type="submit"
-        size="icon"
-        variant="ghost"
-        aria-label="Save category"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <LuCheck />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label="Cancel"
-        onClick={(event) => {
-          event.stopPropagation();
-          onSetEditing(null);
-        }}
-      >
-        <LuX />
-      </Button>
-    </actionFetcher.Form>
   );
 }
 
@@ -515,27 +518,19 @@ function CategoryTitle({
   );
 }
 
+// Category grouping is a SECTION, not a card: heading + divider + spacing.
+// Cards are reserved for the items themselves (distinct interactive objects).
 function CategoryHeader({
-  actionFetcher,
-  canReorder,
   category,
-  categoryHandle,
   isCategoryReorderMode,
   isCollapsed,
-  isEditing,
   isItemReorderMode,
   isOwner,
   itemsForCategory,
-  onAttachClientMutationId,
   onOpenQuickAdd,
-  onRequestDelete,
-  onSetEditing,
-  onStartCategoryReorder,
-  onStartItemReorder,
   onToggleCollapse,
 }: CategoryHeaderProps) {
-  const canToggleCollapse =
-    !isEditing && !isItemReorderMode && !isCategoryReorderMode;
+  const canToggleCollapse = !isItemReorderMode && !isCategoryReorderMode;
   const titleContent = (
     <>
       {!isItemReorderMode ? (
@@ -544,63 +539,39 @@ function CategoryHeader({
           className="h-4 w-4"
         />
       ) : null}
-      {isEditing ? (
-        <CategoryEditForm
-          actionFetcher={actionFetcher}
-          category={category}
-          onAttachClientMutationId={onAttachClientMutationId}
-          onSetEditing={onSetEditing}
-        />
-      ) : (
-        <CategoryTitle category={category} count={itemsForCategory.length} />
-      )}
+      <CategoryTitle category={category} count={itemsForCategory.length} />
     </>
   );
 
   return (
-    <div
-      className={`flex min-h-14 items-center justify-between gap-2 rounded-t-xl bg-surface ${
-        canToggleCollapse ? 'hover:bg-muted' : ''
-      }`}
-    >
+    <div className="flex min-h-12 items-center justify-between gap-2 border-b border-border/60">
       {canToggleCollapse ? (
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 self-stretch rounded-tl-xl px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-4"
+          className="flex min-w-0 flex-1 items-center gap-2 self-stretch rounded-md py-2 pr-2 text-left transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           aria-expanded={!isCollapsed}
           onClick={onToggleCollapse}
         >
           {titleContent}
         </button>
       ) : (
-        <div className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 sm:px-4">
+        <div className="flex min-w-0 flex-1 items-center gap-2 py-2 pr-2">
           {titleContent}
         </div>
       )}
 
-      <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
-        {categoryHandle ? (
-          <DragHandle
-            label={`Drag category ${category.name}`}
-            active={Boolean(categoryHandle.isDragging)}
-            attributes={categoryHandle.attributes}
-            listeners={categoryHandle.listeners}
-            setActivatorNodeRef={categoryHandle.setActivatorNodeRef}
-          />
-        ) : null}
-        <CategoryActionsMenu
-          canReorder={canReorder}
-          category={category}
-          isCategoryReorderMode={isCategoryReorderMode}
-          isItemReorderMode={isItemReorderMode}
-          isOwner={isOwner}
-          onOpenQuickAdd={onOpenQuickAdd}
-          onRequestDelete={onRequestDelete}
-          onSetEditing={onSetEditing}
-          onStartCategoryReorder={onStartCategoryReorder}
-          onStartItemReorder={onStartItemReorder}
-        />
-      </div>
+      {isOwner && !isItemReorderMode && !isCategoryReorderMode ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`Add item to ${category.name}`}
+          className="h-10 w-10 rounded-lg text-muted-foreground hover:text-foreground"
+          onClick={() => onOpenQuickAdd(category.id ?? null)}
+        >
+          <LuPlus className="h-4 w-4" aria-hidden />
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -613,28 +584,23 @@ export const WishlistCategoryCard = ({
   isItemReorderMode,
   isCategoryReorderMode,
   isCollapsed,
-  isEditing,
   isCategoryDropHighlighted,
   dragState,
   itemsForCategory,
   itemIds,
   optimisticCategories,
-  actionFetcher,
+  moveTargets,
   onToggleCollapse,
-  onSetEditing,
-  onRequestDelete,
   onOpenQuickAdd,
-  onStartItemReorder,
-  onStartCategoryReorder,
+  onMoveItemByOffset,
+  onMoveItemToCategory,
   onStatusChange,
-  onAttachClientMutationId,
-  categoryHandle,
 }: CategoryCardProps) => {
   const categoryKey = category.id ?? 'default';
 
   return (
-    <div
-      className={`group overflow-hidden rounded-xl border border-border/90 bg-surface shadow-sm transition ${dragState === 'dragging-item' && !isCategoryDropHighlighted
+    <section
+      className={`${dragState === 'dragging-item' && !isCategoryDropHighlighted
           ? 'opacity-85'
           : ''
         }`}
@@ -649,27 +615,19 @@ export const WishlistCategoryCard = ({
         categoryName={category.name}
       >
         <CategoryHeader
-          actionFetcher={actionFetcher}
-          canReorder={canReorder}
           category={category}
-          categoryHandle={categoryHandle}
           isCategoryReorderMode={isCategoryReorderMode}
           isCollapsed={isCollapsed}
-          isEditing={isEditing}
           isItemReorderMode={isItemReorderMode}
           isOwner={isOwner}
           itemsForCategory={itemsForCategory}
-          onAttachClientMutationId={onAttachClientMutationId}
           onOpenQuickAdd={onOpenQuickAdd}
-          onRequestDelete={onRequestDelete}
-          onSetEditing={onSetEditing}
-          onStartCategoryReorder={onStartCategoryReorder}
-          onStartItemReorder={onStartItemReorder}
           onToggleCollapse={onToggleCollapse}
         />
       </HeaderDropTarget>
       <WishlistCategoryBody
         canReorder={canReorder}
+        category={category}
         dragState={dragState}
         isCollapsed={isCollapsed}
         isItemReorderMode={isItemReorderMode}
@@ -677,9 +635,12 @@ export const WishlistCategoryCard = ({
         isPublicView={isPublicView}
         itemIds={itemIds}
         itemsForCategory={itemsForCategory}
+        moveTargets={moveTargets}
+        onMoveItemByOffset={onMoveItemByOffset}
+        onMoveItemToCategory={onMoveItemToCategory}
         onStatusChange={onStatusChange}
         optimisticCategories={optimisticCategories}
       />
-    </div>
+    </section>
   );
 };

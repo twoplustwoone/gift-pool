@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyPendingCategoryMutations,
   applySettledCategoryMutations,
+  isOptimisticCategoryId,
   pruneSatisfiedSettledCategoryMutations,
   type CategoryMutationResult,
   type WishlistCategory,
@@ -183,5 +184,20 @@ describe('wishlist category state', () => {
       'Books',
       'Games',
     ]);
+  });
+
+  it('isOptimisticCategoryId recognizes the placeholder id created by applyPendingCategoryMutations', () => {
+    const [optimisticCategory] = applyPendingCategoryMutations({
+      categories: [],
+      pendingMutations: [
+        { type: 'create', clientMutationId: 'mut-1', name: 'Books', order: 0 },
+      ],
+    });
+
+    expect(isOptimisticCategoryId(optimisticCategory!.id)).toBe(true);
+  });
+
+  it('isOptimisticCategoryId is false for a persisted category id', () => {
+    expect(isOptimisticCategoryId(booksCategory.id)).toBe(false);
   });
 });

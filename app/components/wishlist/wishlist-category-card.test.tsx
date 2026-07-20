@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRoutesStub } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -66,13 +66,6 @@ vi.mock('@dnd-kit/sortable', async () => {
   };
 });
 
-const actionFetcher = {
-  Form: (props: any) => <form {...props} />,
-  submit: vi.fn(),
-  state: 'idle',
-  data: undefined,
-} as any;
-
 const baseProps: CategoryCardProps = {
   category: { id: 'cat1', name: 'Books', order: 0 },
   isOwner: true,
@@ -81,21 +74,17 @@ const baseProps: CategoryCardProps = {
   isItemReorderMode: false,
   isCategoryReorderMode: false,
   isCollapsed: false,
-  isEditing: false,
   isCategoryDropHighlighted: false,
   dragState: 'idle',
   itemsForCategory: [],
   itemIds: [],
   optimisticCategories: [],
-  actionFetcher,
+  moveTargets: [],
   onToggleCollapse: vi.fn(),
-  onSetEditing: vi.fn(),
-  onRequestDelete: vi.fn(),
   onOpenQuickAdd: vi.fn(),
-  onStartItemReorder: vi.fn(),
-  onStartCategoryReorder: vi.fn(),
+  onMoveItemByOffset: vi.fn(),
+  onMoveItemToCategory: vi.fn(),
   onStatusChange: vi.fn(),
-  onAttachClientMutationId: vi.fn(),
 };
 
 describe('WishlistCategoryCard', () => {
@@ -111,7 +100,7 @@ describe('WishlistCategoryCard', () => {
     expect(screen.getByText('(0)')).toBeInTheDocument();
   });
 
-  it('shows action menu when not in reorder mode', () => {
+  it('shows an add-item control for owners when not in reorder mode', () => {
     const App = createRoutesStub([
       {
         path: '/',
@@ -120,11 +109,40 @@ describe('WishlistCategoryCard', () => {
     ]);
     render(<App />);
     expect(
-      screen.getByText('Category actions for Books'),
+      screen.getByRole('button', { name: 'Add item to Books' }),
     ).toBeInTheDocument();
   });
 
-  it('hides action menu in item reorder mode', () => {
+  it('calls onOpenQuickAdd with the category id when the add-item control is used', async () => {
+    const user = userEvent.setup();
+    const onOpenQuickAdd = vi.fn();
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <WishlistCategoryCard {...baseProps} onOpenQuickAdd={onOpenQuickAdd} />
+        ),
+      },
+    ]);
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'Add item to Books' }));
+    expect(onOpenQuickAdd).toHaveBeenCalledWith('cat1');
+  });
+
+  it('hides the add-item control for non-owners', () => {
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => <WishlistCategoryCard {...baseProps} isOwner={false} />,
+      },
+    ]);
+    render(<App />);
+    expect(
+      screen.queryByRole('button', { name: 'Add item to Books' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('hides the add-item control in item reorder mode', () => {
     const App = createRoutesStub([
       {
         path: '/',
@@ -135,7 +153,7 @@ describe('WishlistCategoryCard', () => {
     ]);
     render(<App />);
     expect(
-      screen.queryByText('Category actions for Books'),
+      screen.queryByRole('button', { name: 'Add item to Books' }),
     ).not.toBeInTheDocument();
   });
 
@@ -181,63 +199,42 @@ describe('WishlistCategoryCard', () => {
     expect(onToggleCollapse).toHaveBeenCalled();
   });
 
-  it('shows rename form when isEditing', () => {
-    const App = createRoutesStub([
-      {
-        path: '/',
-        Component: () => (
-          <WishlistCategoryCard {...baseProps} isEditing={true} />
-        ),
-      },
-    ]);
-    render(<App />);
-    expect(screen.getByRole('textbox')).toBeInTheDocument();
-  });
-
-  it('calls onRequestDelete when delete action selected', () => {
-    const onRequestDelete = vi.fn();
+  it('shows drag handles and non-drag move buttons for items in item reorder mode', () => {
     const App = createRoutesStub([
       {
         path: '/',
         Component: () => (
           <WishlistCategoryCard
             {...baseProps}
-            onRequestDelete={onRequestDelete}
-          />
-        ),
-      },
-    ]);
-    render(<App />);
-    fireEvent.click(
-      screen.getByRole('menuitem', { name: /delete category/i }),
-    );
-    expect(onRequestDelete).toHaveBeenCalledWith({
-      id: 'cat1',
-      name: 'Books',
-    });
-  });
-
-  it('shows drag handle when categoryHandle prop provided', () => {
-    const categoryHandle = {
-      attributes: {} as any,
-      listeners: {} as any,
-      setActivatorNodeRef: vi.fn(),
-      isDragging: false,
-    };
-    const App = createRoutesStub([
-      {
-        path: '/',
-        Component: () => (
-          <WishlistCategoryCard
-            {...baseProps}
-            categoryHandle={categoryHandle}
+            isItemReorderMode={true}
+            itemIds={['item1']}
+            itemsForCategory={[
+              {
+                id: 'item1',
+                title: 'Novel',
+                ownerId: 'owner1',
+                note: null,
+                url: null,
+                type: 'text',
+                categoryId: 'cat1',
+                sortOrder: 0,
+                updatedAt: new Date(),
+                status: 'ACTIVE',
+              },
+            ]}
           />
         ),
       },
     ]);
     render(<App />);
     expect(
-      screen.getByRole('button', { name: /drag category books/i }),
+      screen.getByRole('button', { name: 'Drag item Novel' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Move Novel up' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Move Novel down' }),
     ).toBeInTheDocument();
   });
 

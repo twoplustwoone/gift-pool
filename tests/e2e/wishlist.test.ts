@@ -29,26 +29,31 @@ async function dragHandleToTarget(
   await page.mouse.up();
 }
 
-const openCategoryActions = async (page: Page, categoryName: string) => {
-  await page
-    .getByRole('button', {
-      name: new RegExp(`category actions for ${categoryName}`, 'i'),
-    })
-    .click();
+// Enters Organize mode (starts in item-reorder) and, when `mode` is
+// 'categories', switches to the Categories tab where category CRUD lives.
+const startReorderMode = async (page: Page, mode: 'items' | 'categories') => {
+  await page.getByRole('button', { name: /^organize$/i }).click();
+  if (mode === 'categories') {
+    await page
+      .getByRole('button', { name: /category reorder mode/i })
+      .click();
+  }
 };
 
-const startReorderMode = async (page: Page, mode: 'items' | 'categories') => {
-  await page.getByRole('button', { name: /categories/i }).click();
-  await page
-    .getByRole('button', {
-      name: mode === 'items' ? /reorder items/i : /reorder categories/i,
-    })
-    .click();
+const finishOrganizing = async (page: Page) => {
+  await page.getByRole('button', { name: /done organizing/i }).click();
+};
+
+// Category CRUD lives in Organize mode's Categories tab.
+const createCategory = async (page: Page, categoryName: string) => {
+  await page.getByPlaceholder('Category name').fill(categoryName);
+  await page.getByRole('button', { name: /add category/i }).click();
 };
 
 const addItemToCategory = async (page: Page, categoryName: string) => {
-  await openCategoryActions(page, categoryName);
-  await page.getByRole('menuitem', { name: /add item/i }).click();
+  await page
+    .getByRole('button', { name: new RegExp(`add item to ${categoryName}`, 'i') })
+    .click();
 };
 
 const createWishlistItem = async ({
@@ -225,16 +230,15 @@ test('users can create, edit, and delete categories; items follow correctly', as
   await login();
   await page.goto('/wishlist');
 
-  // Create category "Books"
-  await page.getByRole('button', { name: /categories/i }).click();
-  await page.getByPlaceholder('Category name').fill('Books');
-  await page.getByRole('button', { name: /create category/i }).click();
+  // Create category "Books" via Organize mode's Categories tab.
+  await startReorderMode(page, 'categories');
+  await createCategory(page, 'Books');
   await expect(page.getByText('Category added', { exact: true })).toBeVisible();
   await expect(page.getByPlaceholder('Category name')).toHaveValue('');
-  await expect(page.getByRole('dialog').getByText('Books')).toBeVisible();
-  await page.keyboard.press('Escape'); // close manager
+  await expect(page.getByText('Books')).toBeVisible();
+  await finishOrganizing(page);
 
-  // Add an item directly into the Books category via its action menu
+  // Add an item directly into the Books category via its add-item control
   await addItemToCategory(page, 'Books');
   await expect(page.getByRole('combobox', { name: 'Category' })).toBeVisible();
   await page.getByLabel('Title').fill('Book One');
@@ -248,9 +252,8 @@ test('users can create, edit, and delete categories; items follow correctly', as
   // DOM (grid-rows 0fr) and Playwright's visibility check doesn't treat
   // grid-rows clipping as "hidden" the way display:none would.
   //
-  // Filter out the "Category actions for Books" dropdown trigger (which
-  // also matches /books/ and carries aria-expanded) by scoping to the
-  // header's (count-bearing) accessible name.
+  // Filter out the "Add item to Books" control (which also matches
+  // /books/) by scoping to the header's (count-bearing) accessible name.
   const booksHeader = page.getByRole('button', { name: /^Books\s*\(\d+\)/ });
   await expect(booksHeader).toHaveAttribute('aria-expanded', 'true');
   await booksHeader.click();
@@ -258,41 +261,26 @@ test('users can create, edit, and delete categories; items follow correctly', as
   await booksHeader.click();
   await expect(booksHeader).toHaveAttribute('aria-expanded', 'true');
 
-  // Rename Books -> Novels (inline header editor)
-  await openCategoryActions(page, 'Books');
-  await page.getByRole('menuitem', { name: /rename category/i }).click();
+  // Rename Books -> Novels (Organize mode's Categories tab)
+  await startReorderMode(page, 'categories');
+  await page.getByRole('button', { name: /rename category books/i }).click();
   // eslint-disable-next-line playwright/no-raw-locators
   await page.locator('input[value="Books"]').fill('Novels');
   await page.getByRole('button', { name: /save category/i }).click();
   await expect(page.getByText('Novels')).toBeVisible();
 
-  // Delete the category and verify item moved to Default (Uncategorized)
-  await page.getByRole('button', { name: /categories/i }).click();
-  await page
-    .getByRole('dialog')
-    .getByRole('listitem')
-    .filter({ hasText: 'Novels' })
-    .getByRole('button', { name: /delete category/i })
-    .click();
+  // Delete the category and verify the item is still visible. With no
+  // custom categories left, the wishlist renders a flat item list — there
+  // is no longer a "Default (Uncategorized)" section to nest it inside.
+  await page.getByRole('button', { name: /delete category novels/i }).click();
+  await page.getByRole('dialog', { name: /delete category/i }).getByRole('button', { name: /^delete$/i }).click();
   await expect(page.getByText('Novels')).toHaveCount(0);
-  // Close the Manage Categories dialog before interacting with the row —
-  // it doesn't auto-dismiss after a single delete and would otherwise
-  // intercept clicks on the row's action menu.
-  await page.keyboard.press('Escape');
-  await expect(
-    page.getByRole('dialog', { name: /manage categories/i }),
-  ).toHaveCount(0);
+  await finishOrganizing(page);
 
-  // Verify the default category section now contains the item
-  // eslint-disable-next-line playwright/no-raw-locators
-  const bookOne = page
-    .locator('div') // or a more specific container selector
-    .filter({
-      has: page.getByText('Default (Uncategorized)'),
-      hasText: 'Book One',
-    })
-    .first();
-  await expect(bookOne).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: /default \(uncategorized\)/i }),
+  ).toHaveCount(0);
+  await expect(page.getByText('Book One').first()).toBeVisible();
 
   // Sanity: open item editor
   await page
@@ -367,14 +355,12 @@ test('owners can drag reorder categories and items across categories', async ({
   await page.goto('/wishlist');
   await page.waitForLoadState('networkidle');
 
-  await page.getByRole('button', { name: /categories/i }).click();
-  await page.getByPlaceholder('Category name').fill('Books');
-  await page.getByRole('button', { name: /create category/i }).click();
-  await expect(page.getByRole('dialog').getByText('Books')).toBeVisible();
-  await page.getByPlaceholder('Category name').fill('Games');
-  await page.getByRole('button', { name: /create category/i }).click();
-  await expect(page.getByRole('dialog').getByText('Games')).toBeVisible();
-  await page.keyboard.press('Escape');
+  await startReorderMode(page, 'categories');
+  await createCategory(page, 'Books');
+  await expect(page.getByText('Books')).toBeVisible();
+  await createCategory(page, 'Games');
+  await expect(page.getByText('Games')).toBeVisible();
+  await finishOrganizing(page);
 
   await addItemToCategory(page, 'Books');
   await page.getByLabel('Title').fill('Book Alpha');

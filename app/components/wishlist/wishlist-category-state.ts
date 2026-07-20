@@ -1,5 +1,13 @@
 export type WishlistCategory = { id: string; name: string; order: number };
 
+// Placeholder id for a category created optimistically, before the server
+// has assigned it a real id. Never a valid target for a mutation that
+// requires an owned, persisted category (e.g. moving an item into it) —
+// the create request may still be in flight or may fail.
+const OPTIMISTIC_CATEGORY_PREFIX = 'optimistic-category:';
+export const isOptimisticCategoryId = (categoryId: string) =>
+  categoryId.startsWith(OPTIMISTIC_CATEGORY_PREFIX);
+
 export type CategoryMutationResult = {
   ok?: boolean;
   intent?: 'create' | 'rename' | 'delete' | 'move';
@@ -51,7 +59,7 @@ export const applyPendingCategoryMutations = ({
   for (const mutation of pendingMutations) {
     if (mutation.type === 'create') {
       if (settledClientMutationIds?.has(mutation.clientMutationId)) continue;
-      const optimisticId = `optimistic-category:${mutation.clientMutationId}`;
+      const optimisticId = `${OPTIMISTIC_CATEGORY_PREFIX}${mutation.clientMutationId}`;
       if (next.some((category) => category.id === optimisticId)) continue;
       next.push({
         id: optimisticId,

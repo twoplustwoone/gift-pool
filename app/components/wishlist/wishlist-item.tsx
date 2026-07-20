@@ -16,14 +16,6 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#app/components/ui/dialog.tsx';
 import { DropdownMenuItem } from '#app/components/ui/dropdown-menu.tsx';
 import {
   MobileBottomSheet,
@@ -34,13 +26,21 @@ import {
   MobileBottomSheetTrigger,
 } from '#app/components/ui/mobile-bottom-sheet.tsx';
 import {
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogDescription as DialogDescription,
+  ResponsiveDialogFooter as DialogFooter,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+} from '#app/components/ui/responsive-dialog';
+import {
   WishlistItemEditor,
   type WishlistItemEditorHandle,
 } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { track } from '#app/utils/analytics.client.ts';
-import { formatCents } from '#app/utils/pool-contributions.ts';
 import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
 import { cn, getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
+import { formatCents } from '#app/utils/pool-contributions.ts';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
@@ -396,8 +396,8 @@ function WishlistNonOwnerExtras({
     if (isPurchasedBySomeoneElse) {
       return (
         <Flex align="center" gap={2}>
-          <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
-          <Text size="sm" className="text-amber-800">
+          <LuGift className="h-4 w-4 text-warning" aria-hidden />
+          <Text size="sm" className="text-warning">
             Someone already grabbed this one.
           </Text>
         </Flex>
@@ -432,8 +432,8 @@ function WishlistNonOwnerExtras({
   if (isClaimed) {
     return (
       <Flex align="center" gap={2}>
-        <LuGift className="h-4 w-4 text-amber-700" aria-hidden />
-        <Text size="sm" className="text-amber-800">
+        <LuGift className="h-4 w-4 text-warning" aria-hidden />
+        <Text size="sm" className="text-warning">
           Someone already grabbed this one.
         </Text>
       </Flex>
@@ -524,7 +524,7 @@ function NonOwnerClaimSlot({
       return (
         <span
           aria-hidden
-          className="flex flex-shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-900 ring-1 ring-inset ring-amber-200"
+          className="flex flex-shrink-0 items-center gap-1 rounded-full bg-warning-muted px-2.5 py-1 text-[11px] font-semibold text-warning ring-1 ring-inset ring-warning/30"
         >
           <LuLock className="h-3.5 w-3.5" />
           Claimed
@@ -552,7 +552,7 @@ function NonOwnerClaimSlot({
           <button
             type="button"
             onClick={(event) => event.stopPropagation()}
-            className="flex flex-shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-900 ring-1 ring-inset ring-amber-200"
+            className="flex flex-shrink-0 items-center gap-1 rounded-full bg-warning-muted px-2.5 py-1 text-[11px] font-semibold text-warning ring-1 ring-inset ring-warning/30"
           >
             <LuLock className="h-3.5 w-3.5" aria-hidden />
             Claimed
@@ -561,7 +561,7 @@ function NonOwnerClaimSlot({
         <MobileBottomSheetContent className="gap-3 sm:gap-4">
           <MobileBottomSheetHeader>
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warning-muted text-warning">
                 <LuLock className="h-5 w-5" aria-hidden />
               </div>
               <MobileBottomSheetTitle>Already claimed</MobileBottomSheetTitle>
@@ -905,7 +905,7 @@ function WishlistItemCardShell({
             </Text>
           ) : null}
           {isListLink ? (
-            <span className="pointer-events-none inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 ring-1 ring-inset ring-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:ring-blue-900">
+            <span className="pointer-events-none inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-inset ring-border">
               <LuLayoutList className="h-3 w-3" aria-hidden />
               List link
             </span>
@@ -1216,7 +1216,7 @@ export const WishlistItem = ({
       ) : null}
       {canDelete ? (
         <DropdownMenuItem
-          className="gap-2 rounded-md px-2 py-2 text-sm text-red-600 focus:text-red-700"
+          className="gap-2 rounded-md px-2 py-2 text-sm text-destructive focus:text-destructive"
           onSelect={() => setDeleteOpen(true)}
         >
           <LuTrash className="h-4 w-4" aria-hidden />

@@ -1,13 +1,14 @@
 import  { type UserImage } from '@prisma/client';
+import { LuSettings } from 'react-icons/lu';
 
 import {
   WishlistItemEditor,
 } from '#app/routes/wishlist+/__wishlist-item-editor';
 
-import { Text } from '../ui-kit';
-import { CategoryManager } from './category-manager';
+import { Button } from '../ui/button';
+import { Flex, Text } from '../ui-kit';
 import { WishlistAvatar } from './wishlist-avatar';
-import  { type CategoryMutationResult, type WishlistCategory } from './wishlist-category-state';
+import  { type WishlistCategory } from './wishlist-category-state';
 import { WishlistLinkCopyButton } from './wishlist-link-copy-button';
 import { WishlistShareDialog } from './wishlist-share-dialog';
 
@@ -29,9 +30,8 @@ export const WishlistHeader = ({
   isPublicView,
   hideOwnerControls,
   hideFloatingAddButton,
-  onStartItemReorder,
-  onStartCategoryReorder,
-  onCategoryMutationResult,
+  showOrganize,
+  onStartOrganize,
 }: {
   isOwner: boolean;
   user: UserForHeader;
@@ -41,9 +41,8 @@ export const WishlistHeader = ({
   isPublicView: boolean;
   hideOwnerControls: boolean;
   hideFloatingAddButton: boolean;
-  onStartItemReorder: () => void;
-  onStartCategoryReorder: () => void;
-  onCategoryMutationResult: (result: CategoryMutationResult) => void;
+  showOrganize: boolean;
+  onStartOrganize: () => void;
 }) => (
   <div className="w-full border-b bg-surface shadow">
     <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
@@ -94,13 +93,19 @@ export const WishlistHeader = ({
             categories={user.wishlistCategories}
             hideFloatingTrigger={hideFloatingAddButton}
           />
-          <CategoryManager
-            categories={user.wishlistCategories}
-            compact
-            onStartItemReorder={onStartItemReorder}
-            onStartCategoryReorder={onStartCategoryReorder}
-            onMutationResult={onCategoryMutationResult}
-          />
+          {showOrganize ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="whitespace-nowrap"
+              onClick={onStartOrganize}
+            >
+              <Flex gap={1.5} className="items-center">
+                <LuSettings className="h-4 w-4" aria-hidden />
+                <Text size="sm">Organize</Text>
+              </Flex>
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </div>

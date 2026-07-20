@@ -285,6 +285,30 @@ export const useWishlistReorder = ({
   };
 
   const customCategoryIds = orderedCategories.map((category) => category.id);
+
+  const commitCategoryOrder = (oldIndex: number, newIndex: number) => {
+    if (
+      oldIndex === -1 ||
+      newIndex < 0 ||
+      newIndex >= customCategoryIds.length ||
+      oldIndex === newIndex
+    ) {
+      return false;
+    }
+
+    const nextCategoryIds = arrayMove(customCategoryIds, oldIndex, newIndex);
+    const previousItems = items;
+    const previousCategories = orderedCategories;
+
+    setOrderedCategories(buildNextCategories(orderedCategories, nextCategoryIds));
+    submitCategoryReorder({
+      ids: nextCategoryIds,
+      previousItems,
+      previousCategories,
+    });
+    return true;
+  };
+
   const finishCategoryDrag = (activeDragId: string, overDragId: string) => {
     const activeCategoryId = getCategoryIdFromDragId(activeDragId);
     const overCategoryId = getCategoryIdFromDragId(overDragId);
@@ -296,19 +320,94 @@ export const useWishlistReorder = ({
       return false;
     }
 
-    const oldIndex = customCategoryIds.indexOf(activeCategoryId);
-    const newIndex = customCategoryIds.indexOf(overCategoryId);
-    if (oldIndex === -1 || newIndex === -1) {
+    return commitCategoryOrder(
+      customCategoryIds.indexOf(activeCategoryId),
+      customCategoryIds.indexOf(overCategoryId),
+    );
+  };
+
+  // Non-drag alternative: move a category one slot up or down.
+  const moveCategoryByOffset = (categoryId: string, delta: -1 | 1) => {
+    const oldIndex = customCategoryIds.indexOf(categoryId);
+    return commitCategoryOrder(oldIndex, oldIndex + delta);
+  };
+
+  // Non-drag alternative: move an item one slot up or down within its category.
+  const moveItemByOffset = (itemId: string, delta: -1 | 1) => {
+    const item = itemById.get(itemId);
+    if (!item) return false;
+
+    const categoryId = item.categoryId ?? null;
+    const categoryKey = categoryKeyFromId(categoryId);
+    const orderedIds = itemIdsByCategoryKey[categoryKey] ?? [];
+    const oldIndex = orderedIds.indexOf(itemId);
+    const newIndex = oldIndex + delta;
+    if (oldIndex === -1 || newIndex < 0 || newIndex >= orderedIds.length) {
       return false;
     }
 
-    const nextCategoryIds = arrayMove(customCategoryIds, oldIndex, newIndex);
+    const nextIds = arrayMove(orderedIds, oldIndex, newIndex);
     const previousItems = items;
     const previousCategories = orderedCategories;
+    setItems((prev) =>
+      applyCategoryItemOrder({
+        prevItems: prev,
+        categoryId,
+        orderedIds: nextIds,
+      }),
+    );
+    submitItemReorder({
+      sourceCategoryId: categoryId,
+      targetCategoryId: categoryId,
+      sourceOrderedItemIds: nextIds,
+      previousItems,
+      previousCategories,
+    });
+    return true;
+  };
 
-    setOrderedCategories(buildNextCategories(orderedCategories, nextCategoryIds));
-    submitCategoryReorder({
-      ids: nextCategoryIds,
+  // Non-drag alternative: move an item to the end of another category.
+  const moveItemToCategory = (
+    itemId: string,
+    targetCategoryId: string | null,
+  ) => {
+    const item = itemById.get(itemId);
+    if (!item) return false;
+
+    const sourceCategoryId = item.categoryId ?? null;
+    if (sourceCategoryId === targetCategoryId) return false;
+
+    const sourceIds =
+      itemIdsByCategoryKey[categoryKeyFromId(sourceCategoryId)] ?? [];
+    const targetIds =
+      itemIdsByCategoryKey[categoryKeyFromId(targetCategoryId)] ?? [];
+    const { sourceIds: nextSourceIds, targetIds: nextTargetIds } =
+      moveItemIdBetweenLists({
+        sourceIds,
+        targetIds,
+        movedId: itemId,
+        targetIndex: targetIds.length,
+      });
+
+    const previousItems = items;
+    const previousCategories = orderedCategories;
+    setItems((prev) => {
+      const sourceUpdated = applyCategoryItemOrder({
+        prevItems: prev,
+        categoryId: sourceCategoryId,
+        orderedIds: nextSourceIds,
+      });
+      return applyCategoryItemOrder({
+        prevItems: sourceUpdated,
+        categoryId: targetCategoryId,
+        orderedIds: nextTargetIds,
+      });
+    });
+    submitItemReorder({
+      sourceCategoryId,
+      targetCategoryId,
+      sourceOrderedItemIds: nextSourceIds,
+      targetOrderedItemIds: nextTargetIds,
       previousItems,
       previousCategories,
     });
@@ -446,6 +545,9 @@ export const useWishlistReorder = ({
     startItemReorderMode,
     startCategoryReorderMode,
     finishReorderMode,
+    moveCategoryByOffset,
+    moveItemByOffset,
+    moveItemToCategory,
     handleDragStart,
     handleDragOver,
     handleDragEnd,
