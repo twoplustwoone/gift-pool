@@ -104,7 +104,7 @@ const PoolDetailRoute = () => {
         <div
           className={
             fetcher.data.ok
-              ? 'rounded-md border border-emerald-400/50 bg-emerald-50/60 p-3 text-sm text-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200'
+              ? 'rounded-md border border-success/40 bg-success-muted p-3 text-sm text-success'
               : 'rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive'
           }
         >
@@ -154,7 +154,7 @@ const PoolDetailRoute = () => {
           {pool.contributors.length === 0 ? (
             <EmptyRow>No contributors yet.</EmptyRow>
           ) : (
-            <div className="overflow-hidden rounded-md border border-border/50">
+            <div className="overflow-x-auto rounded-md border border-border/50">
               <table className="min-w-full divide-y divide-border/60 text-sm">
                 <thead className="bg-muted/40">
                   <tr>
@@ -183,8 +183,8 @@ const PoolDetailRoute = () => {
                           className={cn(
                             'inline-block rounded px-1.5 py-0.5 text-xs font-semibold',
                             c.hasPaid
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+                              ? 'bg-success-muted text-success'
+                              : 'bg-muted text-muted-foreground',
                           )}
                         >
                           {c.hasPaid ? 'paid' : 'unpaid'}
@@ -210,7 +210,7 @@ const PoolDetailRoute = () => {
                   className={cn(
                     'flex items-center justify-between py-2',
                     idea.id === pool.chosenIdeaId &&
-                      'rounded bg-emerald-50/60 px-2 dark:bg-emerald-950/20',
+                      'rounded bg-success-muted px-2',
                   )}
                 >
                   <div>
@@ -219,7 +219,7 @@ const PoolDetailRoute = () => {
                       by {idea.proposedBy.username}
                     </span>
                     {idea.id === pool.chosenIdeaId ? (
-                      <span className="ml-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      <span className="ml-2 text-xs font-semibold text-success">
                         chosen
                       </span>
                     ) : null}

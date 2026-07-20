@@ -113,7 +113,7 @@ const PoolsRoute = () => {
               : 'No pools match this filter.'}
           </EmptyRow>
         ) : (
-          <div className="overflow-hidden rounded-md border border-border/50">
+          <div className="overflow-x-auto rounded-md border border-border/50">
             <table className="min-w-full divide-y divide-border/60">
               <thead className="bg-muted/40">
                 <tr>
