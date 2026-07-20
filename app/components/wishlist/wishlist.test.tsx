@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRoutesStub } from 'react-router';
 import { vi, describe, it, expect } from 'vitest';
@@ -64,23 +64,6 @@ vi.mock('#app/routes/wishlist+/__wishlist-item-editor', () => {
 
   return { WishlistItemEditor };
 });
-
-vi.mock('./category-manager', () => ({
-  CategoryManager: ({ onStartItemReorder, onStartCategoryReorder }: any) => (
-    <div>
-      {onStartItemReorder ? (
-        <button type="button" onClick={onStartItemReorder}>
-          Start item reorder
-        </button>
-      ) : null}
-      {onStartCategoryReorder ? (
-        <button type="button" onClick={onStartCategoryReorder}>
-          Start category reorder
-        </button>
-      ) : null}
-    </div>
-  ),
-}));
 
 describe('Wishlist components', () => {
   it('renders wishlist with items', async () => {
@@ -292,7 +275,9 @@ describe('Wishlist components', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows default category for viewers when it has items', async () => {
+  it('renders a flat item list with no category chrome when there are no custom categories', async () => {
+    // Item-first composition: with zero custom categories the wishlist is a
+    // plain item list, not a single "Default (Uncategorized)" section.
     const App = createRoutesStub([
       {
         path: '/',
@@ -320,6 +305,48 @@ describe('Wishlist components', () => {
                 },
               ],
               wishlistCategories: [],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    await screen.findByText('Default item');
+    expect(
+      screen.queryByRole('heading', { name: /default \(uncategorized\)/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows Default (Uncategorized) alongside custom categories when it has items', async () => {
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={false}
+            user={{
+              id: 'user6',
+              username: 'jim',
+              name: 'Jim',
+              image: { id: 'img1' },
+              wishlistItems: [
+                {
+                  id: 'item-1',
+                  title: 'Default item',
+                  ownerId: 'user2',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                  categoryId: null,
+                  purchase: null,
+                  sortOrder: 0,
+                  updatedAt: new Date(),
+                  status: 'ACTIVE',
+                },
+              ],
+              wishlistCategories: [{ id: 'cat1', name: 'Books', order: 0 }],
             }}
           />
         ),
@@ -493,7 +520,7 @@ describe('Wishlist components', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows reorder handles for owners only after entering reorder mode', async () => {
+  it('shows reorder handles for owners only after entering Organize mode', async () => {
     const App = createRoutesStub([
       {
         path: '/',
@@ -535,12 +562,10 @@ describe('Wishlist components', () => {
       screen.queryByRole('button', { name: /drag item item one/i }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /start item reorder/i }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: /^organize$/i }));
     await screen.findByRole('button', { name: /drag item item one/i });
     expect(
-      screen.queryByRole('button', { name: /category actions for books/i }),
+      screen.queryByRole('button', { name: /add item to books/i }),
     ).not.toBeInTheDocument();
 
     fireEvent.click(
@@ -551,12 +576,12 @@ describe('Wishlist components', () => {
       screen.queryByRole('button', { name: /drag item item one/i }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /done reordering/i }));
+    fireEvent.click(screen.getByRole('button', { name: /done organizing/i }));
     expect(
       screen.queryByRole('button', { name: /drag category books/i }),
     ).not.toBeInTheDocument();
 
-    await screen.findByRole('button', { name: /category actions for books/i });
+    await screen.findByRole('button', { name: /add item to books/i });
     expect(
       screen.getAllByRole('button', { name: /item actions for item one/i }),
     ).toHaveLength(1);
@@ -567,7 +592,7 @@ describe('Wishlist components', () => {
     expect(itemRows[0]).toHaveAttribute('data-drag-state', 'idle');
   });
 
-  it('keeps the category delete dialog open after selecting delete from row actions', async () => {
+  it('opens a confirmation dialog after selecting delete from Organize mode', async () => {
     const user = userEvent.setup();
     const App = createRoutesStub([
       {
@@ -590,21 +615,21 @@ describe('Wishlist components', () => {
 
     render(<App />);
 
+    await user.click(await screen.findByRole('button', { name: /^organize$/i }));
     await user.click(
-      await screen.findByRole('button', {
-        name: /category actions for books/i,
-      }),
+      await screen.findByRole('button', { name: /category reorder mode/i }),
     );
     await user.click(
-      await screen.findByRole('menuitem', { name: /delete category/i }),
+      await screen.findByRole('button', { name: /delete category books/i }),
     );
 
+    const dialog = await screen.findByRole('dialog', {
+      name: /delete category/i,
+    });
+    expect(dialog).toBeVisible();
     expect(
-      await screen.findByRole('dialog', { name: /delete category/i }),
-    ).toBeVisible();
-    expect(
-      screen.queryByRole('menuitem', { name: /delete category/i }),
-    ).not.toBeInTheDocument();
+      within(dialog).getByRole('button', { name: /^delete$/i }),
+    ).toBeInTheDocument();
   });
 
   it('does not show drag handles for viewers', async () => {
