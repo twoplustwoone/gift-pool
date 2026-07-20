@@ -510,7 +510,7 @@ function OrganizeButton({
       <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Organize with which circle?</DialogTitle>
+            <DialogTitle>Organize with which group?</DialogTitle>
             <DialogDescription>
               Your call, every time — we never pick for you.
             </DialogDescription>
@@ -1418,7 +1418,7 @@ function PostOccasionFlow({
           </span>
           <div className="min-w-0 flex-1">
             <div className="text-[13.5px] font-extrabold">
-              The circle's pool — recorded
+              The group's pool — recorded
             </div>
             <div className="mt-px text-xs font-semibold text-muted-foreground">
               {postOccasion.recordedGroupPoolName} · saved to memory
