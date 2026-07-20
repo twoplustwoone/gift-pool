@@ -11,13 +11,13 @@ import { useFetcher } from 'react-router';
 import { Button, buttonVariants } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import {
-  MobileBottomSheet,
-  MobileBottomSheetContent,
-  MobileBottomSheetDescription,
-  MobileBottomSheetFooter,
-  MobileBottomSheetHeader,
-  MobileBottomSheetTitle,
-} from '#app/components/ui/mobile-bottom-sheet.tsx';
+  ResponsiveDialog as MobileBottomSheet,
+  ResponsiveDialogContent as MobileBottomSheetContent,
+  ResponsiveDialogDescription as MobileBottomSheetDescription,
+  ResponsiveDialogFooter as MobileBottomSheetFooter,
+  ResponsiveDialogHeader as MobileBottomSheetHeader,
+  ResponsiveDialogTitle as MobileBottomSheetTitle,
+} from '#app/components/ui/responsive-dialog.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { cn, getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx';
 import {

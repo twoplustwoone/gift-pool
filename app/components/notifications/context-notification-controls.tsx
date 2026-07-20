@@ -114,7 +114,7 @@ export function ContextNotificationControl({
           className={cn(
             'inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm font-medium outline-none ring-ring focus-visible:ring-2',
             awareness.notificationOff
-              ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100'
+              ? 'border-warning/30 bg-warning-muted text-warning'
               : 'border-border bg-background text-foreground hover:bg-muted',
           )}
           aria-label={`Notifications for ${contextLabel}: ${displayLabel}`}
@@ -319,7 +319,7 @@ export function ContextNotificationAwarenessNotice({
     inheritedFromLabel,
   );
   return (
-    <div className="flex gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+    <div className="flex gap-3 rounded-xl border border-warning/30 bg-warning-muted px-3 py-3 text-warning">
       <LuBellOff className="mt-1 h-5 w-5 shrink-0" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <p className="font-medium">{copy.title}</p>

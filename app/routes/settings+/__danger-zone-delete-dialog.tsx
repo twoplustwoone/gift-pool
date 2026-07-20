@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useFetcher } from 'react-router';
 import { Button } from '#app/components/ui/button.tsx';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#app/components/ui/dialog.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
+import {
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogDescription as DialogDescription,
+  ResponsiveDialogFooter as DialogFooter,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+} from '#app/components/ui/responsive-dialog.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 
 type DangerZoneDeleteDialogProps = Readonly<{
