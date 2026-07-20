@@ -28,7 +28,6 @@ import {
 } from 'react-icons/lu';
 import { Form, useActionData, useFetcher } from 'react-router';
 import { z } from 'zod';
-import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { Field, TextareaField } from '#app/components/forms.tsx';
 import { useToast } from '#app/components/toaster.tsx';
 import { Button } from '#app/components/ui/button';
@@ -56,6 +55,7 @@ import {
 } from '#app/components/ui/mobile-bottom-sheet';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Flex, Text } from '#app/components/ui-kit';
+import { useIsDesktop } from '#app/components/wishlist/hooks/use-is-desktop.ts';
 import { track } from '#app/utils/analytics.client.ts';
 import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
 import { cn, getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
@@ -111,27 +111,6 @@ export function looksLikeWishlistUrl(url: string): boolean {
 const ImageActionSchema = z
   .enum(['none', 'upload', 'url', 'auto-detect', 'remove'])
   .default('none');
-
-const useIsDesktop = () => {
-  const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia('(min-width: 640px)').matches;
-  });
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(min-width: 640px)');
-
-    const handleChange = (event: MediaQueryListEvent) => {
-      setIsDesktop(event.matches);
-    };
-
-    setIsDesktop(mediaQuery.matches);
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
-
-  return isDesktop;
-};
 
 export const WishlistItemSchema = z
   .object({
@@ -256,7 +235,7 @@ function UrlFieldWithSuggestion({
         errors={errors}
       />
       {showSuggestion ? (
-        <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+        <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
           <LuInfo className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           <span className="flex-1">
             Looks like an external wishlist. Switch to{' '}
@@ -1766,7 +1745,7 @@ function EditorFormSection({
           </Text>
         ) : null}
         {imageWarning ? (
-          <Text size="sm" className="text-amber-600">
+          <Text size="sm" className="text-warning">
             {imageWarning}
           </Text>
         ) : null}
@@ -2269,13 +2248,3 @@ export const WishlistItemEditor = React.forwardRef<
 );
 
 WishlistItemEditor.displayName = 'WishlistItemEditor';
-
-export const ErrorBoundary = () => (
-  <GeneralErrorBoundary
-    statusHandlers={{
-      404: ({ params }) => (
-        <p>No wishlist item with the id "{params.wishlistId}" exists</p>
-      ),
-    }}
-  />
-);
