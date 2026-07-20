@@ -54,42 +54,74 @@ test.describe('navigation chrome', () => {
       const friendRows = page.getByTestId('friend-row');
 
       await expect(topBar).toHaveAttribute('data-hidden', 'false');
+      await expect(friendRows.first()).toBeVisible({ timeout: 10000 });
 
-      await scrollArea.evaluate((el) =>
-        el.scrollTo({ top: 900, behavior: 'auto' }),
-      );
+      // The hide/show listener attaches in a client useEffect — a single
+      // scrollTo fired before hydration completes is lost forever (the
+      // CI-only line-65 timeout). Re-drive the scroll gesture inside the
+      // poll so a late listener catches a later iteration. Two rAFs between
+      // positions force two distinct scroll events (a lone jump can coalesce
+      // into a delta-0 no-op against the previous iteration's position).
+      const scrollGesture = (from: number, to: number) =>
+        scrollArea.evaluate(
+          async (el, positions) => {
+            el.scrollTop = positions.from;
+            await new Promise((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(resolve)),
+            );
+            el.scrollTop = positions.to;
+            await new Promise((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(resolve)),
+            );
+          },
+          { from, to },
+        );
+
       await expect
-        .poll(async () => topBar.evaluate((node) => node.dataset.hidden), {
-          message: 'top bar should hide after scrolling down',
-        })
+        .poll(
+          async () => {
+            await scrollGesture(700, 900); // downward delta → hide
+            return topBar.evaluate((node) => node.dataset.hidden);
+          },
+          { message: 'top bar should hide after scrolling down' },
+        )
         .toBe('true');
 
-      await scrollArea.evaluate((el) =>
-        el.scrollTo({ top: 50, behavior: 'auto' }),
-      );
       await expect
-        .poll(async () => topBar.evaluate((node) => node.dataset.hidden), {
-          message: 'top bar should reappear after scrolling up',
-        })
+        .poll(
+          async () => {
+            await scrollGesture(900, 50); // upward delta → reveal
+            return topBar.evaluate((node) => node.dataset.hidden);
+          },
+          { message: 'top bar should reappear after scrolling up' },
+        )
         .toBe('false');
 
-      await expect(friendRows.first()).toBeVisible({ timeout: 10000 });
-      await friendRows.last().scrollIntoViewIfNeeded();
-
-      const nav = page.getByTestId('bottom-nav');
-      const [navBox, lastFriendBox] = await Promise.all([
-        nav.boundingBox(),
-        friendRows.last().boundingBox(),
-      ]);
-
-      expect(navBox).not.toBeNull();
-      expect(lastFriendBox).not.toBeNull();
-
-      if (navBox && lastFriendBox) {
-        const navTop = navBox.y;
-        const friendBottom = lastFriendBox.y + lastFriendBox.height;
-        expect(friendBottom - navTop).toBeLessThanOrEqual(1);
-      }
+      // Measure both rects in ONE evaluate (project rule: separate awaited
+      // boundingBox() calls get invalidated by hydration-driven layout
+      // shifts like the PWA install banner) — and poll it, since the banner
+      // can land mid-assertion.
+      await expect
+        .poll(
+          () =>
+            page.evaluate(() => {
+              const rows = Array.from(
+                document.querySelectorAll('[data-testid="friend-row"]'),
+              );
+              const last = rows[rows.length - 1] as HTMLElement | undefined;
+              const nav = document.querySelector(
+                '[data-testid="bottom-nav"]',
+              ) as HTMLElement | null;
+              if (!last || !nav) return Number.POSITIVE_INFINITY;
+              last.scrollIntoView({ block: 'end' });
+              return (
+                last.getBoundingClientRect().bottom -
+                nav.getBoundingClientRect().top
+              );
+            }),
+          { message: 'bottom nav should sit below the last friend row' },
+        )
+        .toBeLessThanOrEqual(1);
 
       // Scroll deep, navigate away, and confirm scroll resets to top
       await scrollArea.evaluate((el) =>
