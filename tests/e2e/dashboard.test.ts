@@ -116,7 +116,7 @@ test.describe('dashboard', () => {
       await expect(
         page.getByRole('link', { name: /Summer Pool/i }),
       ).toBeVisible();
-      await expect(page.getByText('Open')).toBeVisible();
+      await expect(page.getByText('Collect ideas')).toBeVisible();
       await expect(page.getByText('Jun 14')).toBeVisible();
     } finally {
       await prisma.pool.deleteMany({ where: { id: { in: createdPoolIds } } });

@@ -195,11 +195,11 @@ describe('app/routes/pools+/index.tsx', () => {
       screen.getByText((_, element) => element?.textContent === 'Birthday for Alex'),
     ).toBeInTheDocument();
     expect(screen.getByText('June 14, 2026')).toBeInTheDocument();
-    expect(screen.getByText('Open')).toBeInTheDocument();
+    expect(screen.getByText('Collect ideas')).toBeInTheDocument();
 
     // Switch to Past tab — shows completed pool
     fireEvent.click(screen.getByRole('tab', { name: /^Past/ }));
-    expect(screen.getByText('Delivered')).toBeInTheDocument();
+    expect(screen.getByText('Complete')).toBeInTheDocument();
     expect(screen.getByText('Family')).toBeInTheDocument();
   });
 });

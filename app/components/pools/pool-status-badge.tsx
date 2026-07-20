@@ -1,13 +1,15 @@
 import { cn } from '#app/utils/misc.tsx';
 import {
-  POOL_STATUS_LABELS,
+  POOL_STAGE_LABELS,
   type PoolStatus,
 } from '#app/utils/pool-constants.ts';
 
-// Shared pool status presentation (handoff §9 "Pool stage indicator" seam).
-// Semantic roles: teal = coordination underway, amber = waiting on people,
-// green = decision made, muted = historical. Labels always accompany color,
-// so two waiting states may share amber. Dark values flip via the tokens.
+// Shared pool stage indicator (handoff §9 seam). Consumer surfaces show the
+// task-oriented Pool Stage names (Collect ideas / Choose the gift / …), the
+// one user-facing mapping per §10.4. Semantic roles: teal = coordination
+// underway, amber = waiting on people, green = decision made, muted =
+// historical. Labels always accompany color, so two waiting states may
+// share amber. Dark values flip via the tokens.
 export const poolStatusBadgeClasses: Record<PoolStatus, string> = {
   OPEN: 'bg-pool/15 text-pool',
   VOTING: 'bg-warning-muted text-warning',
@@ -31,6 +33,6 @@ export const PoolStatusBadge = ({
       className,
     )}
   >
-    {POOL_STATUS_LABELS[status]}
+    {POOL_STAGE_LABELS[status]}
   </span>
 );

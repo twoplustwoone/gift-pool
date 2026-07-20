@@ -214,10 +214,10 @@ describe('home surface components', () => {
       ],
     });
 
-    expect(screen.getByText('Open')).toBeInTheDocument();
-    expect(screen.getByText('Decided')).toBeInTheDocument();
-    expect(screen.getByText('Voting')).toBeInTheDocument();
-    expect(screen.getByText('Purchased')).toBeInTheDocument();
+    expect(screen.getByText('Collect ideas')).toBeInTheDocument();
+    expect(screen.getByText('Buy the gift')).toBeInTheDocument();
+    expect(screen.getByText('Choose the gift')).toBeInTheDocument();
+    expect(screen.getByText('Deliver it')).toBeInTheDocument();
   });
 
   it('pool card shows formatted event date when eventDate is non-null', () => {
