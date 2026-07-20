@@ -70,7 +70,12 @@ export async function cleanupDb(prisma: PrismaClient) {
   >`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma_migrations';`;
 
   try {
-    // Disable FK constraints to avoid relation conflicts during deletion
+    // Disable FK constraints to avoid relation conflicts during deletion,
+    // and wait out transient SQLITE_BUSY from still-settling background
+    // writes instead of failing — a failed cleanup console.errors, which the
+    // console-error guard turns into a spurious failure of the NEXT test.
+    // queryRaw, not executeRaw: this PRAGMA returns the new value as a row.
+    await prisma.$queryRawUnsafe(`PRAGMA busy_timeout = 5000`);
     await prisma.$executeRawUnsafe(`PRAGMA foreign_keys = OFF`);
     await prisma.$transaction([
       // Delete all rows from each table, preserving table structures
