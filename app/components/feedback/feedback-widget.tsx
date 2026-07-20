@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { LuMessageSquarePlus } from 'react-icons/lu';
 import { useLocation } from 'react-router';
 import {
-  MobileBottomSheet,
-  MobileBottomSheetContent,
-  MobileBottomSheetDescription,
-  MobileBottomSheetHeader,
-  MobileBottomSheetTitle,
-  MobileBottomSheetTrigger,
-} from '#app/components/ui/mobile-bottom-sheet.tsx';
+  ResponsiveDialog as MobileBottomSheet,
+  ResponsiveDialogContent as MobileBottomSheetContent,
+  ResponsiveDialogDescription as MobileBottomSheetDescription,
+  ResponsiveDialogHeader as MobileBottomSheetHeader,
+  ResponsiveDialogTitle as MobileBottomSheetTitle,
+  ResponsiveDialogTrigger as MobileBottomSheetTrigger,
+} from '#app/components/ui/responsive-dialog.tsx';
 import { FeedbackForm } from './feedback-form.tsx';
 
 // Routes where a floating "give feedback" button would be redundant or get in
@@ -34,8 +34,9 @@ export const FeedbackWidget = () => {
   if (suppressed) return null;
 
   return (
-    // MobileBottomSheet renders a bottom sheet on mobile and a centered dialog
-    // on desktop — the preferred mobile pattern for transient content.
+    // ResponsiveDialog (aliased as MobileBottomSheet) renders a bottom sheet on
+    // mobile and a centered dialog on desktop — the preferred mobile pattern
+    // for transient content.
     <MobileBottomSheet open={open} onOpenChange={setOpen}>
       {/* Lives in the top-bar cluster next to the bell/theme/avatar — a
           secondary-weight icon, not a floating FAB. A floating button at the

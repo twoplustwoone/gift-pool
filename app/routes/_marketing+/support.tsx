@@ -69,7 +69,7 @@ const SupportRoute = () => {
       </section>
 
       <section className="mt-16">
-        <h2 className="text-center text-xl font-semibold tracking-tight md:text-2xl">
+        <h2 className="text-center text-h5">
           Frequently asked questions
         </h2>
         <dl className="mt-6 divide-y divide-border">
@@ -87,7 +87,7 @@ const SupportRoute = () => {
       </section>
 
       <section className="mt-16" id="affiliate">
-        <h2 className="text-center text-xl font-semibold tracking-tight md:text-2xl">
+        <h2 className="text-center text-h5">
           Affiliate links
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-center text-body-md leading-relaxed text-muted-foreground">
