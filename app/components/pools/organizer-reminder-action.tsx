@@ -451,7 +451,7 @@ function OrganizerReminderSendOutcome({
   return (
     <>
       <ResponsiveDialogHeader>
-        <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+        <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-success-muted text-success">
           <LuCheck className="h-5 w-5" aria-hidden />
         </div>
         <ResponsiveDialogTitle>Reminder queued</ResponsiveDialogTitle>

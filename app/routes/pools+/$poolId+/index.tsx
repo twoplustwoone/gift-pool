@@ -187,7 +187,7 @@ const IdeaCard = ({
             </a>
           )}
           {idea.wishlistItem && (
-            <span className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-700 dark:border-teal-800 dark:bg-teal-950 dark:text-teal-300">
+            <span className="inline-flex items-center rounded-full border border-pool/30 bg-pool/15 px-2.5 py-0.5 text-xs font-medium text-pool">
               From wishlist
             </span>
           )}
@@ -765,12 +765,12 @@ const ContributorsList = ({
                           </Badge>
                         )}
                         {isPurchaser && (
-                          <Badge className="h-4 bg-amber-100 px-1.5 text-[10px] text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                          <Badge className="h-4 bg-warning-muted px-1.5 text-[10px] text-warning">
                             Buyer
                           </Badge>
                         )}
                         {isDeliverer && (
-                          <Badge className="h-4 bg-blue-100 px-1.5 text-[10px] text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          <Badge className="h-4 bg-pool/15 px-1.5 text-[10px] text-pool">
                             Delivery
                           </Badge>
                         )}
@@ -834,7 +834,7 @@ const AssignRolesSection = ({
         {/* Who's buying */}
         <Stack gap={2}>
           <div className="flex items-center gap-1.5 text-sm font-medium">
-            <LuPackage size={14} className="text-amber-600" />
+            <LuPackage size={14} className="text-warning" />
             Who's buying the gift?
           </div>
           <div className="flex flex-col gap-1.5">
@@ -850,14 +850,14 @@ const AssignRolesSection = ({
                     disabled={isCurrentBuyer}
                     className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
                       isCurrentBuyer
-                        ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950'
+                        ? 'border-warning/40 bg-warning-muted'
                         : 'hover:bg-muted/50'
                     }`}
                   >
                     <Avatar size={7} image={c.user.image} user={c.user} />
                     <span className="flex-1">{getUserDisplayName(c.user)}</span>
                     {isCurrentBuyer && (
-                      <LuCheck size={14} className="text-amber-600" />
+                      <LuCheck size={14} className="text-warning" />
                     )}
                   </button>
                 </buyerFetcher.Form>
@@ -869,7 +869,7 @@ const AssignRolesSection = ({
         {/* Who's delivering */}
         <Stack gap={2}>
           <div className="flex items-center gap-1.5 text-sm font-medium">
-            <LuTruck size={14} className="text-blue-600" />
+            <LuTruck size={14} className="text-pool" />
             Who's delivering?
             <span className="text-xs font-normal text-muted-foreground">
               (optional)
@@ -888,14 +888,14 @@ const AssignRolesSection = ({
                     disabled={isCurrentDeliverer}
                     className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
                       isCurrentDeliverer
-                        ? 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950'
+                        ? 'border-pool/30 bg-pool/15'
                         : 'hover:bg-muted/50'
                     }`}
                   >
                     <Avatar size={7} image={c.user.image} user={c.user} />
                     <span className="flex-1">{getUserDisplayName(c.user)}</span>
                     {isCurrentDeliverer && (
-                      <LuCheck size={14} className="text-blue-600" />
+                      <LuCheck size={14} className="text-pool" />
                     )}
                   </button>
                 </delivererFetcher.Form>
@@ -1108,7 +1108,7 @@ const PoolIndex = () => {
           <Card className="border-dashed bg-muted/20 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex min-w-0 items-start gap-3">
-                <LuPackage className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <LuPackage className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                 <div>
                   <p className="text-sm font-medium">Waiting for the buyer</p>
                   <p className="text-xs text-muted-foreground">
@@ -1153,7 +1153,7 @@ const PoolIndex = () => {
           <Card className="border-dashed bg-muted/20 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex min-w-0 items-start gap-3">
-                <LuTruck className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                <LuTruck className="mt-0.5 h-4 w-4 shrink-0 text-pool" />
                 <div>
                   <p className="text-sm font-medium">Waiting for delivery</p>
                   <p className="text-xs text-muted-foreground">
@@ -1182,7 +1182,7 @@ const PoolIndex = () => {
               Ideas{pool.ideas.length > 0 && ` (${pool.ideas.length})`}
             </SectionHeading>
             {isVoting && (
-              <Badge className="bg-violet-100 text-xs text-violet-800">
+              <Badge className="bg-warning-muted text-xs text-warning">
                 Voting open
               </Badge>
             )}
