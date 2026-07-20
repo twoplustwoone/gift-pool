@@ -245,6 +245,17 @@ export async function logClientEnvironmentObservation({
  * callers that genuinely need the persisted row before returning — e.g.
  * the `api.analytics` endpoint, which fans out from a `sendBeacon`.
  */
+// In-flight background writes, so tests can drain them before resetting the
+// database — an un-awaited create colliding with cleanup's DELETE transaction
+// produced CI-only failures in whichever test ran next. Negligible runtime
+// cost in production (one Set add/delete per queued event).
+const inFlightWrites = new Set<Promise<unknown>>();
+
+/** Await every queued background write (test hook — see db-setup). */
+export async function drainQueuedAnalytics(): Promise<void> {
+  await Promise.allSettled([...inFlightWrites]);
+}
+
 export function queueLogEvent(input: LogEventInput): { eventId: string } {
   // Run validation synchronously so misuse surfaces as a fast throw in dev
   // instead of a silent Sentry-only failure.
@@ -253,9 +264,11 @@ export function queueLogEvent(input: LogEventInput): { eventId: string } {
     throw new Error(`userId is required for analytics event "${input.name}"`);
   }
   const eventId = input.eventId ?? randomUUID();
-  void logEvent({ ...input, eventId }).catch((error: unknown) => {
+  const write = logEvent({ ...input, eventId }).catch((error: unknown) => {
     captureException(error);
   });
+  inFlightWrites.add(write);
+  void write.finally(() => inFlightWrites.delete(write));
   return { eventId };
 }
 
