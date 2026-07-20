@@ -4,8 +4,18 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRoutesStub } from 'react-router';
-import { vi, describe, it, expect } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { buildMoveTargets } from './wishlist';
 import { Wishlist } from './index';
+
+// Hoisted so every `useFetcher()` call returns the SAME `Form` component
+// reference — an inline `(props) => <form {...props} />` defined per call
+// gives React a new component type on every re-render, which unmounts and
+// remounts the form (and any input inside it) instead of reconciling.
+const { MockFetcherForm, mockFetcherSubmit } = vi.hoisted(() => ({
+  MockFetcherForm: (props: any) => <form {...props} />,
+  mockFetcherSubmit: vi.fn(),
+}));
 
 vi.mock('#app/utils/user.ts', async () => {
   const actual = await vi.importActual('#app/utils/user.ts');
@@ -30,8 +40,8 @@ vi.mock('react-router', async () => {
     ...actual,
     useActionData: () => undefined,
     useFetcher: () => ({
-      Form: (props: any) => <form {...props} />,
-      submit: () => {},
+      Form: MockFetcherForm,
+      submit: mockFetcherSubmit,
       state: 'idle',
       data: undefined,
     }),
@@ -66,6 +76,10 @@ vi.mock('#app/routes/wishlist+/__wishlist-item-editor', () => {
 });
 
 describe('Wishlist components', () => {
+  beforeEach(() => {
+    mockFetcherSubmit.mockClear();
+  });
+
   it('renders wishlist with items', async () => {
     const App = createRoutesStub([
       {
@@ -355,10 +369,12 @@ describe('Wishlist components', () => {
 
     render(<App />);
 
-    await screen.findByRole('heading', {
-      name: /default \(uncategorized\).*1/i,
-    });
-    await screen.findByText('Default item');
+    expect(
+      await screen.findByRole('heading', {
+        name: /default \(uncategorized\).*1/i,
+      }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('Default item')).toBeInTheDocument();
   });
 
   it('renders empty categories', async () => {
@@ -384,6 +400,148 @@ describe('Wishlist components', () => {
     render(<App />);
 
     await screen.findByRole('heading', { name: /books \(0\)/i });
+  });
+
+  it('shows the view toggle once a past item exists and switches between views', async () => {
+    const user = userEvent.setup();
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={true}
+            user={{
+              id: 'user-past',
+              username: 'jane',
+              name: 'Jane',
+              image: { id: 'img1' },
+              wishlistItems: [
+                {
+                  id: 'item-1',
+                  title: 'Active Item',
+                  ownerId: 'user-past',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                  categoryId: null,
+                  sortOrder: 0,
+                  updatedAt: new Date(),
+                  status: 'ACTIVE',
+                },
+                {
+                  id: 'item-2',
+                  title: 'Past Item',
+                  ownerId: 'user-past',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                  categoryId: null,
+                  sortOrder: 0,
+                  updatedAt: new Date(),
+                  status: 'ARCHIVED',
+                },
+              ],
+              wishlistCategories: [],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    await screen.findByText('Active Item');
+    expect(screen.queryByText('Past Item')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^past items$/i }));
+    expect(await screen.findByText('Past Item')).toBeInTheDocument();
+    expect(screen.queryByText('Active Item')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^wishlist$/i }));
+    expect(await screen.findByText('Active Item')).toBeInTheDocument();
+  });
+
+  it('starts a flat (category-free) reorder list when the owner enters Organize with no categories', async () => {
+    const user = userEvent.setup();
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={true}
+            user={{
+              id: 'user-flat',
+              username: 'jane',
+              name: 'Jane',
+              image: { id: 'img1' },
+              wishlistItems: [
+                {
+                  id: 'item-1',
+                  title: 'Flat Item',
+                  ownerId: 'user-flat',
+                  note: null,
+                  url: null,
+                  type: 'text',
+                  categoryId: null,
+                  sortOrder: 0,
+                  updatedAt: new Date(),
+                  status: 'ACTIVE',
+                },
+              ],
+              wishlistCategories: [],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: /^organize$/i }));
+    expect(
+      await screen.findByRole('button', { name: /drag item flat item/i }),
+    ).toBeInTheDocument();
+
+    // Swap to categories then back to items — exercises both branches of
+    // the Organize mode toggle.
+    await user.click(
+      screen.getByRole('button', { name: /category reorder mode/i }),
+    );
+    await user.click(screen.getByRole('button', { name: /item reorder mode/i }));
+    expect(
+      await screen.findByRole('button', { name: /drag item flat item/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('opens the quick-add editor from the empty-state CTA', async () => {
+    const user = userEvent.setup();
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={true}
+            user={{
+              id: 'user-empty',
+              username: 'jane',
+              name: 'Jane',
+              image: { id: 'img1' },
+              wishlistItems: [],
+              wishlistCategories: [],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    const addFirstItem = await screen.findByRole('button', {
+      name: /add your first item/i,
+    });
+    // No throw — clicking calls through to the (mocked) editor ref's
+    // openCreate() and flips the quick-add category id state.
+    await user.click(addFirstItem);
   });
 
   it('lets viewers mark an item as purchased', async () => {
@@ -632,6 +790,96 @@ describe('Wishlist components', () => {
     ).toBeInTheDocument();
   });
 
+  it('submits the delete and closes the dialog when confirmed', async () => {
+    const user = userEvent.setup();
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={true}
+            user={{
+              id: 'user1',
+              username: 'jane',
+              name: 'Jane',
+              image: { id: 'img1' },
+              wishlistItems: [],
+              wishlistCategories: [{ id: 'cat-1', name: 'Books', order: 0 }],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: /^organize$/i }));
+    await user.click(
+      await screen.findByRole('button', { name: /category reorder mode/i }),
+    );
+    await user.click(
+      await screen.findByRole('button', { name: /delete category books/i }),
+    );
+
+    const dialog = await screen.findByRole('dialog', {
+      name: /delete category/i,
+    });
+    await user.click(within(dialog).getByRole('button', { name: /^delete$/i }));
+
+    expect(mockFetcherSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ intent: 'delete', id: 'cat-1' }),
+      expect.objectContaining({
+        method: 'post',
+        action: '/wishlist/categories',
+      }),
+    );
+    expect(
+      screen.queryByRole('dialog', { name: /delete category/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('closes the delete dialog without submitting when cancelled', async () => {
+    const user = userEvent.setup();
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <Wishlist
+            isOwner={true}
+            user={{
+              id: 'user1',
+              username: 'jane',
+              name: 'Jane',
+              image: { id: 'img1' },
+              wishlistItems: [],
+              wishlistCategories: [{ id: 'cat-1', name: 'Books', order: 0 }],
+            }}
+          />
+        ),
+      },
+    ]);
+
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: /^organize$/i }));
+    await user.click(
+      await screen.findByRole('button', { name: /category reorder mode/i }),
+    );
+    await user.click(
+      await screen.findByRole('button', { name: /delete category books/i }),
+    );
+
+    const dialog = await screen.findByRole('dialog', {
+      name: /delete category/i,
+    });
+    await user.click(within(dialog).getByRole('button', { name: /^cancel$/i }));
+
+    expect(mockFetcherSubmit).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('dialog', { name: /delete category/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it('does not show drag handles for viewers', async () => {
     const App = createRoutesStub([
       {
@@ -679,5 +927,51 @@ describe('Wishlist components', () => {
     expect(
       screen.queryByRole('button', { name: /item actions for/i }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('buildMoveTargets', () => {
+  it('returns no targets when there are no categories', () => {
+    expect(buildMoveTargets([])).toEqual([]);
+  });
+
+  it('offers Default plus every persisted category as a target', () => {
+    const categories = [
+      { id: 'cat1', name: 'Books', order: 0 },
+      { id: 'cat2', name: 'Games', order: 1 },
+    ];
+    const targets = buildMoveTargets(categories).map(({ id, name }) => ({
+      id,
+      name,
+    }));
+    expect(targets).toEqual([
+      { id: null, name: 'Default (Uncategorized)' },
+      { id: 'cat1', name: 'Books' },
+      { id: 'cat2', name: 'Games' },
+    ]);
+  });
+
+  // Regression test: a category that was just created is represented
+  // client-side by an `optimistic-category:<mutationId>` placeholder id
+  // until its create request settles. Submitting that id as a move
+  // destination fails server-side ownership validation and reverts the
+  // optimistic item move with an error — so it must never be offered.
+  it('excludes an in-flight (optimistic) category from the move targets', () => {
+    const categories = [
+      { id: 'cat1', name: 'Books', order: 0 },
+      { id: 'optimistic-category:mut-1', name: 'Movies', order: 1 },
+    ];
+    const targets = buildMoveTargets(categories);
+    expect(targets.map((target) => target.name)).toEqual([
+      'Default (Uncategorized)',
+      'Books',
+    ]);
+  });
+
+  it('returns no targets when the only category is still optimistic', () => {
+    const categories = [
+      { id: 'optimistic-category:mut-1', name: 'Movies', order: 0 },
+    ];
+    expect(buildMoveTargets(categories)).toEqual([]);
   });
 });

@@ -312,6 +312,91 @@ export function CategoryItemsGrid({
   );
 }
 
+function MoveToCategoryMenu({
+  itemTitle,
+  otherCategories,
+  onSelect,
+}: {
+  itemTitle: string;
+  otherCategories: MoveTargetCategory[];
+  onSelect: (categoryId: string | null) => void;
+}) {
+  if (otherCategories.length === 0) return null;
+
+  return (
+    <WishlistRowActionsMenu label={`Move ${itemTitle} to another category`}>
+      {otherCategories.map((target) => (
+        <WishlistRowActionsItem
+          key={target.id ?? 'default'}
+          onSelect={() => onSelect(target.id)}
+        >
+          <LuFolderInput className="h-4 w-4 text-muted-foreground" aria-hidden />
+          {target.name}
+        </WishlistRowActionsItem>
+      ))}
+    </WishlistRowActionsMenu>
+  );
+}
+
+type ReorderItemRowProps = Readonly<{
+  canMoveDown: boolean;
+  canMoveUp: boolean;
+  canReorder: boolean;
+  dragState: 'idle' | 'dragging-item' | 'dragging-category';
+  item: WishlistItem;
+  otherCategories: MoveTargetCategory[];
+  onMoveItemByOffset: (itemId: string, delta: -1 | 1) => void;
+  onMoveItemToCategory: (itemId: string, categoryId: string | null) => void;
+}>;
+
+function ReorderItemRow({
+  canMoveDown,
+  canMoveUp,
+  canReorder,
+  dragState,
+  item,
+  otherCategories,
+  onMoveItemByOffset,
+  onMoveItemToCategory,
+}: ReorderItemRowProps) {
+  return (
+    <SortableShell key={item.id} id={toItemDragId(item.id)} disabled={!canReorder}>
+      {({ attributes, listeners, setActivatorNodeRef, isDragging }) => (
+        <div
+          data-testid="wishlist-item-row"
+          data-drag-state={dragState}
+          data-drop-target="false"
+          className={`flex items-center gap-2 rounded-xl border border-border/80 bg-card px-2 py-2 shadow-sm transition sm:gap-3 sm:px-3 ${
+            isDragging ? 'border-pool/40 bg-pool/10 ring-2 ring-pool/40' : ''
+          }`}
+        >
+          <DragHandle
+            label={`Drag item ${item.title}`}
+            active={isDragging}
+            attributes={attributes}
+            listeners={listeners}
+            setActivatorNodeRef={setActivatorNodeRef}
+          />
+          <Text weight="medium" className="min-w-0 flex-1 truncate">
+            {item.title}
+          </Text>
+          <MoveByOffsetButtons
+            label={item.title}
+            canMoveUp={canMoveUp}
+            canMoveDown={canMoveDown}
+            onMove={(delta) => onMoveItemByOffset(item.id, delta)}
+          />
+          <MoveToCategoryMenu
+            itemTitle={item.title}
+            otherCategories={otherCategories}
+            onSelect={(categoryId) => onMoveItemToCategory(item.id, categoryId)}
+          />
+        </div>
+      )}
+    </SortableShell>
+  );
+}
+
 export function CategoryReorderBody({
   canReorder,
   category,
@@ -333,66 +418,17 @@ export function CategoryReorderBody({
     >
       <div className="space-y-2">
         {itemsForCategory.map((item, index) => (
-          <SortableShell
+          <ReorderItemRow
             key={item.id}
-            id={toItemDragId(item.id)}
-            disabled={!canReorder}
-          >
-            {({
-              attributes,
-              listeners,
-              setActivatorNodeRef,
-              isDragging,
-            }) => (
-              <div
-                data-testid="wishlist-item-row"
-                data-drag-state={dragState}
-                data-drop-target="false"
-                className={`flex items-center gap-2 rounded-xl border border-border/80 bg-card px-2 py-2 shadow-sm transition sm:gap-3 sm:px-3 ${
-                  isDragging
-                    ? 'border-pool/40 bg-pool/10 ring-2 ring-pool/40'
-                    : ''
-                }`}
-              >
-                <DragHandle
-                  label={`Drag item ${item.title}`}
-                  active={isDragging}
-                  attributes={attributes}
-                  listeners={listeners}
-                  setActivatorNodeRef={setActivatorNodeRef}
-                />
-                <Text weight="medium" className="min-w-0 flex-1 truncate">
-                  {item.title}
-                </Text>
-                <MoveByOffsetButtons
-                  label={item.title}
-                  canMoveUp={index > 0}
-                  canMoveDown={index < itemsForCategory.length - 1}
-                  onMove={(delta) => onMoveItemByOffset(item.id, delta)}
-                />
-                {otherCategories.length > 0 ? (
-                  <WishlistRowActionsMenu
-                    label={`Move ${item.title} to another category`}
-                  >
-                    {otherCategories.map((target) => (
-                      <WishlistRowActionsItem
-                        key={target.id ?? 'default'}
-                        onSelect={() =>
-                          onMoveItemToCategory(item.id, target.id)
-                        }
-                      >
-                        <LuFolderInput
-                          className="h-4 w-4 text-muted-foreground"
-                          aria-hidden
-                        />
-                        {target.name}
-                      </WishlistRowActionsItem>
-                    ))}
-                  </WishlistRowActionsMenu>
-                ) : null}
-              </div>
-            )}
-          </SortableShell>
+            canMoveUp={canReorder && index > 0}
+            canMoveDown={canReorder && index < itemsForCategory.length - 1}
+            canReorder={canReorder}
+            dragState={dragState}
+            item={item}
+            otherCategories={otherCategories}
+            onMoveItemByOffset={onMoveItemByOffset}
+            onMoveItemToCategory={onMoveItemToCategory}
+          />
         ))}
         {itemsForCategory.length === 0 ? (
           <div className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">

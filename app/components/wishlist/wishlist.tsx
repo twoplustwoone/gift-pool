@@ -38,7 +38,11 @@ import {
   WishlistCategoryCard,
   type MoveTargetCategory,
 } from './wishlist-category-card';
-import { type CategoryMutationResult, type WishlistCategory } from './wishlist-category-state';
+import {
+  isOptimisticCategoryId,
+  type CategoryMutationResult,
+  type WishlistCategory,
+} from './wishlist-category-state';
 import { WishlistHeader } from './wishlist-header';
 import {
   categoryKeyFromId,
@@ -80,6 +84,25 @@ type WishlistProps = Readonly<{
   publicShare?: WishlistPublicShare | null;
   isPublicView?: boolean;
 }>;
+type ReorderDragHandlers = {
+  onDragCancel: () => void;
+  onDragEnd: (event: any) => void;
+  onDragOver: (event: any) => void;
+  onDragStart: (event: any) => void;
+};
+type WishlistBodyProps = Readonly<{
+  finishReorderMode: () => void;
+  handleViewChange: (view: WishlistView) => void;
+  isReorderMode: boolean;
+  markEducationSeen: () => void;
+  onModeChange: (mode: 'items' | 'categories') => void;
+  sensors: ReturnType<typeof useWishlistReorder>['sensors'];
+  showEducation: boolean;
+  showViewToggle: boolean;
+  view: WishlistView;
+}> &
+  ReorderDragHandlers &
+  WishlistActiveViewProps;
 type WishlistActiveViewProps = Readonly<{
   activeItemCategoryKey: string | null;
   activeItems: WishlistItem[];
@@ -399,6 +422,183 @@ function WishlistActiveView({
   );
 }
 
+// Only wires the DnD handlers while a reorder mode is active — dragging is
+// otherwise a no-op so ordinary browse-mode clicks aren't intercepted.
+function getReorderDndHandlers(
+  isReorderMode: boolean,
+  handlers: ReorderDragHandlers,
+): Partial<ReorderDragHandlers> {
+  // DndContext derives an internal dependency array from which of these
+  // props are present; omitting keys entirely (rather than passing
+  // `undefined`) changes that array's length across renders and trips
+  // React's "size changed between renders" hook-order warning. Always keep
+  // all four keys present, with the callbacks gated by `isReorderMode`.
+  return {
+    onDragStart: isReorderMode ? handlers.onDragStart : undefined,
+    onDragOver: isReorderMode ? handlers.onDragOver : undefined,
+    onDragEnd: isReorderMode ? handlers.onDragEnd : undefined,
+    onDragCancel: isReorderMode ? handlers.onDragCancel : undefined,
+  };
+}
+
+function WishlistBody({
+  finishReorderMode,
+  handleViewChange,
+  isReorderMode,
+  markEducationSeen,
+  onDragCancel,
+  onDragEnd,
+  onDragOver,
+  onDragStart,
+  onModeChange,
+  sensors,
+  showEducation,
+  showViewToggle,
+  view,
+  ...activeViewProps
+}: WishlistBodyProps) {
+  const { archivedItems, isCategoryReorderMode, isItemReorderMode, isOwner } =
+    activeViewProps;
+
+  return (
+    <Stack gap={4}>
+      {showViewToggle ? (
+        <WishlistViewToggle view={view} onChange={handleViewChange} />
+      ) : null}
+
+      {showEducation && view === 'wishlist' ? (
+        <PastEducationCallout
+          onDismissEducation={markEducationSeen}
+          onViewPast={() => handleViewChange('past')}
+        />
+      ) : null}
+
+      {isReorderMode ? (
+        <OrganizeBanner
+          isCategoryReorderMode={isCategoryReorderMode}
+          isItemReorderMode={isItemReorderMode}
+          onDone={finishReorderMode}
+          onModeChange={onModeChange}
+        />
+      ) : null}
+
+      {view === 'wishlist' ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          autoScroll={isReorderMode}
+          {...getReorderDndHandlers(isReorderMode, {
+            onDragStart,
+            onDragOver,
+            onDragEnd,
+            onDragCancel,
+          })}
+        >
+          <WishlistActiveView {...activeViewProps} />
+        </DndContext>
+      ) : (
+        <PastWishlistItems
+          items={archivedItems}
+          isOwner={isOwner}
+          categories={activeViewProps.optimisticCategories}
+          showEducation={showEducation}
+          onDismissEducation={markEducationSeen}
+          onViewPast={() => {
+            markEducationSeen();
+            handleViewChange('past');
+          }}
+          onStatusChange={activeViewProps.handleStatusChange}
+        />
+      )}
+      <p className="pt-2 text-center text-xs text-muted-foreground/70">
+        Some product links are affiliate links — GiftPool may earn a small
+        commission, at no cost to you.{' '}
+        <a
+          href="/support#affiliate"
+          className="underline underline-offset-2 hover:text-muted-foreground"
+        >
+          Learn more
+        </a>
+      </p>
+    </Stack>
+  );
+}
+
+// Non-drag mode toggle inside Organize: swap the reorder machinery between
+// items and categories without leaving Organize mode.
+function reorderModeFromToggle(
+  mode: 'items' | 'categories',
+  startItemReorderMode: () => void,
+  startCategoryReorderMode: () => void,
+) {
+  if (mode === 'items') {
+    startItemReorderMode();
+  } else {
+    startCategoryReorderMode();
+  }
+}
+
+function getActiveItemCategoryKey(
+  dragging: { type: 'category' | 'item'; dragId: string } | null,
+  itemById: Map<string, WishlistItem>,
+) {
+  if (dragging?.type !== 'item') return null;
+  const draggedItemId = dragging.dragId.replace(/^item:/, '');
+  return categoryKeyFromId(itemById.get(draggedItemId)?.categoryId ?? null);
+}
+
+// Exported for direct unit testing of the optimistic-category exclusion
+// (an in-flight category create must never be offered as a move target —
+// its id doesn't exist server-side yet, so submitting it fails ownership
+// validation and the optimistic move gets reverted with an error).
+export function buildMoveTargets(
+  optimisticCategories: WishlistCategory[],
+): MoveTargetCategory[] {
+  // A category created moments ago may still be an optimistic placeholder
+  // (`optimistic-category:<mutationId>`) whose create request hasn't
+  // settled. Submitting that id as a move destination fails server-side
+  // ownership validation, so it's never offered as a target — only
+  // persisted categories are.
+  const persistedCategories = optimisticCategories.filter(
+    (category) => !isOptimisticCategoryId(category.id),
+  );
+  if (persistedCategories.length === 0) return [];
+  return [{ id: null, name: DEFAULT_CATEGORY_NAME }, ...persistedCategories];
+}
+
+function splitCategories(
+  categories: Array<
+    WishlistCategory | { id: null; name: string; order: number }
+  >,
+) {
+  const defaultCategory =
+    (categories.find((category) => category.id === null) as
+      | { id: null; name: string; order: number }
+      | undefined) ?? null;
+  const customCategories = categories.filter(
+    (category): category is WishlistCategory => category.id !== null,
+  );
+  return { defaultCategory, customCategories };
+}
+
+function buildItemIdsByCategoryKey(
+  activeItems: WishlistItem[],
+  optimisticCategories: WishlistCategory[],
+) {
+  const grouped: Record<string, string[]> = {
+    [DEFAULT_CATEGORY_KEY]: [],
+  };
+  for (const category of optimisticCategories) {
+    grouped[category.id] = [];
+  }
+  for (const item of activeItems) {
+    const key = categoryKeyFromId(item.categoryId ?? null);
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(item.id);
+  }
+  return grouped;
+}
+
 function getItemsForCategory(
   categoryId: string | null,
   itemById: Map<string, WishlistItem>,
@@ -568,19 +768,10 @@ export const Wishlist = ({
     setPendingDeleteCategory(null);
   }, [actionFetcher, pendingDeleteCategory, setPendingDeleteCategory]);
 
-  const itemIdsByCategoryKey = useMemo(() => {
-    const grouped: Record<string, string[]> = {
-      [DEFAULT_CATEGORY_KEY]: [],
-    };
-    for (const category of optimisticCategories) {
-      grouped[category.id] = [];
-    }
-    for (const item of activeItems) {
-      const key = categoryKeyFromId(item.categoryId ?? null);
-      (grouped[key] ??= []).push(item.id);
-    }
-    return grouped;
-  }, [activeItems, optimisticCategories]);
+  const itemIdsByCategoryKey = useMemo(
+    () => buildItemIdsByCategoryKey(activeItems, optimisticCategories),
+    [activeItems, optimisticCategories],
+  );
 
   const itemById = useMemo(
     () => new Map(activeItems.map((item) => [item.id, item])),
@@ -620,30 +811,11 @@ export const Wishlist = ({
   });
 
   const isReorderMode = canReorder && reorderMode !== 'off';
-
-  const activeItemId =
-    dragging?.type === 'item' ? dragging.dragId.replace(/^item:/, '') : null;
-  const activeItemCategoryKey = activeItemId
-    ? categoryKeyFromId(itemById.get(activeItemId)?.categoryId ?? null)
-    : null;
-
-  const defaultCategory =
-    (categories.find((category) => category.id === null) as
-      | { id: null; name: string; order: number }
-      | undefined) ?? null;
-  const customCategories = categories.filter(
-    (category): category is WishlistCategory => category.id !== null,
-  );
-
+  const activeItemCategoryKey = getActiveItemCategoryKey(dragging, itemById);
+  const { defaultCategory, customCategories } = splitCategories(categories);
   // Targets for the non-drag "move to category" control. Default is always
   // a valid destination once custom categories exist.
-  const moveTargets: MoveTargetCategory[] =
-    optimisticCategories.length > 0
-      ? [
-          { id: null, name: DEFAULT_CATEGORY_NAME },
-          ...optimisticCategories,
-        ]
-      : [];
+  const moveTargets = buildMoveTargets(optimisticCategories);
 
   const handleDeleteDialogOpenChange = useCallback(
     (open: boolean) => {
@@ -689,99 +861,54 @@ export const Wishlist = ({
         <WishlistNote note={user.wishlistNote ?? null} isOwner={isOwner} />
       ) : null}
       <div className="mx-auto min-h-0 w-full max-w-6xl flex-1 px-3 py-8 sm:px-6">
-        <Stack gap={4}>
-          {showViewToggle ? (
-            <WishlistViewToggle view={view} onChange={handleViewChange} />
-          ) : null}
-
-          {showEducation && view === 'wishlist' ? (
-            <PastEducationCallout
-              onDismissEducation={markEducationSeen}
-              onViewPast={() => {
-                handleViewChange('past');
-              }}
-            />
-          ) : null}
-
-          {isReorderMode ? (
-            <OrganizeBanner
-              isCategoryReorderMode={isCategoryReorderMode}
-              isItemReorderMode={isItemReorderMode}
-              onDone={finishReorderMode}
-              onModeChange={(mode) => {
-                if (mode === 'items') {
-                  startItemReorderMode();
-                } else {
-                  startCategoryReorderMode();
-                }
-              }}
-            />
-          ) : null}
-          {view === 'wishlist' ? (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              autoScroll={isReorderMode}
-              onDragStart={isReorderMode ? handleDragStart : undefined}
-              onDragOver={isReorderMode ? handleDragOver : undefined}
-              onDragEnd={isReorderMode ? handleDragEnd : undefined}
-              onDragCancel={isReorderMode ? handleDragCancel : undefined}
-            >
-              <WishlistActiveView
-                activeItemCategoryKey={activeItemCategoryKey}
-                activeItems={activeItems}
-                archivedItems={archivedItems}
-                canReorder={canReorder}
-                collapsed={collapsed}
-                customCategories={customCategories}
-                defaultCategory={defaultCategory}
-                displayName={displayName}
-                dragState={dragState}
-                handleStatusChange={handleStatusChange}
-                isCategoryReorderMode={isCategoryReorderMode}
-                isItemReorderMode={isItemReorderMode}
-                isOwner={isOwner}
-                isPublicView={isPublicView}
-                itemById={itemById}
-                itemDropTargetCategoryKey={itemDropTargetCategoryKey}
-                itemIdsByCategoryKey={itemIdsByCategoryKey}
-                moveTargets={moveTargets}
-                onAddFirstItem={() => openQuickAdd(null)}
-                onCategoryMutationResult={handleCategoryMutationResult}
-                onMoveCategoryByOffset={moveCategoryByOffset}
-                onMoveItemByOffset={moveItemByOffset}
-                onMoveItemToCategory={moveItemToCategory}
-                onOpenQuickAdd={openQuickAdd}
-                onRequestDelete={setPendingDeleteCategory}
-                onToggleCollapse={toggleCategoryCollapse}
-                optimisticCategories={optimisticCategories}
-              />
-            </DndContext>
-          ) : (
-            <PastWishlistItems
-              items={archivedItems}
-              isOwner={isOwner}
-              categories={optimisticCategories}
-              showEducation={showEducation}
-              onDismissEducation={markEducationSeen}
-              onViewPast={() => {
-                markEducationSeen();
-                handleViewChange('past');
-              }}
-              onStatusChange={handleStatusChange}
-            />
-          )}
-          <p className="pt-2 text-center text-xs text-muted-foreground/70">
-            Some product links are affiliate links — GiftPool may earn a small
-            commission, at no cost to you.{' '}
-            <a
-              href="/support#affiliate"
-              className="underline underline-offset-2 hover:text-muted-foreground"
-            >
-              Learn more
-            </a>
-          </p>
-        </Stack>
+        <WishlistBody
+          activeItemCategoryKey={activeItemCategoryKey}
+          activeItems={activeItems}
+          archivedItems={archivedItems}
+          canReorder={canReorder}
+          collapsed={collapsed}
+          customCategories={customCategories}
+          defaultCategory={defaultCategory}
+          displayName={displayName}
+          dragState={dragState}
+          finishReorderMode={finishReorderMode}
+          handleStatusChange={handleStatusChange}
+          handleViewChange={handleViewChange}
+          isCategoryReorderMode={isCategoryReorderMode}
+          isItemReorderMode={isItemReorderMode}
+          isOwner={isOwner}
+          isPublicView={isPublicView}
+          isReorderMode={isReorderMode}
+          itemById={itemById}
+          itemDropTargetCategoryKey={itemDropTargetCategoryKey}
+          itemIdsByCategoryKey={itemIdsByCategoryKey}
+          markEducationSeen={markEducationSeen}
+          moveTargets={moveTargets}
+          onAddFirstItem={() => openQuickAdd(null)}
+          onCategoryMutationResult={handleCategoryMutationResult}
+          onDragCancel={handleDragCancel}
+          onDragEnd={handleDragEnd}
+          onDragOver={handleDragOver}
+          onDragStart={handleDragStart}
+          onMoveCategoryByOffset={moveCategoryByOffset}
+          onMoveItemByOffset={moveItemByOffset}
+          onMoveItemToCategory={moveItemToCategory}
+          onModeChange={(mode) =>
+            reorderModeFromToggle(
+              mode,
+              startItemReorderMode,
+              startCategoryReorderMode,
+            )
+          }
+          onOpenQuickAdd={openQuickAdd}
+          onRequestDelete={setPendingDeleteCategory}
+          onToggleCollapse={toggleCategoryCollapse}
+          optimisticCategories={optimisticCategories}
+          sensors={sensors}
+          showEducation={showEducation}
+          showViewToggle={showViewToggle}
+          view={view}
+        />
       </div>
       <DeleteCategoryDialog
         actionFetcherState={actionFetcher.state}
