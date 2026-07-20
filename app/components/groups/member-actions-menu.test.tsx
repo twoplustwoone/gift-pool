@@ -72,24 +72,28 @@ vi.mock('#app/components/ui/mobile-bottom-sheet.tsx', () => ({
   }) => <div>{children}</div>,
 }));
 
-vi.mock('#app/components/ui/dialog.tsx', () => ({
-  Dialog: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogContent: ({ children }: { children: React.ReactNode }) => (
+vi.mock('#app/components/ui/responsive-dialog.tsx', () => ({
+  ResponsiveDialog: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  ResponsiveDialogContent: ({ children }: { children: React.ReactNode }) => (
     <div role="dialog">{children}</div>
   ),
-  DialogHeader: ({ children }: { children: React.ReactNode }) => (
+  ResponsiveDialogHeader: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  DialogTitle: ({ children }: { children: React.ReactNode }) => (
+  ResponsiveDialogTitle: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  DialogDescription: ({ children }: { children: React.ReactNode }) => (
+  ResponsiveDialogDescription: ({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) => <div>{children}</div>,
+  ResponsiveDialogFooter: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  DialogFooter: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  DialogClose: ({ children }: { children: React.ReactNode }) => (
+  ResponsiveDialogClose: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
 }));

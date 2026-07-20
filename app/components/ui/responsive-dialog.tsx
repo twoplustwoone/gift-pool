@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, forwardRef, useContext } from 'react';
 import { useIsDesktop } from '#app/components/wishlist/hooks/use-is-desktop.ts';
 import {
   Dialog,
@@ -44,14 +44,19 @@ export function ResponsiveDialog(props: React.ComponentProps<typeof Dialog>) {
   );
 }
 
-export function ResponsiveDialogTrigger(
-  props: React.ComponentProps<typeof DialogTrigger>,
-) {
+// forwardRef so this composes with other asChild ref-consumers (e.g. a
+// Tooltip wrapping the dialog trigger) — Slot cloning attaches a ref
+// directly to whatever renders here.
+export const ResponsiveDialogTrigger = forwardRef<
+  React.ElementRef<typeof DialogTrigger>,
+  React.ComponentPropsWithoutRef<typeof DialogTrigger>
+>((props, ref) => {
   const Cmp = useContext(IsDesktopContext)
     ? DialogTrigger
     : MobileBottomSheetTrigger;
-  return <Cmp {...props} />;
-}
+  return <Cmp ref={ref} {...props} />;
+});
+ResponsiveDialogTrigger.displayName = 'ResponsiveDialogTrigger';
 
 export function ResponsiveDialogContent(
   props: React.ComponentProps<typeof DialogContent>,

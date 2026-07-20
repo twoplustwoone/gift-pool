@@ -5,12 +5,12 @@ import { PageHeader } from '#app/components/page-header.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '#app/components/ui/dialog.tsx';
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogTrigger as DialogTrigger,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+} from '#app/components/ui/responsive-dialog.tsx';
 import { Flex, Text } from '#app/components/ui-kit';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { getHints } from '#app/utils/client-hints.tsx';

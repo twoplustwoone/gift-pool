@@ -4,19 +4,19 @@ import { toast } from 'sonner';
 import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { Button, type ButtonProps } from '#app/components/ui/button.tsx';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#app/components/ui/dialog.tsx';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx';
+import {
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogDescription as DialogDescription,
+  ResponsiveDialogFooter as DialogFooter,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+} from '#app/components/ui/responsive-dialog.tsx';
 import { type RelationshipState } from '#app/utils/friends.ts';
 import {
   dispatchFriendshipUpdate,
