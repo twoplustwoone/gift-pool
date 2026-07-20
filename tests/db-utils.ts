@@ -70,14 +70,20 @@ export async function cleanupDb(prisma: PrismaClient) {
   >`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma_migrations';`;
 
   try {
-    // Disable FK constraints to avoid relation conflicts during deletion,
-    // and wait out transient SQLITE_BUSY from still-settling background
-    // writes instead of failing — a failed cleanup console.errors, which the
-    // console-error guard turns into a spurious failure of the NEXT test.
-    // queryRaw, not executeRaw: this PRAGMA returns the new value as a row.
+    // Wait out transient SQLITE_BUSY from still-settling background writes
+    // instead of failing — a failed cleanup console.errors, and the strict
+    // console-error guard turns that into a spurious failure of the NEXT
+    // test. (queryRaw, not executeRaw: this PRAGMA returns a row.)
     await prisma.$queryRawUnsafe(`PRAGMA busy_timeout = 5000`);
-    await prisma.$executeRawUnsafe(`PRAGMA foreign_keys = OFF`);
     await prisma.$transaction([
+      // FK handling must live INSIDE the transaction: Prisma pools
+      // connections, so a standalone `PRAGMA foreign_keys = OFF` can run on
+      // a different connection than the deletes — the nondeterministic
+      // "Error cleaning up database: FOREIGN KEY constraint failed" in CI.
+      // defer_foreign_keys works within a transaction (checks run at
+      // commit, by which point every table is empty) and auto-resets on
+      // commit — the same approach Prisma's generated SQLite migrations use.
+      prisma.$executeRawUnsafe(`PRAGMA defer_foreign_keys = ON`),
       // Delete all rows from each table, preserving table structures
       ...tables.map(({ name }) =>
         prisma.$executeRawUnsafe(`DELETE from "${name}"`),
@@ -85,7 +91,5 @@ export async function cleanupDb(prisma: PrismaClient) {
     ]);
   } catch (error) {
     console.error('Error cleaning up database:', error);
-  } finally {
-    await prisma.$executeRawUnsafe(`PRAGMA foreign_keys = ON`);
   }
 }
