@@ -13,7 +13,12 @@
     --foreground-destructive: 0 75% 42%;
 
     --background: 13 100% 98%; /* #FFF8F6 warm canvas */
-    --background-muted: 17 68% 94%; /* #FAEBE5 */
+    /* Deepened from 17 68% 94% (#FAEBE5) — the old value sat within 4 lightness
+       points of --background/--card, so tonal-group sections (an "ordinary
+       section" per handoff §4) were indistinguishable from the canvas. This
+       widens the step to ~10 points while leaving --background and --card
+       untouched, per the Home contrast/elevation refinement audit. */
+    --background-muted: 21 52% 88%; /* #F0DBD0 */
     --foreground: 18 18% 11%; /* #211A17 warm brown-black */
 
     --muted: 15 48% 92%; /* #F4E5E0 */
