@@ -115,7 +115,7 @@ export const ThemeSwitch = ({
       <div className="flex gap-2">
         <button
           type="submit"
-          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
         >
           {modeLabel[mode]}
         </button>

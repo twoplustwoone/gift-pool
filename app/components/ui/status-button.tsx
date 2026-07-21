@@ -72,7 +72,7 @@ export const StatusButton = React.forwardRef<
       ref={ref}
       className={cn(
         'inline-flex h-10 items-center px-4 text-sm font-medium',
-        'ring-ring ring-offset-2 ring-offset-background transition-colors focus-visible:ring-2',
+        'ring-ring ring-offset-2 ring-offset-transparent transition-colors focus-visible:ring-2',
         'disabled:pointer-events-none disabled:opacity-50',
         className,
       )}

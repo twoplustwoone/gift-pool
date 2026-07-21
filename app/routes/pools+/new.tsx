@@ -560,7 +560,7 @@ const NewPool = () => {
               <Label htmlFor={fields.occasionType.id}>Occasion</Label>
               <select
                 {...getInputProps(fields.occasionType, { type: 'text' })}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-transparent focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 {Object.entries(OCCASION_TYPE_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>

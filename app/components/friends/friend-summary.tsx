@@ -22,7 +22,7 @@ export const FriendSummary = ({
   return (
     <Link
       to={`/users/${user.username}/wishlist`}
-      className="flex flex-1 items-center gap-4 rounded-lg outline-none transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="flex flex-1 items-center gap-4 rounded-lg outline-none transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
     >
       <Avatar size="s" image={user.image} user={user} />
       <div className="min-w-0">

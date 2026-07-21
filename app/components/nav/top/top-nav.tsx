@@ -58,8 +58,8 @@ export const TopNav = () => {
         <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
           {user ? <NotificationBell /> : null}
           {/* Logged-in only: for logged-out visitors the cluster also holds the
-              full-size Log In + Sign up CTAs, and a third control overflows the
-              fixed header on narrow phones. Anonymous feedback still lives on
+              Log In + Sign up CTAs, and a third control overflows the fixed
+              header on narrow phones. Anonymous feedback still lives on
               /support. */}
           {user ? <FeedbackWidget /> : null}
           <ThemeSwitch userPreference={requestInfo.userPrefs.theme} />
@@ -67,10 +67,19 @@ export const TopNav = () => {
             <UserDropdown />
           ) : (
             <>
-              <Button asChild size="lg" variant="ghost">
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="whitespace-nowrap px-2 sm:h-11 sm:px-8"
+              >
                 <Link to="/login">Log in</Link>
               </Button>
-              <Button asChild size="lg">
+              <Button
+                asChild
+                size="sm"
+                className="whitespace-nowrap sm:h-11 sm:px-8"
+              >
                 <Link
                   to="/signup"
                   onClick={() =>

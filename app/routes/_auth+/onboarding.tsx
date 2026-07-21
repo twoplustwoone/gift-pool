@@ -224,7 +224,7 @@ const OnboardingRoute = () => {
         <Spacer size="xs" />
         <Form
           method="POST"
-          className="mx-auto min-w-full max-w-sm sm:min-w-[368px]"
+          className="mx-auto flex min-w-full max-w-sm flex-col gap-4 sm:min-w-[368px]"
           {...getFormProps(form)}
         >
           <HoneypotInputs />
@@ -337,7 +337,10 @@ const OnboardingRoute = () => {
               type: 'hidden',
             })}
           />
-          <ErrorList errors={form.errors} id={form.errorId} />
+          {/* Reserves the error line's height so clearing it on blur can't shift the button mid-click. */}
+          <div className="min-h-5">
+            <ErrorList errors={form.errors} id={form.errorId} />
+          </div>
 
           <div className="flex items-center justify-between gap-6">
             <StatusButton

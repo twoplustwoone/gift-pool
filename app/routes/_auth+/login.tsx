@@ -122,7 +122,11 @@ const LoginPage = () => {
 
         <div>
           <div className="mx-auto w-full max-w-md px-8">
-            <Form method="POST" {...getFormProps(form)}>
+            <Form
+              method="POST"
+              {...getFormProps(form)}
+              className="flex flex-col gap-4"
+            >
               <HoneypotInputs />
               <Field
                 labelProps={{
@@ -178,9 +182,12 @@ const LoginPage = () => {
                   type: 'hidden',
                 })}
               />
-              <ErrorList errors={form.errors} id={form.errorId} />
+              {/* Reserves the error line's height so clearing it on blur can't shift the button mid-click. */}
+              <div className="min-h-5">
+                <ErrorList errors={form.errors} id={form.errorId} />
+              </div>
 
-              <div className="flex items-center justify-between gap-6 pt-3">
+              <div className="flex items-center justify-between gap-6">
                 <StatusButton
                   className="w-full"
                   status={isPending ? 'pending' : (form.status ?? 'idle')}

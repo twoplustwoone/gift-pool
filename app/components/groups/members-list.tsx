@@ -51,7 +51,7 @@ function MemberRow({
       <Link
         to={`/users/${member.user.username}`}
         aria-label={`View ${displayName}'s profile`}
-        className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
       />
 
       <div className="pointer-events-none flex min-w-0 flex-1 items-center gap-3 overflow-hidden">

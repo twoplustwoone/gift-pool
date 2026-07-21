@@ -275,7 +275,7 @@ function PoolDetailsCard({
 							id={fields.occasionType.id}
 							name={fields.occasionType.name}
 							defaultValue={pool.occasionType}
-							className="flex h-10 w-full rounded-md border border-input bg-input-bg px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:text-sm"
+							className="flex h-10 w-full rounded-md border border-input bg-input-bg px-3 py-2 text-base ring-offset-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:text-sm"
 						>
 							{Object.entries(OCCASION_TYPE_LABELS).map(([value, label]) => (
 								<option key={value} value={value}>
@@ -302,7 +302,7 @@ function PoolDetailsCard({
 						name={fields.decisionMode.name}
 						defaultValue={pool.decisionMode}
 						disabled={methodLocked}
-						className="flex h-10 w-full rounded-md border border-input bg-input-bg px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
+						className="flex h-10 w-full rounded-md border border-input bg-input-bg px-3 py-2 text-base ring-offset-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
 					>
 						{Object.entries(DECISION_MODE_LABELS).map(([value, label]) => (
 							<option key={value} value={value}>

@@ -201,7 +201,7 @@ function ProfilePhotoButton({
     <button
       type="button"
       onClick={onOpenPhoto}
-      className="group relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="group relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
       aria-label="Change profile photo"
     >
       <Avatar
