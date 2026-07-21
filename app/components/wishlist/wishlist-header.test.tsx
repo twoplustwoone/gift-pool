@@ -30,9 +30,7 @@ vi.mock('#app/routes/wishlist+/__wishlist-item-editor', () => {
 });
 
 vi.mock('./wishlist-share-dialog', () => ({
-  WishlistShareDialog: () => (
-    <button type="button">Share wishlist stub</button>
-  ),
+  WishlistShareDialog: () => <button type="button">Share wishlist stub</button>,
 }));
 
 vi.mock('./wishlist-link-copy-button', () => ({
@@ -67,6 +65,7 @@ describe('WishlistHeader', () => {
             isOwner={true}
             user={baseUser}
             displayName="Jane"
+            note={null}
             publicShare={null}
             isPublicView={false}
             hideOwnerControls={false}
@@ -81,7 +80,7 @@ describe('WishlistHeader', () => {
     expect(screen.getByText('My Wishlist')).toBeInTheDocument();
   });
 
-  it("renders \"Jane's Wishlist\" for non-owner", () => {
+  it('renders "Jane\'s Wishlist" for non-owner', () => {
     const App = createRoutesStub([
       {
         path: '/',
@@ -90,6 +89,7 @@ describe('WishlistHeader', () => {
             isOwner={false}
             user={baseUser}
             displayName="Jane"
+            note={null}
             publicShare={null}
             isPublicView={false}
             hideOwnerControls={false}
@@ -113,6 +113,7 @@ describe('WishlistHeader', () => {
             isOwner={true}
             user={baseUser}
             displayName="Jane"
+            note={null}
             publicShare={null}
             isPublicView={false}
             hideOwnerControls={false}
@@ -136,6 +137,7 @@ describe('WishlistHeader', () => {
             isOwner={false}
             user={baseUser}
             displayName="Jane"
+            note={null}
             publicShare={null}
             isPublicView={false}
             hideOwnerControls={false}
@@ -159,6 +161,7 @@ describe('WishlistHeader', () => {
             isOwner={true}
             user={baseUser}
             displayName="Jane"
+            note={null}
             publicShare={null}
             isPublicView={false}
             hideOwnerControls={false}
@@ -184,6 +187,7 @@ describe('WishlistHeader', () => {
             isOwner={true}
             user={baseUser}
             displayName="Jane"
+            note={null}
             publicShare={null}
             isPublicView={false}
             hideOwnerControls={true}
@@ -209,6 +213,7 @@ describe('WishlistHeader', () => {
             isOwner={true}
             user={baseUser}
             displayName="Jane"
+            note={null}
             publicShare={null}
             isPublicView={false}
             hideOwnerControls={false}
@@ -223,5 +228,57 @@ describe('WishlistHeader', () => {
     expect(
       screen.queryByRole('button', { name: 'Organize' }),
     ).not.toBeInTheDocument();
+  });
+
+  // ── Note consolidation ────────────────────────────────────────────────────
+  // The note used to render as its own sibling bar in Wishlist.tsx; it's now
+  // composed inside WishlistHeader as a subline under the title.
+
+  it('renders the wishlist note inline when note text is provided', () => {
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <WishlistHeader
+            isOwner={true}
+            user={baseUser}
+            displayName="Jane"
+            note="Thank you <3"
+            publicShare={null}
+            isPublicView={false}
+            hideOwnerControls={false}
+            hideFloatingAddButton={false}
+            showOrganize={false}
+            onStartOrganize={() => {}}
+          />
+        ),
+      },
+    ]);
+    render(<App />);
+    expect(screen.getByText('Thank you <3')).toBeInTheDocument();
+  });
+
+  it('hides the note when hideOwnerControls is true (Organize mode)', () => {
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => (
+          <WishlistHeader
+            isOwner={true}
+            user={baseUser}
+            displayName="Jane"
+            note="Thank you <3"
+            publicShare={null}
+            isPublicView={false}
+            hideOwnerControls={true}
+            hideFloatingAddButton={true}
+            showOrganize={true}
+            onStartOrganize={() => {}}
+          />
+        ),
+      },
+    ]);
+    render(<App />);
+    expect(screen.queryByText('Thank you <3')).not.toBeInTheDocument();
   });
 });
