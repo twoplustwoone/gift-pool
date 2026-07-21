@@ -67,10 +67,19 @@ export const TopNav = () => {
             <UserDropdown />
           ) : (
             <>
-              <Button asChild size="lg" variant="ghost">
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="hidden whitespace-nowrap sm:inline-flex sm:h-11 sm:px-8"
+              >
                 <Link to="/login">Log in</Link>
               </Button>
-              <Button asChild size="lg">
+              <Button
+                asChild
+                size="sm"
+                className="whitespace-nowrap sm:h-11 sm:px-8"
+              >
                 <Link
                   to="/signup"
                   onClick={() =>
