@@ -27,7 +27,7 @@ export const TopNavItem = ({
       prefetch="intent"
       className={({ isActive }) =>
         cn(
-          'group relative inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold leading-none tracking-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          'group relative inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold leading-none tracking-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
           isActive
             ? 'text-foreground'
             : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',

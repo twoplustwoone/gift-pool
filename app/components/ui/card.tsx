@@ -22,7 +22,7 @@ const cardVariants = cva(
           'cursor-pointer touch-pan-y',
           // Accessibility: only show ring for keyboard/pointer that supports focus
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          'focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          'focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
           // Kill iOS gray flash
           '[-webkit-tap-highlight-color:transparent]',
           // Desktop/tablet feedback only

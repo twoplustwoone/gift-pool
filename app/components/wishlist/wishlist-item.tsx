@@ -875,7 +875,7 @@ function WishlistItemCardShell({
         type="button"
         aria-label={ariaLabel}
         onClick={onOpen}
-        className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
         data-testid="wishlist-item-row"
         {...dataAttrs}
       />

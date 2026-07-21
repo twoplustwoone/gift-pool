@@ -201,7 +201,7 @@ const CacheAdminRoute = () => {
             <select
               name="instance"
               defaultValue={instance}
-              className="flex h-10 w-full rounded-md border border-input bg-input-bg px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              className="flex h-10 w-full rounded-md border border-input bg-input-bg px-3 py-2 text-sm ring-offset-transparent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
               {Object.entries(data.instances).map(([inst, region]) => (
                 <option key={inst} value={inst}>

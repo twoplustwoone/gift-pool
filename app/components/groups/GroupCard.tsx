@@ -28,7 +28,7 @@ export function GroupCard({
     <Card
       padding="lg"
       className={
-        'h-full cursor-pointer touch-pan-y rounded-2xl shadow transition [-webkit-tap-highlight-color:transparent] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30'
+        'h-full cursor-pointer touch-pan-y rounded-2xl shadow transition [-webkit-tap-highlight-color:transparent] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent data-[pressed=true]:scale-[0.99] data-[pressed=true]:bg-accent/30'
       }
       role="link"
       tabIndex={0}

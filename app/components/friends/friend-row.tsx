@@ -95,7 +95,7 @@ export function FriendRow({
         to={`/users/${user.username}/wishlist`}
         prefetch="intent"
         aria-label={`View ${displayName}'s wishlist`}
-        className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
       />
 
       <div className="pointer-events-none relative flex items-center gap-3 p-3 sm:gap-4 sm:p-4">

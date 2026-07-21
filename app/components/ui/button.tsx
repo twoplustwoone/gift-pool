@@ -9,7 +9,7 @@ const buttonVariants = cva(
     // layout/typography
     'inline-flex select-none items-center justify-center rounded-full text-sm font-medium',
     // focus
-    'outline-none ring-ring ring-offset-2 ring-offset-background focus-visible:ring-2',
+    'outline-none ring-ring ring-offset-2 ring-offset-transparent focus-visible:ring-2',
     // transitions & pressed feel
     'transition-colors motion-safe:transition-transform motion-safe:duration-100 motion-safe:ease-out',
     'active:scale-[0.98] active:opacity-95',

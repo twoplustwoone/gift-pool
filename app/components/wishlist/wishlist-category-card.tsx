@@ -548,7 +548,7 @@ function CategoryHeader({
       {canToggleCollapse ? (
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 self-stretch rounded-md py-2 pr-2 text-left transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="flex min-w-0 flex-1 items-center gap-2 self-stretch rounded-md py-2 pr-2 text-left transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
           aria-expanded={!isCollapsed}
           onClick={onToggleCollapse}
         >
