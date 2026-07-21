@@ -367,4 +367,32 @@ describe('home surface components', () => {
       screen.queryByText(HOME_COPY.panels.emptyGroupsTitle),
     ).not.toBeInTheDocument();
   });
+
+  it('reserves the For you slot with a loading skeleton before the panels fetch resolves (no CLS)', () => {
+    // Simulate the panels fetcher still in flight, as it is on first paint.
+    fetcherSnapshot.data = undefined;
+    fetcherSnapshot.state = 'loading';
+
+    renderHomeLoggedIn({ wishlistCount: 1 });
+
+    // The section — heading included — is present immediately, not gated
+    // behind the fetch resolving, so nothing below it shifts once it does.
+    expect(screen.getByTestId('panel-for-you')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'For you' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('status', { name: 'Loading for you' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('You’re all caught up.')).not.toBeInTheDocument();
+  });
+
+  it('does not show a For you skeleton for brand-new (wishlistCount === 0) accounts while loading', () => {
+    fetcherSnapshot.data = undefined;
+    fetcherSnapshot.state = 'loading';
+
+    renderHomeLoggedIn({ wishlistCount: 0 });
+
+    expect(screen.queryByTestId('panel-for-you')).not.toBeInTheDocument();
+  });
 });

@@ -17,6 +17,7 @@ import {
 import { FriendRow as FriendRowCard } from '#app/components/friends/friend-row.tsx';
 import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { PageHeader } from '#app/components/page-header.tsx';
+import { PageShell } from '#app/components/page-shell.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { EmptyState } from '#app/components/ui/empty-state.tsx';
@@ -164,7 +165,8 @@ export function buildFriendEntry(
       // birthdayVisibility but not the server-computed birthdayVisible, so
       // derive it here (falling back to the legacy field) to stop a NOBODY
       // friend's birthday flashing in the list before the loader recomputes it.
-      birthdayVisible: user.birthdayVisible ?? user.birthdayVisibility !== 'NOBODY',
+      birthdayVisible:
+        user.birthdayVisible ?? user.birthdayVisibility !== 'NOBODY',
     },
     // Optimistic entries (just-accepted friend requests) start without
     // mutual-groups data. The next loader run will fill them in.
@@ -1284,7 +1286,7 @@ const FriendsRoute = () => {
         />
       </PageHeader>
 
-      <div className="mx-auto min-h-0 w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+      <PageShell className="min-h-0 flex-1 py-6 sm:py-8">
         <Stack gap={4}>
           <PendingRequestsCard
             incomingState={incomingState}
@@ -1312,7 +1314,7 @@ const FriendsRoute = () => {
         </Stack>
         {/* Nested routes (e.g., /friends/accept/:code) render here */}
         <Outlet />
-      </div>
+      </PageShell>
     </div>
   );
 };

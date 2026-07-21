@@ -1,15 +1,10 @@
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { type UserImage, type User } from '@prisma/client';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LuPlus } from 'react-icons/lu';
 import { useFetcher, useSearchParams } from 'react-router';
 
+import { PageShell } from '#app/components/page-shell.tsx';
 import { useToast } from '#app/components/toaster.tsx';
 import {
   ResponsiveDialog as Dialog,
@@ -204,8 +199,8 @@ function WishlistEmptyState({
         <div className="flex flex-col gap-1">
           <Text weight="bold">Your wishlist starts here</Text>
           <Text size="sm" className="text-muted-foreground">
-            Add something you'd love — friends and family use it to pick
-            gifts you actually want.
+            Add something you'd love — friends and family use it to pick gifts
+            you actually want.
             {archivedItemsCount
               ? ' Your past items are saved in the Past items view.'
               : ''}
@@ -222,8 +217,7 @@ function WishlistEmptyState({
   return (
     <div className="flex w-full flex-col items-center justify-center">
       <p className="text-center text-base text-muted-foreground">
-        {displayName} doesn't have any active items in their wishlist right
-        now!
+        {displayName} doesn't have any active items in their wishlist right now!
         {archivedItemsCount
           ? ' Their past items are available in the Past items view.'
           : ''}
@@ -304,9 +298,7 @@ function WishlistActiveView({
     customCategories.length > 0 || defaultCategory !== null;
 
   const renderCategoryCard = (
-    category:
-      | WishlistCategory
-      | { id: null; name: string; order: number },
+    category: WishlistCategory | { id: null; name: string; order: number },
   ) => {
     const categoryKey = categoryKeyFromId(category.id);
     return (
@@ -410,7 +402,9 @@ function WishlistActiveView({
       }`}
     >
       {content}
-      {activeItems.length === 0 && !isItemReorderMode && !isCategoryReorderMode ? (
+      {activeItems.length === 0 &&
+      !isItemReorderMode &&
+      !isCategoryReorderMode ? (
         <WishlistEmptyState
           archivedItemsCount={archivedItems.length}
           displayName={displayName}
@@ -860,7 +854,7 @@ export const Wishlist = ({
       {!isReorderMode ? (
         <WishlistNote note={user.wishlistNote ?? null} isOwner={isOwner} />
       ) : null}
-      <div className="mx-auto min-h-0 w-full max-w-6xl flex-1 px-3 py-8 sm:px-6">
+      <PageShell className="min-h-0 flex-1 py-8">
         <WishlistBody
           activeItemCategoryKey={activeItemCategoryKey}
           activeItems={activeItems}
@@ -909,7 +903,7 @@ export const Wishlist = ({
           showViewToggle={showViewToggle}
           view={view}
         />
-      </div>
+      </PageShell>
       <DeleteCategoryDialog
         actionFetcherState={actionFetcher.state}
         onConfirm={handleConfirmDeleteCategory}

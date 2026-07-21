@@ -1,11 +1,8 @@
 import { LuShieldCheck } from 'react-icons/lu';
-import {
-  NavLink,
-  Outlet,
-  type LoaderFunctionArgs,
-} from 'react-router';
+import { NavLink, Outlet, type LoaderFunctionArgs } from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { PageHeader } from '#app/components/page-header.tsx';
+import { PageShell } from '#app/components/page-shell.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
 import { cn } from '#app/utils/misc.tsx';
 import { requireUserWithRole } from '#app/utils/permissions.server.ts';
@@ -38,12 +35,12 @@ const AdminLayout = () => {
         subtitle="Internal operator surface"
       />
       <main className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-6xl p-3 sm:p-6">
+        <PageShell className="py-3 sm:py-6">
           <Stack gap={6}>
             <TabBar />
             <Outlet />
           </Stack>
-        </div>
+        </PageShell>
       </main>
     </div>
   );
