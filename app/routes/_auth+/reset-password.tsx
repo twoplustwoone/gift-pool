@@ -106,7 +106,11 @@ const ResetPasswordPage = () => {
         </p>
       </div>
       <div className="mx-auto mt-16 min-w-full max-w-sm sm:min-w-[368px]">
-        <Form method="POST" {...getFormProps(form)}>
+        <Form
+          method="POST"
+          {...getFormProps(form)}
+          className="flex flex-col gap-4"
+        >
           <Field
             labelProps={{
               htmlFor: fields.password.id,

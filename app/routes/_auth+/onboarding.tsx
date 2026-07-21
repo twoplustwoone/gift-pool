@@ -224,7 +224,7 @@ const OnboardingRoute = () => {
         <Spacer size="xs" />
         <Form
           method="POST"
-          className="mx-auto min-w-full max-w-sm sm:min-w-[368px]"
+          className="mx-auto flex min-w-full max-w-sm flex-col gap-4 sm:min-w-[368px]"
           {...getFormProps(form)}
         >
           <HoneypotInputs />
