@@ -1,8 +1,16 @@
-import { type LucideIcon, Gift, Heart, Home, UserCheck, Users } from 'lucide-react';
+import {
+  type LucideIcon,
+  Gift,
+  Heart,
+  Home,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import { Link } from 'react-router';
 import { FeedbackWidget } from '#app/components/feedback/feedback-widget.tsx';
 import { Logo } from '#app/components/logo';
 import { NotificationBell } from '#app/components/notifications/notification-bell.tsx';
+import { PageShell } from '#app/components/page-shell.tsx';
 import { Button } from '#app/components/ui/button';
 import { TopNavItem } from '#app/components/ui/topNavItem';
 import { UserDropdown } from '#app/components/user-dropdown';
@@ -29,8 +37,8 @@ export const TopNav = () => {
   const requestInfo = useRequestInfo();
 
   return (
-    <nav aria-label="Primary navigation" className="container max-w-6xl px-4">
-      <div className="grid grid-cols-[auto,1fr,auto] items-center gap-3 md:gap-6">
+    <nav aria-label="Primary navigation" className="w-full">
+      <PageShell className="grid grid-cols-[auto,1fr,auto] items-center gap-3 md:gap-6">
         <div className="flex shrink-0 items-center gap-3">
           <Logo />
         </div>
@@ -75,7 +83,7 @@ export const TopNav = () => {
             </>
           )}
         </div>
-      </div>
+      </PageShell>
     </nav>
   );
 };
