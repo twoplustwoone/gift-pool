@@ -35,6 +35,14 @@ export default {
     'inline-flex',
   ],
   darkMode: 'class',
+  future: {
+    // Compiles hover: (and group-hover:/peer-hover:) to
+    // `@media (hover: hover) and (pointer: fine) { &:hover }` instead of
+    // plain `&:hover`. Without this, iOS treats a tap as `:hover` with no
+    // matching mouseleave, so the tapped element stays visually "hovered"
+    // after the finger lifts — worse in standalone PWA mode.
+    hoverOnlyWhenSupported: true,
+  },
   theme: {
     container: {
       center: true,
