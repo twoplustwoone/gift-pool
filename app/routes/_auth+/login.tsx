@@ -110,7 +110,7 @@ const LoginPage = () => {
     shouldRevalidate: 'onBlur',
   });
   return (
-    <div className="flex min-h-full flex-col justify-center pb-32 pt-20">
+    <div className="container flex min-h-full flex-col justify-center pb-32 pt-20">
       <div className="mx-auto w-full max-w-md">
         <div className="flex flex-col gap-3 text-center">
           <h1 className="text-h1">Welcome back!</h1>
@@ -120,98 +120,94 @@ const LoginPage = () => {
         </div>
         <Spacer size="xs" />
 
-        <div>
-          <div className="mx-auto w-full max-w-md px-8">
-            <Form
-              method="POST"
-              {...getFormProps(form)}
-              className="flex flex-col gap-4"
-            >
-              <HoneypotInputs />
-              <Field
-                labelProps={{
-                  children: 'Username',
-                }}
-                inputProps={{
-                  ...getInputProps(fields.username, {
-                    type: 'text',
-                  }),
-                  autoFocus: true,
-                  className: 'lowercase',
-                  autoComplete: 'username',
-                }}
-                errors={fields.username.errors}
-              />
+        <Form
+          method="POST"
+          {...getFormProps(form)}
+          className="flex flex-col gap-4"
+        >
+          <HoneypotInputs />
+          <Field
+            labelProps={{
+              children: 'Username',
+            }}
+            inputProps={{
+              ...getInputProps(fields.username, {
+                type: 'text',
+              }),
+              autoFocus: true,
+              className: 'lowercase',
+              autoComplete: 'username',
+            }}
+            errors={fields.username.errors}
+          />
 
-              <Field
-                labelProps={{
-                  children: 'Password',
-                }}
-                inputProps={{
-                  ...getInputProps(fields.password, {
-                    type: 'password',
-                  }),
-                  autoComplete: 'current-password',
-                }}
-                errors={fields.password.errors}
-              />
+          <Field
+            labelProps={{
+              children: 'Password',
+            }}
+            inputProps={{
+              ...getInputProps(fields.password, {
+                type: 'password',
+              }),
+              autoComplete: 'current-password',
+            }}
+            errors={fields.password.errors}
+          />
 
-              <div className="flex justify-between">
-                <CheckboxField
-                  labelProps={{
-                    htmlFor: fields.remember.id,
-                    children: 'Remember me',
-                  }}
-                  buttonProps={getInputProps(fields.remember, {
-                    type: 'checkbox',
-                  })}
-                  errors={fields.remember.errors}
-                />
-                <div>
-                  <Link
-                    to="/forgot-password"
-                    className="text-body-xs font-semibold"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
-              </div>
-
-              <input
-                {...getInputProps(fields.redirectTo, {
-                  type: 'hidden',
-                })}
-              />
-              {/* Reserves the error line's height so clearing it on blur can't shift the button mid-click. */}
-              <div className="min-h-5">
-                <ErrorList errors={form.errors} id={form.errorId} />
-              </div>
-
-              <div className="flex items-center justify-between gap-6">
-                <StatusButton
-                  className="w-full"
-                  status={isPending ? 'pending' : (form.status ?? 'idle')}
-                  type="submit"
-                  disabled={isPending}
-                >
-                  Log in
-                </StatusButton>
-              </div>
-            </Form>
-
-            <div className="flex items-center justify-center gap-2 pt-6">
-              <span className="text-muted-foreground">New here?</span>
+          <div className="flex justify-between">
+            <CheckboxField
+              labelProps={{
+                htmlFor: fields.remember.id,
+                children: 'Remember me',
+              }}
+              buttonProps={getInputProps(fields.remember, {
+                type: 'checkbox',
+              })}
+              errors={fields.remember.errors}
+            />
+            <div>
               <Link
-                to={
-                  redirectTo
-                    ? `/signup?redirectTo=${encodeURIComponent(redirectTo)}`
-                    : '/signup'
-                }
+                to="/forgot-password"
+                className="text-body-xs font-semibold"
               >
-                Create an account
+                Forgot password?
               </Link>
             </div>
           </div>
+
+          <input
+            {...getInputProps(fields.redirectTo, {
+              type: 'hidden',
+            })}
+          />
+          {/* Reserves the error line's height so clearing it on blur can't shift the button mid-click. */}
+          <div className="min-h-5">
+            <ErrorList errors={form.errors} id={form.errorId} />
+          </div>
+
+          <div className="flex items-center justify-between gap-6">
+            <StatusButton
+              className="w-full"
+              status={isPending ? 'pending' : (form.status ?? 'idle')}
+              type="submit"
+              disabled={isPending}
+            >
+              Log in
+            </StatusButton>
+          </div>
+        </Form>
+
+        <div className="flex items-center justify-center gap-2 pt-6">
+          <span className="text-muted-foreground">New here?</span>
+          <Link
+            to={
+              redirectTo
+                ? `/signup?redirectTo=${encodeURIComponent(redirectTo)}`
+                : '/signup'
+            }
+          >
+            Create an account
+          </Link>
         </div>
       </div>
     </div>
