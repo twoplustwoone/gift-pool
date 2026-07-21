@@ -1,7 +1,12 @@
 import { LuPlus, LuUsers } from 'react-icons/lu';
-import { type LoaderFunctionArgs, useLoaderData, useNavigate  } from 'react-router';
+import {
+  type LoaderFunctionArgs,
+  useLoaderData,
+  useNavigate,
+} from 'react-router';
 import { GroupCard } from '#app/components/groups/GroupCard.tsx';
 import { PageHeader } from '#app/components/page-header.tsx';
+import { PageShell } from '#app/components/page-shell.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import {
@@ -73,7 +78,11 @@ const GroupsIndex = () => {
   const { groups } = useLoaderData<typeof loader>();
   const EmptyState = (
     <Card padding="lg" className="rounded-2xl text-center">
-      <LuUsers className="mx-auto mb-3 text-muted-foreground" size={32} aria-hidden="true" />
+      <LuUsers
+        className="mx-auto mb-3 text-muted-foreground"
+        size={32}
+        aria-hidden="true"
+      />
       <div className="text-lg font-semibold">
         You don’t have any groups yet.
       </div>
@@ -111,7 +120,7 @@ const GroupsIndex = () => {
       </PageHeader>
 
       {/* Content */}
-      <div className="mx-auto w-full max-w-6xl min-h-0 flex-1 px-4 py-8 sm:px-6">
+      <PageShell className="min-h-0 flex-1 py-8">
         {groups.length === 0 ? (
           <div className="mx-auto max-w-lg">{EmptyState}</div>
         ) : (
@@ -125,7 +134,7 @@ const GroupsIndex = () => {
             ))}
           </div>
         )}
-      </div>
+      </PageShell>
     </div>
   );
 };

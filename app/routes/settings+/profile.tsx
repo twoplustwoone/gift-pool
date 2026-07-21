@@ -1,5 +1,6 @@
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
 import { Outlet } from 'react-router';
+import { PageShell } from '#app/components/page-shell.tsx';
 
 export const handle: SEOHandle = {
   getSitemapEntries: () => null,
@@ -13,8 +14,10 @@ export const handle: SEOHandle = {
 
 const SettingsProfileLayout = () => {
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
-      <Outlet />
+    <main className="w-full">
+      <PageShell width="narrow" className="py-8 sm:py-12">
+        <Outlet />
+      </PageShell>
     </main>
   );
 };

@@ -1,14 +1,13 @@
-import  { type UserImage } from '@prisma/client';
+import { type UserImage } from '@prisma/client';
 import { LuSettings } from 'react-icons/lu';
 
-import {
-  WishlistItemEditor,
-} from '#app/routes/wishlist+/__wishlist-item-editor';
+import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
 
+import { PageShell } from '#app/components/page-shell.tsx';
 import { Button } from '../ui/button';
 import { Flex, Text } from '../ui-kit';
 import { WishlistAvatar } from './wishlist-avatar';
-import  { type WishlistCategory } from './wishlist-category-state';
+import { type WishlistCategory } from './wishlist-category-state';
 import { WishlistLinkCopyButton } from './wishlist-link-copy-button';
 import { WishlistShareDialog } from './wishlist-share-dialog';
 
@@ -45,7 +44,7 @@ export const WishlistHeader = ({
   onStartOrganize: () => void;
 }) => (
   <div className="w-full border-b bg-surface shadow">
-    <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
+    <PageShell className="flex items-center justify-between gap-3 py-4">
       <div className="flex min-w-0 items-center gap-3">
         <WishlistAvatar isOwner={isOwner} user={user} />
         <div className="flex min-w-0 items-center gap-2">
@@ -108,6 +107,6 @@ export const WishlistHeader = ({
           ) : null}
         </div>
       ) : null}
-    </div>
+    </PageShell>
   </div>
 );

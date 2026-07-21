@@ -6,6 +6,7 @@ import {
   Link,
   useLoaderData,
 } from 'react-router';
+import { PageShell } from '#app/components/page-shell.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { ProfileHeader } from '#app/components/users/profile-header.tsx';
@@ -95,7 +96,7 @@ const ProfileIndex = () => {
       : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:py-14">
+    <PageShell width="narrow" className="flex flex-col gap-8 py-10 sm:py-14">
       <ProfileHeader
         user={user}
         bio={user.bio}
@@ -143,7 +144,7 @@ const ProfileIndex = () => {
         fullListTo="/wishlist"
         ownerName={userDisplayName}
       />
-    </div>
+    </PageShell>
   );
 };
 

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { LuGift, LuPlus } from 'react-icons/lu'
 import { Link, type LoaderFunctionArgs, useLoaderData } from 'react-router'
 import { PageHeader } from '#app/components/page-header.tsx'
+import { PageShell } from '#app/components/page-shell.tsx'
 import { PoolStatusBadge } from '#app/components/pools/pool-status-badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
@@ -200,7 +201,7 @@ const PoolsIndex = () => {
 			</PageHeader>
 
 			{/* Content */}
-			<div className="mx-auto w-full max-w-6xl min-h-0 flex-1 px-4 py-8 sm:px-6">
+			<PageShell className="min-h-0 flex-1 py-8">
 				{!hasAny ? (
 					<div className="mx-auto max-w-lg">
 						<Card padding="lg" className="rounded-2xl text-center">
@@ -249,7 +250,7 @@ const PoolsIndex = () => {
 						</div>
 					</Stack>
 				)}
-			</div>
+			</PageShell>
 
 		</div>
 	)
