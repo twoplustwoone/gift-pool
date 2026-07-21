@@ -139,7 +139,10 @@ const ResetPasswordPage = () => {
             errors={fields.confirmPassword.errors}
           />
 
-          <ErrorList errors={form.errors} id={form.errorId} />
+          {/* Reserves the error line's height so clearing it on blur can't shift the button mid-click. */}
+          <div className="min-h-5">
+            <ErrorList errors={form.errors} id={form.errorId} />
+          </div>
 
           <StatusButton
             className="w-full"
