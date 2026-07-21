@@ -3,7 +3,10 @@
  */
 import { type AppLoadContext } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getSessionExpirationDate, sessionKey } from '#app/utils/auth.server.ts';
+import {
+  getSessionExpirationDate,
+  sessionKey,
+} from '#app/utils/auth.server.ts';
 import { REQUEST_ID_HEADER } from '#app/utils/request-context.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
@@ -23,8 +26,10 @@ vi.mock('#app/utils/analytics.server.ts', () => ({
 }));
 
 vi.mock('#app/utils/wishlist-images.server.ts', () => ({
-  processImageFromFile: (...args: Array<unknown>) => processImageFromFile(...args),
-  processImageFromUrl: (...args: Array<unknown>) => processImageFromUrl(...args),
+  processImageFromFile: (...args: Array<unknown>) =>
+    processImageFromFile(...args),
+  processImageFromUrl: (...args: Array<unknown>) =>
+    processImageFromUrl(...args),
 }));
 
 import { action } from './__wishlist-item-editor.server.tsx';
@@ -447,7 +452,7 @@ describe('app/routes/wishlist+/__wishlist-item-editor.server.tsx', () => {
     expect(updated?.wishlistNote).toBe('Thanks for checking out my wishlist!');
   });
 
-  it('update-note clears the note when an empty string is submitted', async () => {
+  it('update-note clears the note when a whitespace-only string is submitted', async () => {
     const { cookie, user } = await createOwnerWithSession();
     // Pre-set a note
     await prisma.user.update({
@@ -474,6 +479,44 @@ describe('app/routes/wishlist+/__wishlist-item-editor.server.tsx', () => {
     expect(updated?.wishlistNote).toBeNull();
   });
 
+  // Regression test: the client (WishlistNote's save()) always trims before
+  // submitting, so clearing the note in the UI sends a literal empty string,
+  // not whitespace. Conform's default coercion strips a literal '' to
+  // `undefined` before Zod validates it — a required z.string() then
+  // rejected it as missing, the action returned 400 without touching the
+  // DB, and the UI reverted to the old note once the fetcher settled. See
+  // WishlistNoteSchema's `.optional()`.
+  it('update-note clears the note when a literal empty string is submitted (matches client behavior)', async () => {
+    const { cookie, user } = await createOwnerWithSession();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { wishlistNote: 'Old note' },
+    });
+
+    const formData = new FormData();
+    formData.set('intent', 'update-note');
+    formData.set('note', '');
+
+    const response = await action(
+      toActionArgs({
+        context,
+        params: {},
+        request: createEditorRequest({ cookie, formData }),
+      }),
+    );
+
+    expect(getRouteResultStatus(response)).toBe(200);
+    await expect(getRouteResultData(response)).resolves.toMatchObject({
+      intent: 'update-note',
+    });
+
+    const updated = await prisma.user.findUnique({
+      select: { wishlistNote: true },
+      where: { id: user.id },
+    });
+    expect(updated?.wishlistNote).toBeNull();
+  });
+
   it('returns a result key (not a spread) when list-link URL validation fails', async () => {
     const { cookie } = await createOwnerWithSession();
 
@@ -489,7 +532,11 @@ describe('app/routes/wishlist+/__wishlist-item-editor.server.tsx', () => {
       toActionArgs({
         context,
         params: {},
-        request: createEditorRequest({ cookie, formData, requestId: 'request-4' }),
+        request: createEditorRequest({
+          cookie,
+          formData,
+          requestId: 'request-4',
+        }),
       }),
     );
 

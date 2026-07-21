@@ -46,12 +46,16 @@ describe('WishlistNote', () => {
 
   it('shows "Add a message" prompt for owner with no note', () => {
     render(<WishlistNote note={null} isOwner={true} />);
-    expect(screen.getByText(/Add a message to your wishlist/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Add a message to your wishlist/i),
+    ).toBeInTheDocument();
   });
 
   it('shows "Add a message" prompt for owner with empty note', () => {
     render(<WishlistNote note="" isOwner={true} />);
-    expect(screen.getByText(/Add a message to your wishlist/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Add a message to your wishlist/i),
+    ).toBeInTheDocument();
   });
 
   // ── Owner — existing note ─────────────────────────────────────────────────
@@ -68,7 +72,9 @@ describe('WishlistNote', () => {
 
   it('enters edit mode when the edit button is clicked', () => {
     render(<WishlistNote note="Original note" isOwner={true} />);
-    fireEvent.click(screen.getByRole('button', { name: /Edit wishlist message/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /Edit wishlist message/i }),
+    );
     expect(screen.getByRole('textbox')).toBeInTheDocument();
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
       'Original note',
@@ -83,8 +89,21 @@ describe('WishlistNote', () => {
 
   it('cancel button exits edit mode without saving', () => {
     render(<WishlistNote note="Keep this" isOwner={true} />);
-    fireEvent.click(screen.getByRole('button', { name: /Edit wishlist message/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /Edit wishlist message/i }),
+    );
     fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByText('Keep this')).toBeInTheDocument();
+    expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it('Escape key exits edit mode without saving, mirroring Cancel', () => {
+    render(<WishlistNote note="Keep this" isOwner={true} />);
+    fireEvent.click(
+      screen.getByRole('button', { name: /Edit wishlist message/i }),
+    );
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.getByText('Keep this')).toBeInTheDocument();
     expect(mockSubmit).not.toHaveBeenCalled();
@@ -92,14 +111,19 @@ describe('WishlistNote', () => {
 
   it('save button submits the note and exits edit mode', () => {
     render(<WishlistNote note="Old note" isOwner={true} />);
-    fireEvent.click(screen.getByRole('button', { name: /Edit wishlist message/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /Edit wishlist message/i }),
+    );
 
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: 'New note' } });
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
 
     expect(mockSubmit).toHaveBeenCalledOnce();
-    const [formData, options] = mockSubmit.mock.calls[0] as [FormData, { method: string; action: string }];
+    const [formData, options] = mockSubmit.mock.calls[0] as [
+      FormData,
+      { method: string; action: string },
+    ];
     expect(formData.get('intent')).toBe('update-note');
     expect(formData.get('note')).toBe('New note');
     expect(options.method).toBe('POST');

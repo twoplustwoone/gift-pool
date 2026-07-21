@@ -44,7 +44,6 @@ import {
   DEFAULT_CATEGORY_KEY,
   type WishlistItem,
 } from './wishlist-item-state';
-import { WishlistNote } from './wishlist-note';
 import { OrganizeBanner, OrganizeCategoriesPanel } from './wishlist-organize';
 
 export type WishlistUser = Pick<User, 'id' | 'username' | 'name'> & {
@@ -843,6 +842,7 @@ export const Wishlist = ({
         isOwner={isOwner}
         user={{ ...user, wishlistCategories: optimisticCategories }}
         displayName={displayName}
+        note={user.wishlistNote ?? null}
         origin={origin}
         publicShare={publicShare ?? null}
         isPublicView={isPublicView}
@@ -851,9 +851,6 @@ export const Wishlist = ({
         showOrganize={showOrganize}
         onStartOrganize={startItemReorderMode}
       />
-      {!isReorderMode ? (
-        <WishlistNote note={user.wishlistNote ?? null} isOwner={isOwner} />
-      ) : null}
       <PageShell className="min-h-0 flex-1 py-8">
         <WishlistBody
           activeItemCategoryKey={activeItemCategoryKey}

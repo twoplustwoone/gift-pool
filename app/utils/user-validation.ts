@@ -79,12 +79,20 @@ export type WishlistVisibility = (typeof WISHLIST_VISIBILITY_VALUES)[number];
 export const WishlistVisibilitySchema = z.enum(WISHLIST_VISIBILITY_VALUES);
 
 export const WISHLIST_NOTE_MAX_LENGTH = 400;
+// `.optional()` matters here: Conform's default coercion strips a
+// literal empty-string form value to `undefined` before Zod ever sees it
+// (@conform-to/zod's `stripEmptyString`), so a required `z.string()` would
+// reject "clear the note" as a missing field rather than a valid empty one
+// — the note would silently fail to save and the UI would revert to the
+// last value. `.optional()` lets `undefined` through; the transform maps
+// both `undefined` and whitespace-only input back to `''`.
 export const WishlistNoteSchema = z
   .string()
   .max(WISHLIST_NOTE_MAX_LENGTH, {
     message: `Message must be ${WISHLIST_NOTE_MAX_LENGTH} characters or fewer`,
   })
-  .transform((v) => v.trim());
+  .optional()
+  .transform((v) => (v ?? '').trim());
 
 // Accepts YYYY-MM-DD from a native date input, or an empty string (meaning
 // "clear the field"). Transforms to a Date at NOON UTC or null.
