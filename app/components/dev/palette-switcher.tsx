@@ -1,14 +1,23 @@
 /**
- * Owner-only live palette comparison tool. NOT a shipped feature — no
- * cookie/SSR persistence, no Settings UI entry, dev-build only (see the
- * `import.meta.env.DEV` gate in root.tsx). Safe to delete this file, its
- * import in root.tsx, and the `.palette-fete` blocks in tailwind.css
- * wholesale once a palette decision is made.
+ * Live palette comparison tool. NOT a shipped feature — no cookie/SSR
+ * persistence, no Settings UI entry. Rendered for any developer in dev and
+ * for admins only in production (see the `showPaletteSwitcher` gate in
+ * root.tsx). Safe to delete this file, its import in root.tsx, and the
+ * `.palette-fete` blocks in tailwind.css wholesale once a palette decision
+ * is made.
  */
 import { useEffect, useState } from 'react';
+import { userHasRole } from '#app/utils/user.ts';
 
 export const PALETTE_STORAGE_KEY = 'gp-dev-palette';
 export const PALETTE_CLASS = 'palette-fete';
+
+export function shouldShowPaletteSwitcher(
+  isDev: boolean,
+  user: Parameters<typeof userHasRole>[0],
+) {
+  return isDev || userHasRole(user, 'admin');
+}
 
 type PaletteId = 'current' | 'fete';
 
@@ -43,7 +52,14 @@ export const PaletteSwitcher = () => {
       root.classList.toggle(PALETTE_CLASS, shouldHaveClass);
     });
     observer.observe(root, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      // Unmounting (e.g. the admin gate closing on logout or a revoked
+      // role) must not strand the page on the experimental palette with no
+      // switcher left to revert it — <html>'s className is keyed off theme,
+      // not palette, so React won't clear this class on its own.
+      root.classList.remove(PALETTE_CLASS);
+    };
   }, [palette]);
 
   if (palette === null) return null;

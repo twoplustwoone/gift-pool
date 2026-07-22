@@ -170,12 +170,14 @@
   }
 
   /* ---------------------------------------------------------------------
-     "Fête" palette — owner-only live comparison, NOT a shipped feature.
-     Toggled by a temporary floating switcher (see PaletteSwitcher) that
-     writes a `palette-fete` class + localStorage flag; no cookie/SSR
-     persistence, no Settings UI, no per-user rollout. Safe to delete this
-     block and the switcher component wholesale once a palette decision is
-     made — nothing else in the app depends on the class existing.
+     "Fête" palette — live comparison, NOT a shipped feature. Rendered for
+     any developer in dev and for admins only in production (see
+     `showPaletteSwitcher` in root.tsx). Toggled by a temporary floating
+     switcher (see PaletteSwitcher) that writes a `palette-fete` class +
+     localStorage flag; no cookie/SSR persistence, no Settings UI, no
+     per-user rollout beyond the admin gate. Safe to delete this block and
+     the switcher component wholesale once a palette decision is made —
+     nothing else in the app depends on the class existing.
 
      Partial override: only tokens that actually differ from :root/.dark
      are declared. destructive/warning/input-invalid/foreground-destructive/
