@@ -27,6 +27,13 @@ import { Badge } from '#app/components/ui/badge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { Input } from '#app/components/ui/input.tsx';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#app/components/ui/select.tsx';
 import { SystemLabel } from '#app/components/ui/system-label.tsx';
 import { Textarea } from '#app/components/ui/textarea.tsx';
 import { Flex, Stack, Text } from '#app/components/ui-kit';
@@ -282,6 +289,9 @@ const IdeaCard = ({
 
 // Propose idea form
 type RecipientWishlistItem = LoaderData['recipientWishlistItems'][number];
+// Radix Select reserves an empty string value for "no selection" — this
+// sentinel represents the clearable "From their wishlist…" placeholder item.
+const WISHLIST_ITEM_NONE = '__none__';
 
 const ProposeIdeaForm = ({
   poolId,
@@ -346,23 +356,32 @@ const ProposeIdeaForm = ({
             Propose an idea
           </Text>
           {recipientWishlistItems.length > 0 && (
-            <select
-              value={selectedItemId}
-              onChange={(e) => handlePickItem(e.target.value)}
-              data-testid="wishlist-item-picker"
-              aria-label="Pick from their wishlist"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-muted-foreground"
+            <Select
+              value={selectedItemId || WISHLIST_ITEM_NONE}
+              onValueChange={(value) =>
+                handlePickItem(value === WISHLIST_ITEM_NONE ? '' : value)
+              }
             >
-              <option value="">From their wishlist… (optional)</option>
-              {recipientWishlistItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                  {item.priceCents == null
-                    ? ''
-                    : ` — ${formatCents(item.priceCents, item.currency ?? 'USD')}`}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                data-testid="wishlist-item-picker"
+                aria-label="Pick from their wishlist"
+              >
+                <SelectValue placeholder="From their wishlist… (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={WISHLIST_ITEM_NONE}>
+                  From their wishlist… (optional)
+                </SelectItem>
+                {recipientWishlistItems.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.title}
+                    {item.priceCents == null
+                      ? ''
+                      : ` — ${formatCents(item.priceCents, item.currency ?? 'USD')}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           <Stack gap={2}>
             <Input

@@ -288,9 +288,14 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     renderRoute();
 
     const picker = screen.getByTestId('wishlist-item-picker');
-    expect(picker).toHaveTextContent('Espresso machine — $249.99');
+    expect(picker).toHaveTextContent('From their wishlist… (optional)');
 
-    await userEvent.selectOptions(picker, 'wish-9');
+    await userEvent.click(picker);
+    await userEvent.click(
+      await screen.findByRole('option', {
+        name: 'Espresso machine — $249.99',
+      }),
+    );
 
     await screen.findByDisplayValue('Espresso machine');
     expect(

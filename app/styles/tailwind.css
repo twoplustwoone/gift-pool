@@ -27,15 +27,25 @@
     --popover: 0 0% 100%;
     --popover-foreground: 18 18% 11%;
 
-    --card: 16 100% 96%; /* #FFF1EC tonal tint on the canvas */
+    /* Deepened from 16 100% 96% (#FFF1EC) — that value sat 2 lightness points
+       below --background, functionally invisible without the border doing
+       all the work. Every route using the shared <Card> primitive (wishlist
+       items, group cards, pool cards) read as flat and washed out, while
+       Home's hand-rolled subcard rows (--subcard, unchanged below) visibly
+       popped. Matching --card to --subcard gives every <Card> consumer the
+       same real contrast Home already had, continuing the same audit that
+       deepened --background-muted above. */
+    --card: 0 0% 100%; /* = subcard */
     --card-foreground: 18 18% 11%;
 
     --border: 11 37% 80%; /* #DFC0B9 */
     --input: 11 37% 80%;
     --input-invalid: 0 84.2% 60.2%;
-    /* Field fill — distinct from both --background and --card
-       so an input reads as a filled field on any surface (R1.1/R1.4). */
-    --input-bg: 17 68% 94%;
+    /* Field fill — distinct from both --background and the new white --card
+       so an input still reads as a filled, recessed field rather than
+       vanishing into a now-white card (R1.1/R1.4). Reuses --muted's value —
+       already the audited, visibly-distinct tint in this family. */
+    --input-bg: 15 48% 92%; /* = muted */
 
     --primary: 11 67% 39%; /* #A73921 terracotta — AA with white text */
     --primary-foreground: 0 0% 100%;
@@ -115,15 +125,22 @@
     --popover: 19 22% 13%;
     --popover-foreground: 17 84% 95%;
 
-    --card: 18 22% 12%; /* #241B17 — surfaces get lighter and warmer with elevation */
+    /* Deepened (lightened) from 18 22% 12% (#241B17) — only 4 points above
+       --background, same washed-out symptom as light mode's --card fix
+       above. Matched to --subcard (unchanged below) so every <Card>
+       consumer gets the same real "surfaces get lighter with elevation"
+       pop Home's hand-rolled subcard rows already had. */
+    --card: 19 21% 15%; /* = subcard */
     --card-foreground: 17 84% 95%;
 
     --border: 19 18% 21%;
     --input: 19 18% 21%;
     --input-invalid: 0 62.8% 30.6%;
-    /* Field fill — a hair lighter than --card so it reads as a raised,
-       fillable field rather than a hole on dark surfaces (R1.1/R1.4). */
-    --input-bg: 19 21% 15%;
+    /* Field fill — a hair lighter than the new --card so it still reads as
+       a raised, fillable field rather than blending into the card surface
+       it sits on (R1.1/R1.4). Preserves the original +3-lightness-point
+       relationship to --card, recentered on the new value. */
+    --input-bg: 19 20% 18%;
 
     --primary: 11 100% 82%; /* #FFB4A3 light coral — dark surfaces need light accents */
     --primary-foreground: 6 100% 12%; /* #3D0600 */
@@ -194,19 +211,19 @@
     --muted-foreground: 330 11% 38%; /* #6B5560 */
     --popover: 0 0% 100%;
     --popover-foreground: 324 16% 12%;
-    --card: 339 78% 96%; /* #FDEFF4 */
+    --card: 0 0% 100%; /* = subcard — matches the :root card/subcard unification above */
     --card-foreground: 324 16% 12%;
     --border: 334 28% 85%; /* #E4CFD8 */
     --input: 334 28% 85%;
-    --input-bg: 337 52% 95%; /* #F9ECF1, interpolated toward card */
+    --input-bg: 332 42% 94%; /* = muted — matches the :root input-bg fix above */
     --primary: 335 78% 42%; /* #BE185D raspberry */
     --primary-foreground: 0 0% 100%;
     --secondary: 332 35% 92%; /* #F1E2E9, = subcard-border (mirrors current light relationship) */
     --secondary-foreground: 324 16% 12%;
-    --accent: 337 52% 95%; /* = input-bg (mirrors current light relationship) */
+    --accent: 337 52% 95%; /* #F9ECF1 — independent of --input-bg, used for hover/focus states */
     --accent-foreground: 335 72% 60%; /* #E24E8C, the mockup's vibrant emphasis pink used in avatar gradients */
     --ring: 335 72% 60%;
-    --surface: 339 78% 96%; /* = card */
+    --surface: 339 78% 96%; /* #FDEFF4 — page header band; independent of --card now, unchanged on purpose */
     --surface-foreground: var(--foreground);
     --surface-border: 334 28% 85%; /* = border */
     --subcard: 0 0% 100%;
@@ -231,11 +248,14 @@
     --muted-foreground: 335 23% 79%; /* #D6BEC8 */
     --popover: 318 16% 15%; /* = modal/subcard */
     --popover-foreground: 335 68% 95%;
-    --card: 318 16% 12%; /* #241A21 */
+    --card: 318 16% 15%; /* = subcard — matches the .dark card/subcard unification above */
     --card-foreground: 335 68% 95%;
     --border: 329 17% 24%; /* #47323D */
     --input: 329 17% 24%;
-    --input-bg: 318 16% 15%; /* = subcard (mirrors current dark relationship) */
+    /* Was = subcard (318 16% 15%), which is now --card's value too — bumped
+       a hair lighter so the field still reads as raised above the card it
+       sits on, same relationship as the .dark fix above. */
+    --input-bg: 318 16% 18%;
     --primary: 333 100% 83%; /* #FFA6CE */
     --primary-foreground: 329 90% 15%; /* #4A0428 */
     --secondary: 327 17% 20%; /* #3D2B35, derived; = accent (mirrors current dark relationship) */
@@ -243,7 +263,7 @@
     --accent: 327 17% 20%;
     --accent-foreground: 335 72% 60%; /* #E24E8C, constant across modes like current accent-foreground/ring */
     --ring: 335 72% 60%;
-    --surface: 318 16% 12%; /* = card */
+    --surface: 318 16% 12%; /* #241A21 — page header band; independent of --card now, unchanged on purpose */
     --surface-foreground: var(--foreground);
     --surface-border: 329 17% 24%; /* = border */
     --subcard: 318 16% 15%; /* #2E212A */

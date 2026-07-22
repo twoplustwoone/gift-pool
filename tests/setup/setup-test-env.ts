@@ -18,6 +18,18 @@ await import('dotenv/config');
 await import('./db-setup.ts');
 // we need these to be imported first 👆
 
+// jsdom doesn't implement pointer capture or scrollIntoView, which Radix
+// Select (and other Radix primitives using its positioning logic) call
+// unconditionally when opening — without this, clicking a Select trigger in
+// a jsdom-environment test throws "hasPointerCapture is not a function".
+// Guarded because this file also runs for node-environment tests with no DOM.
+if (typeof Element !== 'undefined') {
+  Element.prototype.hasPointerCapture ??= () => false;
+  Element.prototype.setPointerCapture ??= () => {};
+  Element.prototype.releasePointerCapture ??= () => {};
+  Element.prototype.scrollIntoView ??= () => {};
+}
+
 const { cleanup } = await import('@testing-library/react');
 const vitest = await import('vitest');
 const { server } = await import('#tests/mocks/index.ts');

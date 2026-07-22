@@ -9,7 +9,7 @@ const roleMeta: Record<
 > = {
   OWNER: {
     label: 'owner',
-    icon: <LuCrown className="text-warning" />,
+    icon: <LuCrown />,
     bg: 'bg-primary',
     text: 'text-primary-foreground',
   },
