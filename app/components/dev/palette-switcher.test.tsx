@@ -60,4 +60,23 @@ describe('<PaletteSwitcher />', () => {
     );
     expect(window.localStorage.getItem(PALETTE_STORAGE_KEY)).toBe('current');
   });
+
+  it('reasserts the palette class after something else overwrites <html>.className', async () => {
+    const user = userEvent.setup();
+    render(<PaletteSwitcher />);
+
+    await user.click(screen.getByRole('button', { name: 'Fête' }));
+    await waitFor(() =>
+      expect(document.documentElement).toHaveClass(PALETTE_CLASS),
+    );
+
+    // Simulate a theme toggle: React rewrites <html>'s className wholesale,
+    // dropping the imperatively-added palette class.
+    document.documentElement.className = 'dark min-h-full overflow-x-hidden';
+    expect(document.documentElement).not.toHaveClass(PALETTE_CLASS);
+
+    await waitFor(() =>
+      expect(document.documentElement).toHaveClass(PALETTE_CLASS),
+    );
+  });
 });

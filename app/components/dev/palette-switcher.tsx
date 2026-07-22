@@ -31,11 +31,19 @@ export const PaletteSwitcher = () => {
 
   useEffect(() => {
     if (palette === null) return;
-    document.documentElement.classList.toggle(
-      PALETTE_CLASS,
-      palette === 'fete',
-    );
+    const shouldHaveClass = palette === 'fete';
+    const root = document.documentElement;
+    root.classList.toggle(PALETTE_CLASS, shouldHaveClass);
     window.localStorage.setItem(PALETTE_STORAGE_KEY, palette);
+
+    // The theme switch re-renders <html>'s className as a single template
+    // string, which silently drops this class since React isn't aware of
+    // it. Reassert it whenever something else touches the class attribute.
+    const observer = new MutationObserver(() => {
+      root.classList.toggle(PALETTE_CLASS, shouldHaveClass);
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
   }, [palette]);
 
   if (palette === null) return null;
