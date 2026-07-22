@@ -21,8 +21,14 @@ Codex findings land on THREE different surfaces depending on the run, and a sing
 
 Check all three every time, not just the one that happened to have a hit last time.
 
+**Scope every check to the current review run, not to all history.** A prior finding you already fixed (or already judged and declined) stays in these API responses forever — a clean re-review only adds a 👍 reaction, it never deletes or supersedes the old comment. Before evaluating what's outstanding:
+
+- Note the commit SHA you just pushed (or the `@codex review` comment's `created_at`/id from the `gh pr comment` output) as the baseline for this round.
+- `pulls/{number}/reviews` entries carry `commit_id` — filter to the review whose `commit_id` matches the commit you just pushed; that's the authoritative "is this round done yet" signal.
+- For `pulls/{number}/comments` and `issues/{number}/comments`, filter to `created_at` after the baseline. Anything older is a past round's finding, not this round's — don't re-treat it as newly outstanding just because it's still sitting there.
+
 - While a review is running, Codex reacts to the triggering PR/comment with 👀; when done it either reacts 👍 (nothing found) or posts a finding on one of the three surfaces above. Reactions live on the PR/issue itself (`gh api --paginate repos/{owner}/{repo}/issues/{number}/reactions`) and, when a specific `@codex review` comment triggered the run, on that comment (`gh api --paginate repos/{owner}/{repo}/issues/comments/{comment_id}/reactions`).
-- No 👀/👍 reaction and nothing on any of the three comment surfaces usually means the review hasn't landed yet — check again rather than reporting green.
+- No 👀/👍 reaction and nothing new (per the scoping above) on any of the three comment surfaces usually means the review hasn't landed yet — check again rather than reporting green.
 - A reply about no review usages/credits remaining is expected and can be ignored — it's not a finding.
 - **Judge each finding before acting — do not blindly fix everything.** Verify it against the actual code the same way you would a human reviewer's comment (per `superpowers:receiving-code-review`): if it's real and in scope, fix it and add/adjust a regression test; if you determine it's incorrect, already handled, out of scope for this change, or a deliberate tradeoff, it is fine to leave it unaddressed — but say so explicitly in your report to the user (what the finding was, why you're not acting on it) rather than silently dropping it. Silence reads as "missed it," not "considered and declined."
 - After pushing a fix (or after deciding a finding needs no code change), comment `@codex review` on the PR (`gh pr comment {number} --body "@codex review"`) to trigger a fresh pass — this is Codex's own documented re-review trigger, confirmed from its review-comment footer in this repo. Keep monitoring (all three surfaces) until a pass finds nothing new.
