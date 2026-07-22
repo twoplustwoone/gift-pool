@@ -69,7 +69,9 @@ export const poolSelect = {
 			proposedById: true,
 			createdAt: true,
 			proposedBy: { select: { id: true, username: true, name: true } },
-			wishlistItem: { select: { id: true, title: true, url: true, hasImage: true } },
+			wishlistItem: {
+				select: { id: true, title: true, url: true, hasImage: true, updatedAt: true },
+			},
 			_count: { select: { votes: true } },
 		},
 	},
