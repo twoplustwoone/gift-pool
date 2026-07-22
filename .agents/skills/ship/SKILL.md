@@ -13,13 +13,15 @@ This repo has the Codex GitHub App auto-reviewing PRs (on open, and on an `@code
 
 Codex findings land on THREE different surfaces depending on the run, and a single check on only one of them is not sufficient:
 
-- Line comments on the diff: `gh api repos/{owner}/{repo}/pulls/{number}/comments --jq '.[] | select(.user.login == "chatgpt-codex-connector[bot]")'`
-- Formal review summaries: `gh api repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[] | select(.user.login == "chatgpt-codex-connector[bot]")'`
-- Plain top-level PR comments (a "## Review finding" — this is a real surface, not hypothetical, and is easy to miss since it isn't a review or a line comment): `gh api repos/{owner}/{repo}/issues/{number}/comments --jq '.[] | select(.user.login == "chatgpt-codex-connector[bot]")'`
+- Line comments on the diff: `gh api --paginate repos/{owner}/{repo}/pulls/{number}/comments --jq '.[] | select(.user.login == "chatgpt-codex-connector[bot]")'`
+- Formal review summaries: `gh api --paginate repos/{owner}/{repo}/pulls/{number}/reviews --jq '.[] | select(.user.login == "chatgpt-codex-connector[bot]")'`
+- Plain top-level PR comments (a "## Review finding" — this is a real surface, not hypothetical, and is easy to miss since it isn't a review or a line comment): `gh api --paginate repos/{owner}/{repo}/issues/{number}/comments --jq '.[] | select(.user.login == "chatgpt-codex-connector[bot]")'`
+
+`--paginate` is required on all three — GitHub's list endpoints default to 30 items per page, and a PR that's had a few review rounds can exceed that; without it, a finding on page 2 is invisible and the workflow reports clean when it isn't.
 
 Check all three every time, not just the one that happened to have a hit last time.
 
-- While a review is running, Codex reacts to the triggering PR/comment with 👀; when done it either reacts 👍 (nothing found) or posts a finding on one of the three surfaces above. Reactions live on the PR/issue itself (`gh api repos/{owner}/{repo}/issues/{number}/reactions`) and, when a specific `@codex review` comment triggered the run, on that comment (`gh api repos/{owner}/{repo}/issues/comments/{comment_id}/reactions`).
+- While a review is running, Codex reacts to the triggering PR/comment with 👀; when done it either reacts 👍 (nothing found) or posts a finding on one of the three surfaces above. Reactions live on the PR/issue itself (`gh api --paginate repos/{owner}/{repo}/issues/{number}/reactions`) and, when a specific `@codex review` comment triggered the run, on that comment (`gh api --paginate repos/{owner}/{repo}/issues/comments/{comment_id}/reactions`).
 - No 👀/👍 reaction and nothing on any of the three comment surfaces usually means the review hasn't landed yet — check again rather than reporting green.
 - A reply about no review usages/credits remaining is expected and can be ignored — it's not a finding.
 - **Judge each finding before acting — do not blindly fix everything.** Verify it against the actual code the same way you would a human reviewer's comment (per `superpowers:receiving-code-review`): if it's real and in scope, fix it and add/adjust a regression test; if you determine it's incorrect, already handled, out of scope for this change, or a deliberate tradeoff, it is fine to leave it unaddressed — but say so explicitly in your report to the user (what the finding was, why you're not acting on it) rather than silently dropping it. Silence reads as "missed it," not "considered and declined."
