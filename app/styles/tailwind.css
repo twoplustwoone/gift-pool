@@ -169,6 +169,95 @@
     --brand-gradient-end: 11 100% 82%;
   }
 
+  /* ---------------------------------------------------------------------
+     "Fête" palette — owner-only live comparison, NOT a shipped feature.
+     Toggled by a temporary floating switcher (see PaletteSwitcher) that
+     writes a `palette-fete` class + localStorage flag; no cookie/SSR
+     persistence, no Settings UI, no per-user rollout. Safe to delete this
+     block and the switcher component wholesale once a palette decision is
+     made — nothing else in the app depends on the class existing.
+
+     Partial override: only tokens that actually differ from :root/.dark
+     are declared. destructive/warning/input-invalid/foreground-destructive/
+     scrim/radius/fonts/success(dark)/success-muted/warning-muted are
+     deliberately omitted so they keep inheriting the current values (the
+     rework brief keeps those semantic roles as-is). Source values are the
+     accepted "Gift Pool Palette Rework" mockup (raspberry primary /
+     periwinkle pool), converted from its explicit hex anchors. --------- */
+  .palette-fete {
+    --background: 336 38% 97%; /* #FBF6F8 */
+    --background-muted: 330 29% 92%; /* #F0E4EA */
+    --foreground: 324 16% 12%; /* #241A20 */
+    --muted: 332 42% 94%; /* #F6E9EF, interpolated between card and background-muted */
+    --muted-foreground: 330 11% 38%; /* #6B5560 */
+    --popover: 0 0% 100%;
+    --popover-foreground: 324 16% 12%;
+    --card: 339 78% 96%; /* #FDEFF4 */
+    --card-foreground: 324 16% 12%;
+    --border: 334 28% 85%; /* #E4CFD8 */
+    --input: 334 28% 85%;
+    --input-bg: 337 52% 95%; /* #F9ECF1, interpolated toward card */
+    --primary: 335 78% 42%; /* #BE185D raspberry */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 332 35% 92%; /* #F1E2E9, = subcard-border (mirrors current light relationship) */
+    --secondary-foreground: 324 16% 12%;
+    --accent: 337 52% 95%; /* = input-bg (mirrors current light relationship) */
+    --accent-foreground: 335 72% 60%; /* #E24E8C, the mockup's vibrant emphasis pink used in avatar gradients */
+    --ring: 335 72% 60%;
+    --surface: 339 78% 96%; /* = card */
+    --surface-foreground: var(--foreground);
+    --surface-border: 334 28% 85%; /* = border */
+    --subcard: 0 0% 100%;
+    --subcard-foreground: 324 16% 12%;
+    --subcard-border: 332 35% 92%; /* #F1E2E9 */
+    --modal: 0 0% 100%; /* = subcard */
+    --modal-border: 334 28% 85%; /* = border */
+    --success: 148 65% 24%; /* #15633A, mockup's harmony-adjusted green (warning/destructive kept byte-identical, so left unoverridden) */
+    --gift: 335 78% 42%; /* = primary */
+    --gift-foreground: 0 0% 100%;
+    --pool: 237 51% 44%; /* #363BA8 periwinkle */
+    --pool-foreground: 0 0% 100%;
+    --pool-badge-foreground: 0 0% 100%;
+    --brand-gradient-start: 335 78% 42%; /* = primary */
+    --brand-gradient-end: 335 72% 60%; /* #E24E8C */
+  }
+  .palette-fete.dark {
+    --background: 315 17% 9%; /* #1B1319 warm plum-black */
+    --background-muted: 316 17% 12%; /* #251A22 */
+    --foreground: 335 68% 95%; /* #FBEAF1 */
+    --muted: 318 16% 15%; /* = subcard, derived */
+    --muted-foreground: 335 23% 79%; /* #D6BEC8 */
+    --popover: 318 16% 15%; /* = modal/subcard */
+    --popover-foreground: 335 68% 95%;
+    --card: 318 16% 12%; /* #241A21 */
+    --card-foreground: 335 68% 95%;
+    --border: 329 17% 24%; /* #47323D */
+    --input: 329 17% 24%;
+    --input-bg: 318 16% 15%; /* = subcard (mirrors current dark relationship) */
+    --primary: 333 100% 83%; /* #FFA6CE */
+    --primary-foreground: 329 90% 15%; /* #4A0428 */
+    --secondary: 327 17% 20%; /* #3D2B35, derived; = accent (mirrors current dark relationship) */
+    --secondary-foreground: 335 68% 95%;
+    --accent: 327 17% 20%;
+    --accent-foreground: 335 72% 60%; /* #E24E8C, constant across modes like current accent-foreground/ring */
+    --ring: 335 72% 60%;
+    --surface: 318 16% 12%; /* = card */
+    --surface-foreground: var(--foreground);
+    --surface-border: 329 17% 24%; /* = border */
+    --subcard: 318 16% 15%; /* #2E212A */
+    --subcard-foreground: 335 68% 95%;
+    --subcard-border: 326 16% 20%; /* #3A2A33 */
+    --modal: 318 16% 15%; /* = subcard */
+    --modal-border: 326 16% 20%; /* = subcard-border */
+    --gift: 333 100% 83%; /* = primary */
+    --gift-foreground: 329 90% 15%;
+    --pool: 234 100% 86%; /* #B7BEFF */
+    --pool-foreground: 236 46% 15%; /* #141636, dark text — the fill is light in dark mode */
+    --pool-badge-foreground: 236 46% 15%;
+    --brand-gradient-start: 333 100% 83%; /* = primary */
+    --brand-gradient-end: 335 72% 60%; /* #E24E8C, constant */
+  }
+
   /* Display face for major headings; body/controls stay on --font-sans.
      Route-family passes opt additional elements in via `font-display`. */
   h1,
