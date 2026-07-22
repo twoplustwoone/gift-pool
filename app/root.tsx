@@ -23,6 +23,11 @@ import { useSpinDelay } from 'spin-delay';
 import { z } from 'zod';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
+import {
+  PALETTE_CLASS,
+  PALETTE_STORAGE_KEY,
+  PaletteSwitcher,
+} from './components/dev/palette-switcher.tsx';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx';
 import { FriendsRouteSkeleton } from './components/friends/friends-route-skeleton.tsx';
 import { BottomNav } from './components/nav/bottom/bottom-nav.tsx';
@@ -257,6 +262,18 @@ const Document = ({
         />
         <meta name="csp-nonce" content={nonce} />
         <Links />
+        {import.meta.env.DEV ? (
+          <script
+            nonce={nonce}
+            dangerouslySetInnerHTML={{
+              // Owner-only palette comparison tool (see PaletteSwitcher) —
+              // applies the stored palette before first paint so switching
+              // to Fête and reloading doesn't flash the current palette.
+              // Dev-build only; never runs in the deployed app.
+              __html: `try{if(localStorage.getItem('${PALETTE_STORAGE_KEY}')==='fete'){document.documentElement.classList.add('${PALETTE_CLASS}')}}catch(e){}`,
+            }}
+          />
+        ) : null}
       </head>
       <body className="min-h-screen overflow-hidden bg-background text-foreground">
         {children}
@@ -403,6 +420,7 @@ const App = () => {
           </div>
           <EpicProgress />
           <EpicToaster closeButton position="top-center" theme={theme} />
+          {import.meta.env.DEV ? <PaletteSwitcher /> : null}
         </NotificationsProvider>
       </I18nProvider>
     </Document>
