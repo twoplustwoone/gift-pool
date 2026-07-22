@@ -52,7 +52,14 @@ export const PaletteSwitcher = () => {
       root.classList.toggle(PALETTE_CLASS, shouldHaveClass);
     });
     observer.observe(root, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      // Unmounting (e.g. the admin gate closing on logout or a revoked
+      // role) must not strand the page on the experimental palette with no
+      // switcher left to revert it — <html>'s className is keyed off theme,
+      // not palette, so React won't clear this class on its own.
+      root.classList.remove(PALETTE_CLASS);
+    };
   }, [palette]);
 
   if (palette === null) return null;

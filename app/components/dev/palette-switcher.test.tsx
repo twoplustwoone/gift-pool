@@ -80,6 +80,19 @@ describe('<PaletteSwitcher />', () => {
       expect(document.documentElement).toHaveClass(PALETTE_CLASS),
     );
   });
+
+  it('clears the palette class on unmount (e.g. the admin gate closing)', async () => {
+    window.localStorage.setItem(PALETTE_STORAGE_KEY, 'fete');
+    const { unmount } = render(<PaletteSwitcher />);
+
+    await waitFor(() =>
+      expect(document.documentElement).toHaveClass(PALETTE_CLASS),
+    );
+
+    unmount();
+
+    expect(document.documentElement).not.toHaveClass(PALETTE_CLASS);
+  });
 });
 
 describe('shouldShowPaletteSwitcher', () => {
