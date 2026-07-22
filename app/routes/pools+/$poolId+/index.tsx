@@ -38,7 +38,6 @@ import {
 import { SystemLabel } from '#app/components/ui/system-label.tsx';
 import { Textarea } from '#app/components/ui/textarea.tsx';
 import { Flex, Stack, Text } from '#app/components/ui-kit';
-import { getWishlistItemImgSrc } from '#app/utils/misc.tsx';
 import { formatCents } from '#app/utils/pool-contributions.ts';
 import {
   DECISION_MODE,
@@ -164,9 +163,14 @@ const IdeaCard = ({
     (chooseFetcher.formData?.get('ideaId') as string) === idea.id;
 
   const wishlistItem = idea.wishlistItem;
+  // Routed through the pool-scoped image resource, not
+  // getWishlistItemImgSrc's /resources/wishlist-images/:id — that route
+  // authorizes on friend/group wishlist access, which a pool contributor
+  // who joined via invite link doesn't necessarily have even though they
+  // can already see this idea's other wishlist-sourced fields.
   const imageSrc =
     wishlistItem?.hasImage && wishlistItem.updatedAt
-      ? `${getWishlistItemImgSrc(wishlistItem.id)}?v=${new Date(wishlistItem.updatedAt).getTime()}`
+      ? `/resources/pool-idea-images/${idea.id}?v=${new Date(wishlistItem.updatedAt).getTime()}`
       : null;
 
   return (

@@ -295,9 +295,12 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
 
     const [firstCard] = screen.getAllByTestId('idea-card');
     const img = firstCard!.querySelector('img');
+    // Routed through the pool-authorized image resource (keyed by idea.id),
+    // not /resources/wishlist-images/:wishlistItemId — see
+    // pool-idea-images.$ideaId.tsx for why.
     expect(img).toHaveAttribute(
       'src',
-      `/resources/wishlist-images/wish-1?v=${new Date('2026-02-01T00:00:00.000Z').getTime()}`,
+      `/resources/pool-idea-images/idea-1?v=${new Date('2026-02-01T00:00:00.000Z').getTime()}`,
     );
   });
 
