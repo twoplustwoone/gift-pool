@@ -27,6 +27,7 @@ import {
   PALETTE_CLASS,
   PALETTE_STORAGE_KEY,
   PaletteSwitcher,
+  shouldShowPaletteSwitcher,
 } from './components/dev/palette-switcher.tsx';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx';
 import { FriendsRouteSkeleton } from './components/friends/friends-route-skeleton.tsx';
@@ -244,11 +245,13 @@ const Document = ({
   nonce,
   theme = 'light',
   env = {},
+  showPaletteSwitcher = false,
 }: {
   children: React.ReactNode;
   nonce: string;
   theme?: Theme;
   env?: Record<string, string | undefined>;
+  showPaletteSwitcher?: boolean;
 }) => {
   return (
     <html lang="en" className={`${theme} min-h-full overflow-x-hidden`}>
@@ -262,14 +265,15 @@ const Document = ({
         />
         <meta name="csp-nonce" content={nonce} />
         <Links />
-        {import.meta.env.DEV ? (
+        {showPaletteSwitcher ? (
           <script
             nonce={nonce}
             dangerouslySetInnerHTML={{
-              // Owner-only palette comparison tool (see PaletteSwitcher) —
-              // applies the stored palette before first paint so switching
-              // to Fête and reloading doesn't flash the current palette.
-              // Dev-build only; never runs in the deployed app.
+              // Palette comparison tool (see PaletteSwitcher) — applies the
+              // stored palette before first paint so switching to Fête and
+              // reloading doesn't flash the current palette. Available in
+              // dev for any developer and in production for admins only;
+              // `showPaletteSwitcher` mirrors the same check client-side.
               __html: `try{if(localStorage.getItem('${PALETTE_STORAGE_KEY}')==='fete'){document.documentElement.classList.add('${PALETTE_CLASS}')}}catch(e){}`,
             }}
           />
@@ -303,6 +307,11 @@ const App = () => {
   const data = useLoaderData<typeof loader>();
   const nonce = useNonce();
   const theme = useTheme();
+  // Palette comparison tool: any developer in dev, admins only in prod.
+  const showPaletteSwitcher = shouldShowPaletteSwitcher(
+    import.meta.env.DEV,
+    data.user,
+  );
   useIsomorphicLayoutEffect(() => {
     setPrefetchCacheScope(data.user?.id ?? null);
   }, [data.user?.id]);
@@ -395,7 +404,12 @@ const App = () => {
     }
   }
   return (
-    <Document nonce={nonce} theme={theme} env={data.ENV}>
+    <Document
+      nonce={nonce}
+      theme={theme}
+      env={data.ENV}
+      showPaletteSwitcher={showPaletteSwitcher}
+    >
       <I18nProvider locale={data.requestInfo.locale}>
         <NotificationsProvider
           initialUnreadCount={data.notifications?.unreadCount ?? 0}
@@ -420,7 +434,7 @@ const App = () => {
           </div>
           <EpicProgress />
           <EpicToaster closeButton position="top-center" theme={theme} />
-          {import.meta.env.DEV ? <PaletteSwitcher /> : null}
+          {showPaletteSwitcher ? <PaletteSwitcher /> : null}
         </NotificationsProvider>
       </I18nProvider>
     </Document>

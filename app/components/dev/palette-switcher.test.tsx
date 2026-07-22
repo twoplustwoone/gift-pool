@@ -8,6 +8,7 @@ import {
   PALETTE_CLASS,
   PALETTE_STORAGE_KEY,
   PaletteSwitcher,
+  shouldShowPaletteSwitcher,
 } from './palette-switcher.tsx';
 
 beforeEach(() => {
@@ -78,5 +79,29 @@ describe('<PaletteSwitcher />', () => {
     await waitFor(() =>
       expect(document.documentElement).toHaveClass(PALETTE_CLASS),
     );
+  });
+});
+
+describe('shouldShowPaletteSwitcher', () => {
+  it('shows for any user in dev, admin or not', () => {
+    expect(shouldShowPaletteSwitcher(true, null)).toBe(true);
+    expect(shouldShowPaletteSwitcher(true, { roles: [] })).toBe(true);
+  });
+
+  it('hides in production for a signed-out or non-admin user', () => {
+    expect(shouldShowPaletteSwitcher(false, null)).toBe(false);
+    expect(
+      shouldShowPaletteSwitcher(false, {
+        roles: [{ name: 'user', permissions: [] }],
+      }),
+    ).toBe(false);
+  });
+
+  it('shows in production for an admin', () => {
+    expect(
+      shouldShowPaletteSwitcher(false, {
+        roles: [{ name: 'admin', permissions: [] }],
+      }),
+    ).toBe(true);
   });
 });
