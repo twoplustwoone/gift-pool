@@ -113,6 +113,7 @@ const loaderDataSnapshot = {
           hasImage: false,
           id: 'wish-1',
           title: 'Headphones',
+          updatedAt: null as string | null,
           url: null,
         },
         wishlistItemId: 'wish-1',
@@ -210,6 +211,13 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     for (const contributor of loaderDataSnapshot.pool.contributors) {
       contributor.user.image = null;
     }
+    loaderDataSnapshot.pool.ideas[0]!.wishlistItem = {
+      hasImage: false,
+      id: 'wish-1',
+      title: 'Headphones',
+      updatedAt: null,
+      url: null,
+    };
     loaderDataSnapshot.recipientWishlistItems = [];
     loaderDataSnapshot.viewer.userId = 'viewer-1';
 
@@ -260,6 +268,37 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     await userEvent.clear(input);
     await userEvent.type(input, '45');
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+  });
+
+  it('shows a gift-icon placeholder for ideas with no linked wishlist image', () => {
+    renderRoute();
+
+    // idea-1 is linked to a wishlist item but hasImage: false; idea-2 has no
+    // linked wishlist item at all. Neither should render an <img>.
+    const cards = screen.getAllByTestId('idea-card');
+    expect(cards).toHaveLength(2);
+    for (const card of cards) {
+      expect(card.querySelector('img')).not.toBeInTheDocument();
+    }
+  });
+
+  it('renders the linked wishlist item image when one exists', () => {
+    loaderDataSnapshot.pool.ideas[0]!.wishlistItem = {
+      hasImage: true,
+      id: 'wish-1',
+      title: 'Headphones',
+      updatedAt: '2026-02-01T00:00:00.000Z',
+      url: null,
+    };
+
+    renderRoute();
+
+    const [firstCard] = screen.getAllByTestId('idea-card');
+    const img = firstCard!.querySelector('img');
+    expect(img).toHaveAttribute(
+      'src',
+      `/resources/wishlist-images/wish-1?v=${new Date('2026-02-01T00:00:00.000Z').getTime()}`,
+    );
   });
 
   it('moves invite tools and the danger zone off the main page (now on settings)', () => {

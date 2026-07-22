@@ -8,6 +8,7 @@ import { getFormProps, getInputProps, useForm } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 import {
   LuCheck,
+  LuGift,
   LuLink,
   LuPackage,
   LuThumbsUp,
@@ -37,6 +38,7 @@ import {
 import { SystemLabel } from '#app/components/ui/system-label.tsx';
 import { Textarea } from '#app/components/ui/textarea.tsx';
 import { Flex, Stack, Text } from '#app/components/ui-kit';
+import { getWishlistItemImgSrc } from '#app/utils/misc.tsx';
 import { formatCents } from '#app/utils/pool-contributions.ts';
 import {
   DECISION_MODE,
@@ -161,43 +163,69 @@ const IdeaCard = ({
     chooseFetcher.state !== 'idle' &&
     (chooseFetcher.formData?.get('ideaId') as string) === idea.id;
 
+  const wishlistItem = idea.wishlistItem;
+  const imageSrc =
+    wishlistItem?.hasImage && wishlistItem.updatedAt
+      ? `${getWishlistItemImgSrc(wishlistItem.id)}?v=${new Date(wishlistItem.updatedAt).getTime()}`
+      : null;
+
   return (
     <Card className="overflow-hidden" data-testid="idea-card">
       {/* Body */}
-      <div className="p-4">
-        {/* Title — no delete button here */}
-        <p className="text-sm font-semibold leading-snug">{idea.name}</p>
-        {idea.description && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {idea.description}
-          </p>
-        )}
+      <div className="flex gap-3 p-4">
+        {/* Thumbnail — image if the linked wishlist item has one, gift-icon
+            placeholder otherwise. Always reserved so every idea gets the
+            same visual rhythm, matching the wishlist row treatment. */}
+        <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted/30">
+          {imageSrc ? (
+            <img
+              src={imageSrc}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+              <LuGift className="h-5 w-5" aria-hidden />
+            </div>
+          )}
+        </div>
 
-        {/* Badges + link */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {idea.estimatedPriceCents !== null && (
-            <span
-              className="rounded-full border px-2.5 py-0.5 text-xs font-medium"
-              data-testid="idea-price-badge"
-            >
-              ≈ {formatCents(idea.estimatedPriceCents)}
-            </span>
+        <div className="min-w-0 flex-1">
+          {/* Title — no delete button here */}
+          <p className="text-sm font-semibold leading-snug">{idea.name}</p>
+          {idea.description && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {idea.description}
+            </p>
           )}
-          {idea.url && (
-            <a
-              href={`/out?idea=${idea.id}`}
-              target="_blank"
-              rel="sponsored noopener noreferrer"
-              className="flex items-center gap-1 text-xs text-primary hover:underline"
-            >
-              <LuLink size={11} /> View link
-            </a>
-          )}
-          {idea.wishlistItem && (
-            <span className="inline-flex items-center rounded-full border border-pool/30 bg-pool/15 px-2.5 py-0.5 text-xs font-medium text-pool">
-              From wishlist
-            </span>
-          )}
+
+          {/* Badges + link */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {idea.estimatedPriceCents !== null && (
+              <span
+                className="rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                data-testid="idea-price-badge"
+              >
+                ≈ {formatCents(idea.estimatedPriceCents)}
+              </span>
+            )}
+            {idea.url && (
+              <a
+                href={`/out?idea=${idea.id}`}
+                target="_blank"
+                rel="sponsored noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                <LuLink size={11} /> View link
+              </a>
+            )}
+            {idea.wishlistItem && (
+              <span className="inline-flex items-center rounded-full border border-pool/30 bg-pool/15 px-2.5 py-0.5 text-xs font-medium text-pool">
+                From wishlist
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
