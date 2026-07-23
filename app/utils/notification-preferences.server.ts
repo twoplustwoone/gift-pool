@@ -113,6 +113,28 @@ export async function resolveCentralNotificationPreferences({
   );
 }
 
+/** Bulk resolved central-preference read for one notification type across
+    many users, avoiding N×3 queries — see getNotificationPreferencesForUsers
+    for the general-purpose (all-types) bulk-read sibling. */
+export async function resolveCentralNotificationPreferencesForUsers({
+  userIds,
+  type,
+}: {
+  userIds: string[];
+  type: NotificationType;
+}): Promise<Map<string, ResolvedCentralNotificationPreferences>> {
+  const states = await loadCentralPreferenceStates(userIds);
+  return new Map(
+    userIds.map((userId) => [
+      userId,
+      resolveCentralFromState(
+        type,
+        states.get(userId) ?? emptyCentralPreferenceState(),
+      ),
+    ]),
+  );
+}
+
 export async function getCentralNotificationSettings(
   userId: string,
 ): Promise<CentralNotificationSettings> {
