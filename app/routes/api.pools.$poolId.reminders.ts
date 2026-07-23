@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-router';
 import {
   data,
   type ActionFunctionArgs,
@@ -61,9 +62,18 @@ export async function action({ request, params }: ActionFunctionArgs) {
 }
 
 function organizerNudgeErrorResponse(error: unknown) {
-  if (!(error instanceof OrganizerNudgeError)) throw error;
-  const status = organizerNudgeErrorStatus(error.code);
-  return data({ error: error.message, code: error.code }, { status });
+  if (error instanceof OrganizerNudgeError) {
+    const status = organizerNudgeErrorStatus(error.code);
+    return data({ error: error.message, code: error.code }, { status });
+  }
+  // Any other exception (e.g. a transient DB timeout) must not propagate as
+  // an unhandled loader/action error: this route's only route-tree ancestor
+  // is root, so a fetcher.load()/submit() failure here doesn't just fail
+  // OrganizerReminderAction's own request — react-router renders root's
+  // ErrorBoundary in its place, blanking the entire app for what the widget
+  // already knows how to show as a recoverable, retry-able inline error.
+  Sentry.captureException(error);
+  return data({ error: 'Something went wrong. Please try again.' }, { status: 500 });
 }
 
 function organizerNudgeErrorStatus(code: OrganizerNudgeError['code']) {
