@@ -6,7 +6,10 @@ import {
   NOTIFICATION_TOPICS,
   NOTIFICATION_TYPES,
 } from '#app/utils/notification-catalog.ts';
-import { resolveNotificationPolicy } from '#app/utils/notification-policy.server.ts';
+import {
+  resolveNotificationPolicy,
+  resolveNotificationPoliciesForUsers,
+} from '#app/utils/notification-policy.server.ts';
 import {
   setGlobalChannelPreference,
   setTopicChannelPreference,
@@ -25,6 +28,19 @@ async function createUser() {
         },
       },
     },
+  });
+}
+
+async function createPoolWithContributors(contributorUserIds: string[]) {
+  return prisma.pool.create({
+    data: {
+      title: `Pool ${randomUUID()}`,
+      organizerId: contributorUserIds[0]!,
+      contributors: {
+        create: contributorUserIds.map((userId) => ({ userId })),
+      },
+    },
+    select: { id: true },
   });
 }
 
@@ -109,6 +125,61 @@ describe('resolveNotificationPolicy', () => {
     await expect(
       resolveNotificationPolicy({
         userId: user.id,
+        type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
+        context: { kind: 'POOL', poolId: 'pool-1' },
+      }),
+    ).rejects.toThrow('requires context kind NONE');
+  });
+});
+
+describe('resolveNotificationPoliciesForUsers', () => {
+  // Regression for GIFTPOOL-UI-1M: previewing reminders for a pool used to
+  // resolve one contributor at a time via Promise.all — 2 concurrent SQLite
+  // transactions per candidate, unbounded by pool size. This bulk resolver
+  // must match resolveNotificationPolicy per user (batches the central half
+  // into one transaction; contextual lookups are chunked to
+  // CONTEXTUAL_LOOKUP_BATCH_SIZE rather than fired all at once).
+  it('matches per-user resolveNotificationPolicy for every pool contributor', async () => {
+    // 7 contributors — deliberately more than CONTEXTUAL_LOOKUP_BATCH_SIZE
+    // (5) so this exercises more than one chunk.
+    const users = await Promise.all(
+      Array.from({ length: 7 }, () => createUser()),
+    );
+    const pool = await createPoolWithContributors(users.map((u) => u.id));
+
+    // One contributor with a topic override, so the mix of results isn't
+    // uniform across users.
+    await setTopicChannelPreference({
+      userId: users[3]!.id,
+      topic: NOTIFICATION_TOPICS.IDEAS_AND_VOTING,
+      channel: NOTIFICATION_CHANNELS.EMAIL,
+      enabled: false,
+      source: 'policy-test',
+    });
+
+    const context = { kind: 'POOL', poolId: pool.id } as const;
+    const bulk = await resolveNotificationPoliciesForUsers({
+      userIds: users.map((u) => u.id),
+      type: NOTIFICATION_TYPES.POOL_VOTE_STARTED,
+      context,
+    });
+
+    for (const user of users) {
+      const individual = await resolveNotificationPolicy({
+        userId: user.id,
+        type: NOTIFICATION_TYPES.POOL_VOTE_STARTED,
+        context,
+      });
+      expect(bulk.get(user.id)).toEqual(individual);
+    }
+  });
+
+  it('fails closed when an event receives the wrong context kind', async () => {
+    const user = await createUser();
+
+    await expect(
+      resolveNotificationPoliciesForUsers({
+        userIds: [user.id],
         type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
         context: { kind: 'POOL', poolId: 'pool-1' },
       }),

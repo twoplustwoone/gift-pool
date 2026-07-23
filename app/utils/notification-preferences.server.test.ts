@@ -21,6 +21,7 @@ import {
   getNotificationPreferences,
   NOTIFICATION_ACTIVITY_LEVELS,
   resolveCentralNotificationPreferences,
+  resolveCentralNotificationPreferencesForUsers,
   setCategoryChannelPreference,
   setContextActivityPreference,
   setGlobalChannelPreference,
@@ -215,6 +216,50 @@ describe('notification preferences', () => {
       enabled: true,
       source: 'topic_override',
     });
+  });
+
+  // Regression for GIFTPOOL-UI-1M: filterPreferenceEligibleRecipients used
+  // to resolve one candidate at a time, each its own transaction — a burst
+  // proportional to pool size that could time out against SQLite. This
+  // bulk read must match resolveCentralNotificationPreferences per user
+  // while doing it in a single transaction regardless of how many users.
+  it('resolves central preferences for many users in one transaction', async () => {
+    const [userA, userB, userC] = await Promise.all([
+      createUser(),
+      createUser(),
+      createUser(),
+    ]);
+    await setGlobalChannelPreference({
+      userId: userB.id,
+      channel: NOTIFICATION_CHANNELS.EMAIL,
+      enabled: false,
+      source: 'test-global',
+    });
+    await setTopicChannelPreference({
+      userId: userC.id,
+      topic: NOTIFICATION_TOPICS.BIRTHDAY_REMINDERS,
+      channel: NOTIFICATION_CHANNELS.EMAIL,
+      enabled: false,
+      source: 'test-topic',
+    });
+
+    const transactionSpy = vi.spyOn(prisma, '$transaction');
+
+    const bulk = await resolveCentralNotificationPreferencesForUsers({
+      userIds: [userA.id, userB.id, userC.id],
+      type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+    });
+
+    expect(transactionSpy).toHaveBeenCalledTimes(1);
+    transactionSpy.mockRestore();
+
+    for (const user of [userA, userB, userC]) {
+      const individual = await resolveCentralNotificationPreferences({
+        userId: user.id,
+        type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+      });
+      expect(bulk.get(user.id)).toEqual(individual);
+    }
   });
 
   it('applies category bulk changes atomically and clears narrower overrides', async () => {

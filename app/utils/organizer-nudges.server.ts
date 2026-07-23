@@ -8,7 +8,7 @@ import {
   type OrganizerNudgeNotificationType,
 } from '#app/utils/notification-catalog.ts';
 import { queueNotification } from '#app/utils/notification-dispatcher.server.ts';
-import { resolveNotificationPolicy } from '#app/utils/notification-policy.server.ts';
+import { resolveNotificationPoliciesForUsers } from '#app/utils/notification-policy.server.ts';
 import { POOL_STATUS } from '#app/utils/pool-constants.ts';
 
 export const ORGANIZER_NUDGE_KINDS = {
@@ -537,23 +537,20 @@ async function filterPreferenceEligibleRecipients({
   candidateUserIds: string[];
 }) {
   const type = notificationTypeForKind(kind);
-  const policies = await Promise.all(
-    candidateUserIds.map(async (userId) => ({
-      userId,
-      policy: await resolveNotificationPolicy({
-        userId,
-        type,
-        context: { kind: 'POOL', poolId },
-      }),
-    })),
-  );
-  return policies
-    .filter(({ policy }) =>
+  const policies = await resolveNotificationPoliciesForUsers({
+    userIds: candidateUserIds,
+    type,
+    context: { kind: 'POOL', poolId },
+  });
+  return candidateUserIds.filter((userId) => {
+    const policy = policies.get(userId);
+    return (
+      policy !== undefined &&
       NOTIFICATION_CHANNEL_VALUES.some(
         (channel) => policy.channels[channel].allowed,
-      ),
-    )
-    .map(({ userId }) => userId);
+      )
+    );
+  });
 }
 
 function queueOrganizerNudgeNotifications(nudgeId: string): void {
