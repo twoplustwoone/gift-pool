@@ -12,10 +12,19 @@ import {
 const requireUserId = vi.fn();
 const previewOrganizerNudge = vi.fn();
 const sendOrganizerNudge = vi.fn();
+const captureException = vi.fn();
 
 vi.mock('#app/utils/auth.server.ts', () => ({
   requireUserId: (...args: Array<unknown>) => requireUserId(...args),
 }));
+
+vi.mock('@sentry/react-router', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    captureException: (...args: Array<unknown>) => captureException(...args),
+  };
+});
 
 vi.mock('#app/utils/organizer-nudges.server.ts', () => ({
   OrganizerNudgeError: class OrganizerNudgeError extends Error {
@@ -39,6 +48,7 @@ import { action, loader } from './api.pools.$poolId.reminders.ts';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  captureException.mockReset();
   requireUserId.mockResolvedValue('manager-1');
   previewOrganizerNudge.mockResolvedValue({
     status: 'AVAILABLE',
@@ -138,6 +148,56 @@ describe('organizer reminder resource route', () => {
       expect(getRouteResultStatus(result)).toBe(status);
       expect(await getRouteResultData(result)).toMatchObject({ code });
     }
+  });
+
+  // Regression for GIFTPOOL-UI-1M: a transient DB timeout (or any exception
+  // that isn't an OrganizerNudgeError) must resolve as a typed error
+  // response, not propagate as an unhandled loader exception. This route's
+  // only route-tree ancestor is root, so an unhandled throw here doesn't
+  // just fail the reminder widget's fetcher.load() call — react-router
+  // renders root's ErrorBoundary in its place, blanking the entire app for
+  // what should have been a recoverable, retry-able preview failure.
+  it('converts an unexpected error into a typed response instead of throwing', async () => {
+    previewOrganizerNudge.mockRejectedValueOnce(
+      new Error('Operations timed out after `N/A`.'),
+    );
+
+    const result = await loader(
+      toLoaderArgs({
+        context: {},
+        params: { poolId: 'pool-1' },
+        request: new Request(
+          'https://giftpool.app/api/pools/pool-1/reminders?kind=VOTE',
+        ),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(500);
+    expect(await getRouteResultData(result)).toMatchObject({
+      error: expect.any(String),
+    });
+    expect(captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it('captures and converts an unexpected error on send too', async () => {
+    sendOrganizerNudge.mockRejectedValueOnce(new Error('boom'));
+
+    const result = await action(
+      toActionArgs({
+        context: {},
+        params: { poolId: 'pool-1' },
+        request: formRequest({
+          kind: 'VOTE',
+          idempotencyKey: 'client-mutation-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(500);
+    expect(await getRouteResultData(result)).toMatchObject({
+      error: expect.any(String),
+    });
+    expect(captureException).toHaveBeenCalledTimes(1);
   });
 });
 
