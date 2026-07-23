@@ -73,11 +73,16 @@ export async function resolveNotificationPolicy({
 // callers fan out over Promise.all — a large audience (e.g. every
 // contributor in a pool) can burst enough concurrent transactions to time
 // out against SQLite's single-writer connection (see GIFTPOOL-UI-1M). This
-// batches the central half into one query set for every user, and bounds
-// the per-user contextual lookups to a small concurrent batch instead of
-// firing them all at once.
-const CONTEXTUAL_LOOKUP_BATCH_SIZE = 5;
-
+// batches the central half into one query set for every user.
+//
+// The contextual half is NOT batched the same way, and deliberately isn't
+// run with any Promise.all concurrency either: getContextNotificationPreference
+// opens an interactive Prisma transaction, and SQLite's BEGIN IMMEDIATE
+// grants only one such transaction at a time — a "concurrent" batch here
+// doesn't parallelize, it just queues N-1 of them behind the lock while
+// each one's own interactive-transaction timeout clock keeps running,
+// trading the original burst-timeout for a queued-timeout of the same
+// shape. Sequential awaiting is what actually removes the contention.
 export async function resolveNotificationPoliciesForUsers({
   userIds,
   type,
@@ -98,19 +103,14 @@ export async function resolveNotificationPoliciesForUsers({
     ResolvedContextNotificationPreference | null
   >();
   if (definition.context !== 'NONE' && context) {
-    for (let i = 0; i < userIds.length; i += CONTEXTUAL_LOOKUP_BATCH_SIZE) {
-      const batch = userIds.slice(i, i + CONTEXTUAL_LOOKUP_BATCH_SIZE);
-      const resolved = await Promise.all(
-        batch.map((userId) =>
-          getContextNotificationPreference({
-            userId,
-            context,
-            requireAccess: false,
-          }),
-        ),
-      );
-      batch.forEach((userId, index) =>
-        contextualByUser.set(userId, resolved[index]!),
+    for (const userId of userIds) {
+      contextualByUser.set(
+        userId,
+        await getContextNotificationPreference({
+          userId,
+          context,
+          requireAccess: false,
+        }),
       );
     }
   }

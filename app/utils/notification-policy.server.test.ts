@@ -136,12 +136,16 @@ describe('resolveNotificationPoliciesForUsers', () => {
   // Regression for GIFTPOOL-UI-1M: previewing reminders for a pool used to
   // resolve one contributor at a time via Promise.all — 2 concurrent SQLite
   // transactions per candidate, unbounded by pool size. This bulk resolver
-  // must match resolveNotificationPolicy per user (batches the central half
-  // into one transaction; contextual lookups are chunked to
-  // CONTEXTUAL_LOOKUP_BATCH_SIZE rather than fired all at once).
+  // must match resolveNotificationPolicy per user: the central half is
+  // batched into one transaction for everyone; contextual lookups are
+  // resolved sequentially (a Codex review finding on this fix caught that
+  // "concurrent" interactive transactions don't parallelize against
+  // SQLite's single-writer BEGIN IMMEDIATE — they just queue behind each
+  // other while each one's own transaction timeout keeps running, which is
+  // exactly what timed this test out in CI before switching to sequential).
   it('matches per-user resolveNotificationPolicy for every pool contributor', async () => {
-    // 7 contributors — deliberately more than CONTEXTUAL_LOOKUP_BATCH_SIZE
-    // (5) so this exercises more than one chunk.
+    // 7 contributors, so this exercises more than a couple of sequential
+    // contextual lookups.
     const users = await Promise.all(
       Array.from({ length: 7 }, () => createUser()),
     );
