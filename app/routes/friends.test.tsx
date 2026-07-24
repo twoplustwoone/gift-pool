@@ -50,7 +50,8 @@ vi.mock('#app/components/notifications/notifications-context.tsx', () => ({
 }));
 
 vi.mock('#app/hooks/use-background-route-prefetch.ts', () => ({
-  useFriendWishlistPrefetch: (...args: Array<unknown>) => friendPrefetchSpy(...args),
+  useFriendWishlistPrefetch: (...args: Array<unknown>) =>
+    friendPrefetchSpy(...args),
 }));
 
 vi.mock('#app/components/friends/friend-summary.tsx', () => ({
@@ -186,9 +187,11 @@ vi.mock('#app/components/ui/responsive-dialog.tsx', () => ({
   ResponsiveDialogContent: ({ children }: { children: React.ReactNode }) => (
     <div role="dialog">{children}</div>
   ),
-  ResponsiveDialogDescription: ({ children }: { children: React.ReactNode }) => (
-    <p>{children}</p>
-  ),
+  ResponsiveDialogDescription: ({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) => <p>{children}</p>,
   ResponsiveDialogFooter: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -302,10 +305,7 @@ function createOutgoing(id: string, username: string, name = username) {
   };
 }
 
-function applyStateUpdate<T>(
-  updater: React.SetStateAction<T>,
-  previous: T,
-): T {
+function applyStateUpdate<T>(updater: React.SetStateAction<T>, previous: T): T {
   return typeof updater === 'function'
     ? (updater as (prev: T) => T)(previous)
     : updater;
@@ -350,7 +350,9 @@ beforeEach(() => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.includes('/api/friends/invite')) {
         return new Response(
-          JSON.stringify({ inviteUrl: 'https://giftpool.app/friends/accept/abc' }),
+          JSON.stringify({
+            inviteUrl: 'https://giftpool.app/friends/accept/abc',
+          }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
@@ -407,17 +409,24 @@ describe('/friends route helpers', () => {
     const entry = buildFriendEntry('request-1', user);
     expect(entry.friendshipId).toBe('request-1');
     expect(addFriendIfMissing([], entry)).toEqual([entry]);
-    expect(addFriendIfMissing([entry], buildFriendEntry('request-2', user))).toEqual([
-      entry,
-    ]);
+    expect(
+      addFriendIfMissing([entry], buildFriendEntry('request-2', user)),
+    ).toEqual([entry]);
   });
 
   it('derives birthdayVisible for optimistic entries so a NOBODY friend does not leak', () => {
-    const hiddenUser = { ...createUser('user-2', 'sam', 'Sam'), birthdayVisibility: 'NOBODY' };
-    expect(buildFriendEntry('request-3', hiddenUser).user.birthdayVisible).toBe(false);
+    const hiddenUser = {
+      ...createUser('user-2', 'sam', 'Sam'),
+      birthdayVisibility: 'NOBODY',
+    };
+    expect(buildFriendEntry('request-3', hiddenUser).user.birthdayVisible).toBe(
+      false,
+    );
 
     const friendsUser = createUser('user-3', 'jo', 'Jo'); // birthdayVisibility: 'FRIENDS'
-    expect(buildFriendEntry('request-4', friendsUser).user.birthdayVisible).toBe(true);
+    expect(
+      buildFriendEntry('request-4', friendsUser).user.birthdayVisible,
+    ).toBe(true);
   });
 
   it('submits request mutations and batches failures', async () => {
@@ -435,18 +444,24 @@ describe('/friends route helpers', () => {
         .mockResolvedValueOnce(new Response(null, { status: 200 })),
     );
 
-    await expect(submitRequestMutation('request-1', 'accept')).resolves.toEqual({
-      ok: true,
-      unreadCount: 5,
-    });
-    await expect(submitRequestMutation('request-2', 'reject')).resolves.toEqual({
-      ok: false,
-      unreadCount: null,
-    });
-    await expect(submitRequestMutation('request-3', 'cancel')).resolves.toEqual({
-      ok: true,
-      unreadCount: null,
-    });
+    await expect(submitRequestMutation('request-1', 'accept')).resolves.toEqual(
+      {
+        ok: true,
+        unreadCount: 5,
+      },
+    );
+    await expect(submitRequestMutation('request-2', 'reject')).resolves.toEqual(
+      {
+        ok: false,
+        unreadCount: null,
+      },
+    );
+    await expect(submitRequestMutation('request-3', 'cancel')).resolves.toEqual(
+      {
+        ok: true,
+        unreadCount: null,
+      },
+    );
   });
 
   it('collects failed batch ids and last unread count', async () => {
@@ -466,7 +481,10 @@ describe('/friends route helpers', () => {
       );
 
     await expect(
-      runBatchRequestMutation(['request-1', 'request-2', 'request-3'], 'accept'),
+      runBatchRequestMutation(
+        ['request-1', 'request-2', 'request-3'],
+        'accept',
+      ),
     ).resolves.toEqual({
       failedIds: ['request-2'],
       unreadCount: 7,
@@ -476,9 +494,9 @@ describe('/friends route helpers', () => {
   it('optimistically removes requests and restores failures', async () => {
     const requests = [{ id: 'request-1' }, { id: 'request-2' }];
     const updates: Array<Array<{ id: string }>> = [];
-    const setRequests: React.Dispatch<React.SetStateAction<Array<{ id: string }>>> = (
-      updater,
-    ) => {
+    const setRequests: React.Dispatch<
+      React.SetStateAction<Array<{ id: string }>>
+    > = (updater) => {
       const next = applyStateUpdate(
         updater,
         updates.length === 0 ? requests : (updates.at(-1) ?? requests),
@@ -507,7 +525,9 @@ describe('/friends route helpers', () => {
     expect(updates[0]).toEqual([]);
     expect(updates[1]).toEqual([{ id: 'request-1' }]);
     expect(setUnreadCount).toHaveBeenCalledWith(4);
-    expect(toastError).toHaveBeenCalledWith('Some requests could not be accepted.');
+    expect(toastError).toHaveBeenCalledWith(
+      'Some requests could not be accepted.',
+    );
   });
 
   it('filters, toggles, maps, and transitions friend state', () => {
@@ -517,8 +537,12 @@ describe('/friends route helpers', () => {
     ];
     expect(filterFriends(friends, 'sa')).toEqual([friends[1]]);
     expect(filterFriends(friends, ' ')).toEqual(friends);
-    expect(toggleSelection(new Set(['a']), 'b', true)).toEqual(new Set(['a', 'b']));
-    expect(toggleSelection(new Set(['a', 'b']), 'b', false)).toEqual(new Set(['a']));
+    expect(toggleSelection(new Set(['a']), 'b', true)).toEqual(
+      new Set(['a', 'b']),
+    );
+    expect(toggleSelection(new Set(['a', 'b']), 'b', false)).toEqual(
+      new Set(['a']),
+    );
 
     const incoming = [createIncoming('request-1', 'sam', 'Sam')];
     const outgoing = [createOutgoing('request-2', 'jules', 'Jules')];
@@ -543,8 +567,12 @@ describe('/friends route helpers', () => {
       error: 'Some requests could not be accepted.',
       success: 'Accepted 2 requests.',
     });
-    expect(getRequestMutationMessages('reject', 1).success).toBe('Declined 1 request.');
-    expect(getRequestMutationMessages('cancel', 1).success).toBe('Cancelled 1 request.');
+    expect(getRequestMutationMessages('reject', 1).success).toBe(
+      'Declined 1 request.',
+    );
+    expect(getRequestMutationMessages('cancel', 1).success).toBe(
+      'Cancelled 1 request.',
+    );
 
     expect(
       toRelationshipSnapshot({
@@ -628,7 +656,9 @@ describe('/friends route helpers', () => {
       },
       addFriendEntry,
       (updater) => {
-        const next = applyStateUpdate(updater, [createIncoming('incoming-1', 'sam', 'Sam')]);
+        const next = applyStateUpdate(updater, [
+          createIncoming('incoming-1', 'sam', 'Sam'),
+        ]);
         incomingUpdates.push(next as unknown[]);
         return incomingUpdates.at(-1) ?? [];
       },
@@ -642,7 +672,9 @@ describe('/friends route helpers', () => {
       },
       addFriendEntry,
       (updater) => {
-        const next = applyStateUpdate(updater, [createOutgoing('outgoing-1', 'jules', 'Jules')]);
+        const next = applyStateUpdate(updater, [
+          createOutgoing('outgoing-1', 'jules', 'Jules'),
+        ]);
         outgoingUpdates.push(next as unknown[]);
         return outgoingUpdates.at(-1) ?? [];
       },
@@ -655,7 +687,9 @@ describe('/friends route helpers', () => {
       },
       (updater) => {
         friendUpdates.push(
-          applyStateUpdate(updater, [createFriend('friendship-1', 'alex', 'Alex')]),
+          applyStateUpdate(updater, [
+            createFriend('friendship-1', 'alex', 'Alex'),
+          ]),
         );
         return friendUpdates.at(-1) ?? [];
       },
@@ -708,7 +742,9 @@ describe('/friends route rendering', () => {
       await screen.findByRole('textbox', { name: 'Friend invite link' }),
     ).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Copy invite link' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Copy invite link' }),
+    );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       'https://giftpool.app/friends/accept/abc',
     );
@@ -721,7 +757,11 @@ describe('/friends route rendering', () => {
 
   it('filters friends and renders every match in the grid', async () => {
     const manyFriends = Array.from({ length: 45 }, (_, index) =>
-      createFriend(`friendship-${index + 1}`, `friend-${index + 1}`, `Friend ${index + 1}`),
+      createFriend(
+        `friendship-${index + 1}`,
+        `friend-${index + 1}`,
+        `Friend ${index + 1}`,
+      ),
     );
 
     renderFriendsRoute({
@@ -791,7 +831,11 @@ describe('/friends route rendering', () => {
     renderFriendsRoute({
       data: {
         friends: Array.from({ length: 9 }, (_, index) =>
-          createFriend(`friendship-${index}`, `friend${index}`, `Friend ${index}`),
+          createFriend(
+            `friendship-${index}`,
+            `friend${index}`,
+            `Friend ${index}`,
+          ),
         ),
         incoming: [createIncoming('incoming-1', 'sam', 'Sam')],
         outgoing: [],
@@ -855,9 +899,14 @@ describe('/friends route rendering', () => {
 
     const input = await screen.findByPlaceholderText('e.g. alice');
     await userEvent.type(input, 'zoe');
-    await waitFor(() => {
-      expect(screen.getByText('No users found for "zoe"')).toBeInTheDocument();
-    }, { timeout: 2000 });
+    await waitFor(
+      () => {
+        expect(
+          screen.getByText('No users found for "zoe"'),
+        ).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
   });
 
   it('shows the empty friends state when no friends exist', async () => {

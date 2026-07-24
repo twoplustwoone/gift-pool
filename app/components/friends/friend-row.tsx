@@ -71,7 +71,10 @@ export function FriendRow({
       ? upcoming
       : null;
   const visibleGroups = mutualGroups.slice(0, 3);
-  const extraGroupCount = Math.max(0, mutualGroups.length - visibleGroups.length);
+  const extraGroupCount = Math.max(
+    0,
+    mutualGroups.length - visibleGroups.length,
+  );
   const [removeOpen, setRemoveOpen] = useState(false);
 
   return (
@@ -180,7 +183,10 @@ export function FriendRow({
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="gap-2 px-2 py-2 text-sm">
                 <Link to={`/users/${user.username}`}>
-                  <LuUser className="h-4 w-4 text-muted-foreground" aria-hidden />
+                  <LuUser
+                    className="h-4 w-4 text-muted-foreground"
+                    aria-hidden
+                  />
                   View profile
                 </Link>
               </DropdownMenuItem>

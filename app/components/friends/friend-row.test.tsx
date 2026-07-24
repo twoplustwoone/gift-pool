@@ -29,10 +29,7 @@ const baseFriend: FriendRowEntry = {
   mutualGroups: [],
 };
 
-function renderRow(
-  override: Partial<FriendRowEntry> = {},
-  onRemove = vi.fn(),
-) {
+function renderRow(override: Partial<FriendRowEntry> = {}, onRemove = vi.fn()) {
   const friend: FriendRowEntry = {
     ...baseFriend,
     ...override,

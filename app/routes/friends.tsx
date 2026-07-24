@@ -1426,7 +1426,9 @@ const FriendsRoute = () => {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Input
                 value={friendsFilter}
-                onChange={(event) => setFriendsFilter(event.currentTarget.value)}
+                onChange={(event) =>
+                  setFriendsFilter(event.currentTarget.value)
+                }
                 placeholder="Search friends"
                 aria-label="Search friends"
                 className="sm:flex-1"
