@@ -24,7 +24,7 @@ import { z } from 'zod';
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png';
 import faviconAssetUrl from './assets/favicons/favicon.svg';
 import {
-  PALETTE_CLASS,
+  PALETTE_CLASSES,
   PALETTE_STORAGE_KEY,
   PaletteSwitcher,
   shouldShowPaletteSwitcher,
@@ -270,11 +270,13 @@ const Document = ({
             nonce={nonce}
             dangerouslySetInnerHTML={{
               // Palette comparison tool (see PaletteSwitcher) — applies the
-              // stored palette before first paint so switching to Fête and
-              // reloading doesn't flash the current palette. Available in
-              // dev for any developer and in production for admins only;
-              // `showPaletteSwitcher` mirrors the same check client-side.
-              __html: `try{if(localStorage.getItem('${PALETTE_STORAGE_KEY}')==='fete'){document.documentElement.classList.add('${PALETTE_CLASS}')}}catch(e){}`,
+              // stored palette before first paint so switching to a
+              // candidate and reloading doesn't flash the current palette.
+              // Available in dev for any developer and in production for
+              // admins only; `showPaletteSwitcher` mirrors the same check
+              // client-side. Serializes the same PALETTE_CLASSES map the
+              // component uses, so there's one source of truth for id->class.
+              __html: `try{var c=${JSON.stringify(PALETTE_CLASSES)}[localStorage.getItem('${PALETTE_STORAGE_KEY}')];if(c){document.documentElement.classList.add(c)}}catch(e){}`,
             }}
           />
         ) : null}

@@ -280,6 +280,257 @@
     --brand-gradient-end: 335 72% 60%; /* #E24E8C, constant */
   }
 
+  /* ---------------------------------------------------------------------
+     Three more live-comparison candidates — Botanical, Golden hour, Jewel
+     box — same status as .palette-fete above: owner/admin-only comparison,
+     not shipped. Values independently WCAG 2.2 AA verified against the
+     "Design system palette review" Claude Design deliverable (all 60
+     text/fill pairings re-checked by script, plus every stated hue angle;
+     zero discrepancies found in that pairing set). NOTE: that deliverable
+     used its own invented Pool-stage-badge-to-color mapping instead of the
+     real one in pool-status-badge.tsx — not followed here; these tokens
+     only carry the verified per-role hues (primary/pool/neutrals), wired to
+     the real status→role mapping when the badge component consumes them.
+     A pairing the deliverable didn't check — light-mode --accent-foreground
+     as real hover/focus text on --accent (button.tsx, dropdown-menu.tsx,
+     select.tsx), not just decorative accent/ring/gradient use — failed at
+     ~1.5–2:1 for all three; fixed by aliasing --accent-foreground to
+     --primary in each light block instead of the vivid ring/gradient hue.
+
+     Unlike Fête, --card/--subcard are NOT unified here — the mockup gave
+     each its own distinct value and showed good card-vs-canvas contrast on
+     its own (14–17.4:1), so there's no evidence of the flat-card problem
+     that motivated unifying them for Current/Fête. --surface simply
+     mirrors --card, matching the original (pre-unification) relationship. */
+  .palette-botanical {
+    --background: 53 31% 94%; /* #F5F4EC */
+    --background-muted: 56 25% 88%; /* #E8E7D9 */
+    --foreground: 74 21% 12%; /* #232619 */
+    --muted: 56 24% 87%; /* #E6E5D6 */
+    --muted-foreground: 73 11% 32%; /* #575B49 */
+    --popover: 60 50% 97%; /* = subcard */
+    --popover-foreground: 74 21% 12%;
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 74 21% 12%;
+    --border: 57 19% 80%; /* #D6D5C3 */
+    --input: 57 19% 80%;
+    --input-bg: 56 24% 87%; /* = muted */
+    --primary: 86 53% 25%; /* #45631E olive-moss */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 60 22% 88%; /* = subcard-border */
+    --secondary-foreground: 74 21% 12%;
+    --accent: 60 22% 96%; /* #F8F8F4 */
+    /* = primary, not the vivid #9EDD4B ring/gradient color — that only hits
+       ~1.5:1 on this near-white --accent fill, and accent-foreground is
+       consumed as real hover/focus text (button.tsx, dropdown-menu.tsx,
+       select.tsx), not a decorative accent. */
+    --accent-foreground: 86 53% 25%; /* = primary, #45631E, ~6.5:1 on --accent */
+    --ring: 86 68% 58%;
+    --surface: 0 0% 100%; /* = card */
+    --surface-foreground: var(--foreground);
+    --surface-border: 57 19% 80%; /* = border */
+    --subcard: 60 50% 97%; /* #FBFBF3 */
+    --subcard-foreground: 74 21% 12%;
+    --subcard-border: 60 22% 88%; /* #E8E8DB */
+    --modal: 60 50% 97%; /* = subcard */
+    --modal-border: 57 19% 80%; /* = border */
+    --gift: 86 53% 25%; /* = primary */
+    --gift-foreground: 0 0% 100%;
+    --pool: 207 32% 36%; /* #3F5F79 slate blue */
+    --pool-foreground: 0 0% 100%;
+    --pool-badge-foreground: 0 0% 100%;
+    --brand-gradient-start: 86 53% 25%; /* = primary */
+    --brand-gradient-end: 86 68% 58%; /* #9EDD4B, vivid leaf-green — gradients/ring aren't text-on-fill so keep the vivid hue */
+  }
+  .palette-botanical.dark {
+    --background: 82 19% 8%; /* #161911 */
+    --background-muted: 82 19% 11%; /* #1E2217 */
+    --foreground: 60 21% 89%; /* #E8E8DC */
+    --muted: 78 18% 14%; /* #262A1D */
+    --muted-foreground: 69 10% 65%; /* #ABAE9B */
+    --popover: 83 20% 13%; /* = subcard */
+    --popover-foreground: 60 21% 89%;
+    --card: 82 20% 11%; /* #1D2116 */
+    --card-foreground: 60 21% 89%;
+    --border: 80 15% 19%; /* #333829 */
+    --input: 80 15% 19%;
+    --input-bg: 81 20% 14%; /* #252A1C, card lightness +3 */
+    --primary: 86 41% 64%; /* #A9C97F */
+    --primary-foreground: 90 38% 10%;
+    --secondary: 81 17% 16%; /* = accent */
+    --secondary-foreground: 60 21% 89%;
+    --accent: 81 17% 16%;
+    --accent-foreground: 86 68% 58%; /* #9EDD4B, constant across modes */
+    --ring: 86 68% 58%;
+    --surface: 82 20% 11%; /* = card */
+    --surface-foreground: var(--foreground);
+    --surface-border: 80 15% 19%; /* = border */
+    --subcard: 83 20% 13%; /* #22271A */
+    --subcard-foreground: 60 21% 89%;
+    --subcard-border: 81 19% 15%; /* #272C1E */
+    --modal: 83 20% 13%; /* = subcard */
+    --modal-border: 81 19% 15%; /* = subcard-border */
+    --gift: 86 41% 64%; /* = primary */
+    --gift-foreground: 90 38% 10%;
+    --pool: 206 37% 75%; /* #A6C1D6 */
+    --pool-foreground: 207 46% 16%; /* #162B3C, dark text — the fill is light in dark mode */
+    --pool-badge-foreground: 207 46% 16%;
+    --brand-gradient-start: 86 41% 64%; /* = primary */
+    --brand-gradient-end: 86 68% 58%; /* = accent-foreground */
+  }
+  .palette-golden {
+    --background: 40 65% 95%; /* #FBF6EC */
+    --background-muted: 39 55% 89%; /* #F2E7D2 */
+    --foreground: 36 32% 15%; /* #33291A */
+    --muted: 39 50% 89%; /* #F1E7D5 */
+    --muted-foreground: 36 22% 34%; /* #6A5B44 */
+    --popover: 42 100% 97%; /* = subcard */
+    --popover-foreground: 36 32% 15%;
+    --card: 43 100% 99%; /* #FFFDF8 */
+    --card-foreground: 36 32% 15%;
+    --border: 38 46% 82%; /* #E6D6BB */
+    --input: 38 46% 82%;
+    --input-bg: 39 50% 89%; /* = muted */
+    --primary: 37 85% 32%; /* #96600C honey-gold */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 39 52% 89%; /* = subcard-border */
+    --secondary-foreground: 36 32% 15%;
+    --accent: 39 64% 96%; /* #FBF6ED */
+    /* = primary, not the vivid #DDA54B ring/gradient color — that only hits
+       ~2:1 on this near-white --accent fill, and accent-foreground is
+       consumed as real hover/focus text (button.tsx, dropdown-menu.tsx,
+       select.tsx), not a decorative accent. */
+    --accent-foreground: 37 85% 32%; /* = primary, #96600C, ~4.9:1 on --accent */
+    --ring: 37 68% 58%;
+    --surface: 43 100% 99%; /* = card */
+    --surface-foreground: var(--foreground);
+    --surface-border: 38 46% 82%; /* = border */
+    --subcard: 42 100% 97%; /* #FFFBF2 */
+    --subcard-foreground: 36 32% 15%;
+    --subcard-border: 39 52% 89%; /* #F2E8D6 */
+    --modal: 42 100% 97%; /* = subcard */
+    --modal-border: 38 46% 82%; /* = border */
+    --gift: 37 85% 32%; /* = primary */
+    --gift-foreground: 0 0% 100%;
+    --pool: 212 36% 39%; /* #3F6187 dusty blue */
+    --pool-foreground: 0 0% 100%;
+    --pool-badge-foreground: 0 0% 100%;
+    --brand-gradient-start: 37 85% 32%; /* = primary */
+    --brand-gradient-end: 37 68% 58%; /* #DDA54B, vivid gold — gradients/ring aren't text-on-fill so keep the vivid hue */
+  }
+  .palette-golden.dark {
+    --background: 26 27% 10%; /* #211913 */
+    --background-muted: 27 30% 13%; /* #2B2017 */
+    --foreground: 36 56% 89%; /* #F3E7D5 */
+    --muted: 29 32% 15%; /* #33261A */
+    --muted-foreground: 36 33% 68%; /* #C8B393 */
+    --popover: 27 30% 15%; /* = subcard */
+    --popover-foreground: 36 56% 89%;
+    --card: 28 29% 13%; /* #2A2017 */
+    --card-foreground: 36 56% 89%;
+    --border: 34 39% 20%; /* #46351F */
+    --input: 34 39% 20%;
+    --input-bg: 30 30% 16%; /* #34281C, card lightness +3 */
+    --primary: 36 76% 61%; /* #E7A94E */
+    --primary-foreground: 36 87% 12%;
+    --secondary: 32 36% 18%; /* = accent */
+    --secondary-foreground: 36 56% 89%;
+    --accent: 32 36% 18%;
+    --accent-foreground: 37 68% 58%; /* #DDA54B, constant across modes */
+    --ring: 37 68% 58%;
+    --surface: 28 29% 13%; /* = card */
+    --surface-foreground: var(--foreground);
+    --surface-border: 34 39% 20%; /* = border */
+    --subcard: 27 30% 15%; /* #30241A */
+    --subcard-foreground: 36 56% 89%;
+    --subcard-border: 29 33% 16%; /* #37291C */
+    --modal: 27 30% 15%; /* = subcard */
+    --modal-border: 29 33% 16%; /* = subcard-border */
+    --gift: 36 76% 61%; /* = primary */
+    --gift-foreground: 36 87% 12%;
+    --pool: 210 46% 70%; /* #8FB2D6 */
+    --pool-foreground: 210 46% 16%; /* #16293C, dark text — the fill is light in dark mode */
+    --pool-badge-foreground: 210 46% 16%;
+    --brand-gradient-start: 36 76% 61%; /* = primary */
+    --brand-gradient-end: 37 68% 58%; /* = accent-foreground */
+  }
+  .palette-jewel {
+    --background: 140 10% 94%; /* #EFF2F0 */
+    --background-muted: 150 10% 89%; /* #DFE5E2 */
+    --foreground: 156 22% 9%; /* #121C18 */
+    --muted: 154 11% 88%; /* #DDE4E1 */
+    --muted-foreground: 152 8% 30%; /* #46534D */
+    --popover: 160 23% 97%; /* = subcard */
+    --popover-foreground: 156 22% 9%;
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 156 22% 9%;
+    --border: 153 11% 80%; /* #C7D2CD */
+    --input: 153 11% 80%;
+    --input-bg: 154 11% 88%; /* = muted */
+    --primary: 162 80% 23%; /* #0C6B4E emerald */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 154 12% 89%; /* = subcard-border */
+    --secondary-foreground: 156 22% 9%;
+    --accent: 150 11% 96%; /* #F5F7F6 */
+    /* = primary, not the vivid #4BDDB1 ring/gradient color — that only hits
+       ~1.6:1 on this near-white --accent fill, and accent-foreground is
+       consumed as real hover/focus text (button.tsx, dropdown-menu.tsx,
+       select.tsx), not a decorative accent. */
+    --accent-foreground: 162 80% 23%; /* = primary, #0C6B4E, ~6:1 on --accent */
+    --ring: 162 68% 58%;
+    --surface: 0 0% 100%; /* = card */
+    --surface-foreground: var(--foreground);
+    --surface-border: 153 11% 80%; /* = border */
+    --subcard: 160 23% 97%; /* #F7FAF9 */
+    --subcard-foreground: 156 22% 9%;
+    --subcard-border: 154 12% 89%; /* #DFE6E3 */
+    --modal: 160 23% 97%; /* = subcard */
+    --modal-border: 153 11% 80%; /* = border */
+    --gift: 162 80% 23%; /* = primary */
+    --gift-foreground: 0 0% 100%;
+    --pool: 224 54% 39%; /* #2E4A99 sapphire */
+    --pool-foreground: 0 0% 100%;
+    --pool-badge-foreground: 0 0% 100%;
+    --brand-gradient-start: 162 80% 23%; /* = primary */
+    --brand-gradient-end: 162 68% 58%; /* #4BDDB1, vivid emerald — gradients/ring aren't text-on-fill so keep the vivid hue */
+  }
+  .palette-jewel.dark {
+    --background: 158 24% 7%; /* #0D1512 */
+    --background-muted: 155 23% 10%; /* #14201B */
+    --foreground: 146 16% 92%; /* #E6EDE9 */
+    --muted: 155 19% 13%; /* #1A2621 */
+    --muted-foreground: 155 11% 65%; /* #9DB0A8 */
+    --popover: 148 21% 12%; /* = subcard */
+    --popover-foreground: 146 16% 92%;
+    --card: 145 23% 10%; /* #142019 */
+    --card-foreground: 146 16% 92%;
+    --border: 150 16% 20%; /* #2A3A32 */
+    --input: 150 16% 20%;
+    --input-bg: 144 22% 13%; /* #1A2920, card lightness +3 */
+    --primary: 160 56% 48%; /* #35BE90 */
+    --primary-foreground: 163 79% 8%;
+    --secondary: 148 18% 17%; /* = accent */
+    --secondary-foreground: 146 16% 92%;
+    --accent: 148 18% 17%;
+    --accent-foreground: 162 68% 58%; /* #4BDDB1, constant across modes */
+    --ring: 162 68% 58%;
+    --surface: 145 23% 10%; /* = card */
+    --surface-foreground: var(--foreground);
+    --surface-border: 150 16% 20%; /* = border */
+    --subcard: 148 21% 12%; /* #18251E */
+    --subcard-foreground: 146 16% 92%;
+    --subcard-border: 150 19% 14%; /* #1D2B24 */
+    --modal: 148 21% 12%; /* = subcard */
+    --modal-border: 150 19% 14%; /* = subcard-border */
+    --gift: 160 56% 48%; /* = primary */
+    --gift-foreground: 163 79% 8%;
+    --pool: 228 71% 74%; /* #8FA2EC */
+    --pool-foreground: 227 46% 16%; /* #161E3C, dark text — the fill is light in dark mode */
+    --pool-badge-foreground: 227 46% 16%;
+    --brand-gradient-start: 160 56% 48%; /* = primary */
+    --brand-gradient-end: 162 68% 58%; /* = accent-foreground */
+  }
+
   /* Display face for major headings; body/controls stay on --font-sans.
      Route-family passes opt additional elements in via `font-display`. */
   h1,
