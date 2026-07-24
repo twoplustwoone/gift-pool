@@ -14,6 +14,7 @@ import {
   FriendActionButton,
   type RelationshipSnapshot,
 } from '#app/components/friends/friend-action-button.tsx';
+import { ComingUpSection } from '#app/components/friends/coming-up-section.tsx';
 import { FriendRow as FriendRowCard } from '#app/components/friends/friend-row.tsx';
 import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { PageHeader } from '#app/components/page-header.tsx';
@@ -1296,6 +1297,8 @@ const FriendsRoute = () => {
             onIncomingTransition={handleIncomingTransition}
             onOutgoingTransition={handleOutgoingTransition}
           />
+
+          <ComingUpSection friends={friendsState} />
 
           {friendsState.length > 8 ? (
             <Input
