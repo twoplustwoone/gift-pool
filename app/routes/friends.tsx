@@ -40,6 +40,10 @@ import { Skeleton } from '#app/components/ui/skeleton.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
 import { useFriendWishlistPrefetch } from '#app/hooks/use-background-route-prefetch.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
+import {
+  COMING_UP_WINDOW_DAYS,
+  getUpcomingBirthday,
+} from '#app/utils/birthday.ts';
 import { loadFriendsPageData } from '#app/utils/friends-page.server.ts';
 import {
   FRIENDSHIP_UPDATED_EVENT,
@@ -296,51 +300,49 @@ export function filterFriends(friends: FriendEntry[], term: string) {
   });
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const BIRTHDAY_SORT_WINDOW_DAYS = 60;
-
-// Days from `today` until this friend's next birthday (clamped to a year).
-// Returns Infinity for friends without a birthday — they sort to the bottom.
-function daysUntilNextBirthday(birthday: Date | string | null, today: Date) {
-  if (!birthday) return Number.POSITIVE_INFINITY;
-  const parsed = birthday instanceof Date ? birthday : new Date(birthday);
-  if (Number.isNaN(parsed.getTime())) return Number.POSITIVE_INFINITY;
-  const candidate = new Date(
-    today.getFullYear(),
-    parsed.getMonth(),
-    parsed.getDate(),
-  );
-  if (candidate.getTime() < today.getTime()) {
-    candidate.setFullYear(candidate.getFullYear() + 1);
-  }
-  return Math.round((candidate.getTime() - today.getTime()) / MS_PER_DAY);
-}
-
 // Sort friends so the people you most need to think about gifting come
-// first: anyone whose birthday is within the next 60 days, ordered by
+// first: anyone whose birthday is within COMING_UP_WINDOW_DAYS, ordered by
 // soonest first; everyone else falls back to alphabetical by display
 // name. Stable enough to look ordered, useful enough that the list
 // surfaces something actionable above the fold.
+//
+// Proximity comes from the shared `getUpcomingBirthday`, which reads the
+// stored date's UTC month/day. Birthdays are persisted at noon UTC so the
+// calendar date is timezone-invariant; a local-time reading here would let
+// this sort disagree by a day with the badge `friend-row.tsx` renders from
+// the same helper.
 export function sortFriendsByUpcomingBirthday(
   friends: FriendEntry[],
-  now: Date = new Date(),
 ): FriendEntry[] {
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const withMeta = friends.map((friend, index) => ({
+  const withMeta = friends.map((friend) => ({
     friend,
-    days: daysUntilNextBirthday(friend.user.birthday, today),
+    // Friends who hid their birthday sort as if they had none — the viewer
+    // must not be able to infer a hidden date from list position.
+    days:
+      friend.user.birthdayVisible === false
+        ? Number.POSITIVE_INFINITY
+        : (getUpcomingBirthday(friend.user.birthday)?.daysUntil ??
+          Number.POSITIVE_INFINITY),
     name: (friend.user.name ?? friend.user.username).toLowerCase(),
-    index,
   }));
   withMeta.sort((a, b) => {
-    const aSoon = a.days <= BIRTHDAY_SORT_WINDOW_DAYS;
-    const bSoon = b.days <= BIRTHDAY_SORT_WINDOW_DAYS;
+    const aSoon = a.days <= COMING_UP_WINDOW_DAYS;
+    const bSoon = b.days <= COMING_UP_WINDOW_DAYS;
     if (aSoon && bSoon) return a.days - b.days || a.name.localeCompare(b.name);
     if (aSoon) return -1;
     if (bSoon) return 1;
     return a.name.localeCompare(b.name);
   });
   return withMeta.map((entry) => entry.friend);
+}
+
+// Alphabetical by display name, for the "A–Z" sort toggle.
+export function sortFriendsByName(friends: FriendEntry[]): FriendEntry[] {
+  return [...friends].sort((a, b) =>
+    (a.user.name ?? a.user.username)
+      .toLowerCase()
+      .localeCompare((b.user.name ?? b.user.username).toLowerCase()),
+  );
 }
 
 export function toggleSelection(
