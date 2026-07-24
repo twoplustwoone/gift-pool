@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LuCopy, LuLink, LuPlus, LuQrCode, LuUsers } from 'react-icons/lu';
+import {
+  LuChevronDown,
+  LuCopy,
+  LuLink,
+  LuPlus,
+  LuQrCode,
+  LuUsers,
+} from 'react-icons/lu';
 import {
   Link,
   Outlet,
@@ -1084,55 +1091,107 @@ function PendingRequestsCard({
   ) => (snapshot: RelationshipSnapshot) => void;
 }>) {
   const total = incomingState.length + outgoingState.length;
+  const [open, setOpen] = useState(false);
+  const hasIncoming = incomingState.length > 0;
+
+  // Incoming requests are the actionable case, so their arrival opens the
+  // section — on mount and again whenever one shows up later via the
+  // optimistic FRIENDSHIP_UPDATED_EVENT wiring, which a `useState(...)`
+  // initialiser alone would miss.
+  //
+  // Deliberately one-way: never auto-collapse. Deriving `open` from
+  // `hasIncoming` instead would snap the section shut the moment you accept
+  // the last incoming request, yanking the "Sent" list you were reading out
+  // from under you. Collapsing stays a user action.
+  useEffect(() => {
+    if (hasIncoming) setOpen(true);
+  }, [hasIncoming]);
+
   if (total === 0) return null;
 
   return (
     <section
       id="pending-requests"
-      className="rounded-xl border border-border bg-card p-4 shadow-sm"
+      className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
     >
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">Pending requests</h2>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="pending-requests-body"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/40"
+      >
+        <span className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground">
           {total}
         </span>
-      </div>
-      <ul className="mt-3 space-y-2">
-        {incomingState.map((request) => (
-          <FriendRequestRow
-            key={request.id}
-            requestId={request.id}
-            user={request.fromUser}
-            relationship={{
-              state: 'PENDING_INCOMING',
-              friendshipId: null,
-              incomingRequestId: request.id,
-              outgoingRequestId: null,
-            }}
-            selected={false}
-            selectMode={false}
-            onToggleSelected={() => {}}
-            onStateChange={onIncomingTransition(request.id, request.fromUser)}
-          />
-        ))}
-        {outgoingState.map((request) => (
-          <FriendRequestRow
-            key={request.id}
-            requestId={request.id}
-            user={request.toUser}
-            relationship={{
-              state: 'PENDING_OUTGOING',
-              friendshipId: null,
-              incomingRequestId: null,
-              outgoingRequestId: request.id,
-            }}
-            selected={false}
-            selectMode={false}
-            onToggleSelected={() => {}}
-            onStateChange={onOutgoingTransition(request.id, request.toUser)}
-          />
-        ))}
-      </ul>
+        <h2 className="text-base font-semibold">Friend requests</h2>
+        <LuChevronDown
+          className={cn(
+            'ml-auto h-4 w-4 shrink-0 text-muted-foreground motion-safe:transition-transform',
+            open && 'rotate-180',
+          )}
+          aria-hidden
+        />
+      </button>
+
+      {open ? (
+        <div id="pending-requests-body" className="px-4 pb-4">
+          {incomingState.length > 0 ? (
+            <ul className="space-y-2">
+              {incomingState.map((request) => (
+                <FriendRequestRow
+                  key={request.id}
+                  requestId={request.id}
+                  user={request.fromUser}
+                  relationship={{
+                    state: 'PENDING_INCOMING',
+                    friendshipId: null,
+                    incomingRequestId: request.id,
+                    outgoingRequestId: null,
+                  }}
+                  selected={false}
+                  selectMode={false}
+                  onToggleSelected={() => {}}
+                  onStateChange={onIncomingTransition(
+                    request.id,
+                    request.fromUser,
+                  )}
+                />
+              ))}
+            </ul>
+          ) : null}
+
+          {outgoingState.length > 0 ? (
+            <>
+              <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground first:mt-0">
+                Sent
+              </h3>
+              <ul className="space-y-2">
+                {outgoingState.map((request) => (
+                  <FriendRequestRow
+                    key={request.id}
+                    requestId={request.id}
+                    user={request.toUser}
+                    relationship={{
+                      state: 'PENDING_OUTGOING',
+                      friendshipId: null,
+                      incomingRequestId: null,
+                      outgoingRequestId: request.id,
+                    }}
+                    selected={false}
+                    selectMode={false}
+                    onToggleSelected={() => {}}
+                    onStateChange={onOutgoingTransition(
+                      request.id,
+                      request.toUser,
+                    )}
+                  />
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }
