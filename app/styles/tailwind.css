@@ -286,11 +286,16 @@
      not shipped. Values independently WCAG 2.2 AA verified against the
      "Design system palette review" Claude Design deliverable (all 60
      text/fill pairings re-checked by script, plus every stated hue angle;
-     zero discrepancies found). NOTE: that deliverable used its own
-     invented Pool-stage-badge-to-color mapping instead of the real one in
-     pool-status-badge.tsx — not followed here; these tokens only carry the
-     verified per-role hues (primary/pool/neutrals), wired to the real
-     status→role mapping when the badge component consumes them.
+     zero discrepancies found in that pairing set). NOTE: that deliverable
+     used its own invented Pool-stage-badge-to-color mapping instead of the
+     real one in pool-status-badge.tsx — not followed here; these tokens
+     only carry the verified per-role hues (primary/pool/neutrals), wired to
+     the real status→role mapping when the badge component consumes them.
+     A pairing the deliverable didn't check — light-mode --accent-foreground
+     as real hover/focus text on --accent (button.tsx, dropdown-menu.tsx,
+     select.tsx), not just decorative accent/ring/gradient use — failed at
+     ~1.5–2:1 for all three; fixed by aliasing --accent-foreground to
+     --primary in each light block instead of the vivid ring/gradient hue.
 
      Unlike Fête, --card/--subcard are NOT unified here — the mockup gave
      each its own distinct value and showed good card-vs-canvas contrast on
@@ -315,7 +320,11 @@
     --secondary: 60 22% 88%; /* = subcard-border */
     --secondary-foreground: 74 21% 12%;
     --accent: 60 22% 96%; /* #F8F8F4 */
-    --accent-foreground: 86 68% 58%; /* #9EDD4B, vivid leaf-green emphasis */
+    /* = primary, not the vivid #9EDD4B ring/gradient color — that only hits
+       ~1.5:1 on this near-white --accent fill, and accent-foreground is
+       consumed as real hover/focus text (button.tsx, dropdown-menu.tsx,
+       select.tsx), not a decorative accent. */
+    --accent-foreground: 86 53% 25%; /* = primary, #45631E, ~6.5:1 on --accent */
     --ring: 86 68% 58%;
     --surface: 0 0% 100%; /* = card */
     --surface-foreground: var(--foreground);
@@ -331,7 +340,7 @@
     --pool-foreground: 0 0% 100%;
     --pool-badge-foreground: 0 0% 100%;
     --brand-gradient-start: 86 53% 25%; /* = primary */
-    --brand-gradient-end: 86 68% 58%; /* = accent-foreground */
+    --brand-gradient-end: 86 68% 58%; /* #9EDD4B, vivid leaf-green — gradients/ring aren't text-on-fill so keep the vivid hue */
   }
   .palette-botanical.dark {
     --background: 82 19% 8%; /* #161911 */
@@ -387,7 +396,11 @@
     --secondary: 39 52% 89%; /* = subcard-border */
     --secondary-foreground: 36 32% 15%;
     --accent: 39 64% 96%; /* #FBF6ED */
-    --accent-foreground: 37 68% 58%; /* #DDA54B, vivid gold emphasis */
+    /* = primary, not the vivid #DDA54B ring/gradient color — that only hits
+       ~2:1 on this near-white --accent fill, and accent-foreground is
+       consumed as real hover/focus text (button.tsx, dropdown-menu.tsx,
+       select.tsx), not a decorative accent. */
+    --accent-foreground: 37 85% 32%; /* = primary, #96600C, ~4.9:1 on --accent */
     --ring: 37 68% 58%;
     --surface: 43 100% 99%; /* = card */
     --surface-foreground: var(--foreground);
@@ -403,7 +416,7 @@
     --pool-foreground: 0 0% 100%;
     --pool-badge-foreground: 0 0% 100%;
     --brand-gradient-start: 37 85% 32%; /* = primary */
-    --brand-gradient-end: 37 68% 58%; /* = accent-foreground */
+    --brand-gradient-end: 37 68% 58%; /* #DDA54B, vivid gold — gradients/ring aren't text-on-fill so keep the vivid hue */
   }
   .palette-golden.dark {
     --background: 26 27% 10%; /* #211913 */
@@ -459,7 +472,11 @@
     --secondary: 154 12% 89%; /* = subcard-border */
     --secondary-foreground: 156 22% 9%;
     --accent: 150 11% 96%; /* #F5F7F6 */
-    --accent-foreground: 162 68% 58%; /* #4BDDB1, vivid emerald emphasis */
+    /* = primary, not the vivid #4BDDB1 ring/gradient color — that only hits
+       ~1.6:1 on this near-white --accent fill, and accent-foreground is
+       consumed as real hover/focus text (button.tsx, dropdown-menu.tsx,
+       select.tsx), not a decorative accent. */
+    --accent-foreground: 162 80% 23%; /* = primary, #0C6B4E, ~6:1 on --accent */
     --ring: 162 68% 58%;
     --surface: 0 0% 100%; /* = card */
     --surface-foreground: var(--foreground);
@@ -475,7 +492,7 @@
     --pool-foreground: 0 0% 100%;
     --pool-badge-foreground: 0 0% 100%;
     --brand-gradient-start: 162 80% 23%; /* = primary */
-    --brand-gradient-end: 162 68% 58%; /* = accent-foreground */
+    --brand-gradient-end: 162 68% 58%; /* #4BDDB1, vivid emerald — gradients/ring aren't text-on-fill so keep the vivid hue */
   }
   .palette-jewel.dark {
     --background: 158 24% 7%; /* #0D1512 */
