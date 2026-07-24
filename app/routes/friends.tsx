@@ -8,7 +8,6 @@ import {
   LuUsers,
 } from 'react-icons/lu';
 import {
-  Link,
   Outlet,
   useLoaderData,
   useSearchParams,
@@ -17,11 +16,11 @@ import {
   type MetaFunction,
 } from 'react-router';
 import { toast } from 'sonner';
+import { ComingUpSection } from '#app/components/friends/coming-up-section.tsx';
 import {
   FriendActionButton,
   type RelationshipSnapshot,
 } from '#app/components/friends/friend-action-button.tsx';
-import { ComingUpSection } from '#app/components/friends/coming-up-section.tsx';
 import { FriendRow as FriendRowCard } from '#app/components/friends/friend-row.tsx';
 import { useNotificationsStore } from '#app/components/notifications/notifications-context.tsx';
 import { PageHeader } from '#app/components/page-header.tsx';
@@ -426,6 +425,52 @@ export function getMutualGroupChips(
 }
 
 type TranslateFn = ReturnType<typeof useTranslation>['t'];
+
+export type FriendsSort = 'birthday' | 'az';
+
+// Segmented control for list order. Local state rather than a search param:
+// `useFriendsSearchParams` owns the `tab`/`q` contract that the add-friend
+// search shares with /api/users/search, and sort order isn't worth linking to.
+function FriendsSortToggle({
+  onSortChange,
+  sort,
+}: Readonly<{
+  onSortChange: (next: FriendsSort) => void;
+  sort: FriendsSort;
+}>) {
+  const options: Array<{ label: string; value: FriendsSort }> = [
+    { label: 'By birthday', value: 'birthday' },
+    { label: 'A–Z', value: 'az' },
+  ];
+
+  return (
+    <div
+      role="group"
+      aria-label="Sort friends"
+      className="inline-flex flex-none gap-0.5 rounded-full bg-muted p-1"
+    >
+      {options.map((option) => {
+        const active = sort === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onSortChange(option.value)}
+            className={cn(
+              'whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+              active
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function FriendRequestRow({
   onStateChange,
@@ -893,15 +938,23 @@ function FriendsListSection({
     <section
       className={cn(activeTab !== 'friends' ? 'hidden sm:block' : undefined)}
     >
-      <h2 className="text-lg font-semibold">{t('friends.friends')}</h2>
-      {filteredFriends.length > 40 ? (
-        <VirtualizedFriendsList
-          items={filteredFriends}
-          rowHeight={72}
-          renderRow={onRenderFriendRow}
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {t('friends.friends')}
+        </h2>
+        <span className="text-xs font-semibold text-muted-foreground">
+          {filteredFriends.length}
+        </span>
+      </div>
+      {filteredFriends.length === 0 ? (
+        <EmptyState
+          title="No friends match your search"
+          description="Try a different name or @username."
         />
       ) : (
-        <ul className="mt-3 space-y-3">
+        /* Dense single column on mobile, card grid from the 768px
+         * breakpoint up. */
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
           {filteredFriends.map((friend) => onRenderFriendRow(friend))}
         </ul>
       )}
@@ -1266,11 +1319,17 @@ const FriendsRoute = () => {
     data,
     setUnreadCount,
   });
-  const filteredFriends = useMemo(
-    () =>
-      sortFriendsByUpcomingBirthday(filterFriends(friendsState, friendsFilter)),
-    [friendsFilter, friendsState],
-  );
+  const [sort, setSort] = useState<FriendsSort>('birthday');
+  const filteredFriends = useMemo(() => {
+    const matching = filterFriends(friendsState, friendsFilter);
+    return sort === 'az'
+      ? sortFriendsByName(matching)
+      : sortFriendsByUpcomingBirthday(matching);
+  }, [friendsFilter, friendsState, sort]);
+  // While the viewer is filtering, the pinned sections above the list are
+  // noise between them and their results — collapse the page down to the
+  // matches.
+  const isFiltering = friendsFilter.trim().length > 0;
   const handleRemoveFriend = useCallback(
     async (friend: FriendEntry) => {
       const displayName = friend.user.name ?? friend.user.username;
@@ -1350,22 +1409,30 @@ const FriendsRoute = () => {
 
       <PageShell className="min-h-0 flex-1 py-6 sm:py-8">
         <Stack gap={4}>
-          <PendingRequestsCard
-            incomingState={incomingState}
-            outgoingState={outgoingState}
-            onIncomingTransition={handleIncomingTransition}
-            onOutgoingTransition={handleOutgoingTransition}
-          />
+          {isFiltering ? null : (
+            <>
+              <PendingRequestsCard
+                incomingState={incomingState}
+                outgoingState={outgoingState}
+                onIncomingTransition={handleIncomingTransition}
+                onOutgoingTransition={handleOutgoingTransition}
+              />
 
-          <ComingUpSection friends={friendsState} />
+              <ComingUpSection friends={friendsState} />
+            </>
+          )}
 
           {friendsState.length > 8 ? (
-            <Input
-              value={friendsFilter}
-              onChange={(event) => setFriendsFilter(event.currentTarget.value)}
-              placeholder="Search friends"
-              aria-label="Search friends"
-            />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Input
+                value={friendsFilter}
+                onChange={(event) => setFriendsFilter(event.currentTarget.value)}
+                placeholder="Search friends"
+                aria-label="Search friends"
+                className="sm:flex-1"
+              />
+              <FriendsSortToggle sort={sort} onSortChange={setSort} />
+            </div>
           ) : null}
 
           <FriendsListSection
@@ -1383,100 +1450,6 @@ const FriendsRoute = () => {
   );
 };
 export default FriendsRoute;
-function VirtualizedFriendsList({
-  items,
-  rowHeight = 72,
-  renderRow,
-}: {
-  items: Array<{
-    friendshipId: string;
-    user: {
-      id: string;
-      username: string;
-      name: string | null;
-      image: {
-        id: string;
-        altText: string | null;
-      } | null;
-    };
-  }>;
-  rowHeight?: number;
-  renderRow: (item: any) => React.ReactNode;
-}) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [viewport, setViewport] = useState({
-    height: 480,
-    scrollTop: 0,
-  });
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      setViewport((v) => ({
-        ...v,
-        height: el.clientHeight,
-      }));
-    });
-    ro.observe(el);
-    const onScroll = () =>
-      setViewport((v) => ({
-        ...v,
-        scrollTop: el.scrollTop,
-      }));
-    el.addEventListener('scroll', onScroll, {
-      passive: true,
-    });
-    // initialize
-    setViewport({
-      height: el.clientHeight,
-      scrollTop: el.scrollTop,
-    });
-    return () => {
-      ro.disconnect();
-      el.removeEventListener('scroll', onScroll);
-    };
-  }, []);
-  const total = items.length * rowHeight;
-  const overscan = 8;
-  const start = Math.max(
-    0,
-    Math.floor(viewport.scrollTop / rowHeight) - overscan,
-  );
-  const end = Math.min(
-    items.length,
-    Math.ceil((viewport.scrollTop + viewport.height) / rowHeight) + overscan,
-  );
-  const slice = items.slice(start, end);
-  return (
-    <div ref={containerRef} className="mt-3 h-[60vh] overflow-auto sm:h-[70vh]">
-      <div
-        style={{
-          height: total,
-          position: 'relative',
-        }}
-      >
-        {slice.map((item, i) => {
-          const index = start + i;
-          const top = index * rowHeight;
-          return (
-            <div
-              key={item.friendshipId}
-              style={{
-                position: 'absolute',
-                top,
-                left: 0,
-                right: 0,
-                height: rowHeight,
-              }}
-            >
-              {renderRow(item)}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 function AddFriendsPanel({
   onOutgoingCreated,
   query: controlledQuery,

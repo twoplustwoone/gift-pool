@@ -719,7 +719,7 @@ describe('/friends route rendering', () => {
     });
   });
 
-  it('filters friends and uses virtualization for long lists', async () => {
+  it('filters friends and renders every match in the grid', async () => {
     const manyFriends = Array.from({ length: 45 }, (_, index) =>
       createFriend(`friendship-${index + 1}`, `friend-${index + 1}`, `Friend ${index + 1}`),
     );
@@ -741,8 +741,73 @@ describe('/friends route rendering', () => {
     expect(screen.queryByText('Friend 40')).not.toBeInTheDocument();
 
     await userEvent.clear(filterInput);
+    // The list is no longer virtualized — clearing the filter brings every
+    // friend back into the DOM rather than a scrolled window of them.
     const rows = screen.getAllByTestId('friend-row');
-    expect(rows.length).toBeLessThan(manyFriends.length);
+    expect(rows).toHaveLength(manyFriends.length);
+  });
+
+  it('reorders the list between birthday proximity and A–Z', async () => {
+    // Zoe has a birthday in 5 days, so proximity sort floats her above the
+    // alphabetically-earlier names.
+    const soon = new Date();
+    soon.setDate(soon.getDate() + 5);
+    const zoe = createFriend('friendship-z', 'zoe', 'Zoe');
+    zoe.user.birthday = new Date(1990, soon.getMonth(), soon.getDate());
+
+    renderFriendsRoute({
+      data: {
+        friends: [
+          zoe,
+          ...Array.from({ length: 9 }, (_, index) =>
+            createFriend(
+              `friendship-${index}`,
+              `anna${index}`,
+              `Anna ${index}`,
+            ),
+          ),
+        ],
+        incoming: [],
+        outgoing: [],
+      },
+    });
+
+    const namesInOrder = () =>
+      screen
+        .getAllByTestId('friend-row')
+        .map((row) => row.textContent ?? '')
+        .map((text) => text.trim());
+
+    await waitFor(() => expect(namesInOrder()[0]).toContain('Zoe'));
+
+    await userEvent.click(screen.getByRole('button', { name: 'A–Z' }));
+    await waitFor(() => expect(namesInOrder()[0]).toContain('Anna 0'));
+
+    await userEvent.click(screen.getByRole('button', { name: 'By birthday' }));
+    await waitFor(() => expect(namesInOrder()[0]).toContain('Zoe'));
+  });
+
+  it('hides the requests and Coming up sections while filtering', async () => {
+    renderFriendsRoute({
+      data: {
+        friends: Array.from({ length: 9 }, (_, index) =>
+          createFriend(`friendship-${index}`, `friend${index}`, `Friend ${index}`),
+        ),
+        incoming: [createIncoming('incoming-1', 'sam', 'Sam')],
+        outgoing: [],
+      },
+    });
+
+    expect(await screen.findByText('Friend requests')).toBeInTheDocument();
+
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Search friends' }),
+      'Friend 3',
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText('Friend requests')).not.toBeInTheDocument(),
+    );
   });
 
   it('updates incoming/outgoing/friends state from interaction and friendship events', async () => {
