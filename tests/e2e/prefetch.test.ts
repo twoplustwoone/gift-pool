@@ -189,9 +189,13 @@ test('cached friend wishlist navigation avoids a fresh loader request and logs o
         response.request().method() === 'POST',
     );
 
+    // The friend card routes to the profile now, so the wishlist is reached
+    // through the actions menu — still a prefetched (`prefetch="intent"`)
+    // link, which is what this test is actually about.
     await page
-      .getByRole('link', { name: new RegExp(friend.name!, 'i') })
+      .getByRole('button', { name: `Actions for ${friend.name}` })
       .click();
+    await page.getByRole('menuitem', { name: /view wishlist/i }).click();
 
     await expect(page).toHaveURL(`/users/${friend.username}/wishlist`);
     await expect(page.getByText('Prefetched item')).toBeVisible();
@@ -293,9 +297,13 @@ test('cached friend wishlist navigation revalidates access before using prefetch
       },
     });
 
+    // The friend card routes to the profile now, so the wishlist is reached
+    // through the actions menu — still a prefetched (`prefetch="intent"`)
+    // link, which is what this test is actually about.
     await page
-      .getByRole('link', { name: new RegExp(friend.name!, 'i') })
+      .getByRole('button', { name: `Actions for ${friend.name}` })
       .click();
+    await page.getByRole('menuitem', { name: /view wishlist/i }).click();
 
     await expect(page).toHaveURL(`/users/${friend.username}/wishlist`);
     await expect(

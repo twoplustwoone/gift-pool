@@ -101,10 +101,22 @@ test.describe('navigation chrome', () => {
       // boundingBox() calls get invalidated by hydration-driven layout
       // shifts like the PWA install banner) — and poll it, since the banner
       // can land mid-assertion.
+      //
+      // Scroll to the BOTTOM of the scroll area rather than calling
+      // `scrollIntoView({ block: 'end' })` on the row. The guarantee that
+      // matters is that a user who scrolls to the end can see their last
+      // friend — `block: 'end'` instead forces the row flush against the
+      // scrollport's bottom edge, which sits behind the fixed nav and is
+      // only reachable because the site footer adds scroll range below the
+      // list. That call used to be absorbed by the virtualized list's inner
+      // `h-[60vh] overflow-auto` container, so it never exercised this.
       await expect
         .poll(
           () =>
             page.evaluate(() => {
+              const area = document.querySelector(
+                '[data-testid="app-scroll-area"]',
+              ) as HTMLElement | null;
               const rows = Array.from(
                 document.querySelectorAll('[data-testid="friend-row"]'),
               );
@@ -112,14 +124,14 @@ test.describe('navigation chrome', () => {
               const nav = document.querySelector(
                 '[data-testid="bottom-nav"]',
               ) as HTMLElement | null;
-              if (!last || !nav) return Number.POSITIVE_INFINITY;
-              last.scrollIntoView({ block: 'end' });
+              if (!last || !nav || !area) return Number.POSITIVE_INFINITY;
+              area.scrollTop = area.scrollHeight;
               return (
                 last.getBoundingClientRect().bottom -
                 nav.getBoundingClientRect().top
               );
             }),
-          { message: 'bottom nav should sit below the last friend row' },
+          { message: 'bottom nav should not cover the last friend row' },
         )
         .toBeLessThanOrEqual(1);
 
