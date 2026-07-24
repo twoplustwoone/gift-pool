@@ -81,9 +81,9 @@ describe('<FriendRow />', () => {
   it('exposes a click target on the whole card via an aria-labelled link', () => {
     renderRow();
     const link = screen.getByRole('link', {
-      name: "View Alex Carter's wishlist",
+      name: "View Alex Carter's profile",
     });
-    expect(link).toHaveAttribute('href', '/users/alex/wishlist');
+    expect(link).toHaveAttribute('href', '/users/alex');
   });
 
   it('shows a birthday badge for friends within the 60-day window', () => {
@@ -176,5 +176,37 @@ describe('<FriendRow />', () => {
     );
 
     expect(onRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers wishlist, profile and remove in the actions menu — and nothing else', async () => {
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    renderRow();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Actions for Alex Carter' }),
+    );
+
+    expect(
+      await screen.findByRole('menuitem', { name: /view wishlist/i }),
+    ).toHaveAttribute('href', '/users/alex/wishlist');
+    expect(
+      screen.getByRole('menuitem', { name: /view profile/i }),
+    ).toHaveAttribute('href', '/users/alex');
+    expect(
+      screen.getByRole('menuitem', { name: /remove friend/i }),
+    ).toBeInTheDocument();
+
+    // Messaging/nudging a friend is a separate, undecided feature — this
+    // menu must not grow one by accident.
+    expect(
+      screen.queryByRole('menuitem', { name: /message|nudge|remind/i }),
+    ).not.toBeInTheDocument();
+    // And "Add to a group" stays out until a real add-to-group flow exists
+    // (groups are join-by-invite/request only today).
+    expect(
+      screen.queryByRole('menuitem', { name: /add to a group/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole('menuitem')).toHaveLength(3);
   });
 });

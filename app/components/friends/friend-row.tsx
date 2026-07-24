@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   LuCake,
   LuEllipsisVertical,
+  LuHeart,
   LuTrash,
   LuUser,
   LuUsers,
@@ -87,19 +88,19 @@ export function FriendRow({
       {/*
        * Whole-card click target. Same absolute click-catcher pattern as
        * the wishlist row primitive: a Link with `inset-0` covers the
-       * entire card so any tap navigates to the friend's wishlist, while
+       * entire card so any tap navigates to the friend's profile, while
        * the action menu in the right slot re-enables pointer events for
        * itself via `pointer-events-auto`.
        */}
       <Link
-        to={`/users/${user.username}/wishlist`}
+        to={`/users/${user.username}`}
         prefetch="intent"
-        aria-label={`View ${displayName}'s wishlist`}
+        aria-label={`View ${displayName}'s profile`}
         className="absolute inset-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
       />
 
-      <div className="pointer-events-none relative flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
-        <Avatar size="m" image={user.image} user={user} />
+      <div className="pointer-events-none relative flex items-center gap-3 p-3">
+        <Avatar size={11} image={user.image} user={user} />
         <div className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left">
           <div className="flex w-full min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <Text
@@ -165,6 +166,18 @@ export function FriendRow({
               className="min-w-[12rem]"
               onClick={(event) => event.stopPropagation()}
             >
+              {/* The card itself now routes to the profile, so the wishlist
+               * needs its own entry point — it's the action people actually
+               * come here for. */}
+              <DropdownMenuItem asChild className="gap-2 px-2 py-2 text-sm">
+                <Link to={`/users/${user.username}/wishlist`} prefetch="intent">
+                  <LuHeart
+                    className="h-4 w-4 text-muted-foreground"
+                    aria-hidden
+                  />
+                  View wishlist
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem asChild className="gap-2 px-2 py-2 text-sm">
                 <Link to={`/users/${user.username}`}>
                   <LuUser className="h-4 w-4 text-muted-foreground" aria-hidden />
