@@ -16,17 +16,11 @@ import FriendsRoute, {
   createOutgoingEntry,
   extractInviteUser,
   filterFriends,
-  getMutualGroupChips,
-  getRequestMutationMessages,
   mapSearchResults,
-  runBatchRequestMutation,
-  runOptimisticRequestBatch,
-  submitRequestMutation,
   syncFriendsForFriendshipEvent,
   syncIncomingForFriendshipEvent,
   syncOutgoingForFriendshipEvent,
   toRelationshipSnapshot,
-  toggleSelection,
 } from './friends.tsx';
 
 const toastSuccess = vi.fn();
@@ -421,120 +415,13 @@ describe('/friends route helpers', () => {
     ).toBe(true);
   });
 
-  it('submits request mutations and batches failures', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ unreadCount: 5 }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          }),
-        )
-        .mockResolvedValueOnce(new Response(null, { status: 500 }))
-        .mockResolvedValueOnce(new Response(null, { status: 200 })),
-    );
-
-    await expect(submitRequestMutation('request-1', 'accept')).resolves.toEqual(
-      {
-        ok: true,
-        unreadCount: 5,
-      },
-    );
-    await expect(submitRequestMutation('request-2', 'reject')).resolves.toEqual(
-      {
-        ok: false,
-        unreadCount: null,
-      },
-    );
-    await expect(submitRequestMutation('request-3', 'cancel')).resolves.toEqual(
-      {
-        ok: true,
-        unreadCount: null,
-      },
-    );
-  });
-
-  it('collects failed batch ids and last unread count', async () => {
-    vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ unreadCount: 1 }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 500 }))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ unreadCount: 7 }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      );
-
-    await expect(
-      runBatchRequestMutation(
-        ['request-1', 'request-2', 'request-3'],
-        'accept',
-      ),
-    ).resolves.toEqual({
-      failedIds: ['request-2'],
-      unreadCount: 7,
-    });
-  });
-
-  it('optimistically removes requests and restores failures', async () => {
-    const requests = [{ id: 'request-1' }, { id: 'request-2' }];
-    const updates: Array<Array<{ id: string }>> = [];
-    const setRequests: React.Dispatch<
-      React.SetStateAction<Array<{ id: string }>>
-    > = (updater) => {
-      const next = applyStateUpdate(
-        updater,
-        updates.length === 0 ? requests : (updates.at(-1) ?? requests),
-      );
-      updates.push(next);
-      return next;
-    };
-
-    vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response(null, { status: 500 }))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ unreadCount: 4 }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      );
-
-    await runOptimisticRequestBatch(
-      ['request-1', 'request-2'],
-      'accept',
-      requests,
-      setRequests,
-      setUnreadCount,
-    );
-
-    expect(updates[0]).toEqual([]);
-    expect(updates[1]).toEqual([{ id: 'request-1' }]);
-    expect(setUnreadCount).toHaveBeenCalledWith(4);
-    expect(toastError).toHaveBeenCalledWith(
-      'Some requests could not be accepted.',
-    );
-  });
-
-  it('filters, toggles, maps, and transitions friend state', () => {
+  it('filters, maps, and transitions friend state', () => {
     const friends = [
       createFriend('friendship-1', 'alex', 'Alex'),
       createFriend('friendship-2', 'sam', 'Sam'),
     ];
     expect(filterFriends(friends, 'sa')).toEqual([friends[1]]);
     expect(filterFriends(friends, ' ')).toEqual(friends);
-    expect(toggleSelection(new Set(['a']), 'b', true)).toEqual(
-      new Set(['a', 'b']),
-    );
-    expect(toggleSelection(new Set(['a', 'b']), 'b', false)).toEqual(
-      new Set(['a']),
-    );
 
     const incoming = [createIncoming('request-1', 'sam', 'Sam')];
     const outgoing = [createOutgoing('request-2', 'jules', 'Jules')];
@@ -555,17 +442,6 @@ describe('/friends route helpers', () => {
       }),
     ).toEqual([]);
 
-    expect(getRequestMutationMessages('accept', 2)).toEqual({
-      error: 'Some requests could not be accepted.',
-      success: 'Accepted 2 requests.',
-    });
-    expect(getRequestMutationMessages('reject', 1).success).toBe(
-      'Declined 1 request.',
-    );
-    expect(getRequestMutationMessages('cancel', 1).success).toBe(
-      'Cancelled 1 request.',
-    );
-
     expect(
       toRelationshipSnapshot({
         friendshipId: 'friendship-1',
@@ -578,28 +454,6 @@ describe('/friends route helpers', () => {
       incomingRequestId: 'incoming-1',
       outgoingRequestId: 'outgoing-1',
       state: 'FRIENDS',
-    });
-
-    expect(
-      getMutualGroupChips(
-        {
-          'user-1': {
-            groups: [
-              { id: 'group-1', name: 'Group 1' },
-              { id: 'group-2', name: 'Group 2' },
-              { id: 'group-3', name: 'Group 3' },
-            ],
-            more: 3,
-          },
-        },
-        'user-1',
-      ),
-    ).toEqual({
-      extraGroupCount: 3,
-      mutualGroups: [
-        { id: 'group-1', name: 'Group 1' },
-        { id: 'group-2', name: 'Group 2' },
-      ],
     });
 
     expect(

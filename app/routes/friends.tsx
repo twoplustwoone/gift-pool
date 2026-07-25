@@ -91,19 +91,10 @@ type SearchResult = {
   user: FriendEntry['user'];
   relationship: RelationshipSnapshot;
 };
-type RequestMutationAction = 'accept' | 'reject' | 'cancel';
-type RequestMutationResponse = {
-  ok: boolean;
-  unreadCount: number | null;
-};
 type RequestListEntryUser = IncomingEntry['fromUser'] | OutgoingEntry['toUser'];
 type FriendRequestRowProps = Readonly<{
   onStateChange: (snapshot: RelationshipSnapshot) => void;
-  onToggleSelected: (requestId: string, selected: boolean) => void;
   relationship: RelationshipSnapshot;
-  requestId: string;
-  selected: boolean;
-  selectMode: boolean;
   user: RequestListEntryUser;
 }>;
 type SearchResultRowProps = Readonly<{
@@ -175,115 +166,6 @@ export function buildFriendEntry(
   };
 }
 
-export async function submitRequestMutation(
-  id: string,
-  action: RequestMutationAction,
-): Promise<RequestMutationResponse> {
-  const response = await fetch(`/api/friends/requests/${id}/${action}`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    ...(action === 'cancel'
-      ? {}
-      : {
-          headers: {
-            Accept: 'application/json',
-          },
-        }),
-  });
-
-  if (!response.ok) {
-    return { ok: false, unreadCount: null };
-  }
-
-  if (action === 'cancel') {
-    return { ok: true, unreadCount: null };
-  }
-
-  const payload = (await response.json()) as { unreadCount?: number };
-  return {
-    ok: true,
-    unreadCount:
-      typeof payload.unreadCount === 'number' ? payload.unreadCount : null,
-  };
-}
-
-export async function runBatchRequestMutation(
-  ids: string[],
-  action: RequestMutationAction,
-) {
-  const results = await Promise.allSettled(
-    ids.map((id) => submitRequestMutation(id, action)),
-  );
-  let unreadCount: number | null = null;
-  const failedIds: string[] = [];
-
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled' && result.value.ok) {
-      if (result.value.unreadCount != null) {
-        unreadCount = result.value.unreadCount;
-      }
-      return;
-    }
-
-    failedIds.push(ids[index] ?? '');
-  });
-
-  return { failedIds, unreadCount };
-}
-
-export async function runOptimisticRequestBatch<
-  TRequest extends { id: string },
->(
-  ids: string[],
-  action: RequestMutationAction,
-  requests: TRequest[],
-  setRequests: React.Dispatch<React.SetStateAction<TRequest[]>>,
-  setUnreadCount?: (count: number) => void,
-) {
-  const snapshot = requests.filter((request) => ids.includes(request.id));
-  setRequests((prev) => prev.filter((request) => !ids.includes(request.id)));
-
-  const { failedIds, unreadCount } = await runBatchRequestMutation(ids, action);
-  const messages = getRequestMutationMessages(action, ids.length);
-
-  if (unreadCount != null) {
-    setUnreadCount?.(unreadCount);
-  }
-
-  if (failedIds.length > 0) {
-    const failed = snapshot.filter((request) => failedIds.includes(request.id));
-    setRequests((prev) => [...failed, ...prev]);
-    toast.error(messages.error);
-    return;
-  }
-
-  toast.success(messages.success);
-}
-
-export function getRequestMutationMessages(
-  action: RequestMutationAction,
-  count: number,
-) {
-  if (action === 'accept') {
-    return {
-      error: 'Some requests could not be accepted.',
-      success: `Accepted ${count} request${count > 1 ? 's' : ''}.`,
-    };
-  }
-
-  if (action === 'reject') {
-    return {
-      error: 'Some requests could not be declined.',
-      success: `Declined ${count} request${count > 1 ? 's' : ''}.`,
-    };
-  }
-
-  return {
-    error: 'Some requests could not be cancelled.',
-    success: `Cancelled ${count} request${count > 1 ? 's' : ''}.`,
-  };
-}
-
 export function filterFriends(friends: FriendEntry[], term: string) {
   const normalizedTerm = term.trim().toLowerCase();
   if (!normalizedTerm) return friends;
@@ -342,17 +224,6 @@ export function sortFriendsByName(friends: FriendEntry[]): FriendEntry[] {
   );
 }
 
-export function toggleSelection(
-  set: Set<string>,
-  id: string,
-  selected: boolean,
-) {
-  const next = new Set(set);
-  if (selected) next.add(id);
-  else next.delete(id);
-  return next;
-}
-
 export function applyIncomingRelationshipTransition(
   incoming: IncomingEntry[],
   requestId: string,
@@ -391,26 +262,6 @@ export function toRelationshipSnapshot(
     friendshipId: detail.friendshipId ?? null,
     incomingRequestId: detail.incomingRequestId ?? null,
     outgoingRequestId: detail.outgoingRequestId ?? null,
-  };
-}
-
-export function getMutualGroupChips(
-  mutuals: Record<
-    string,
-    {
-      groups: Array<{
-        id: string;
-        name: string;
-      }>;
-      more: number;
-    }
-  >,
-  userId: string,
-) {
-  const mutualEntry = mutuals[userId];
-  return {
-    extraGroupCount: mutualEntry?.more ?? 0,
-    mutualGroups: mutualEntry ? mutualEntry.groups.slice(0, 2) : [],
   };
 }
 
@@ -464,39 +315,22 @@ function FriendsSortToggle({
 
 function FriendRequestRow({
   onStateChange,
-  onToggleSelected,
   relationship,
-  requestId,
-  selected,
-  selectMode,
   user,
 }: FriendRequestRowProps) {
   const username = user.username;
 
   return (
     <li className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm">
-      {selectMode ? (
-        <input
-          type="checkbox"
-          aria-label={`Select @${username}`}
-          checked={selected}
-          onChange={(event) =>
-            onToggleSelected(requestId, event.currentTarget.checked)
-          }
-          className="h-4 w-4"
-        />
-      ) : null}
       <Avatar size="s" image={user.image} user={user} />
       <div className="flex-1 text-foreground">@{username}</div>
-      {selectMode ? null : (
-        <FriendActionButton
-          targetUserId={user.id}
-          targetUserName={`@${username}`}
-          relationship={relationship}
-          variant="compact"
-          onStateChange={onStateChange}
-        />
-      )}
+      <FriendActionButton
+        targetUserId={user.id}
+        targetUserName={`@${username}`}
+        relationship={relationship}
+        variant="compact"
+        onStateChange={onStateChange}
+      />
     </li>
   );
 }
@@ -1137,7 +971,6 @@ function PendingRequestsCard({
               {incomingState.map((request) => (
                 <FriendRequestRow
                   key={request.id}
-                  requestId={request.id}
                   user={request.fromUser}
                   relationship={{
                     state: 'PENDING_INCOMING',
@@ -1145,9 +978,6 @@ function PendingRequestsCard({
                     incomingRequestId: request.id,
                     outgoingRequestId: null,
                   }}
-                  selected={false}
-                  selectMode={false}
-                  onToggleSelected={() => {}}
                   onStateChange={onIncomingTransition(
                     request.id,
                     request.fromUser,
@@ -1166,7 +996,6 @@ function PendingRequestsCard({
                 {outgoingState.map((request) => (
                   <FriendRequestRow
                     key={request.id}
-                    requestId={request.id}
                     user={request.toUser}
                     relationship={{
                       state: 'PENDING_OUTGOING',
@@ -1174,9 +1003,6 @@ function PendingRequestsCard({
                       incomingRequestId: null,
                       outgoingRequestId: request.id,
                     }}
-                    selected={false}
-                    selectMode={false}
-                    onToggleSelected={() => {}}
                     onStateChange={onOutgoingTransition(
                       request.id,
                       request.toUser,
