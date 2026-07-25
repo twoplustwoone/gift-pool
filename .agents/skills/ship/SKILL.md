@@ -33,6 +33,37 @@ Check all three every time, not just the one that happened to have a hit last ti
 - **Judge each finding before acting — do not blindly fix everything.** Verify it against the actual code the same way you would a human reviewer's comment (per `superpowers:receiving-code-review`): if it's real and in scope, fix it and add/adjust a regression test; if you determine it's incorrect, already handled, out of scope for this change, or a deliberate tradeoff, it is fine to leave it unaddressed — but say so explicitly in your report to the user (what the finding was, why you're not acting on it) rather than silently dropping it. Silence reads as "missed it," not "considered and declined."
 - After pushing a fix (or after deciding a finding needs no code change), comment `@codex review` on the PR (`gh pr comment {number} --body "@codex review"`) to trigger a fresh pass — this is Codex's own documented re-review trigger, confirmed from its review-comment footer in this repo. Keep monitoring (all three surfaces) until a pass finds nothing new.
 
+### Knowing when to stop
+
+Codex re-reviews on every push, so each fix creates fresh surface to review. Taken
+uncritically that becomes a doom loop: on a docs-only PR in this repo it ran to four rounds,
+where rounds 3 and 4 were findings about the text added to fix rounds 2 and 3. The change
+was never getting closer to shipping.
+
+Findings are graded by class (P1/P2), not by what being wrong would actually cost here. That
+is your judgement to make, not Codex's. Weigh each one:
+
+- **Is it about the original change, or about your fix to the previous finding?** Second-order
+  findings on the same hunk are where the loop lives. Two rounds on one hunk is the signal to
+  stop fixing and start deciding.
+- **Is the code executable or illustrative?** A flaw in a doc example, a comment, or a test
+  fixture costs a reader a moment's thought. A flaw in shipped code costs users. Do not spend
+  equal effort on both.
+- **Is the failure reachable?** "If X were to happen" on a path with no caller, or a race that
+  needs a state the workflow never enters, is a note — not a blocker.
+- **Is the fix proportionate?** If the remedy is larger than the risk — new files, new
+  abstractions, restructuring around a hypothetical — that is over-fitting. Prefer the
+  one-line fix, or decline.
+
+**Declining is a first-class outcome.** Say what the finding was and why you are not acting
+on it, then ship. A judged-and-declined finding is not a leak; silently absorbing every
+finding until the reviewer runs out of ideas is not diligence.
+
+**Hard stop: do not exceed three review rounds on one PR without checking in with the user.**
+If findings are still arriving after three, that is information — either the change is
+under-specified or the review is over-fitting — and which one it is, is a call for the human,
+not another round.
+
 ## A failed query must never read as a clean result
 
 Every check above answers "is anything outstanding?" by looking for _absence_. That makes
@@ -60,18 +91,16 @@ evidence yet.
 `gh pr checks` immediately after a push can return the _previous_ commit's completed
 checks, so a run can look green before the new one has even queued.
 
-Anchor to the commit: confirm `git rev-parse HEAD` equals
-`gh pr view {number} --json headRefOid --jq .headRefOid`, then read
-`repos/{owner}/{repo}/commits/{sha}/check-runs`, which cannot report a stale round.
-
-Three conditions then have to hold together — the expected checks have all registered,
-none is still running, and every one concluded successfully. Stating those as separate
-prose predicates has repeatedly produced rules that pass while CI is broken, so use one
-expression that returns a verdict and leaves nothing to recombine:
+Three conditions have to hold together — the expected checks have all registered, none is
+still running, and every one concluded successfully — and stating them as separate prose
+predicates repeatedly produced rules that passed while CI was broken. Use one expression
+that returns a verdict, and copy it whole; each clause is load-bearing:
 
 ```bash
+set -o pipefail   # else a failed `gh api` yields jq's status, and jq exits 0 on empty input
 SHA=$(git rev-parse HEAD)
-[ "$SHA" = "$(gh pr view {number} --json headRefOid --jq .headRefOid)" ] || echo "UNKNOWN: HEAD is not the PR head"
+[ "$SHA" = "$(gh pr view {number} --json headRefOid --jq .headRefOid)" ] \
+  || { echo "UNKNOWN: HEAD is not the PR head"; exit 3; }   # stop; never report a stale SHA
 gh api --paginate "repos/{owner}/{repo}/commits/$SHA/check-runs" \
 | jq -r --argjson want '["⬣ ESLint","ʦ TypeScript","⚡ Vitest","🎭 Playwright","SonarQube","SonarCloud Code Analysis"]' '
     ([.check_runs[].name] | unique) as $have
