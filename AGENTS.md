@@ -309,3 +309,13 @@ On mobile surfaces, use bottom-sheet patterns (not centered modals), and ensure 
 When a test or CI check fails, run the specific test type the user requested (jest/unit vs. e2e). If a fix isn't working after two attempts, stop and step back to re-diagnose the root cause rather than iterating on throwaway diagnostics.
 
 For Playwright layout comparisons, measure related element geometry in a single `evaluate` or `evaluateAll` call. Separate awaited `boundingBox()` calls can be invalidated by hydration-driven layout shifts such as the PWA install banner. Inspect trace screenshots before treating geometry failures as product regressions.
+
+Do not infer horizontal overflow from a `fullPage` screenshot's width. It sizes from `documentElement.scrollWidth`, which can exceed the viewport while no user-reachable horizontal scroll exists — content clipped inside a descendant scroll container still counts toward it. Probe scrollability directly (set `scrollLeft`, read it back, and check `scrollWidth` vs `clientWidth` on `[data-testid="app-scroll-area"]`) before calling it a layout bug.
+
+**Capture a test runner's exit status correctly before trusting it.** A shell pipeline returns its _last_ command's status, so `npm run test:e2e:run 2>&1 | grep ... | tail` reports `tail`'s exit code and a failing run reads as a clean pass. Use `set -o pipefail`, or read `${PIPESTATUS[0]}`, or don't pipe. This is exactly how a run with 96 failures was once reported as passing.
+
+`test-results/.last-run.json` (`status`, `failedTests`) is a good corroborating read — it names which tests failed, and its count should reconcile with `npx playwright test --list`. Treat it as corroboration, not as an override: Playwright writes it from the same result that determines the exit code, so a genuine disagreement means the file is stale from an earlier invocation. On a mismatch, treat the outcome as unknown and re-run rather than believing either side.
+
+`playwright.config.ts` sets `reuseExistingServer: true`, so Playwright adopts any server already listening on the port regardless of how it was configured — including one left over from another session. Confirm the run started its own (`[WebServer]` lines in the output) or free the port first. A foreign server produces mass failures that look exactly like product defects. A cold Vite server is the other false-failure source: first-touch route compilation blows the 15s test timeout, so warm the server before comparing a branch against `main`.
+
+For authenticated verification (screenshots, probing a gated page), use the `login` fixture in `tests/playwright-utils.ts` — it inserts a `Session` row and injects the signed `en_session` cookie directly, so no login form and no credentials are involved.
