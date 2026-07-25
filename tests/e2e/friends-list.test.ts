@@ -52,11 +52,6 @@ test('friend cards open the profile, and the actions menu opens the wishlist', a
       `/users/${friend.username}`,
     );
 
-    // `useFriendsSearchParams` writes `?tab=` on a 300ms debounce after mount.
-    // Wait for it to land first — a navigation started before it fires gets
-    // clobbered by that setSearchParams call.
-    await expect(page).toHaveURL(/\/friends\?tab=friends/);
-
     // The wishlist keeps a one-click path through the actions menu.
     await page
       .getByRole('button', { name: `Actions for ${friend.name}` })

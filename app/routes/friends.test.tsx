@@ -16,7 +16,6 @@ import FriendsRoute, {
   createOutgoingEntry,
   extractInviteUser,
   filterFriends,
-  getActiveTab,
   getMutualGroupChips,
   getRequestMutationMessages,
   mapSearchResults,
@@ -397,13 +396,6 @@ afterEach(() => {
 });
 
 describe('/friends route helpers', () => {
-  it('normalizes tabs and ignores unknown values', () => {
-    expect(getActiveTab(new URLSearchParams('tab=add'))).toBe('add');
-    expect(getActiveTab(new URLSearchParams('tab=requests'))).toBe('requests');
-    expect(getActiveTab(new URLSearchParams('tab=unknown'))).toBe('friends');
-    expect(getActiveTab(new URLSearchParams())).toBe('friends');
-  });
-
   it('builds and deduplicates friend entries', () => {
     const user = createUser('user-1', 'alex', 'Alex');
     const entry = buildFriendEntry('request-1', user);

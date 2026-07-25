@@ -10,7 +10,6 @@ import {
 import {
   Outlet,
   useLoaderData,
-  useSearchParams,
   type ClientLoaderFunctionArgs,
   type LoaderFunctionArgs,
   type MetaFunction,
@@ -132,9 +131,7 @@ type InviteQrDialogProps = Readonly<{
   open: boolean;
   qrDataUrl: string | null;
 }>;
-type FriendsTab = 'add' | 'requests' | 'friends';
 type FriendsListSectionProps = Readonly<{
-  activeTab: FriendsTab;
   filteredFriends: FriendEntry[];
   friendsState: FriendEntry[];
   onRenderFriendRow: (friend: FriendEntry) => React.ReactNode;
@@ -145,13 +142,6 @@ type UseFriendsRouteStateOptions = Readonly<{
   setUnreadCount: (count: number) => void;
 }>;
 type FriendsRouteState = ReturnType<typeof useFriendsRouteState>;
-
-export function getActiveTab(searchParams: URLSearchParams): FriendsTab {
-  const activeTabParam = (searchParams.get('tab') ?? 'friends').toLowerCase();
-  return activeTabParam === 'add' || activeTabParam === 'requests'
-    ? activeTabParam
-    : 'friends';
-}
 
 export function addFriendIfMissing(friends: FriendEntry[], entry: FriendEntry) {
   if (friends.some((item) => item.user.id === entry.user.id)) {
@@ -781,50 +771,6 @@ export function syncFriendsForFriendshipEvent(
   );
 }
 
-function useFriendsSearchParams() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = getActiveTab(searchParams);
-  const initialQ = searchParams.get('q') ?? '';
-  const [q, setQ] = useState(initialQ);
-
-  useEffect(() => {
-    setQ(initialQ);
-  }, [initialQ]);
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      const next = new URLSearchParams(searchParams);
-      if (q) next.set('q', q);
-      else next.delete('q');
-      next.set('tab', activeTab);
-      setSearchParams(next, {
-        preventScrollReset: true,
-      });
-    }, 300);
-    return () => clearTimeout(timeoutId);
-  }, [activeTab, q, searchParams, setSearchParams]);
-
-  const handleTabChange = useCallback(
-    (value: FriendsTab) => {
-      const next = new URLSearchParams(searchParams);
-      next.set('tab', value);
-      if (q) next.set('q', q);
-      setSearchParams(next, {
-        preventScrollReset: true,
-      });
-    },
-    [q, searchParams, setSearchParams],
-  );
-
-  return {
-    activeTab,
-    q,
-    setQ,
-    searchParams,
-    handleTabChange,
-  };
-}
-
 function useFriendsRouteState({
   data,
   setUnreadCount: _setUnreadCount,
@@ -908,7 +854,6 @@ function useFriendsRouteState({
 }
 
 function FriendsListSection({
-  activeTab,
   filteredFriends,
   friendsState,
   onRenderFriendRow,
@@ -935,9 +880,7 @@ function FriendsListSection({
   }
 
   return (
-    <section
-      className={cn(activeTab !== 'friends' ? 'hidden sm:block' : undefined)}
-    >
+    <section>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {t('friends.friends')}
@@ -1305,7 +1248,13 @@ const FriendsRoute = () => {
   const { t } = useTranslation();
   const { setUnreadCount } = useNotificationsStore();
   useFriendWishlistPrefetch(data.friends.map((friend) => friend.user.username));
-  const { q, setQ } = useFriendsSearchParams();
+  // Query for the add-friend dialog's username search. Deliberately local:
+  // it used to be mirrored into `?q=` by a debounced effect that also
+  // re-wrote a `?tab=` param nobody read. Because that effect listed
+  // `searchParams` in its own deps, each write produced a fresh object and
+  // re-triggered itself — a navigation every 300ms that clobbered any
+  // navigation started in the same window.
+  const [q, setQ] = useState('');
   const [friendsFilter, setFriendsFilter] = useState('');
   const {
     friendsState,
@@ -1438,7 +1387,6 @@ const FriendsRoute = () => {
           ) : null}
 
           <FriendsListSection
-            activeTab="friends"
             filteredFriends={filteredFriends}
             friendsState={friendsState}
             onRenderFriendRow={renderFriendRow}
