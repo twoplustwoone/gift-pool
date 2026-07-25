@@ -129,31 +129,23 @@ describe('<FriendRow />', () => {
     expect(screen.queryByText(/Jun 30/)).not.toBeInTheDocument();
   });
 
-  it('renders mutual group chips', () => {
-    renderRow({
-      mutualGroups: [
-        { id: 'g1', name: 'The Crew' },
-        { id: 'g2', name: 'Book Club' },
-      ],
-    });
+  it('renders the first mutual group as a chip', () => {
+    renderRow({ mutualGroups: [{ id: 'g1', name: 'The Crew' }] });
     expect(screen.getByText('The Crew')).toBeInTheDocument();
-    expect(screen.getByText('Book Club')).toBeInTheDocument();
   });
 
-  it('caps mutual group chips at 3 with a +N indicator', () => {
+  // The meta row is a single reserved line, so only one chip fits at grid
+  // widths; the rest collapse into a count.
+  it('caps mutual group chips at 1 with a +N indicator', () => {
     renderRow({
       mutualGroups: [
         { id: 'g1', name: 'A' },
         { id: 'g2', name: 'B' },
         { id: 'g3', name: 'C' },
-        { id: 'g4', name: 'D' },
-        { id: 'g5', name: 'E' },
       ],
     });
     expect(screen.getByText('A')).toBeInTheDocument();
-    expect(screen.getByText('B')).toBeInTheDocument();
-    expect(screen.getByText('C')).toBeInTheDocument();
-    expect(screen.queryByText('D')).not.toBeInTheDocument();
+    expect(screen.queryByText('B')).not.toBeInTheDocument();
     expect(screen.getByText('+2')).toBeInTheDocument();
   });
 
