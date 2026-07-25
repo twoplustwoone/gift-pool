@@ -2,7 +2,7 @@ import { prisma } from '#app/utils/db.server.ts';
 import { createPassword, createUser } from '#tests/db-utils.ts';
 import { expect, test } from '#tests/playwright-utils.ts';
 
-test('friend summary links navigate to the wishlist', async ({
+test('friend cards open the profile, and the actions menu opens the wishlist', async ({
   page,
   login,
 }) => {
@@ -42,17 +42,26 @@ test('friend summary links navigate to the wishlist', async ({
     await login({ id: viewer.id });
     await page.goto('/friends');
 
-    const friendSummaryLink = page.getByRole('link', {
-      name: new RegExp(friend.name!, 'i'),
+    // The card itself goes to the profile.
+    const friendCardLink = page.getByRole('link', {
+      name: new RegExp(`View ${friend.name!}'s profile`, 'i'),
     });
-    await expect(friendSummaryLink).toBeVisible();
-    await expect(friendSummaryLink).toHaveAttribute(
+    await expect(friendCardLink).toBeVisible();
+    await expect(friendCardLink).toHaveAttribute(
       'href',
-      `/users/${friend.username}/wishlist`,
+      `/users/${friend.username}`,
     );
-    await friendSummaryLink.click();
 
+    // The wishlist keeps a one-click path through the actions menu.
+    await page
+      .getByRole('button', { name: `Actions for ${friend.name}` })
+      .click();
+    await page.getByRole('menuitem', { name: /view wishlist/i }).click();
     await expect(page).toHaveURL(`/users/${friend.username}/wishlist`);
+
+    await page.goto('/friends');
+    await friendCardLink.click();
+    await expect(page).toHaveURL(`/users/${friend.username}`);
   } finally {
     await prisma.friendship.deleteMany({
       where: { userAId: pair.userAId, userBId: pair.userBId },

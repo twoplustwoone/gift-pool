@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LuCopy, LuLink, LuPlus, LuQrCode, LuUsers } from 'react-icons/lu';
 import {
-  Link,
+  LuChevronDown,
+  LuCopy,
+  LuLink,
+  LuPlus,
+  LuQrCode,
+  LuUsers,
+} from 'react-icons/lu';
+import {
   Outlet,
   useLoaderData,
-  useSearchParams,
   type ClientLoaderFunctionArgs,
   type LoaderFunctionArgs,
   type MetaFunction,
 } from 'react-router';
 import { toast } from 'sonner';
+import { ComingUpSection } from '#app/components/friends/coming-up-section.tsx';
 import {
   FriendActionButton,
   type RelationshipSnapshot,
@@ -40,6 +46,10 @@ import { Skeleton } from '#app/components/ui/skeleton.tsx';
 import { Stack } from '#app/components/ui-kit/stack.tsx';
 import { useFriendWishlistPrefetch } from '#app/hooks/use-background-route-prefetch.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
+import {
+  COMING_UP_WINDOW_DAYS,
+  getUpcomingBirthday,
+} from '#app/utils/birthday.ts';
 import { loadFriendsPageData } from '#app/utils/friends-page.server.ts';
 import {
   FRIENDSHIP_UPDATED_EVENT,
@@ -81,19 +91,10 @@ type SearchResult = {
   user: FriendEntry['user'];
   relationship: RelationshipSnapshot;
 };
-type RequestMutationAction = 'accept' | 'reject' | 'cancel';
-type RequestMutationResponse = {
-  ok: boolean;
-  unreadCount: number | null;
-};
 type RequestListEntryUser = IncomingEntry['fromUser'] | OutgoingEntry['toUser'];
 type FriendRequestRowProps = Readonly<{
   onStateChange: (snapshot: RelationshipSnapshot) => void;
-  onToggleSelected: (requestId: string, selected: boolean) => void;
   relationship: RelationshipSnapshot;
-  requestId: string;
-  selected: boolean;
-  selectMode: boolean;
   user: RequestListEntryUser;
 }>;
 type SearchResultRowProps = Readonly<{
@@ -121,9 +122,7 @@ type InviteQrDialogProps = Readonly<{
   open: boolean;
   qrDataUrl: string | null;
 }>;
-type FriendsTab = 'add' | 'requests' | 'friends';
 type FriendsListSectionProps = Readonly<{
-  activeTab: FriendsTab;
   filteredFriends: FriendEntry[];
   friendsState: FriendEntry[];
   onRenderFriendRow: (friend: FriendEntry) => React.ReactNode;
@@ -134,13 +133,6 @@ type UseFriendsRouteStateOptions = Readonly<{
   setUnreadCount: (count: number) => void;
 }>;
 type FriendsRouteState = ReturnType<typeof useFriendsRouteState>;
-
-export function getActiveTab(searchParams: URLSearchParams): FriendsTab {
-  const activeTabParam = (searchParams.get('tab') ?? 'friends').toLowerCase();
-  return activeTabParam === 'add' || activeTabParam === 'requests'
-    ? activeTabParam
-    : 'friends';
-}
 
 export function addFriendIfMissing(friends: FriendEntry[], entry: FriendEntry) {
   if (friends.some((item) => item.user.id === entry.user.id)) {
@@ -174,115 +166,6 @@ export function buildFriendEntry(
   };
 }
 
-export async function submitRequestMutation(
-  id: string,
-  action: RequestMutationAction,
-): Promise<RequestMutationResponse> {
-  const response = await fetch(`/api/friends/requests/${id}/${action}`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    ...(action === 'cancel'
-      ? {}
-      : {
-          headers: {
-            Accept: 'application/json',
-          },
-        }),
-  });
-
-  if (!response.ok) {
-    return { ok: false, unreadCount: null };
-  }
-
-  if (action === 'cancel') {
-    return { ok: true, unreadCount: null };
-  }
-
-  const payload = (await response.json()) as { unreadCount?: number };
-  return {
-    ok: true,
-    unreadCount:
-      typeof payload.unreadCount === 'number' ? payload.unreadCount : null,
-  };
-}
-
-export async function runBatchRequestMutation(
-  ids: string[],
-  action: RequestMutationAction,
-) {
-  const results = await Promise.allSettled(
-    ids.map((id) => submitRequestMutation(id, action)),
-  );
-  let unreadCount: number | null = null;
-  const failedIds: string[] = [];
-
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled' && result.value.ok) {
-      if (result.value.unreadCount != null) {
-        unreadCount = result.value.unreadCount;
-      }
-      return;
-    }
-
-    failedIds.push(ids[index] ?? '');
-  });
-
-  return { failedIds, unreadCount };
-}
-
-export async function runOptimisticRequestBatch<
-  TRequest extends { id: string },
->(
-  ids: string[],
-  action: RequestMutationAction,
-  requests: TRequest[],
-  setRequests: React.Dispatch<React.SetStateAction<TRequest[]>>,
-  setUnreadCount?: (count: number) => void,
-) {
-  const snapshot = requests.filter((request) => ids.includes(request.id));
-  setRequests((prev) => prev.filter((request) => !ids.includes(request.id)));
-
-  const { failedIds, unreadCount } = await runBatchRequestMutation(ids, action);
-  const messages = getRequestMutationMessages(action, ids.length);
-
-  if (unreadCount != null) {
-    setUnreadCount?.(unreadCount);
-  }
-
-  if (failedIds.length > 0) {
-    const failed = snapshot.filter((request) => failedIds.includes(request.id));
-    setRequests((prev) => [...failed, ...prev]);
-    toast.error(messages.error);
-    return;
-  }
-
-  toast.success(messages.success);
-}
-
-export function getRequestMutationMessages(
-  action: RequestMutationAction,
-  count: number,
-) {
-  if (action === 'accept') {
-    return {
-      error: 'Some requests could not be accepted.',
-      success: `Accepted ${count} request${count > 1 ? 's' : ''}.`,
-    };
-  }
-
-  if (action === 'reject') {
-    return {
-      error: 'Some requests could not be declined.',
-      success: `Declined ${count} request${count > 1 ? 's' : ''}.`,
-    };
-  }
-
-  return {
-    error: 'Some requests could not be cancelled.',
-    success: `Cancelled ${count} request${count > 1 ? 's' : ''}.`,
-  };
-}
-
 export function filterFriends(friends: FriendEntry[], term: string) {
   const normalizedTerm = term.trim().toLowerCase();
   if (!normalizedTerm) return friends;
@@ -296,45 +179,34 @@ export function filterFriends(friends: FriendEntry[], term: string) {
   });
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const BIRTHDAY_SORT_WINDOW_DAYS = 60;
-
-// Days from `today` until this friend's next birthday (clamped to a year).
-// Returns Infinity for friends without a birthday — they sort to the bottom.
-function daysUntilNextBirthday(birthday: Date | string | null, today: Date) {
-  if (!birthday) return Number.POSITIVE_INFINITY;
-  const parsed = birthday instanceof Date ? birthday : new Date(birthday);
-  if (Number.isNaN(parsed.getTime())) return Number.POSITIVE_INFINITY;
-  const candidate = new Date(
-    today.getFullYear(),
-    parsed.getMonth(),
-    parsed.getDate(),
-  );
-  if (candidate.getTime() < today.getTime()) {
-    candidate.setFullYear(candidate.getFullYear() + 1);
-  }
-  return Math.round((candidate.getTime() - today.getTime()) / MS_PER_DAY);
-}
-
 // Sort friends so the people you most need to think about gifting come
-// first: anyone whose birthday is within the next 60 days, ordered by
+// first: anyone whose birthday is within COMING_UP_WINDOW_DAYS, ordered by
 // soonest first; everyone else falls back to alphabetical by display
 // name. Stable enough to look ordered, useful enough that the list
 // surfaces something actionable above the fold.
+//
+// Proximity comes from the shared `getUpcomingBirthday`, which reads the
+// stored date's UTC month/day. Birthdays are persisted at noon UTC so the
+// calendar date is timezone-invariant; a local-time reading here would let
+// this sort disagree by a day with the badge `friend-row.tsx` renders from
+// the same helper.
 export function sortFriendsByUpcomingBirthday(
   friends: FriendEntry[],
-  now: Date = new Date(),
 ): FriendEntry[] {
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const withMeta = friends.map((friend, index) => ({
+  const withMeta = friends.map((friend) => ({
     friend,
-    days: daysUntilNextBirthday(friend.user.birthday, today),
+    // Friends who hid their birthday sort as if they had none — the viewer
+    // must not be able to infer a hidden date from list position.
+    days:
+      friend.user.birthdayVisible === false
+        ? Number.POSITIVE_INFINITY
+        : (getUpcomingBirthday(friend.user.birthday)?.daysUntil ??
+          Number.POSITIVE_INFINITY),
     name: (friend.user.name ?? friend.user.username).toLowerCase(),
-    index,
   }));
   withMeta.sort((a, b) => {
-    const aSoon = a.days <= BIRTHDAY_SORT_WINDOW_DAYS;
-    const bSoon = b.days <= BIRTHDAY_SORT_WINDOW_DAYS;
+    const aSoon = a.days <= COMING_UP_WINDOW_DAYS;
+    const bSoon = b.days <= COMING_UP_WINDOW_DAYS;
     if (aSoon && bSoon) return a.days - b.days || a.name.localeCompare(b.name);
     if (aSoon) return -1;
     if (bSoon) return 1;
@@ -343,15 +215,13 @@ export function sortFriendsByUpcomingBirthday(
   return withMeta.map((entry) => entry.friend);
 }
 
-export function toggleSelection(
-  set: Set<string>,
-  id: string,
-  selected: boolean,
-) {
-  const next = new Set(set);
-  if (selected) next.add(id);
-  else next.delete(id);
-  return next;
+// Alphabetical by display name, for the "A–Z" sort toggle.
+export function sortFriendsByName(friends: FriendEntry[]): FriendEntry[] {
+  return [...friends].sort((a, b) =>
+    (a.user.name ?? a.user.username)
+      .toLowerCase()
+      .localeCompare((b.user.name ?? b.user.username).toLowerCase()),
+  );
 }
 
 export function applyIncomingRelationshipTransition(
@@ -395,63 +265,78 @@ export function toRelationshipSnapshot(
   };
 }
 
-export function getMutualGroupChips(
-  mutuals: Record<
-    string,
-    {
-      groups: Array<{
-        id: string;
-        name: string;
-      }>;
-      more: number;
-    }
-  >,
-  userId: string,
-) {
-  const mutualEntry = mutuals[userId];
-  return {
-    extraGroupCount: mutualEntry?.more ?? 0,
-    mutualGroups: mutualEntry ? mutualEntry.groups.slice(0, 2) : [],
-  };
-}
-
 type TranslateFn = ReturnType<typeof useTranslation>['t'];
+
+export type FriendsSort = 'birthday' | 'az';
+
+// Segmented control for list order. Local state rather than a search param:
+// `useFriendsSearchParams` owns the `tab`/`q` contract that the add-friend
+// search shares with /api/users/search, and sort order isn't worth linking to.
+function FriendsSortToggle({
+  onSortChange,
+  sort,
+}: Readonly<{
+  onSortChange: (next: FriendsSort) => void;
+  sort: FriendsSort;
+}>) {
+  const options: Array<{ label: string; value: FriendsSort }> = [
+    { label: 'By birthday', value: 'birthday' },
+    { label: 'A–Z', value: 'az' },
+  ];
+
+  return (
+    <div
+      role="group"
+      aria-label="Sort friends"
+      className="inline-flex flex-none gap-0.5 rounded-full bg-muted p-1"
+    >
+      {options.map((option) => {
+        const active = sort === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onSortChange(option.value)}
+            className={cn(
+              'whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+              active
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function FriendRequestRow({
   onStateChange,
-  onToggleSelected,
   relationship,
-  requestId,
-  selected,
-  selectMode,
   user,
 }: FriendRequestRowProps) {
   const username = user.username;
 
   return (
     <li className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm">
-      {selectMode ? (
-        <input
-          type="checkbox"
-          aria-label={`Select @${username}`}
-          checked={selected}
-          onChange={(event) =>
-            onToggleSelected(requestId, event.currentTarget.checked)
-          }
-          className="h-4 w-4"
-        />
-      ) : null}
-      <Avatar size="s" image={user.image} user={user} />
-      <div className="flex-1 text-foreground">@{username}</div>
-      {selectMode ? null : (
-        <FriendActionButton
-          targetUserId={user.id}
-          targetUserName={`@${username}`}
-          relationship={relationship}
-          variant="compact"
-          onStateChange={onStateChange}
-        />
-      )}
+      {/* The avatar and the actions must hold their size; the handle is the
+       * only thing allowed to give. Without this a long username shrinks the
+       * avatar to zero width on a narrow viewport. */}
+      <div className="shrink-0">
+        <Avatar size="s" image={user.image} user={user} />
+      </div>
+      <div className="min-w-0 flex-1 truncate text-foreground">@{username}</div>
+      <FriendActionButton
+        targetUserId={user.id}
+        targetUserName={`@${username}`}
+        relationship={relationship}
+        variant="compact"
+        className="shrink-0"
+        onStateChange={onStateChange}
+      />
     </li>
   );
 }
@@ -726,50 +611,6 @@ export function syncFriendsForFriendshipEvent(
   );
 }
 
-function useFriendsSearchParams() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = getActiveTab(searchParams);
-  const initialQ = searchParams.get('q') ?? '';
-  const [q, setQ] = useState(initialQ);
-
-  useEffect(() => {
-    setQ(initialQ);
-  }, [initialQ]);
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      const next = new URLSearchParams(searchParams);
-      if (q) next.set('q', q);
-      else next.delete('q');
-      next.set('tab', activeTab);
-      setSearchParams(next, {
-        preventScrollReset: true,
-      });
-    }, 300);
-    return () => clearTimeout(timeoutId);
-  }, [activeTab, q, searchParams, setSearchParams]);
-
-  const handleTabChange = useCallback(
-    (value: FriendsTab) => {
-      const next = new URLSearchParams(searchParams);
-      next.set('tab', value);
-      if (q) next.set('q', q);
-      setSearchParams(next, {
-        preventScrollReset: true,
-      });
-    },
-    [q, searchParams, setSearchParams],
-  );
-
-  return {
-    activeTab,
-    q,
-    setQ,
-    searchParams,
-    handleTabChange,
-  };
-}
-
 function useFriendsRouteState({
   data,
   setUnreadCount: _setUnreadCount,
@@ -853,7 +694,6 @@ function useFriendsRouteState({
 }
 
 function FriendsListSection({
-  activeTab,
   filteredFriends,
   friendsState,
   onRenderFriendRow,
@@ -880,18 +720,24 @@ function FriendsListSection({
   }
 
   return (
-    <section
-      className={cn(activeTab !== 'friends' ? 'hidden sm:block' : undefined)}
-    >
-      <h2 className="text-lg font-semibold">{t('friends.friends')}</h2>
-      {filteredFriends.length > 40 ? (
-        <VirtualizedFriendsList
-          items={filteredFriends}
-          rowHeight={72}
-          renderRow={onRenderFriendRow}
+    <section>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {t('friends.friends')}
+        </h2>
+        <span className="text-xs font-semibold text-muted-foreground">
+          {filteredFriends.length}
+        </span>
+      </div>
+      {filteredFriends.length === 0 ? (
+        <EmptyState
+          title={t('friends.noMatchTitle')}
+          description={t('friends.noMatchDescription')}
         />
       ) : (
-        <ul className="mt-3 space-y-3">
+        /* Dense single column on mobile, card grid from the 768px
+         * breakpoint up. */
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
           {filteredFriends.map((friend) => onRenderFriendRow(friend))}
         </ul>
       )}
@@ -1081,55 +927,99 @@ function PendingRequestsCard({
   ) => (snapshot: RelationshipSnapshot) => void;
 }>) {
   const total = incomingState.length + outgoingState.length;
+  const [open, setOpen] = useState(false);
+  const hasIncoming = incomingState.length > 0;
+
+  // Incoming requests are the actionable case, so their arrival opens the
+  // section — on mount and again whenever one shows up later via the
+  // optimistic FRIENDSHIP_UPDATED_EVENT wiring, which a `useState(...)`
+  // initialiser alone would miss.
+  //
+  // Deliberately one-way: never auto-collapse. Deriving `open` from
+  // `hasIncoming` instead would snap the section shut the moment you accept
+  // the last incoming request, yanking the "Sent" list you were reading out
+  // from under you. Collapsing stays a user action.
+  useEffect(() => {
+    if (hasIncoming) setOpen(true);
+  }, [hasIncoming]);
+
   if (total === 0) return null;
 
   return (
     <section
       id="pending-requests"
-      className="rounded-xl border border-border bg-card p-4 shadow-sm"
+      className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
     >
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">Pending requests</h2>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="pending-requests-body"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/40"
+      >
+        <span className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground">
           {total}
         </span>
-      </div>
-      <ul className="mt-3 space-y-2">
-        {incomingState.map((request) => (
-          <FriendRequestRow
-            key={request.id}
-            requestId={request.id}
-            user={request.fromUser}
-            relationship={{
-              state: 'PENDING_INCOMING',
-              friendshipId: null,
-              incomingRequestId: request.id,
-              outgoingRequestId: null,
-            }}
-            selected={false}
-            selectMode={false}
-            onToggleSelected={() => {}}
-            onStateChange={onIncomingTransition(request.id, request.fromUser)}
-          />
-        ))}
-        {outgoingState.map((request) => (
-          <FriendRequestRow
-            key={request.id}
-            requestId={request.id}
-            user={request.toUser}
-            relationship={{
-              state: 'PENDING_OUTGOING',
-              friendshipId: null,
-              incomingRequestId: null,
-              outgoingRequestId: request.id,
-            }}
-            selected={false}
-            selectMode={false}
-            onToggleSelected={() => {}}
-            onStateChange={onOutgoingTransition(request.id, request.toUser)}
-          />
-        ))}
-      </ul>
+        <h2 className="text-base font-semibold">Friend requests</h2>
+        <LuChevronDown
+          className={cn(
+            'ml-auto h-4 w-4 shrink-0 text-muted-foreground motion-safe:transition-transform',
+            open && 'rotate-180',
+          )}
+          aria-hidden
+        />
+      </button>
+
+      {open ? (
+        <div id="pending-requests-body" className="px-4 pb-4">
+          {incomingState.length > 0 ? (
+            <ul className="space-y-2">
+              {incomingState.map((request) => (
+                <FriendRequestRow
+                  key={request.id}
+                  user={request.fromUser}
+                  relationship={{
+                    state: 'PENDING_INCOMING',
+                    friendshipId: null,
+                    incomingRequestId: request.id,
+                    outgoingRequestId: null,
+                  }}
+                  onStateChange={onIncomingTransition(
+                    request.id,
+                    request.fromUser,
+                  )}
+                />
+              ))}
+            </ul>
+          ) : null}
+
+          {outgoingState.length > 0 ? (
+            <>
+              <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground first:mt-0">
+                Sent
+              </h3>
+              <ul className="space-y-2">
+                {outgoingState.map((request) => (
+                  <FriendRequestRow
+                    key={request.id}
+                    user={request.toUser}
+                    relationship={{
+                      state: 'PENDING_OUTGOING',
+                      friendshipId: null,
+                      incomingRequestId: null,
+                      outgoingRequestId: request.id,
+                    }}
+                    onStateChange={onOutgoingTransition(
+                      request.id,
+                      request.toUser,
+                    )}
+                  />
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -1190,7 +1080,13 @@ const FriendsRoute = () => {
   const { t } = useTranslation();
   const { setUnreadCount } = useNotificationsStore();
   useFriendWishlistPrefetch(data.friends.map((friend) => friend.user.username));
-  const { q, setQ } = useFriendsSearchParams();
+  // Query for the add-friend dialog's username search. Deliberately local:
+  // it used to be mirrored into `?q=` by a debounced effect that also
+  // re-wrote a `?tab=` param nobody read. Because that effect listed
+  // `searchParams` in its own deps, each write produced a fresh object and
+  // re-triggered itself — a navigation every 300ms that clobbered any
+  // navigation started in the same window.
+  const [q, setQ] = useState('');
   const [friendsFilter, setFriendsFilter] = useState('');
   const {
     friendsState,
@@ -1204,11 +1100,17 @@ const FriendsRoute = () => {
     data,
     setUnreadCount,
   });
-  const filteredFriends = useMemo(
-    () =>
-      sortFriendsByUpcomingBirthday(filterFriends(friendsState, friendsFilter)),
-    [friendsFilter, friendsState],
-  );
+  const [sort, setSort] = useState<FriendsSort>('birthday');
+  const filteredFriends = useMemo(() => {
+    const matching = filterFriends(friendsState, friendsFilter);
+    return sort === 'az'
+      ? sortFriendsByName(matching)
+      : sortFriendsByUpcomingBirthday(matching);
+  }, [friendsFilter, friendsState, sort]);
+  // While the viewer is filtering, the pinned sections above the list are
+  // noise between them and their results — collapse the page down to the
+  // matches.
+  const isFiltering = friendsFilter.trim().length > 0;
   const handleRemoveFriend = useCallback(
     async (friend: FriendEntry) => {
       const displayName = friend.user.name ?? friend.user.username;
@@ -1288,24 +1190,43 @@ const FriendsRoute = () => {
 
       <PageShell className="min-h-0 flex-1 py-6 sm:py-8">
         <Stack gap={4}>
-          <PendingRequestsCard
-            incomingState={incomingState}
-            outgoingState={outgoingState}
-            onIncomingTransition={handleIncomingTransition}
-            onOutgoingTransition={handleOutgoingTransition}
-          />
+          {isFiltering ? null : (
+            <>
+              <PendingRequestsCard
+                incomingState={incomingState}
+                outgoingState={outgoingState}
+                onIncomingTransition={handleIncomingTransition}
+                onOutgoingTransition={handleOutgoingTransition}
+              />
 
-          {friendsState.length > 8 ? (
-            <Input
-              value={friendsFilter}
-              onChange={(event) => setFriendsFilter(event.currentTarget.value)}
-              placeholder="Search friends"
-              aria-label="Search friends"
-            />
+              <ComingUpSection friends={friendsState} />
+            </>
+          )}
+
+          {/* Two different thresholds on purpose. Searching a handful of
+           * friends is pointless, but ordering is not: the default
+           * birthday-proximity order reshuffles itself as dates approach, so
+           * A–Z stays useful at any size above one. */}
+          {friendsState.length > 1 ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {friendsState.length > 8 ? (
+                <Input
+                  value={friendsFilter}
+                  onChange={(event) =>
+                    setFriendsFilter(event.currentTarget.value)
+                  }
+                  placeholder="Search friends"
+                  aria-label="Search friends"
+                  className="sm:flex-1"
+                />
+              ) : null}
+              <div className="sm:ml-auto">
+                <FriendsSortToggle sort={sort} onSortChange={setSort} />
+              </div>
+            </div>
           ) : null}
 
           <FriendsListSection
-            activeTab="friends"
             filteredFriends={filteredFriends}
             friendsState={friendsState}
             onRenderFriendRow={renderFriendRow}
@@ -1319,100 +1240,6 @@ const FriendsRoute = () => {
   );
 };
 export default FriendsRoute;
-function VirtualizedFriendsList({
-  items,
-  rowHeight = 72,
-  renderRow,
-}: {
-  items: Array<{
-    friendshipId: string;
-    user: {
-      id: string;
-      username: string;
-      name: string | null;
-      image: {
-        id: string;
-        altText: string | null;
-      } | null;
-    };
-  }>;
-  rowHeight?: number;
-  renderRow: (item: any) => React.ReactNode;
-}) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [viewport, setViewport] = useState({
-    height: 480,
-    scrollTop: 0,
-  });
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      setViewport((v) => ({
-        ...v,
-        height: el.clientHeight,
-      }));
-    });
-    ro.observe(el);
-    const onScroll = () =>
-      setViewport((v) => ({
-        ...v,
-        scrollTop: el.scrollTop,
-      }));
-    el.addEventListener('scroll', onScroll, {
-      passive: true,
-    });
-    // initialize
-    setViewport({
-      height: el.clientHeight,
-      scrollTop: el.scrollTop,
-    });
-    return () => {
-      ro.disconnect();
-      el.removeEventListener('scroll', onScroll);
-    };
-  }, []);
-  const total = items.length * rowHeight;
-  const overscan = 8;
-  const start = Math.max(
-    0,
-    Math.floor(viewport.scrollTop / rowHeight) - overscan,
-  );
-  const end = Math.min(
-    items.length,
-    Math.ceil((viewport.scrollTop + viewport.height) / rowHeight) + overscan,
-  );
-  const slice = items.slice(start, end);
-  return (
-    <div ref={containerRef} className="mt-3 h-[60vh] overflow-auto sm:h-[70vh]">
-      <div
-        style={{
-          height: total,
-          position: 'relative',
-        }}
-      >
-        {slice.map((item, i) => {
-          const index = start + i;
-          const top = index * rowHeight;
-          return (
-            <div
-              key={item.friendshipId}
-              style={{
-                position: 'absolute',
-                top,
-                left: 0,
-                right: 0,
-                height: rowHeight,
-              }}
-            >
-              {renderRow(item)}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 function AddFriendsPanel({
   onOutgoingCreated,
   query: controlledQuery,

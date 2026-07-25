@@ -5,6 +5,14 @@
 
 export const BIRTHDAY_VISIBILITY_DAYS = 60;
 
+// How far ahead the Friends page's "Coming up" rail looks, and the window
+// that pulls a friend to the top of the birthday-sorted list. Deliberately a
+// separate knob from BIRTHDAY_VISIBILITY_DAYS above (which governs whether a
+// date renders at all) even though both currently sit at 60: this one is a
+// product/attention decision tied to the occasion-reminder loop, that one is
+// a display rule. Change this to retune the rail without touching the badge.
+export const COMING_UP_WINDOW_DAYS = 60;
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export type UpcomingBirthday = {

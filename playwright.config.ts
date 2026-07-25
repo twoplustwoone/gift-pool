@@ -37,7 +37,14 @@ export default defineConfig({
     env: {
       ...process.env,
       PORT,
-      NODE_ENV: 'test',
+      // Deliberately NOT setting NODE_ENV=test. `vite.config.ts` drops the
+      // reactRouter() plugin under NODE_ENV=test (so Vitest/Storybook can
+      // import the app), which leaves Vite in its default `appType: "spa"`
+      // with a terminal 404 middleware mounted ahead of the React Router
+      // handler — every route, including /login, 404s. CI never noticed
+      // because `start:mocks` re-sets NODE_ENV=production via cross-env, so
+      // this only ever broke local runs.
+      //
       // Ensure MSW mocks are enabled even when running locally (non-CI)
       MOCKS: 'true',
     },
