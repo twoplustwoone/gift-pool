@@ -31,38 +31,33 @@ Check all three every time, not just the one that happened to have a hit last ti
 - No 👀/👍 reaction and nothing new (per the scoping above) on any of the three comment surfaces usually means the review hasn't landed yet — check again rather than reporting green.
 - A reply about no review usages/credits remaining is expected and can be ignored — it's not a finding.
 - **Judge each finding before acting — do not blindly fix everything.** Verify it against the actual code the same way you would a human reviewer's comment (per `superpowers:receiving-code-review`): if it's real and in scope, fix it and add/adjust a regression test; if you determine it's incorrect, already handled, out of scope for this change, or a deliberate tradeoff, it is fine to leave it unaddressed — but say so explicitly in your report to the user (what the finding was, why you're not acting on it) rather than silently dropping it. Silence reads as "missed it," not "considered and declined."
-- After pushing a fix (or after deciding a finding needs no code change), comment `@codex review` on the PR (`gh pr comment {number} --body "@codex review"`) to trigger a fresh pass — this is Codex's own documented re-review trigger, confirmed from its review-comment footer in this repo. Keep monitoring (all three surfaces) until a pass finds nothing new.
+- **You get at most two `@codex review` re-triggers per PR. This is a count, not a judgement call.** Codex reviews once automatically when the PR opens (round 1). After that, before every `gh pr comment {number} --body "@codex review"`, write the round number down in your report to the user: "requesting Codex round N of max 3." If N would be 4, you are done reviewing — report the outstanding findings with your disposition on each and hand the decision to the user. Do not re-trigger. Do not keep monitoring for a pass that finds nothing; a clean pass is not the exit condition, the round cap is.
 
-### Knowing when to stop
+### Why the cap is a count and not a judgement
 
-Codex re-reviews on every push, so each fix creates fresh surface to review. Taken
-uncritically that becomes a doom loop: on a docs-only PR in this repo it ran to four rounds,
-where rounds 3 and 4 were findings about the text added to fix rounds 2 and 3. The change
-was never getting closer to shipping.
+Each fix creates fresh surface to review, so the review never runs out of material on its
+own. A docs-only PR in this repo reached four rounds, where rounds 3 and 4 were findings
+about the text added to fix rounds 2 and 3.
 
-Findings are graded by class (P1/P2), not by what being wrong would actually cost here. That
-is your judgement to make, not Codex's. Weigh each one:
+The cap is mechanical because a judgement-based version does not work. An earlier revision
+of this section listed sensible criteria — is it second-order, is the code illustrative, is
+the failure reachable, is the fix proportionate — and the agent that wrote them proceeded to
+blow through them, because at each individual round the next fix looked defensible. Criteria
+that require you to talk yourself out of one more round will lose to a concrete finding
+sitting in front of you. A count will not.
 
-- **Is it about the original change, or about your fix to the previous finding?** Second-order
-  findings on the same hunk are where the loop lives. Two rounds on one hunk is the signal to
-  stop fixing and start deciding.
-- **Is the code executable or illustrative?** A flaw in a doc example, a comment, or a test
-  fixture costs a reader a moment's thought. A flaw in shipped code costs users. Do not spend
-  equal effort on both.
-- **Is the failure reachable?** "If X were to happen" on a path with no caller, or a race that
-  needs a state the workflow never enters, is a note — not a blocker.
-- **Is the fix proportionate?** If the remedy is larger than the risk — new files, new
-  abstractions, restructuring around a hypothetical — that is over-fitting. Prefer the
-  one-line fix, or decline.
+Two consequences worth internalising rather than re-deriving:
 
-**Declining is a first-class outcome.** Say what the finding was and why you are not acting
-on it, then ship. A judged-and-declined finding is not a leak; silently absorbing every
-finding until the reviewer runs out of ideas is not diligence.
+- **A clean Codex pass is not the goal and never was.** The goal is a change that is correct
+  enough to ship. Chasing "nothing new found" hands the exit condition to a reviewer that
+  always has something.
+- **Findings are graded by class, not by what being wrong costs here.** A P1 on an
+  illustrative snippet in a doc is not a P1 on shipped code. That weighting is yours.
 
-**Hard stop: do not exceed three review rounds on one PR without checking in with the user.**
-If findings are still arriving after three, that is information — either the change is
-under-specified or the review is over-fitting — and which one it is, is a call for the human,
-not another round.
+Use the remaining budget on findings that would matter in production, and decline the rest
+out loud: state what the finding was and why you are not acting on it. A judged-and-declined
+finding is not a leak. Silently absorbing findings until the reviewer runs out of ideas is
+not diligence — and it will not terminate.
 
 ## A failed query must never read as a clean result
 
