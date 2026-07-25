@@ -322,13 +322,19 @@ function FriendRequestRow({
 
   return (
     <li className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-sm">
-      <Avatar size="s" image={user.image} user={user} />
-      <div className="flex-1 text-foreground">@{username}</div>
+      {/* The avatar and the actions must hold their size; the handle is the
+       * only thing allowed to give. Without this a long username shrinks the
+       * avatar to zero width on a narrow viewport. */}
+      <div className="shrink-0">
+        <Avatar size="s" image={user.image} user={user} />
+      </div>
+      <div className="min-w-0 flex-1 truncate text-foreground">@{username}</div>
       <FriendActionButton
         targetUserId={user.id}
         targetUserName={`@${username}`}
         relationship={relationship}
         variant="compact"
+        className="shrink-0"
         onStateChange={onStateChange}
       />
     </li>
