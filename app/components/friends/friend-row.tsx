@@ -70,7 +70,10 @@ export function FriendRow({
     upcoming && upcoming.daysUntil <= BIRTHDAY_VISIBILITY_DAYS
       ? upcoming
       : null;
-  const visibleGroups = mutualGroups.slice(0, 3);
+  // One chip plus a count. The meta row is a single line, and at grid widths
+  // three chips would each shrink to an unreadable stub; the profile page
+  // carries the full list.
+  const visibleGroups = mutualGroups.slice(0, 1);
   const extraGroupCount = Math.max(
     0,
     mutualGroups.length - visibleGroups.length,
@@ -83,7 +86,10 @@ export function FriendRow({
       padding="none"
       data-testid="friend-row"
       className={cn(
-        'group relative min-w-0 cursor-pointer overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-shadow',
+        // `h-full` matters in the grid: the <li> stretches to the row, and
+        // without this the card floats at its own height inside that cell,
+        // so neighbours don't even share a bottom edge.
+        'group relative h-full min-w-0 cursor-pointer overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-shadow',
         'hover:border-border hover:shadow-md',
         'focus-within:border-border focus-within:shadow-md',
       )}
@@ -104,50 +110,72 @@ export function FriendRow({
 
       <div className="pointer-events-none relative flex items-center gap-3 p-3">
         <Avatar size={11} image={user.image} user={user} />
-        <div className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left">
-          <div className="flex w-full min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        {/*
+         * At most two rows — identity, then meta — and never more, so card
+         * height doesn't move with name length, birthday, or group count.
+         *
+         * 2.875rem is both rows together (24px name + 2px gap + 20px meta).
+         * Pinning it is what keeps a friend with no birthday and no shared
+         * group the same height as a full card; `justify-center` then centres
+         * that lone name rather than leaving it top-weighted. Note min-height
+         * resolves against the border box here, so this belongs on the text
+         * column, not on the padded row above it.
+         */}
+        <div className="flex min-h-[2.875rem] min-w-0 flex-1 flex-col items-start justify-center gap-0.5 text-left">
+          <div className="flex w-full min-w-0 items-baseline gap-x-2">
+            {/* Capped rather than shrink-to-fit so the handle always keeps a
+             * readable share; both truncate instead of wrapping to a second
+             * line, which is what made cards with long names taller. */}
             <Text
               size="base"
               weight="medium"
-              className="min-w-0 max-w-full truncate text-foreground"
+              className="max-w-[65%] flex-none truncate text-foreground"
             >
               {displayName}
             </Text>
-            <Text size="xs" className="truncate text-muted-foreground">
+            <Text size="xs" className="min-w-0 truncate text-muted-foreground">
               @{user.username}
             </Text>
           </div>
-          {visibleGroups.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {visibleGroups.map((group) => (
-                <span
-                  key={group.id}
-                  className="inline-flex max-w-[12rem] items-center gap-1 truncate rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-                >
-                  <LuUsers className="h-3 w-3 flex-shrink-0" aria-hidden />
-                  <span className="truncate">{group.name}</span>
-                </span>
-              ))}
-              {extraGroupCount > 0 ? (
-                <span className="inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                  +{extraGroupCount}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-
-        {birthdaySoon ? (
+          {/* The birthday sits on this line rather than beside the name: out
+           * there it competed with the name for width and forced it to
+           * truncate early. Single line — chips never wrap. */}
           <div
-            className="flex flex-shrink-0 flex-wrap items-center gap-1 rounded-full bg-warning-muted px-2.5 py-1 text-[11px] font-semibold text-warning ring-1 ring-inset ring-warning/30"
-            aria-label={`Birthday ${formatBirthdayLabel(birthdaySoon.date, birthdaySoon.daysUntil)}`}
+            className={cn(
+              'flex h-5 w-full min-w-0 items-center gap-1 overflow-hidden',
+              !birthdaySoon && visibleGroups.length === 0 && 'hidden',
+            )}
           >
-            <LuCake className="h-3.5 w-3.5" aria-hidden />
-            <span>
-              {formatBirthdayLabel(birthdaySoon.date, birthdaySoon.daysUntil)}
-            </span>
+            {birthdaySoon ? (
+              <span
+                className="inline-flex flex-none items-center gap-1 rounded-full bg-warning-muted px-2 py-0.5 text-[11px] font-semibold text-warning ring-1 ring-inset ring-warning/30"
+                aria-label={`Birthday ${formatBirthdayLabel(birthdaySoon.date, birthdaySoon.daysUntil)}`}
+              >
+                <LuCake className="h-3 w-3 flex-shrink-0" aria-hidden />
+                <span>
+                  {formatBirthdayLabel(
+                    birthdaySoon.date,
+                    birthdaySoon.daysUntil,
+                  )}
+                </span>
+              </span>
+            ) : null}
+            {visibleGroups.map((group) => (
+              <span
+                key={group.id}
+                className="inline-flex min-w-0 items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+              >
+                <LuUsers className="h-3 w-3 flex-shrink-0" aria-hidden />
+                <span className="truncate">{group.name}</span>
+              </span>
+            ))}
+            {extraGroupCount > 0 ? (
+              <span className="inline-flex flex-none items-center rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                +{extraGroupCount}
+              </span>
+            ) : null}
           </div>
-        ) : null}
+        </div>
 
         <div className="pointer-events-auto relative flex flex-shrink-0 items-center">
           <DropdownMenu>
