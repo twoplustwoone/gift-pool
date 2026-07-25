@@ -725,8 +725,8 @@ function FriendsListSection({
       </div>
       {filteredFriends.length === 0 ? (
         <EmptyState
-          title="No friends match your search"
-          description="Try a different name or @username."
+          title={t('friends.noMatchTitle')}
+          description={t('friends.noMatchDescription')}
         />
       ) : (
         /* Dense single column on mobile, card grid from the 768px

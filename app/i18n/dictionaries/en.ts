@@ -106,6 +106,8 @@ export const en = {
     emptyDescription:
       'Friends can see your wishlist and chip in on group gifts. Share an invite link or search by username.',
     emptyCta: 'Add friend',
+    noMatchTitle: 'No friends match your search',
+    noMatchDescription: 'Try a different name or @username.',
     incomingRequests: 'Incoming requests',
     outgoingRequests: 'Outgoing requests',
     removeSuccess: '{{name}} removed from friends.',
