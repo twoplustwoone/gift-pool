@@ -673,6 +673,42 @@ describe('/friends route rendering', () => {
     await waitFor(() => expect(namesInOrder()[0]).toContain('Zoe'));
   });
 
+  it('offers the sort toggle below the search threshold, but not for a single friend', async () => {
+    // The search input is gated at >8; sorting is useful well before that,
+    // so the two must not share a threshold.
+    const { unmount } = renderFriendsRoute({
+      data: {
+        friends: [
+          createFriend('friendship-1', 'alex', 'Alex'),
+          createFriend('friendship-2', 'sam', 'Sam'),
+          createFriend('friendship-3', 'zoe', 'Zoe'),
+        ],
+        incoming: [],
+        outgoing: [],
+      },
+    });
+
+    expect(await screen.findByRole('button', { name: 'A–Z' })).toBeVisible();
+    expect(
+      screen.queryByRole('textbox', { name: 'Search friends' }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    // A single friend cannot be reordered, so the control stays hidden.
+    renderFriendsRoute({
+      data: {
+        friends: [createFriend('friendship-1', 'alex', 'Alex')],
+        incoming: [],
+        outgoing: [],
+      },
+    });
+
+    await screen.findByText('Alex');
+    expect(
+      screen.queryByRole('button', { name: 'A–Z' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('hides the requests and Coming up sections while filtering', async () => {
     renderFriendsRoute({
       data: {

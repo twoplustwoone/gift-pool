@@ -1203,18 +1203,26 @@ const FriendsRoute = () => {
             </>
           )}
 
-          {friendsState.length > 8 ? (
+          {/* Two different thresholds on purpose. Searching a handful of
+           * friends is pointless, but ordering is not: the default
+           * birthday-proximity order reshuffles itself as dates approach, so
+           * A–Z stays useful at any size above one. */}
+          {friendsState.length > 1 ? (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Input
-                value={friendsFilter}
-                onChange={(event) =>
-                  setFriendsFilter(event.currentTarget.value)
-                }
-                placeholder="Search friends"
-                aria-label="Search friends"
-                className="sm:flex-1"
-              />
-              <FriendsSortToggle sort={sort} onSortChange={setSort} />
+              {friendsState.length > 8 ? (
+                <Input
+                  value={friendsFilter}
+                  onChange={(event) =>
+                    setFriendsFilter(event.currentTarget.value)
+                  }
+                  placeholder="Search friends"
+                  aria-label="Search friends"
+                  className="sm:flex-1"
+                />
+              ) : null}
+              <div className="sm:ml-auto">
+                <FriendsSortToggle sort={sort} onSortChange={setSort} />
+              </div>
             </div>
           ) : null}
 
