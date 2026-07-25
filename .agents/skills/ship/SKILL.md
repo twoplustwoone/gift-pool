@@ -32,3 +32,40 @@ Check all three every time, not just the one that happened to have a hit last ti
 - A reply about no review usages/credits remaining is expected and can be ignored — it's not a finding.
 - **Judge each finding before acting — do not blindly fix everything.** Verify it against the actual code the same way you would a human reviewer's comment (per `superpowers:receiving-code-review`): if it's real and in scope, fix it and add/adjust a regression test; if you determine it's incorrect, already handled, out of scope for this change, or a deliberate tradeoff, it is fine to leave it unaddressed — but say so explicitly in your report to the user (what the finding was, why you're not acting on it) rather than silently dropping it. Silence reads as "missed it," not "considered and declined."
 - After pushing a fix (or after deciding a finding needs no code change), comment `@codex review` on the PR (`gh pr comment {number} --body "@codex review"`) to trigger a fresh pass — this is Codex's own documented re-review trigger, confirmed from its review-comment footer in this repo. Keep monitoring (all three surfaces) until a pass finds nothing new.
+
+## A failed query must never read as a clean result
+
+Every check above answers "is anything outstanding?" by looking for _absence_. That makes
+each one a place where a broken command and a genuine all-clear produce identical output,
+and the broken command is the more confident of the two. Guard against it:
+
+- **`gh api --jq` takes exactly one query string and does NOT accept `--arg`.** Writing
+  `--jq --arg b "$B" '... .created_at >= $b ...'` — the obvious way to apply the baseline
+  from the section above — makes `--jq` swallow `--arg` as its value and gh exits 1 with
+  `accepts 1 arg(s), received 4`, before fetching anything. Interpolate the baseline into
+  the query instead: `--jq ".[] | select(.created_at >= \"$B\")"`. (`--arg` is a standalone
+  `jq` flag; it only works if you pipe gh's output into `jq` yourself.)
+- **Never `2>/dev/null` a command whose empty output you are treating as evidence.** Paired
+  with `|| echo 0`, the failure above becomes an authoritative-looking "0 findings." Check
+  the exit status and treat non-zero as **unknown**, never as clean.
+- **Before reporting a review clean, re-run at least one surface unfiltered** and confirm
+  the filter is not what is producing the silence.
+
+The generalisable rule: never write a condition whose failure mode is a confident answer.
+If you cannot distinguish "nothing found" from "the check did not run," the check is not
+evidence yet.
+
+## Verify CI against the pushed SHA
+
+`gh pr checks` immediately after a push can return the _previous_ commit's completed
+checks, so a run can look green before the new one has even queued.
+
+- Confirm `git rev-parse HEAD` equals `gh pr view {number} --json headRefOid --jq .headRefOid`,
+  then read `repos/{owner}/{repo}/commits/{sha}/check-runs` — that endpoint is anchored to
+  the commit and cannot report a stale round.
+- Decide "still running" with `jq '[.check_runs[] | select(.status != "completed")] | length'`.
+  Hand-rolled `grep` guards over concatenated status strings misreport an `in_progress` run
+  as a failure.
+- The legacy `commits/{sha}/status` endpoint reports `pending` when its `statuses` array is
+  empty. This repo publishes everything (including Sonar) as check-runs, so that `pending`
+  is an artifact of the old API, not an outstanding check.
