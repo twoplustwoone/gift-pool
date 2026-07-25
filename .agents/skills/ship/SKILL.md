@@ -60,27 +60,46 @@ evidence yet.
 `gh pr checks` immediately after a push can return the _previous_ commit's completed
 checks, so a run can look green before the new one has even queued.
 
-- Confirm `git rev-parse HEAD` equals `gh pr view {number} --json headRefOid --jq .headRefOid`,
-  then read `repos/{owner}/{repo}/commits/{sha}/check-runs` — that endpoint is anchored to
-  the commit and cannot report a stale round.
-- Decide "still running" with `jq '[.check_runs[] | select(.status != "completed")] | length'`.
-  Hand-rolled `grep` guards over concatenated status strings misreport an `in_progress` run
-  as a failure.
-- **Zero unfinished runs is not by itself evidence that CI passed.** Straight after a push,
-  before Actions has registered anything for the new SHA, `check_runs` is empty and that
-  same expression returns `0` — "not started" and "all finished" are indistinguishable.
-  Checks also register at different times, so a _partial_ set reads as complete too: on
-  one commit in this repo 13 checks appeared, while the next commit showed 12 because
-  `SonarCloud Code Analysis` had not registered yet.
-- So require the expected checks **by name** before believing a green result — at minimum
-  `⬣ ESLint`, `ʦ TypeScript`, `⚡ Vitest`, `🎭 Playwright` and `SonarQube`
-  (`jq -r '[.check_runs[].name] | unique'`). Treat CI as green only when every expected
-  name is present _and_ nothing is unfinished. Sonar checks are the usual latecomers.
-- **`cancelled` is not a failure.** Pushing a new commit cancels the previous SHA's
-  in-flight checks; a monitor still pinned to the superseded SHA will report a wall of
-  cancellations that looks like a break. Re-anchor to the new HEAD rather than reacting —
-  and stop monitors pinned to a dead SHA, since anchoring the query is pointless if the
-  watcher itself is stale.
+Anchor to the commit: confirm `git rev-parse HEAD` equals
+`gh pr view {number} --json headRefOid --jq .headRefOid`, then read
+`repos/{owner}/{repo}/commits/{sha}/check-runs`, which cannot report a stale round.
+
+Three conditions then have to hold together — the expected checks have all registered,
+none is still running, and every one concluded successfully. Stating those as separate
+prose predicates has repeatedly produced rules that pass while CI is broken, so use one
+expression that returns a verdict and leaves nothing to recombine:
+
+```bash
+SHA=$(git rev-parse HEAD)
+[ "$SHA" = "$(gh pr view {number} --json headRefOid --jq .headRefOid)" ] || echo "UNKNOWN: HEAD is not the PR head"
+gh api --paginate "repos/{owner}/{repo}/commits/$SHA/check-runs" \
+| jq -r --argjson want '["⬣ ESLint","ʦ TypeScript","⚡ Vitest","🎭 Playwright","SonarQube","SonarCloud Code Analysis"]' '
+    ([.check_runs[].name] | unique) as $have
+    | ($want - $have)                                                   as $missing
+    | [.check_runs[] | select(.status != "completed")]                  as $running
+    | [.check_runs[] | select(.status == "completed"
+        and (.conclusion | IN("success","skipped","neutral") | not))
+        | "\(.name)=\(.conclusion)"]                                    as $bad
+    | if   ($bad|length)     > 0 then "FAILED: \($bad|join(", "))"
+      elif ($missing|length) > 0 then "WAITING: not registered — \($missing|join(", "))"
+      elif ($running|length) > 0 then "WAITING: \($running|length) still running"
+      else "GREEN: \(.check_runs|length) checks" end'
+```
+
+Why each clause earns its place:
+
+- **`$missing` (names)** — an empty `check_runs` makes any "nothing unfinished" count return
+  `0`, so "not started" reads as "finished". Both Sonar checks must be listed: they register
+  last, and on this PR `SonarCloud Code Analysis` was still absent while every other expected
+  check was present and passing.
+- **`$bad` (conclusions)** — a failed run is `status: "completed"` with its name present, so
+  a name-plus-count rule accepts failed CI outright. Only `success` (and a legitimately
+  no-op `skipped`/`neutral`) is green.
+- **`cancelled` counts as failed here, deliberately.** On the SHA you are watching it means
+  the run was aborted. It is routine only when it belongs to a SHA you have already
+  superseded by pushing again — in that case re-anchor to the new HEAD and **stop the
+  monitor pinned to the dead SHA**, because anchoring the query is pointless if the watcher
+  is stale.
 - The legacy `commits/{sha}/status` endpoint reports `pending` when its `statuses` array is
   empty. This repo publishes everything (including Sonar) as check-runs, so that `pending`
   is an artifact of the old API, not an outstanding check.
