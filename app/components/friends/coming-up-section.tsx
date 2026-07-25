@@ -47,7 +47,7 @@ export function selectComingUpFriends(
     .sort((a, b) => a.daysUntil - b.daysUntil);
 }
 
-function ComingUpCard({ daysUntil, entry, label }: ComingUpFriend) {
+function ComingUpCard({ entry, label }: ComingUpFriend) {
   const { user } = entry;
   const displayName = user.name ?? user.username;
 
@@ -69,21 +69,28 @@ function ComingUpCard({ daysUntil, entry, label }: ComingUpFriend) {
           </Text>
           <span className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-gift">
             <LuCake className="h-3 w-3 shrink-0" aria-hidden />
+            {/* The cake icon is decorative, so without this the date reads as
+             * a bare "Jul 28" with no hint of what it refers to. */}
+            <span className="sr-only">Birthday&nbsp;</span>
             <span className="truncate">{label}</span>
           </span>
         </div>
       </Link>
       <Button asChild size="sm" className="w-full">
         {/* `/pools/new` accepts a standalone `?recipientId=` and opens with
-         * the recipient preselected — no dedicated route needed. */}
-        <Link to={`/pools/new?recipientId=${user.id}`}>
+         * the recipient preselected — no dedicated route needed.
+         *
+         * The label has to name the recipient: several of these render at
+         * once, and a screen reader listing links would otherwise announce
+         * "Plan gift" repeatedly with no way to tell them apart. */}
+        <Link
+          to={`/pools/new?recipientId=${user.id}`}
+          aria-label={`Plan gift for ${displayName}`}
+        >
           <LuGift className="mr-1.5 h-3.5 w-3.5" aria-hidden />
           Plan gift
         </Link>
       </Button>
-      <span className="sr-only">
-        {displayName}'s birthday is in {daysUntil} days
-      </span>
     </li>
   );
 }

@@ -139,10 +139,28 @@ describe('<ComingUpSection />', () => {
     );
   });
 
+  it('names the recipient in each Plan gift link', () => {
+    // Several cards render at once, so a bare "Plan gift" accessible name
+    // leaves a screen reader listing links unable to tell them apart.
+    renderSection([
+      makeFriend('f-1', 'nina', { birthday: birthdayIn(4) }),
+      makeFriend('f-2', 'otto', { birthday: birthdayIn(9) }),
+    ]);
+
+    expect(
+      screen.getByRole('link', { name: 'Plan gift for nina' }),
+    ).toHaveAttribute('href', '/pools/new?recipientId=f-1-user');
+    expect(
+      screen.getByRole('link', { name: 'Plan gift for otto' }),
+    ).toHaveAttribute('href', '/pools/new?recipientId=f-2-user');
+  });
+
   it('links the friend through to their profile and reports the window', () => {
     renderSection([makeFriend('f-1', 'nina', { birthday: birthdayIn(4) })], 30);
 
-    expect(screen.getByRole('link', { name: /nina/i })).toHaveAttribute(
+    // Anchored: the Plan gift link also names the recipient, so a bare
+    // /nina/ matches both.
+    expect(screen.getByRole('link', { name: /^nina/i })).toHaveAttribute(
       'href',
       '/users/nina',
     );
