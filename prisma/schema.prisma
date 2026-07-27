@@ -384,6 +384,11 @@ model Pool {
   chosenIdeaId    String?  @unique
   finalPriceCents Int?
 
+  // When the pool most recently entered DECIDED. Ordering key for wishlist-claim
+  // settlement when two pools have intent on the same item (earliest wins).
+  // Distinct from updatedAt, which any unrelated pool edit resets.
+  decidedAt       DateTime?
+
   // Post-occasion "did it land" feedback. Valid values: LOVED | OKAY | SKIPPED
   // (null = unanswered). SKIPPED records "never re-nag". Applies to group pools
   // and solo pool-of-one alike.
