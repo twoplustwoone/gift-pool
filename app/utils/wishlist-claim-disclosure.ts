@@ -14,14 +14,21 @@ export type ClaimHolder =
       kind: 'pool';
       poolId: string;
       poolTitle: string;
-      giftGroupId: string | null;
       giftGroupName: string | null;
     };
 
 export type ViewerRelationship = {
   isOwner: boolean;
+  /**
+   * The surface this viewer sees must not attribute the claim to any name,
+   * pool, or group — regardless of whether the viewer is signed in. This is
+   * NOT "there is no logged-in user": a signed-in user can open someone's
+   * public wishlist share link, and that surface must show zero attribution
+   * even though a session exists. Set this from the surface's disclosure
+   * policy (e.g. "is this the public share view?"), never from viewer
+   * identity.
+   */
   isAnonymous: boolean;
-  viewerUserId: string | null;
   /** Viewer contributes to the pool that holds the claim. */
   contributesToHolderPool: boolean;
   /** Viewer is in the group owning the holding pool, but not the pool itself. */
