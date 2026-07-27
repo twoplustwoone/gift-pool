@@ -8,6 +8,15 @@ export async function cleanupWishlistClaimsForOwner(ownerId: string) {
   await prisma.wishlistClaim.deleteMany({
     where: {
       wishlistItem: { ownerId },
+      // Solo claims only. A pool-held claim has claimedByUserId: null (see
+      // the DB CHECK in the WishlistClaim migration — exactly one of
+      // claimedByUserId/poolId is set), so every claimedByUser predicate
+      // below fails to match it and NOT(...) would otherwise evaluate true,
+      // silently deleting the pool's claim on every wishlist page view.
+      // Pool claims are released only by pool lifecycle events (decide,
+      // re-decide, cancel) — never by this viewer-access cleanup. Do not
+      // remove this predicate.
+      claimedByUserId: { not: null },
       NOT: {
         OR: [
           { claimedByUser: { friendshipsA: { some: { userBId: ownerId } } } },
