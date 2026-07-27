@@ -55,6 +55,24 @@ describe('claimForUser', () => {
       reason: 'held-by-pool',
     });
   });
+
+  it('resolves a concurrent race on the same free item without throwing', async () => {
+    const { friend, organizer, item } = await fixture();
+
+    const results = await Promise.all([
+      claimForUser(item.id, friend.id),
+      claimForUser(item.id, organizer.id),
+    ]);
+
+    const oks = results.filter((r) => r.ok);
+    const failures = results.filter((r) => !r.ok);
+    expect(oks).toHaveLength(1);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({ ok: false, reason: 'held-by-user' });
+
+    const claims = await prisma.wishlistClaim.findMany({ where: { wishlistItemId: item.id } });
+    expect(claims).toHaveLength(1);
+  });
 });
 
 describe('settlement on release', () => {
@@ -89,6 +107,39 @@ describe('settlement on release', () => {
 
     expect(result.transferredToPoolId).toBe(earlier.id);
     expect(result.transferredToPoolId).not.toBe(later.id);
+  });
+
+  it('prefers a pool with a real decidedAt over one with a null decidedAt, even when the null one is older', async () => {
+    // SQLite sorts NULL before every value in `ORDER BY ... ASC`, so a naive
+    // `orderBy: [{ decidedAt: 'asc' }, { createdAt: 'asc' }]` would let this
+    // null-dated (legacy, not-yet-backfilled) pool permanently outrank a
+    // correctly-dated one, regardless of createdAt. This must fail against
+    // that orderBy and pass once settlement sorts nulls-last in JS.
+    const { owner, friend, organizer, item } = await fixture();
+    await claimForUser(item.id, friend.id);
+
+    const nullDatedPool = await prisma.pool.create({
+      data: { title: 'Legacy pool', organizerId: organizer.id, recipientUserId: owner.id },
+    });
+    const nullIdea = await prisma.giftIdea.create({
+      data: {
+        poolId: nullDatedPool.id,
+        proposedById: organizer.id,
+        name: 'Spa voucher',
+        wishlistItemId: item.id,
+      },
+    });
+    await prisma.pool.update({
+      where: { id: nullDatedPool.id },
+      data: { status: 'DECIDED', chosenIdeaId: nullIdea.id },
+    });
+
+    const datedPool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-20'));
+
+    const result = await releaseUserClaim(item.id, friend.id);
+
+    expect(result.transferredToPoolId).toBe(datedPool.id);
+    expect(result.transferredToPoolId).not.toBe(nullDatedPool.id);
   });
 
   it('ignores a cancelled pool when settling', async () => {

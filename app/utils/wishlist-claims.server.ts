@@ -8,7 +8,7 @@
  * whose chosen idea links the item. Cancellation, re-decision, and idea deletion
  * therefore invalidate intent automatically — there is nothing to keep in sync.
  */
-import { type Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from './db.server.ts';
 import { POOL_STATUS } from './pool-constants.ts';
 
@@ -19,6 +19,22 @@ export const POOL_INTENT_STATUSES = [
 ] as const;
 
 type Tx = Prisma.TransactionClient;
+
+type IntentCandidate = { id: string; decidedAt: Date | null; createdAt: Date };
+
+// SQLite sorts NULL before every value in `ORDER BY ... ASC` — Prisma's
+// `nulls: 'last'` support on SQLite isn't something to rely on either — so a
+// pool that hasn't had `decidedAt` backfilled yet would permanently outrank
+// every correctly-dated pool if we sorted this in the query. The candidate
+// set is tiny (pools with intent on one wishlist item — normally zero or
+// one), so sort in JS instead: a real `decidedAt` always beats a null one,
+// and null-dated pools fall back to `createdAt` among themselves.
+function waitedLonger(a: IntentCandidate, b: IntentCandidate): boolean {
+  if (a.decidedAt && b.decidedAt) return a.decidedAt.getTime() <= b.decidedAt.getTime();
+  if (a.decidedAt && !b.decidedAt) return true;
+  if (!a.decidedAt && b.decidedAt) return false;
+  return a.createdAt.getTime() <= b.createdAt.getTime();
+}
 
 /**
  * The settlement hook. Runs whenever a claim disappears — and MUST run inside
@@ -33,15 +49,18 @@ async function settleItem(tx: Tx, wishlistItemId: string): Promise<string | null
   });
   if (existing) return null;
 
-  const heir = await tx.pool.findFirst({
+  const candidates = await tx.pool.findMany({
     where: {
       status: { in: [...POOL_INTENT_STATUSES] },
       chosenIdea: { wishlistItemId },
     },
-    orderBy: [{ decidedAt: 'asc' }, { createdAt: 'asc' }],
-    select: { id: true },
+    select: { id: true, decidedAt: true, createdAt: true },
   });
-  if (!heir) return null;
+  if (candidates.length === 0) return null;
+
+  const heir = candidates.reduce((longestWaiting, candidate) =>
+    waitedLonger(candidate, longestWaiting) ? candidate : longestWaiting,
+  );
 
   await tx.wishlistClaim.create({ data: { wishlistItemId, poolId: heir.id } });
   return heir.id;
@@ -61,8 +80,26 @@ export async function claimForUser(
     return { ok: false, reason: existing.poolId ? 'held-by-pool' : 'held-by-user' };
   }
 
-  await prisma.wishlistClaim.create({ data: { wishlistItemId, claimedByUserId: userId } });
-  return { ok: true };
+  try {
+    await prisma.wishlistClaim.create({ data: { wishlistItemId, claimedByUserId: userId } });
+    return { ok: true };
+  } catch (error) {
+    // Two callers can both pass the existence check above and race to
+    // `create`; the loser hits the DB's unique constraint on
+    // `wishlistItemId`. Translate that into the documented result instead of
+    // letting P2002 escape as an unhandled exception. Re-read rather than
+    // assume the winner: it could be a user (a genuine duplicate claim
+    // attempt) or a pool that settled onto the item in the same instant.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const winner = await prisma.wishlistClaim.findUnique({
+        where: { wishlistItemId },
+        select: { claimedByUserId: true, poolId: true },
+      });
+      if (winner?.claimedByUserId === userId) return { ok: true };
+      return { ok: false, reason: winner?.poolId ? 'held-by-pool' : 'held-by-user' };
+    }
+    throw error;
+  }
 }
 
 export async function releaseUserClaim(
@@ -81,9 +118,13 @@ export async function releaseUserClaim(
     }
 
     await tx.wishlistClaim.delete({ where: { id: claim.id } });
+    // Do not pull this call out of the transaction, and do not await/queue it
+    // after `$transaction` resolves. Delete-then-settle must commit as one
+    // unit: if the delete were visible to other connections before settlement
+    // runs, a concurrent `claimForUser` could win the free item in that gap,
+    // and a pool actively buying it would silently lose out with no error —
+    // the exact bug this module exists to close. See `settleItem`'s docstring.
     const transferredToPoolId = await settleItem(tx, wishlistItemId);
     return { ok: true, transferredToPoolId };
   });
 }
-
-export { settleItem as settleItemForTesting };
