@@ -63,7 +63,9 @@ export const DeleteFormSchema = z.object({
 
 export type WishlistItemOwnerLayout = 'default' | 'reorder';
 type WishlistItemDragState = 'idle' | 'dragging-item' | 'dragging-category';
-type WishlistClaimPayload = { claimedByUserId: string } | null;
+// Pool claims render through ClaimDescriptor (PR3); this surface is
+// solo-only until then, so claimedByUserId may be null for a pool claim.
+type WishlistClaimPayload = { claimedByUserId: string | null } | null;
 type WishlistPurchaseActionResponse = {
   ok: boolean;
   wishlistItemId: string;
@@ -91,7 +93,7 @@ type WishlistItemRecord = (Pick<
     priceCents: number | null;
     currency: string | null;
   }> &
-  Partial<{ claim: { claimedByUserId: string } | null }>;
+  Partial<{ claim: { claimedByUserId: string | null } | null }>;
 type WishlistItemProps = Readonly<{
   wishlistItem: WishlistItemRecord;
   isOwner?: boolean;

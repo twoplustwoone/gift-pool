@@ -116,8 +116,10 @@ function mapWishlistItems(
     status: string;
     hasImage: boolean;
     imageSource: string | null;
+    // Pool claims render through ClaimDescriptor (PR3); this surface is
+    // solo-only until then, so claimedByUserId may be null for a pool claim.
     claim?: {
-      claimedByUserId: string;
+      claimedByUserId: string | null;
     } | null;
   }>,
 ): WishlistUser['wishlistItems'] {

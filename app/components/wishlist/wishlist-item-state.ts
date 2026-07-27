@@ -18,7 +18,9 @@ export type WishlistItem = {
   sortOrder: number;
   updatedAt: Date;
   status: WishlistItemStatusValue;
-  claim?: { claimedByUserId: string } | null;
+  // Pool claims render through ClaimDescriptor (PR3); this surface is
+  // solo-only until then, so claimedByUserId may be null for a pool claim.
+  claim?: { claimedByUserId: string | null } | null;
   hasImage?: boolean;
   imageSource?: WishlistItemImageSource | null;
 };
