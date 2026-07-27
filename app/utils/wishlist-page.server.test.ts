@@ -7,7 +7,7 @@ const userFindFirst = vi.fn();
 const wishlistPublicShareFindUnique = vi.fn();
 const getRelationshipDetails = vi.fn();
 const queueLogEvent = vi.fn();
-const cleanupWishlistPurchasesForOwner = vi.fn();
+const cleanupWishlistClaimsForOwner = vi.fn();
 
 vi.mock('./db.server.ts', () => ({
   prisma: {
@@ -34,8 +34,8 @@ vi.mock('./analytics.server.ts', () => ({
 }));
 
 vi.mock('./wishlist.server.ts', () => ({
-  cleanupWishlistPurchasesForOwner: (...args: Array<unknown>) =>
-    cleanupWishlistPurchasesForOwner(...args),
+  cleanupWishlistClaimsForOwner: (...args: Array<unknown>) =>
+    cleanupWishlistClaimsForOwner(...args),
 }));
 
 import {
@@ -90,7 +90,7 @@ function createWishlistDetails() {
         imageSource: null,
         note: 'Hardcover',
         ownerId: 'owner-1',
-        purchase: { purchasedById: 'viewer-1' },
+        claim: { claimedByUserId: 'viewer-1' },
         sortOrder: 0,
         status: 'ACTIVE',
         title: 'Dune',
@@ -105,7 +105,7 @@ function createWishlistDetails() {
         imageSource: 'UPLOAD',
         note: null,
         ownerId: 'owner-1',
-        purchase: null,
+        claim: null,
         sortOrder: 1,
         status: 'PAUSED',
         title: 'Chess set',
@@ -124,7 +124,7 @@ beforeEach(() => {
   getRelationshipDetails.mockReset();
   isFriendOfFriend.mockReset();
   queueLogEvent.mockReset();
-  cleanupWishlistPurchasesForOwner.mockReset();
+  cleanupWishlistClaimsForOwner.mockReset();
 });
 
 describe('loadFriendWishlistPageData', () => {
@@ -149,7 +149,7 @@ describe('loadFriendWishlistPageData', () => {
     });
     expect(getRelationshipDetails).not.toHaveBeenCalled();
     expect(queueLogEvent).not.toHaveBeenCalled();
-    expect(cleanupWishlistPurchasesForOwner).not.toHaveBeenCalled();
+    expect(cleanupWishlistClaimsForOwner).not.toHaveBeenCalled();
   });
 
   it('returns the access gate without loading wishlist details for non-friends', async () => {
@@ -186,7 +186,7 @@ describe('loadFriendWishlistPageData', () => {
       }),
     });
     expect(queueLogEvent).not.toHaveBeenCalled();
-    expect(cleanupWishlistPurchasesForOwner).not.toHaveBeenCalled();
+    expect(cleanupWishlistClaimsForOwner).not.toHaveBeenCalled();
   });
 
   it('loads wishlist details only after a friend access check and skips analytics when disabled', async () => {
@@ -232,7 +232,7 @@ describe('loadFriendWishlistPageData', () => {
             imageSource: null,
             note: 'Hardcover',
             ownerId: 'owner-1',
-            purchase: { purchasedById: 'viewer-1' },
+            claim: { claimedByUserId: 'viewer-1' },
             sortOrder: 0,
             status: 'ACTIVE',
             title: 'Dune',
@@ -247,7 +247,7 @@ describe('loadFriendWishlistPageData', () => {
             imageSource: 'UPLOAD',
             note: null,
             ownerId: 'owner-1',
-            purchase: null,
+            claim: null,
             sortOrder: 1,
             status: 'ARCHIVED',
             title: 'Chess set',
@@ -274,7 +274,7 @@ describe('loadFriendWishlistPageData', () => {
       }),
       where: { id: 'owner-1' },
     });
-    expect(cleanupWishlistPurchasesForOwner).toHaveBeenCalledWith('owner-1');
+    expect(cleanupWishlistClaimsForOwner).toHaveBeenCalledWith('owner-1');
     expect(queueLogEvent).not.toHaveBeenCalled();
   });
 
@@ -455,7 +455,7 @@ describe('loadOwnWishlistPageData', () => {
         itemCount: 1,
       },
     });
-    expect(cleanupWishlistPurchasesForOwner).toHaveBeenCalledWith('owner-1');
+    expect(cleanupWishlistClaimsForOwner).toHaveBeenCalledWith('owner-1');
   });
 
   it('skips the analytics event when includeAnalytics is false', async () => {

@@ -117,7 +117,7 @@ export async function getOverviewCounts(): Promise<OverviewCounts> {
         prisma.wishlistItem.count(),
         prisma.wishlistItem.count({ where: { status: 'ACTIVE' } }),
         prisma.wishlistItem.count({ where: { status: 'ARCHIVED' } }),
-        prisma.wishlistPurchase.count(),
+        prisma.wishlistClaim.count(),
         prisma.friendship.count(),
         // `updatedAt`, not `createdAt`: sendFriendRequest upserts an
         // existing row and flips status back to PENDING, so an old row

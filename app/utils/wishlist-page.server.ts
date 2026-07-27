@@ -3,7 +3,7 @@ import { type WishlistUser } from '#app/components/wishlist';
 import { queueLogEvent } from './analytics.server.ts';
 import { prisma } from './db.server.ts';
 import { getRelationshipDetails, isFriendOfFriend } from './friends.server.ts';
-import { cleanupWishlistPurchasesForOwner } from './wishlist.server.ts';
+import { cleanupWishlistClaimsForOwner } from './wishlist.server.ts';
 
 type Relationship = {
   state: 'NONE' | 'PENDING_INCOMING' | 'PENDING_OUTGOING' | 'FRIENDS';
@@ -63,9 +63,9 @@ const friendWishlistPageDetailsSelect = {
       categoryId: true,
       updatedAt: true,
       sortOrder: true,
-      purchase: {
+      claim: {
         select: {
-          purchasedById: true,
+          claimedByUserId: true,
         },
       },
       hasImage: true,
@@ -116,8 +116,10 @@ function mapWishlistItems(
     status: string;
     hasImage: boolean;
     imageSource: string | null;
-    purchase?: {
-      purchasedById: string;
+    // Pool claims render through ClaimDescriptor (PR3); this surface is
+    // solo-only until then, so claimedByUserId may be null for a pool claim.
+    claim?: {
+      claimedByUserId: string | null;
     } | null;
   }>,
 ): WishlistUser['wishlistItems'] {
@@ -248,7 +250,7 @@ export async function loadOwnWishlistPageData({
     },
   });
   // Run cleanup after the critical query — don't block the response on it
-  void cleanupWishlistPurchasesForOwner(userId);
+  void cleanupWishlistClaimsForOwner(userId);
 
   invariantResponse(user, 'User not found', {
     status: 404,
@@ -363,7 +365,7 @@ export async function loadFriendWishlistPageData({
   invariantResponse(wishlistDetails, 'User not found', { status: 404 });
 
   // Run cleanup after the critical queries — don't block the response on it
-  void cleanupWishlistPurchasesForOwner(wishlistOwner.id);
+  void cleanupWishlistClaimsForOwner(wishlistOwner.id);
 
   const wishlistItems = mapWishlistItems(wishlistDetails.wishlistItems);
   const viewEvent = includeAnalytics

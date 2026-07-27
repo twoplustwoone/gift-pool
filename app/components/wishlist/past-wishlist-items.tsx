@@ -213,7 +213,7 @@ export const PastWishlistItemCard = ({
             {/*
              * Right slot: neutral archived-time pill. Room for "Bought by X"
              * or a giver attribution later, but intentionally not wired up —
-             * the own-wishlist loader doesn't select WishlistPurchase.purchasedBy
+             * the own-wishlist loader doesn't select WishlistClaim.claimedByUser
              * because the gifting model is surprise-preserving. Revealing
              * the giver on past items would be a product decision we haven't
              * made yet.

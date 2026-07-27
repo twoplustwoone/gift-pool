@@ -331,7 +331,7 @@ describe('WishlistItem', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
-          purchase: null,
+          claim: null,
         }}
       />,
     );
@@ -389,7 +389,7 @@ describe('WishlistItem', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
-          purchase: { purchasedById: 'friend-id' },
+          claim: { claimedByUserId: 'friend-id' },
         }}
       />,
     );

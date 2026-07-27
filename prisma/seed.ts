@@ -265,9 +265,9 @@ async function seed() {
 	console.timeEnd('👤 Created named users...')
 
 	// ── Friendships ─────────────────────────────────────────────────────────────
-	// IMPORTANT: these must exist BEFORE any WishlistPurchase is seeded — the
-	// wishlist page loader runs `cleanupWishlistPurchasesForOwner` on load and
-	// will delete any purchase whose purchaser isn't a friend or in a shared
+	// IMPORTANT: these must exist BEFORE any WishlistClaim is seeded — the
+	// wishlist page loader runs `cleanupWishlistClaimsForOwner` on load and
+	// will delete any claim whose claimer isn't a friend or in a shared
 	// group with the owner.
 	console.time('🤝 Created friendships...')
 
@@ -524,7 +524,7 @@ async function seed() {
 	// ── Wade's past (archived) items + purchases ───────────────────────────────
 	// These model "someone already got me this — move it to past items". The
 	// main wishlist view hides ARCHIVED items; the Past items tab shows them.
-	// Each archived item has a matching WishlistPurchase so we can render
+	// Each archived item has a matching WishlistClaim so we can render
 	// "purchased by X" + relative dates.
 	console.time('📦 Created Wade\'s past items...')
 
@@ -542,10 +542,10 @@ async function seed() {
 			...itemImage(0),
 		},
 	})
-	await prisma.wishlistPurchase.create({
+	await prisma.wishlistClaim.create({
 		data: {
 			wishlistItemId: wadePast1.id,
-			purchasedById: marco.id,
+			claimedByUserId: marco.id,
 			createdAt: daysAgo(3),
 		},
 	})
@@ -561,10 +561,10 @@ async function seed() {
 			updatedAt: daysAgo(12),
 		},
 	})
-	await prisma.wishlistPurchase.create({
+	await prisma.wishlistClaim.create({
 		data: {
 			wishlistItemId: wadePast2.id,
-			purchasedById: np.id,
+			claimedByUserId: np.id,
 			createdAt: daysAgo(12),
 		},
 	})
@@ -583,10 +583,10 @@ async function seed() {
 			...itemImage(1),
 		},
 	})
-	await prisma.wishlistPurchase.create({
+	await prisma.wishlistClaim.create({
 		data: {
 			wishlistItemId: wadePast3.id,
-			purchasedById: alvaro.id,
+			claimedByUserId: alvaro.id,
 			createdAt: daysAgo(28),
 		},
 	})
@@ -603,10 +603,10 @@ async function seed() {
 			updatedAt: daysAgo(60),
 		},
 	})
-	await prisma.wishlistPurchase.create({
+	await prisma.wishlistClaim.create({
 		data: {
 			wishlistItemId: wadePast4.id,
-			purchasedById: hana.id,
+			claimedByUserId: hana.id,
 			createdAt: daysAgo(60),
 		},
 	})
@@ -622,10 +622,10 @@ async function seed() {
 			updatedAt: daysAgo(120),
 		},
 	})
-	await prisma.wishlistPurchase.create({
+	await prisma.wishlistClaim.create({
 		data: {
 			wishlistItemId: wadePast5.id,
-			purchasedById: np.id,
+			claimedByUserId: np.id,
 			createdAt: daysAgo(120),
 		},
 	})
@@ -641,10 +641,10 @@ async function seed() {
 			updatedAt: daysAgo(200),
 		},
 	})
-	await prisma.wishlistPurchase.create({
+	await prisma.wishlistClaim.create({
 		data: {
 			wishlistItemId: wadePast6.id,
-			purchasedById: marco.id,
+			claimedByUserId: marco.id,
 			createdAt: daysAgo(200),
 		},
 	})
@@ -968,10 +968,10 @@ async function seed() {
 			updatedAt: daysAgo(14),
 		},
 	})
-	await prisma.wishlistPurchase.create({
+	await prisma.wishlistClaim.create({
 		data: {
 			wishlistItemId: hanaPast1.id,
-			purchasedById: sofia.id,
+			claimedByUserId: sofia.id,
 			createdAt: daysAgo(14),
 		},
 	})
@@ -987,10 +987,10 @@ async function seed() {
 			updatedAt: daysAgo(40),
 		},
 	})
-	await prisma.wishlistPurchase.create({
+	await prisma.wishlistClaim.create({
 		data: {
 			wishlistItemId: hanaPast2.id,
-			purchasedById: wade.id,
+			claimedByUserId: wade.id,
 			createdAt: daysAgo(40),
 		},
 	})

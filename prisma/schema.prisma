@@ -54,7 +54,7 @@ model User {
   pushSubscriptions            PushSubscription[]
   friendInvitationsCreated     FriendInvitation[]            @relation("FriendInvitation_CreatedBy")
   friendInvitationsUsed        FriendInvitation[]            @relation("FriendInvitation_UsedBy")
-  wishlistPurchases            WishlistPurchase[]
+  wishlistClaims                WishlistClaim[]
   wishlistPublicShare          WishlistPublicShare?
   analyticsEvents              AnalyticsEvent[]
   // Pool relations
@@ -384,6 +384,11 @@ model Pool {
   chosenIdeaId    String?  @unique
   finalPriceCents Int?
 
+  // When the pool most recently entered DECIDED. Ordering key for wishlist-claim
+  // settlement when two pools have intent on the same item (earliest wins).
+  // Distinct from updatedAt, which any unrelated pool edit resets.
+  decidedAt       DateTime?
+
   // Post-occasion "did it land" feedback. Valid values: LOVED | OKAY | SKIPPED
   // (null = unanswered). SKIPPED records "never re-nag". Applies to group pools
   // and solo pool-of-one alike.
@@ -408,6 +413,7 @@ model Pool {
   organizerNudges OrganizerNudge[]
   directInvitations PoolInvitation[]
   notificationPreferences PoolNotificationPreference[]
+  wishlistClaims  WishlistClaim[]
 
   @@index([giftGroupId])
   @@index([organizerId])
@@ -698,24 +704,32 @@ model WishlistItem {
   updatedAt   DateTime          @updatedAt
   owner       User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   category    WishlistCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  purchase    WishlistPurchase?
+  claim       WishlistClaim?
   giftIdeas   GiftIdea[]
 
   @@index([ownerId, categoryId, sortOrder])
 }
 
-model WishlistPurchase {
-  id             String       @id @default(cuid())
-  wishlistItemId String       @unique
-  purchasedById  String
-  createdAt      DateTime     @default(now())
-  // Post-occasion "did it land" feedback for a wishlist-claim solo intent.
-  // Valid values: LOVED | OKAY | SKIPPED (null = unanswered).
+model WishlistClaim {
+  id              String       @id @default(cuid())
+  wishlistItemId  String       @unique
+  claimedByUserId String?
+  poolId          String?
+  createdAt       DateTime     @default(now())
+  // Post-occasion "did it land" feedback for a solo claim.
+  // Valid values: LOVED | OKAY | SKIPPED (null = unanswered). A pool's "did
+  // it land" feedback lives on Pool.outcomeFeedback — asking twice would
+  // double-nag the same people.
   outcomeFeedback String?
-  wishlistItem   WishlistItem @relation(fields: [wishlistItemId], references: [id], onDelete: Cascade)
-  purchasedBy    User         @relation(fields: [purchasedById], references: [id], onDelete: Cascade)
+  wishlistItem    WishlistItem @relation(fields: [wishlistItemId], references: [id], onDelete: Cascade)
+  claimedByUser   User?        @relation(fields: [claimedByUserId], references: [id], onDelete: Cascade)
+  pool            Pool?        @relation(fields: [poolId], references: [id], onDelete: Cascade)
 
-  @@index([purchasedById])
+  // DB-enforced: exactly one claimant. Prisma cannot express the CHECK — it
+  // lives in the migration's CREATE TABLE and is guarded by
+  // app/utils/wishlist-claim-schema.test.ts. A table rebuild drops it silently.
+  @@index([claimedByUserId])
+  @@index([poolId])
 }
 
 model WishlistPublicShare {

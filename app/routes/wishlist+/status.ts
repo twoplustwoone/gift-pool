@@ -83,7 +83,7 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     });
   }
-  await prisma.wishlistPurchase.deleteMany({
+  await prisma.wishlistClaim.deleteMany({
     where: {
       wishlistItemId,
     },

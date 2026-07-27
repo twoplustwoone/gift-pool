@@ -88,7 +88,7 @@ test('friends can claim a gift and owner cannot see the claim', async ({
       .click();
     await waitFor(
       () =>
-        prisma.wishlistPurchase.findUnique({
+        prisma.wishlistClaim.findUnique({
           where: { wishlistItemId: wishlistItem.id },
         }),
       { timeout: 8000 },
@@ -214,7 +214,7 @@ test('claim updates optimistically while purchase request is delayed', async ({
     await purchaseResponsePromise;
     await waitFor(
       () =>
-        prisma.wishlistPurchase.findUnique({
+        prisma.wishlistClaim.findUnique({
           where: { wishlistItemId: wishlistItem.id },
         }),
       { timeout: 8000 },
@@ -277,7 +277,7 @@ test('claim rolls back when purchase mutation fails', async ({
     const { body, contentType } = await singleFetchActionBody({
       ok: false,
       wishlistItemId: payload.get('wishlistItemId') ?? wishlistItem.id,
-      purchase: null,
+      claim: null,
       error: 'This item has already been marked as purchased.',
     });
     await route.fulfill({ status: 200, contentType, body });
@@ -312,10 +312,10 @@ test('claim rolls back when purchase mutation fails', async ({
     await expect(
       page.getByRole('button', { name: /let someone else pick up/i }),
     ).toBeHidden();
-    const purchase = await prisma.wishlistPurchase.findUnique({
+    const claim = await prisma.wishlistClaim.findUnique({
       where: { wishlistItemId: wishlistItem.id },
     });
-    expect(purchase).toBeNull();
+    expect(claim).toBeNull();
   } finally {
     await page.unroute('**/wishlist/purchase*');
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });

@@ -317,22 +317,22 @@ export async function recordPoolOutcome(input: {
 }
 
 // Records "did it land" on a wishlist-claim solo intent. Authorized to the
-// claimer (purchasedById) only.
-export async function recordWishlistPurchaseOutcome(input: {
+// claimer (claimedByUserId) only.
+export async function recordWishlistClaimOutcome(input: {
   userId: string;
   wishlistItemId: string;
   feedback: OutcomeFeedback;
   requestId?: string | null;
 }) {
   const { userId, wishlistItemId, feedback } = input;
-  const purchase = await prisma.wishlistPurchase.findUnique({
+  const claim = await prisma.wishlistClaim.findUnique({
     where: { wishlistItemId },
-    select: { purchasedById: true },
+    select: { claimedByUserId: true },
   });
-  if (!purchase || purchase.purchasedById !== userId) {
+  if (!claim || claim.claimedByUserId !== userId) {
     throw data({ error: 'Claim not found.' }, { status: 404 });
   }
-  await prisma.wishlistPurchase.update({
+  await prisma.wishlistClaim.update({
     where: { wishlistItemId },
     data: { outcomeFeedback: feedback },
   });
@@ -467,7 +467,7 @@ export async function loadPersonWishlistSource(
       url: true,
       priceCents: true,
       currency: true,
-      purchase: { select: { purchasedById: true } },
+      claim: { select: { claimedByUserId: true } },
     },
     orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
   });
@@ -477,8 +477,8 @@ export async function loadPersonWishlistSource(
     url: i.url,
     priceCents: i.priceCents,
     currency: i.currency,
-    claimed: i.purchase != null,
-    claimedByViewer: i.purchase?.purchasedById === viewerId,
+    claimed: i.claim != null,
+    claimedByViewer: i.claim?.claimedByUserId === viewerId,
   }));
 }
 
@@ -640,9 +640,9 @@ export async function loadPostOccasion(
   if (soloPool) {
     gift = { kind: 'pool', id: soloPool.id, name: soloPool.title };
   } else {
-    const claim = await prisma.wishlistPurchase.findFirst({
+    const claim = await prisma.wishlistClaim.findFirst({
       where: {
-        purchasedById: viewerId,
+        claimedByUserId: viewerId,
         outcomeFeedback: null,
         wishlistItem: { ownerId: targetUserId },
       },
