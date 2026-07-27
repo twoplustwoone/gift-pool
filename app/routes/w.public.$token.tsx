@@ -19,7 +19,7 @@ import { getUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
 import {
-  cleanupWishlistPurchasesForOwner,
+  cleanupWishlistClaimsForOwner,
   findWishlistPublicShareByToken,
 } from '#app/utils/wishlist.server.ts';
 const publicViewRateLimiter = remember(
@@ -127,7 +127,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     visitorId,
     properties: { wishlistOwnerId: share.ownerId },
   });
-  await cleanupWishlistPurchasesForOwner(share.ownerId);
+  await cleanupWishlistClaimsForOwner(share.ownerId);
   const user = await prisma.user.findFirst({
     select: {
       id: true,
@@ -146,9 +146,9 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
           categoryId: true,
           updatedAt: true,
           sortOrder: true,
-          purchase: {
+          claim: {
             select: {
-              purchasedById: true,
+              claimedByUserId: true,
             },
           },
           image: true,
@@ -184,9 +184,9 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       ...item,
       status: status === 'ACTIVE' ? 'ACTIVE' : 'ARCHIVED',
       ownerId: 'public-view',
-      purchase: item.purchase
+      claim: item.claim
         ? {
-            purchasedById: item.purchase.purchasedById,
+            claimedByUserId: item.claim.claimedByUserId,
           }
         : null,
       updatedAt: item.updatedAt,

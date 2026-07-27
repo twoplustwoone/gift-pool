@@ -54,7 +54,7 @@ model User {
   pushSubscriptions            PushSubscription[]
   friendInvitationsCreated     FriendInvitation[]            @relation("FriendInvitation_CreatedBy")
   friendInvitationsUsed        FriendInvitation[]            @relation("FriendInvitation_UsedBy")
-  wishlistPurchases            WishlistPurchase[]
+  wishlistClaims                WishlistClaim[]
   wishlistPublicShare          WishlistPublicShare?
   analyticsEvents              AnalyticsEvent[]
   // Pool relations
@@ -698,24 +698,24 @@ model WishlistItem {
   updatedAt   DateTime          @updatedAt
   owner       User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   category    WishlistCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  purchase    WishlistPurchase?
+  claim       WishlistClaim?
   giftIdeas   GiftIdea[]
 
   @@index([ownerId, categoryId, sortOrder])
 }
 
-model WishlistPurchase {
-  id             String       @id @default(cuid())
-  wishlistItemId String       @unique
-  purchasedById  String
-  createdAt      DateTime     @default(now())
-  // Post-occasion "did it land" feedback for a wishlist-claim solo intent.
+model WishlistClaim {
+  id              String       @id @default(cuid())
+  wishlistItemId  String       @unique
+  claimedByUserId String
+  createdAt       DateTime     @default(now())
+  // Post-occasion "did it land" feedback for a solo claim.
   // Valid values: LOVED | OKAY | SKIPPED (null = unanswered).
   outcomeFeedback String?
-  wishlistItem   WishlistItem @relation(fields: [wishlistItemId], references: [id], onDelete: Cascade)
-  purchasedBy    User         @relation(fields: [purchasedById], references: [id], onDelete: Cascade)
+  wishlistItem    WishlistItem @relation(fields: [wishlistItemId], references: [id], onDelete: Cascade)
+  claimedByUser   User         @relation(fields: [claimedByUserId], references: [id], onDelete: Cascade)
 
-  @@index([purchasedById])
+  @@index([claimedByUserId])
 }
 
 model WishlistPublicShare {

@@ -71,8 +71,8 @@ test('public link renders read-only wishlist with claimed state visible', async 
   });
 
   try {
-    await prisma.wishlistPurchase.create({
-      data: { wishlistItemId: claimedItem.id, purchasedById: friend.id },
+    await prisma.wishlistClaim.create({
+      data: { wishlistItemId: claimedItem.id, claimedByUserId: friend.id },
     });
 
     // Owner generates public link

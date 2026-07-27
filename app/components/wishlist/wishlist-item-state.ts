@@ -18,7 +18,7 @@ export type WishlistItem = {
   sortOrder: number;
   updatedAt: Date;
   status: WishlistItemStatusValue;
-  purchase?: { purchasedById: string } | null;
+  claim?: { claimedByUserId: string } | null;
   hasImage?: boolean;
   imageSource?: WishlistItemImageSource | null;
 };

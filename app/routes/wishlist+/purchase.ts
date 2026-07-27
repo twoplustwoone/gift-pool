@@ -24,7 +24,7 @@ export async function action({ request }: ActionFunctionArgs) {
       {
         ok: false,
         wishlistItemId: submittedWishlistItemId,
-        purchase: null,
+        claim: null,
         error: 'Invalid purchase request.',
       },
       {
@@ -39,9 +39,9 @@ export async function action({ request }: ActionFunctionArgs) {
     },
     select: {
       ownerId: true,
-      purchase: {
+      claim: {
         select: {
-          purchasedById: true,
+          claimedByUserId: true,
         },
       },
       status: true,
@@ -52,7 +52,7 @@ export async function action({ request }: ActionFunctionArgs) {
       {
         ok: false,
         wishlistItemId,
-        purchase: null,
+        claim: null,
         error: 'Wishlist item not found.',
       },
       {
@@ -60,9 +60,9 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     );
   }
-  const currentPurchase = wishlistItem.purchase
+  const currentClaim = wishlistItem.claim
     ? {
-        purchasedById: wishlistItem.purchase.purchasedById,
+        claimedByUserId: wishlistItem.claim.claimedByUserId,
       }
     : null;
   if (wishlistItem.ownerId === userId) {
@@ -70,7 +70,7 @@ export async function action({ request }: ActionFunctionArgs) {
       {
         ok: false,
         wishlistItemId,
-        purchase: currentPurchase,
+        claim: currentClaim,
         error: 'You cannot mark your own wishlist item as purchased.',
       },
       {
@@ -83,7 +83,7 @@ export async function action({ request }: ActionFunctionArgs) {
       {
         ok: false,
         wishlistItemId,
-        purchase: currentPurchase,
+        claim: currentClaim,
         error: 'This item is no longer available on the wishlist.',
       },
       {
@@ -100,7 +100,7 @@ export async function action({ request }: ActionFunctionArgs) {
       {
         ok: false,
         wishlistItemId,
-        purchase: currentPurchase,
+        claim: currentClaim,
         error: 'You no longer have access to this wishlist.',
       },
       {
@@ -109,15 +109,12 @@ export async function action({ request }: ActionFunctionArgs) {
     );
   }
   if (intent === 'purchase') {
-    if (
-      wishlistItem.purchase &&
-      wishlistItem.purchase.purchasedById !== userId
-    ) {
+    if (wishlistItem.claim && wishlistItem.claim.claimedByUserId !== userId) {
       return data(
         {
           ok: false,
           wishlistItemId,
-          purchase: currentPurchase,
+          claim: currentClaim,
           error: 'This item has already been marked as purchased.',
         },
         {
@@ -125,16 +122,16 @@ export async function action({ request }: ActionFunctionArgs) {
         },
       );
     }
-    await prisma.wishlistPurchase.upsert({
+    await prisma.wishlistClaim.upsert({
       where: {
         wishlistItemId,
       },
       create: {
         wishlistItemId,
-        purchasedById: userId,
+        claimedByUserId: userId,
       },
       update: {
-        purchasedById: userId,
+        claimedByUserId: userId,
       },
     });
     queueLogEvent({
@@ -149,17 +146,17 @@ export async function action({ request }: ActionFunctionArgs) {
     return {
       ok: true,
       wishlistItemId,
-      purchase: {
-        purchasedById: userId,
+      claim: {
+        claimedByUserId: userId,
       },
     };
   }
-  if (wishlistItem.purchase?.purchasedById !== userId) {
+  if (wishlistItem.claim?.claimedByUserId !== userId) {
     return data(
       {
         ok: false,
         wishlistItemId,
-        purchase: currentPurchase,
+        claim: currentClaim,
         error: 'You can only unmark items you marked as purchased.',
       },
       {
@@ -167,7 +164,7 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     );
   }
-  await prisma.wishlistPurchase.delete({
+  await prisma.wishlistClaim.delete({
     where: {
       wishlistItemId,
     },
@@ -175,6 +172,6 @@ export async function action({ request }: ActionFunctionArgs) {
   return {
     ok: true,
     wishlistItemId,
-    purchase: null,
+    claim: null,
   };
 }

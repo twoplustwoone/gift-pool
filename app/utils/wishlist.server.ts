@@ -4,16 +4,16 @@ import { usersShareAGroupOrAreFriendsByIds } from './groups.server.ts';
 
 const PUBLIC_SHARE_TOKEN_BYTES = 24;
 
-export async function cleanupWishlistPurchasesForOwner(ownerId: string) {
-  await prisma.wishlistPurchase.deleteMany({
+export async function cleanupWishlistClaimsForOwner(ownerId: string) {
+  await prisma.wishlistClaim.deleteMany({
     where: {
       wishlistItem: { ownerId },
       NOT: {
         OR: [
-          { purchasedBy: { friendshipsA: { some: { userBId: ownerId } } } },
-          { purchasedBy: { friendshipsB: { some: { userAId: ownerId } } } },
+          { claimedByUser: { friendshipsA: { some: { userBId: ownerId } } } },
+          { claimedByUser: { friendshipsB: { some: { userAId: ownerId } } } },
           {
-            purchasedBy: {
+            claimedByUser: {
               giftGroups: {
                 some: {
                   giftGroup: { groupMembers: { some: { userId: ownerId } } },

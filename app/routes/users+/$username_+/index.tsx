@@ -45,7 +45,7 @@ import {
   PERSON_SURFACE_OCCASION_TYPE,
   proposeToPool,
   recordPoolOutcome,
-  recordWishlistPurchaseOutcome,
+  recordWishlistClaimOutcome,
   requirePersonSurfaceUnlock,
   saveGiftListItem,
   undoOccasionDecline,
@@ -438,7 +438,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
           requestId,
         });
       } else {
-        await recordWishlistPurchaseOutcome({
+        await recordWishlistClaimOutcome({
           userId,
           wishlistItemId: v.wishlistItemId!,
           feedback: v.feedback,

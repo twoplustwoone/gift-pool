@@ -63,11 +63,11 @@ export const DeleteFormSchema = z.object({
 
 export type WishlistItemOwnerLayout = 'default' | 'reorder';
 type WishlistItemDragState = 'idle' | 'dragging-item' | 'dragging-category';
-type WishlistPurchasePayload = { purchasedById: string } | null;
+type WishlistClaimPayload = { claimedByUserId: string } | null;
 type WishlistPurchaseActionResponse = {
   ok: boolean;
   wishlistItemId: string;
-  purchase: WishlistPurchasePayload;
+  claim: WishlistClaimPayload;
   error?: string;
 };
 
@@ -91,7 +91,7 @@ type WishlistItemRecord = (Pick<
     priceCents: number | null;
     currency: string | null;
   }> &
-  Partial<{ purchase: { purchasedById: string } | null }>;
+  Partial<{ claim: { claimedByUserId: string } | null }>;
 type WishlistItemProps = Readonly<{
   wishlistItem: WishlistItemRecord;
   isOwner?: boolean;
@@ -168,7 +168,7 @@ function useWishlistPurchaseController({
 }) {
   const purchaseFetcher = useFetcher<WishlistPurchaseActionResponse>();
   const isPurchasePending = purchaseFetcher.state !== 'idle';
-  const serverPurchaseBy = wishlistItem.purchase?.purchasedById ?? null;
+  const serverPurchaseBy = wishlistItem.claim?.claimedByUserId ?? null;
   const [purchaseBy, setPurchaseBy] = React.useState<string | null>(
     serverPurchaseBy,
   );
@@ -191,7 +191,7 @@ function useWishlistPurchaseController({
       actionData?.wishlistItemId === wishlistItem.id && actionData.ok === false;
 
     if (actionData?.wishlistItemId === wishlistItem.id) {
-      const reconciledPurchaseBy = actionData.purchase?.purchasedById ?? null;
+      const reconciledPurchaseBy = actionData.claim?.claimedByUserId ?? null;
       if (actionData.ok) {
         setPurchaseBy(reconciledPurchaseBy);
         purchaseRollbackRef.current = reconciledPurchaseBy;
