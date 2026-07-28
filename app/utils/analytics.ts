@@ -32,6 +32,13 @@ export const ANALYTIC_EVENT_NAMES = [
   // Automatic pool activity fanout. Fires per recipient only when at least one
   // channel newly delivers; properties contain type, pool id, and channels.
   'pool_activity_notification_sent',
+  // Pool-backed wishlist claims. The conflict/transfer pair is the measurement
+  // of whether this actually prevents duplicate gifts:
+  //   wishlist_claim_conflict_shown → wishlist_claim_released → wishlist_claim_transferred
+  'wishlist_claim_granted',
+  'wishlist_claim_conflict_shown',
+  'wishlist_claim_released',
+  'wishlist_claim_transferred',
   // Preset task-bound organizer reminders. Fires per recipient only after at
   // least one channel delivers; repeated requests remain queryable from the
   // OrganizerNudge audit rows without putting recipient lists in analytics.
@@ -208,6 +215,12 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   'pool_purchaser_assigned',
   'pool_deliverer_assigned',
   'pool_activity_notification_sent',
+  // Pool-backed wishlist claims: the actor is always the authenticated
+  // decider (grant/conflict) or claim holder (release/transfer).
+  'wishlist_claim_granted',
+  'wishlist_claim_conflict_shown',
+  'wishlist_claim_released',
+  'wishlist_claim_transferred',
   'organizer_reminder_sent',
   'organizer_reminder_skipped',
   'friend_request_sent',

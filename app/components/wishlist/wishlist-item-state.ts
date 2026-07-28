@@ -1,9 +1,10 @@
 import { arrayMove } from '@dnd-kit/sortable';
 
-import  { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
-import  { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
+import { type ClaimDisclosure } from '#app/utils/wishlist-claim-disclosure.ts';
+import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
+import { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
 
-import  { type WishlistCategory } from './wishlist-category-state';
+import { type WishlistCategory } from './wishlist-category-state';
 
 export type WishlistItem = {
   id: string;
@@ -18,9 +19,13 @@ export type WishlistItem = {
   sortOrder: number;
   updatedAt: Date;
   status: WishlistItemStatusValue;
-  // Pool claims render through ClaimDescriptor (PR3); this surface is
-  // solo-only until then, so claimedByUserId may be null for a pool claim.
+  // A claim row can hold either a solo claimedByUserId or a pool — see
+  // ClaimDescriptor. claimDisclosure is the privacy-laddered read model for
+  // non-owner surfaces; owner loaders never populate it (see
+  // wishlist-claims.server.ts's loadClaimStates and the "owner never sees
+  // claims" rule).
   claim?: { claimedByUserId: string | null } | null;
+  claimDisclosure?: ClaimDisclosure;
   hasImage?: boolean;
   imageSource?: WishlistItemImageSource | null;
 };

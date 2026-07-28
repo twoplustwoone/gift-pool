@@ -5,7 +5,11 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { WishlistItem, parseDisplayUrl } from './wishlist-item';
+import {
+  WishlistItem,
+  parseDisplayUrl,
+  toPurchaseBySentinel,
+} from './wishlist-item';
 
 const mockOpenView = vi.fn();
 const mockOpenEdit = vi.fn();
@@ -399,6 +403,57 @@ describe('WishlistItem', () => {
     // than on the row button specifically.
     expect(screen.getByText('Claimed')).toBeInTheDocument();
   });
+
+  it('renders a "Claimed" badge for a pool-held item too, not just a solo claim', () => {
+    // Regression test: a pool claim has `claimedByUserId: null` (the pool
+    // holds it, not a person). Deriving "is this claimed" from that field
+    // directly — as this component used to — collapsed a pool hold to the
+    // same shape as "unclaimed", so this exact item used to render as
+    // free-to-grab instead of claimed.
+    mockUser = { id: 'viewer-id', roles: [] };
+
+    render(
+      <WishlistItem
+        categories={[]}
+        disableClaims
+        wishlistItem={{
+          id: 'item-1',
+          title: 'Pool Claimed Item',
+          note: 'A note',
+          url: null,
+          type: 'text',
+          categoryId: null,
+          ownerId: 'owner-id',
+          updatedAt: new Date(),
+          status: 'ACTIVE',
+          claim: { claimedByUserId: null },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Claimed')).toBeInTheDocument();
+  });
+});
+
+describe('toPurchaseBySentinel', () => {
+  it('returns null for an unclaimed item', () => {
+    expect(toPurchaseBySentinel(null)).toBeNull();
+    expect(toPurchaseBySentinel(undefined)).toBeNull();
+  });
+
+  it('returns the real user id for a solo claim', () => {
+    expect(toPurchaseBySentinel({ claimedByUserId: 'user-1' })).toBe('user-1');
+  });
+
+  it('returns a non-null sentinel — never a real user id — for a pool-held claim', () => {
+    const sentinel = toPurchaseBySentinel({ claimedByUserId: null });
+    expect(sentinel).not.toBeNull();
+    expect(sentinel).not.toBe('user-1');
+    // Deterministic and distinct from an unclaimed item, so every
+    // `purchaseBy === userId` / `!== userId` comparison downstream treats a
+    // pool hold as "claimed by someone else" rather than "free to claim".
+    expect(sentinel).toBe(toPurchaseBySentinel({ claimedByUserId: null }));
+  });
 });
 
 describe('parseDisplayUrl', () => {
@@ -415,7 +470,9 @@ describe('parseDisplayUrl', () => {
   });
 
   it('returns null for a data: URL', () => {
-    expect(parseDisplayUrl('data:text/html,<script>alert(1)</script>')).toBeNull();
+    expect(
+      parseDisplayUrl('data:text/html,<script>alert(1)</script>'),
+    ).toBeNull();
   });
 
   it('returns null for a malformed string', () => {
@@ -521,7 +578,9 @@ describe('WishlistItem — list link type', () => {
       />,
     );
 
-    expect(screen.queryByRole('link', { name: /visit/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /visit/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('does not render a Visit link when the list link has no URL', () => {
@@ -543,7 +602,9 @@ describe('WishlistItem — list link type', () => {
       />,
     );
 
-    expect(screen.queryByRole('link', { name: /visit/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /visit/i }),
+    ).not.toBeInTheDocument();
   });
 });
 

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { claimForUser, releaseUserClaim } from '#app/utils/wishlist-claims.server.ts';
 import { usersShareWishlistAccess } from '#app/utils/wishlist.server.ts';
 const PurchaseFormSchema = z.object({
   wishlistItemId: z.string(),
@@ -109,31 +110,30 @@ export async function action({ request }: ActionFunctionArgs) {
     );
   }
   if (intent === 'purchase') {
-    if (wishlistItem.claim && wishlistItem.claim.claimedByUserId !== userId) {
+    const outcome = await claimForUser(wishlistItemId, userId);
+    if (!outcome.ok) {
       return data(
         {
           ok: false,
           wishlistItemId,
-          claim: currentClaim,
-          error: 'This item has already been marked as purchased.',
+          // The actual current claim, not `currentClaim` (read before this
+          // attempt). A loser of a concurrent race must see the winner's
+          // claim, or the optimistic controller reconciles its UI back to
+          // "unclaimed" while the winner's row already exists in the DB.
+          claim: outcome.claim,
+          // Today's message ("already marked as purchased") is false when a
+          // pool holds it — a DECIDED pool has explicitly not purchased
+          // anything. PURCHASED is a separate, later pool status.
+          error:
+            outcome.reason === 'held-by-pool'
+              ? 'A group is already getting this one.'
+              : 'Someone already grabbed this one.',
         },
         {
           status: 400,
         },
       );
     }
-    await prisma.wishlistClaim.upsert({
-      where: {
-        wishlistItemId,
-      },
-      create: {
-        wishlistItemId,
-        claimedByUserId: userId,
-      },
-      update: {
-        claimedByUserId: userId,
-      },
-    });
     queueLogEvent({
       name: 'wishlist_purchase_recorded',
       userId,
@@ -151,7 +151,8 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     };
   }
-  if (wishlistItem.claim?.claimedByUserId !== userId) {
+  const release = await releaseUserClaim(wishlistItemId, userId);
+  if (!release.ok) {
     return data(
       {
         ok: false,
@@ -164,14 +165,25 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     );
   }
-  await prisma.wishlistClaim.delete({
-    where: {
-      wishlistItemId,
-    },
+  queueLogEvent({
+    name: release.transferredToPoolId
+      ? 'wishlist_claim_transferred'
+      : 'wishlist_claim_released',
+    userId,
+    source: 'server',
+    properties: { wishlistItemId, toPoolId: release.transferredToPoolId },
   });
+  // A transfer means the item is NOT free — settlement handed the claim
+  // straight to the longest-waiting pool inside the same transaction as the
+  // release (see `releaseUserClaim`). Reporting `claim: null` here would be a
+  // lie the client believes: it renders the item as free to grab while a
+  // pool actively holds it. `{ claimedByUserId: null }` is the same shape
+  // the loaders use for a pool-held claim (see `mapWishlistItems` /
+  // `w.public.$token.tsx`), so the client's existing sentinel mapping
+  // (`toPurchaseBySentinel`) reconciles it correctly without special-casing.
   return {
     ok: true,
     wishlistItemId,
-    claim: null,
+    claim: release.transferredToPoolId ? { claimedByUserId: null } : null,
   };
 }

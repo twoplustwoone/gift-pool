@@ -45,6 +45,7 @@ import {
   type BirthdayVisibility,
   type WishlistVisibility,
 } from '#app/utils/user-validation.ts';
+import { releaseSoloClaimsMatching } from '#app/utils/wishlist-claims.server.ts';
 import { DangerZoneDeleteDialog } from './__danger-zone-delete-dialog.tsx';
 import { ProfilePhotoSheet } from './__profile-photo-sheet.tsx';
 import { twoFAVerificationType } from './profile.two-factor.tsx';
@@ -825,6 +826,18 @@ async function signOutOfSessionsAction({ request, userId }: ProfileActionArgs) {
 }
 
 async function deleteDataAction({ userId }: ProfileActionArgs) {
+  // `WishlistClaim.claimedByUserId` cascades on User deletion — a bare
+  // `prisma.user.delete` would remove this user's solo claims at the DB
+  // level with no `.wishlistClaim` call in sight, so the write-guard test
+  // stays green while a decided pool waiting behind that claim never
+  // settles onto the item (it's simply left free). Release-and-settle every
+  // solo claim through the module's batch entry point FIRST, while the user
+  // (and therefore the claim rows) still exist, so a waiting pool inherits
+  // before the account — and the cascade that would otherwise silently
+  // remove the evidence of that claim — goes away. `releaseSoloClaimsMatching`
+  // is a no-op (empty array, no throw) when the user holds no solo claims,
+  // so this never blocks deletion.
+  await releaseSoloClaimsMatching({ claimedByUserId: userId });
   await prisma.user.delete({ where: { id: userId } });
   return redirectWithToast('/', {
     type: 'success',

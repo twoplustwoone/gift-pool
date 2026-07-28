@@ -12,6 +12,11 @@ import {
   POOL_STATUS,
 } from '#app/utils/pool-constants.ts';
 import { createPool, proposeIdea } from '#app/utils/pool.server.ts';
+import {
+  HIDDEN_CLAIM_DISCLOSURE,
+  type ClaimDisclosure,
+} from '#app/utils/wishlist-claim-disclosure.ts';
+import { loadClaimStates, setClaimOutcomeFeedback } from '#app/utils/wishlist-claims.server.ts';
 
 // Post-occasion detection window (spec §4): 14 days after the occasion.
 export const POST_OCCASION_WINDOW_DAYS = 14;
@@ -325,17 +330,13 @@ export async function recordWishlistClaimOutcome(input: {
   requestId?: string | null;
 }) {
   const { userId, wishlistItemId, feedback } = input;
-  const claim = await prisma.wishlistClaim.findUnique({
-    where: { wishlistItemId },
-    select: { claimedByUserId: true },
-  });
-  if (!claim || claim.claimedByUserId !== userId) {
+  // The actual write to WishlistClaim goes through wishlist-claims.server.ts
+  // — it is the only code in the app permitted to write that table. This
+  // function still owns authorization framing (the 404 shape below).
+  const result = await setClaimOutcomeFeedback(wishlistItemId, userId, feedback);
+  if (!result.ok) {
     throw data({ error: 'Claim not found.' }, { status: 404 });
   }
-  await prisma.wishlistClaim.update({
-    where: { wishlistItemId },
-    data: { outcomeFeedback: feedback },
-  });
 
   queueLogEvent({
     name: 'gift_outcome_recorded',
@@ -450,11 +451,16 @@ export type PersonWishlistItem = {
   currency: string | null;
   claimed: boolean;
   claimedByViewer: boolean;
+  // Tiered disclosure for the "claimed by someone else" case (pool or
+  // another user). Never consulted for the viewer's own claim — that stays
+  // on `claimed`/`claimedByViewer`, which this ladder doesn't special-case.
+  claimDisclosure: ClaimDisclosure;
 };
 
 // The target's active wishlist as a gift source. Claim identity is never
 // exposed — only whether the item is claimed, and whether the VIEWER is the
-// claimer (for the self "I'm getting this" toggle).
+// claimer (for the self "I'm getting this" toggle). This is always a
+// non-owner surface (the target is never the viewer on this route).
 export async function loadPersonWishlistSource(
   viewerId: string,
   targetUserId: string,
@@ -471,6 +477,10 @@ export async function loadPersonWishlistSource(
     },
     orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
   });
+  const claimDisclosures = await loadClaimStates(
+    items.map((i) => i.id),
+    { userId: viewerId, isOwner: false },
+  );
   return items.map((i) => ({
     id: i.id,
     title: i.title,
@@ -479,6 +489,7 @@ export async function loadPersonWishlistSource(
     currency: i.currency,
     claimed: i.claim != null,
     claimedByViewer: i.claim?.claimedByUserId === viewerId,
+    claimDisclosure: claimDisclosures.get(i.id) ?? HIDDEN_CLAIM_DISCLOSURE,
   }));
 }
 

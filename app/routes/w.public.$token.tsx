@@ -8,7 +8,10 @@ import {
   data,
   useLoaderData,
 } from 'react-router';
-import { ErrorFallback, GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
+import {
+  ErrorFallback,
+  GeneralErrorBoundary,
+} from '#app/components/error-boundary.tsx';
 import {
   ShareConversionBanner,
   ShareConversionCard,
@@ -18,6 +21,7 @@ import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { getUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
+import { loadClaimStates } from '#app/utils/wishlist-claims.server.ts';
 import {
   cleanupWishlistClaimsForOwner,
   findWishlistPublicShareByToken,
@@ -179,6 +183,17 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   invariantResponse(user, 'Wishlist not found', {
     status: 404,
   });
+  // This surface is reachable by anonymous visitors AND by a signed-in user
+  // who followed someone else's share link — either way it must show ZERO
+  // attribution. `isAnonymous` inside loadClaimStates is a surface-policy
+  // flag, not a "nobody is logged in" check (see ViewerRelationship's doc
+  // comment), so `userId` is hardcoded null here regardless of `viewerId`
+  // above (which exists only for analytics). Do not thread the real viewer
+  // id through — that would leak pool/group names to a signed-in visitor.
+  const claimDisclosures = await loadClaimStates(
+    user.wishlistItems.map((item) => item.id),
+    { userId: null, isOwner: false },
+  );
   const wishlistItems: WishlistUser['wishlistItems'] = user.wishlistItems.map(
     ({ image, imageSource, status, ...item }) => ({
       ...item,
@@ -189,6 +204,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
             claimedByUserId: item.claim.claimedByUserId,
           }
         : null,
+      claimDisclosure: claimDisclosures.get(item.id),
       updatedAt: item.updatedAt,
       hasImage: Boolean(image),
       imageSource:

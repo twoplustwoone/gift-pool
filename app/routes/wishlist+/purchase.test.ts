@@ -203,7 +203,7 @@ test('rejects a viewer without wishlist access (not a friend, no shared group)',
   });
 });
 
-test('rejects claiming an item already claimed by someone else', async () => {
+test('rejects claiming an item already claimed by another user', async () => {
   const { user: owner } = await createUserWithSession();
   const { user: firstClaimant } = await createUserWithSession();
   const { user: secondClaimant, cookie } = await createUserWithSession();
@@ -222,9 +222,73 @@ test('rejects claiming an item already claimed by someone else', async () => {
   expect(getRouteResultStatus(response)).toBe(400);
   await expect(getRouteResultData(response)).resolves.toMatchObject({
     ok: false,
-    error: 'This item has already been marked as purchased.',
+    error: 'Someone already grabbed this one.',
     claim: { claimedByUserId: firstClaimant.id },
   });
+});
+
+test('rejects claiming an item already held by a pool, without implying it was purchased', async () => {
+  const { user: owner } = await createUserWithSession();
+  const { user: organizer } = await createUserWithSession();
+  const { user: viewer, cookie } = await createUserWithSession();
+  await makeFriends(owner.id, viewer.id);
+  const item = await createWishlistItem({ ownerId: owner.id });
+  const pool = await prisma.pool.create({
+    data: { title: 'Pool', organizerId: organizer.id, recipientUserId: owner.id },
+  });
+  await prisma.wishlistClaim.create({
+    data: { wishlistItemId: item.id, poolId: pool.id },
+  });
+
+  const response = await invoke({
+    cookie,
+    form: { wishlistItemId: item.id, intent: 'purchase' },
+  });
+
+  expect(getRouteResultStatus(response)).toBe(400);
+  const payload = await getRouteResultData(response);
+  expect(payload).toMatchObject({
+    ok: false,
+    error: 'A group is already getting this one.',
+  });
+  expect((payload as { error: string }).error).not.toMatch(/purchased/i);
+});
+
+test('the loser of a concurrent claim race is told the winner, not a stale "unclaimed"', async () => {
+  // Regression for the P2 finding: the route used to return `currentClaim`,
+  // the claim state read *before* calling claimForUser — null for a free
+  // item. A loser of a genuine concurrent race would then have its UI
+  // reconciled back to "unclaimed" even though the winner's row already
+  // existed. The route must now report the actual post-race claim.
+  const { user: owner } = await createUserWithSession();
+  const { user: firstViewer, cookie: firstCookie } = await createUserWithSession();
+  const { user: secondViewer, cookie: secondCookie } = await createUserWithSession();
+  await makeFriends(owner.id, firstViewer.id);
+  await makeFriends(owner.id, secondViewer.id);
+  const item = await createWishlistItem({ ownerId: owner.id });
+
+  const [firstResponse, secondResponse] = await Promise.all([
+    invoke({ cookie: firstCookie, form: { wishlistItemId: item.id, intent: 'purchase' } }),
+    invoke({ cookie: secondCookie, form: { wishlistItemId: item.id, intent: 'purchase' } }),
+  ]);
+
+  type RaceResult = { ok: boolean; claim: { claimedByUserId: string | null } | null };
+  const [firstData, secondData] = await Promise.all([
+    getRouteResultData<RaceResult>(firstResponse),
+    getRouteResultData<RaceResult>(secondResponse),
+  ]);
+
+  const winner = firstData.ok ? firstData : secondData;
+  const loser = firstData.ok ? secondData : firstData;
+  expect(firstData.ok).not.toBe(secondData.ok);
+  expect(loser.claim).not.toBeNull();
+  expect(loser.claim?.claimedByUserId).not.toBeNull();
+  expect(loser.claim?.claimedByUserId).toBe(winner.claim?.claimedByUserId);
+
+  const claim = await prisma.wishlistClaim.findUniqueOrThrow({
+    where: { wishlistItemId: item.id },
+  });
+  expect(loser.claim?.claimedByUserId).toBe(claim.claimedByUserId);
 });
 
 test('claims an item on the happy path and logs the purchase event', async () => {
@@ -309,6 +373,70 @@ test('releases a claim held by the requester and returns claim: null', async () 
   await expect(
     prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } }),
   ).resolves.toBeNull();
+});
+
+test('releasing a claim that transfers to a waiting pool reports the item as pool-held, not free', async () => {
+  const { user: owner } = await createUserWithSession();
+  const { user: organizer } = await createUserWithSession();
+  const { user: viewer, cookie } = await createUserWithSession();
+  await makeFriends(owner.id, viewer.id);
+  const item = await createWishlistItem({ ownerId: owner.id });
+
+  // The friend claims the item first.
+  await prisma.wishlistClaim.create({
+    data: { wishlistItemId: item.id, claimedByUserId: viewer.id },
+  });
+
+  // A pool decides on the same item afterward. It conflicts with the
+  // existing solo claim, so it takes nothing yet — but it now has intent
+  // and is waiting.
+  const pool = await prisma.pool.create({
+    data: { title: 'Pool', organizerId: organizer.id, recipientUserId: owner.id },
+  });
+  const idea = await prisma.giftIdea.create({
+    data: {
+      poolId: pool.id,
+      proposedById: organizer.id,
+      name: 'Espresso machine',
+      wishlistItemId: item.id,
+    },
+  });
+  await prisma.pool.update({
+    where: { id: pool.id },
+    data: { status: 'DECIDED', chosenIdeaId: idea.id, decidedAt: new Date() },
+  });
+
+  const response = await invoke({
+    cookie,
+    form: { wishlistItemId: item.id, intent: 'unpurchase' },
+  });
+
+  expect(getRouteResultStatus(response)).toBe(200);
+  const payload = await getRouteResultData(response);
+  expect(payload).toMatchObject({
+    ok: true,
+    wishlistItemId: item.id,
+    // Not `claim: null` — the pool immediately took the claim on release, so
+    // the item must not be reported as free to grab.
+    claim: { claimedByUserId: null },
+  });
+
+  const claim = await prisma.wishlistClaim.findUniqueOrThrow({
+    where: { wishlistItemId: item.id },
+  });
+  expect(claim.poolId).toBe(pool.id);
+  expect(claim.claimedByUserId).toBeNull();
+
+  expect(queueLogEvent).toHaveBeenCalledWith(
+    expect.objectContaining({
+      name: 'wishlist_claim_transferred',
+      userId: viewer.id,
+      properties: expect.objectContaining({
+        wishlistItemId: item.id,
+        toPoolId: pool.id,
+      }),
+    }),
+  );
 });
 
 test('rejects releasing a claim held by someone else', async () => {

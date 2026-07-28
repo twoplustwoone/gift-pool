@@ -38,18 +38,31 @@ vi.mock('./wishlist.server.ts', () => ({
     cleanupWishlistClaimsForOwner(...args),
 }));
 
+// Claim resolution has its own dedicated coverage in
+// wishlist-claims.server.test.ts; this suite only needs to prove
+// loadFriendWishlistPageData calls it with the right viewer and item ids and
+// merges the result — so it's mocked rather than routed through a fuller
+// prisma.wishlistClaim stub.
+const loadClaimStates = vi.fn();
+
+vi.mock('./wishlist-claims.server.ts', () => ({
+  loadClaimStates: (...args: Array<unknown>) => loadClaimStates(...args),
+}));
+
 import {
   loadFriendWishlistPageData,
   loadOwnWishlistPageData,
 } from './wishlist-page.server.ts';
 
-function createOwnerSummary(overrides?: Partial<{
-  id: string;
-  image: { id: string } | null;
-  name: string | null;
-  username: string;
-  wishlistVisibility: string;
-}>) {
+function createOwnerSummary(
+  overrides?: Partial<{
+    id: string;
+    image: { id: string } | null;
+    name: string | null;
+    username: string;
+    wishlistVisibility: string;
+  }>,
+) {
   return {
     id: 'owner-1',
     image: { id: 'image-1' },
@@ -61,12 +74,14 @@ function createOwnerSummary(overrides?: Partial<{
 
 // Creates the subset of the owner summary that the loader echoes back in
 // the `user` field (wishlistVisibility is stripped out before returning).
-function createExpectedUser(overrides?: Partial<{
-  id: string;
-  image: { id: string } | null;
-  name: string | null;
-  username: string;
-}>) {
+function createExpectedUser(
+  overrides?: Partial<{
+    id: string;
+    image: { id: string } | null;
+    name: string | null;
+    username: string;
+  }>,
+) {
   return {
     id: 'owner-1',
     image: { id: 'image-1' },
@@ -125,6 +140,8 @@ beforeEach(() => {
   isFriendOfFriend.mockReset();
   queueLogEvent.mockReset();
   cleanupWishlistClaimsForOwner.mockReset();
+  loadClaimStates.mockReset();
+  loadClaimStates.mockResolvedValue(new Map());
 });
 
 describe('loadFriendWishlistPageData', () => {
@@ -276,6 +293,13 @@ describe('loadFriendWishlistPageData', () => {
     });
     expect(cleanupWishlistClaimsForOwner).toHaveBeenCalledWith('owner-1');
     expect(queueLogEvent).not.toHaveBeenCalled();
+    // This is always a non-owner surface (the self-view redirects above), so
+    // the viewer gets their own relationship-scoped disclosure, never the
+    // owner's suppressed one.
+    expect(loadClaimStates).toHaveBeenCalledWith(['item-1', 'item-2'], {
+      userId: 'viewer-1',
+      isOwner: false,
+    });
   });
 
   it('grants access for wishlistVisibility EVERYONE and loads wishlist details', async () => {
@@ -404,9 +428,7 @@ describe('loadOwnWishlistPageData', () => {
       image: { id: 'image-1' },
       name: 'Alex',
       username: 'alex',
-      wishlistCategories: [
-        { id: 'category-1', name: 'Books', order: 0 },
-      ],
+      wishlistCategories: [{ id: 'category-1', name: 'Books', order: 0 }],
       wishlistItems: [
         {
           categoryId: 'category-1',

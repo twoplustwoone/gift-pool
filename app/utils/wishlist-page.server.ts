@@ -3,6 +3,7 @@ import { type WishlistUser } from '#app/components/wishlist';
 import { queueLogEvent } from './analytics.server.ts';
 import { prisma } from './db.server.ts';
 import { getRelationshipDetails, isFriendOfFriend } from './friends.server.ts';
+import { loadClaimStates } from './wishlist-claims.server.ts';
 import { cleanupWishlistClaimsForOwner } from './wishlist.server.ts';
 
 type Relationship = {
@@ -116,8 +117,8 @@ function mapWishlistItems(
     status: string;
     hasImage: boolean;
     imageSource: string | null;
-    // Pool claims render through ClaimDescriptor (PR3); this surface is
-    // solo-only until then, so claimedByUserId may be null for a pool claim.
+    // A claim row can hold either a solo claimedByUserId or a pool — see
+    // ClaimDescriptor. claimedByUserId is null for a pool-held claim.
     claim?: {
       claimedByUserId: string | null;
     } | null;
@@ -368,6 +369,17 @@ export async function loadFriendWishlistPageData({
   void cleanupWishlistClaimsForOwner(wishlistOwner.id);
 
   const wishlistItems = mapWishlistItems(wishlistDetails.wishlistItems);
+  // Non-owner surface (this is the friend/groupmate view, never the wishlist
+  // owner — `wishlistOwner.id === viewerId` redirects to /wishlist above),
+  // so the viewer gets the full privacy-laddered disclosure keyed to their
+  // own relationship to whichever pool/user holds each claim.
+  const claimDisclosures = await loadClaimStates(
+    wishlistItems.map((item) => item.id),
+    { userId: viewerId, isOwner: false },
+  );
+  for (const item of wishlistItems) {
+    item.claimDisclosure = claimDisclosures.get(item.id);
+  }
   const viewEvent = includeAnalytics
     ? queueLogEvent({
         name: 'wishlist_viewed',

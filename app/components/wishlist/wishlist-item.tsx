@@ -43,18 +43,42 @@ import { cn, getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
 import { formatCents } from '#app/utils/pool-contributions.ts';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
+import {
+  HIDDEN_CLAIM_DISCLOSURE,
+  UNATTRIBUTED_CLAIM_DISCLOSURE,
+  type ClaimDisclosure,
+} from '#app/utils/wishlist-claim-disclosure.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
 import {
   isWishlistItemActive,
   type WishlistItemStatusValue,
 } from '#app/utils/wishlist.ts';
-import { Text, Flex } from '../ui-kit';
+import { Text } from '../ui-kit';
+import { ClaimDescriptor } from './claim-descriptor.tsx';
 import { type usePressFeedback } from './hooks/use-press-feedback.ts';
 import { WishlistStatusBadge, getWishlistStatusMeta } from './status';
 import {
   WishlistRowActionsItem,
   WishlistRowActionsMenu,
 } from './wishlist-row-actions';
+
+// A claim row can exist with `claimedByUserId: null` when a pool holds it
+// instead of a person. Collapsing that straight to `null` (as the previous
+// `?? null` did) made pool-held items read as unclaimed — the exact
+// free-to-grab bug this feature exists to close. The sentinel is never a
+// real user id, so it flows through every `purchaseBy === userId` /
+// `purchaseBy !== userId` comparison below unchanged: a pool hold simply
+// reads as "claimed by someone else."
+export const POOL_HELD_SENTINEL = '__pool-claim__';
+
+// Exported for direct unit testing of the sentinel mapping in isolation from
+// the optimistic-UI hook that consumes it.
+export function toPurchaseBySentinel(
+  claim: { claimedByUserId: string | null } | null | undefined,
+): string | null {
+  if (!claim) return null;
+  return claim.claimedByUserId ?? POOL_HELD_SENTINEL;
+}
 
 export const DeleteFormSchema = z.object({
   intent: z.literal('delete-wishlist-item'),
@@ -63,8 +87,9 @@ export const DeleteFormSchema = z.object({
 
 export type WishlistItemOwnerLayout = 'default' | 'reorder';
 type WishlistItemDragState = 'idle' | 'dragging-item' | 'dragging-category';
-// Pool claims render through ClaimDescriptor (PR3); this surface is
-// solo-only until then, so claimedByUserId may be null for a pool claim.
+// Pool claims render through ClaimDescriptor. claimedByUserId is null for a
+// pool-held claim — see `toPurchaseBySentinel` above for how that's told
+// apart from "unclaimed".
 type WishlistClaimPayload = { claimedByUserId: string | null } | null;
 type WishlistPurchaseActionResponse = {
   ok: boolean;
@@ -93,7 +118,8 @@ type WishlistItemRecord = (Pick<
     priceCents: number | null;
     currency: string | null;
   }> &
-  Partial<{ claim: { claimedByUserId: string | null } | null }>;
+  Partial<{ claim: { claimedByUserId: string | null } | null }> &
+  Partial<{ claimDisclosure: ClaimDisclosure }>;
 type WishlistItemProps = Readonly<{
   wishlistItem: WishlistItemRecord;
   isOwner?: boolean;
@@ -114,6 +140,7 @@ type WishlistArchivedTriggerProps = Readonly<{
 }>;
 type WishlistNonOwnerExtrasProps = Readonly<{
   allowClaims: boolean;
+  disclosure: ClaimDisclosure;
   handlePurchaseToggle: (event: React.SyntheticEvent) => void;
   isClaimed: boolean;
   isPurchasePending: boolean;
@@ -170,7 +197,7 @@ function useWishlistPurchaseController({
 }) {
   const purchaseFetcher = useFetcher<WishlistPurchaseActionResponse>();
   const isPurchasePending = purchaseFetcher.state !== 'idle';
-  const serverPurchaseBy = wishlistItem.claim?.claimedByUserId ?? null;
+  const serverPurchaseBy = toPurchaseBySentinel(wishlistItem.claim);
   const [purchaseBy, setPurchaseBy] = React.useState<string | null>(
     serverPurchaseBy,
   );
@@ -193,7 +220,13 @@ function useWishlistPurchaseController({
       actionData?.wishlistItemId === wishlistItem.id && actionData.ok === false;
 
     if (actionData?.wishlistItemId === wishlistItem.id) {
-      const reconciledPurchaseBy = actionData.claim?.claimedByUserId ?? null;
+      // Route the server's claim payload through the same sentinel mapping
+      // as the initial render (`serverPurchaseBy` above). Reading
+      // `claimedByUserId` directly here would collapse a pool-held claim
+      // (`{ claimedByUserId: null }`, meaning "a pool holds this now") down
+      // to the same value as "unclaimed" — the exact free-to-grab bug this
+      // module exists to close, reappearing through the fetcher path.
+      const reconciledPurchaseBy = toPurchaseBySentinel(actionData.claim);
       if (actionData.ok) {
         setPurchaseBy(reconciledPurchaseBy);
         purchaseRollbackRef.current = reconciledPurchaseBy;
@@ -202,6 +235,15 @@ function useWishlistPurchaseController({
       if (reconciledPurchaseBy !== purchaseRollbackRef.current) {
         setPurchaseBy(reconciledPurchaseBy);
         purchaseRollbackRef.current = reconciledPurchaseBy;
+        // This is the lost-race case: the server refused the mutation
+        // (isFailedMutation) but reports the item now held by someone else,
+        // so the state above already reconciles to "claimed by someone
+        // else." The toast is what tells the user WHY their claim button
+        // just vanished — without it there's no feedback at all until a
+        // reload, which is exactly the silent-disappearance bug this fixes.
+        if (isFailedMutation) {
+          toast.error(actionData.error ?? 'Unable to update gift claim.');
+        }
         return;
       }
     }
@@ -384,6 +426,7 @@ function WishlistArchivedTrigger({
 
 function WishlistNonOwnerExtras({
   allowClaims,
+  disclosure,
   handlePurchaseToggle,
   isClaimed,
   isPurchasePending,
@@ -396,14 +439,7 @@ function WishlistNonOwnerExtras({
 }: WishlistNonOwnerExtrasProps) {
   if (allowClaims) {
     if (isPurchasedBySomeoneElse) {
-      return (
-        <Flex align="center" gap={2}>
-          <LuGift className="h-4 w-4 text-warning" aria-hidden />
-          <Text size="sm" className="text-warning">
-            Someone already grabbed this one.
-          </Text>
-        </Flex>
-      );
+      return <ClaimDescriptor disclosure={disclosure} variant="label" />;
     }
 
     return (
@@ -432,14 +468,7 @@ function WishlistNonOwnerExtras({
   }
 
   if (isClaimed) {
-    return (
-      <Flex align="center" gap={2}>
-        <LuGift className="h-4 w-4 text-warning" aria-hidden />
-        <Text size="sm" className="text-warning">
-          Someone already grabbed this one.
-        </Text>
-      </Flex>
-    );
+    return <ClaimDescriptor disclosure={disclosure} variant="label" />;
   }
 
   return (
@@ -641,7 +670,11 @@ function WishlistNonOwnerTrigger({
   wishlistItem,
 }: Omit<
   WishlistNonOwnerTriggerProps,
-  'imageBlock' | 'press' | 'purchaseButtonClassName' | 'purchaseButtonIconOnly' | 'purchaseStatusText'
+  | 'imageBlock'
+  | 'press'
+  | 'purchaseButtonClassName'
+  | 'purchaseButtonIconOnly'
+  | 'purchaseStatusText'
 > & {
   displayImageSrc: string | null;
   imageErrored: boolean;
@@ -1018,14 +1051,11 @@ export const WishlistItem = ({
     userId: user?.id,
     wishlistItem,
   });
-  const {
-    displayImageSrc,
-    handleImageError,
-    imageErrored,
-  } = useWishlistImageController({
-    isOwner,
-    wishlistItem,
-  });
+  const { displayImageSrc, handleImageError, imageErrored } =
+    useWishlistImageController({
+      isOwner,
+      wishlistItem,
+    });
   const [isClaimInfoOpen, setIsClaimInfoOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const typeChangeFetcher = useFetcher();
@@ -1039,7 +1069,8 @@ export const WishlistItem = ({
       formData.set('type', newType);
       if (wishlistItem.url) formData.set('url', wishlistItem.url);
       if (wishlistItem.note) formData.set('note', wishlistItem.note);
-      if (wishlistItem.categoryId) formData.set('categoryId', wishlistItem.categoryId);
+      if (wishlistItem.categoryId)
+        formData.set('categoryId', wishlistItem.categoryId);
       formData.set('imageAction', 'none');
       formData.set('clientMutationId', createClientMutationId());
       Promise.resolve(
@@ -1057,11 +1088,26 @@ export const WishlistItem = ({
   // renders INSIDE the item-editor modal (not on the row itself). The row
   // only needs handlePurchaseToggle + isPurchased* flags; the modal shows
   // the full "Claim this gift" button with the visible label + check state.
-  const purchaseStatusText = isPurchasedBySomeoneElse
-    ? 'Someone already grabbed this'
-    : isPurchasedByMe
-      ? 'You’re on gift duty for this one'
-      : null;
+  // The "claimed by someone else" case renders through ClaimDescriptor
+  // instead (tiered attribution) — this stays self-claim-only.
+  const purchaseStatusText = isPurchasedByMe
+    ? 'You’re on gift duty for this one'
+    : null;
+  const loadedClaimDisclosure =
+    wishlistItem.claimDisclosure ?? HIDDEN_CLAIM_DISCLOSURE;
+  // The loader's disclosure is computed against the claim state AT LOAD
+  // TIME. If the viewer loaded the item while it was unclaimed (disclosure:
+  // HIDDEN) and then lost a concurrent claim race — another user or a pool
+  // won first — the optimistic reconciliation above flips
+  // isPurchasedBySomeoneElse to true, but this stale disclosure still says
+  // "show nothing." Left alone, that renders as blank space where the claim
+  // button used to be. Fall back to the same zero-attribution shape the
+  // resolver produces for a viewer who isn't allowed to know who holds the
+  // claim — never attribution the client invents itself.
+  const claimDisclosure =
+    isPurchasedBySomeoneElse && !loadedClaimDisclosure.show
+      ? UNATTRIBUTED_CLAIM_DISCLOSURE
+      : loadedClaimDisclosure;
   const purchaseActionLabel = isPurchasedByMe
     ? 'Change my mind'
     : "I'll grab this";
@@ -1135,6 +1181,7 @@ export const WishlistItem = ({
     const viewPurchaseExtras = (
       <WishlistNonOwnerExtras
         allowClaims={allowClaims}
+        disclosure={claimDisclosure}
         handlePurchaseToggle={handlePurchaseToggle}
         isClaimed={isClaimed}
         isPurchasePending={isPurchasePending}

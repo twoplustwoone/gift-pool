@@ -34,8 +34,10 @@ import {
   ResponsiveDialogTitle as DialogTitle,
 } from '#app/components/ui/responsive-dialog.tsx';
 import { Textarea } from '#app/components/ui/textarea.tsx';
+import { ClaimDescriptor } from '#app/components/wishlist/claim-descriptor.tsx';
 import { type RelationshipState } from '#app/utils/friends.ts';
 import { formatCents } from '#app/utils/pool-contributions.ts';
+import { type ClaimDisclosure } from '#app/utils/wishlist-claim-disclosure.ts';
 
 export type TemporalState =
   | 'occasion-near'
@@ -99,6 +101,7 @@ export type PersonSurfaceViewData = {
     currency: string | null;
     claimed: boolean;
     claimedByViewer: boolean;
+    claimDisclosure: ClaimDisclosure;
   }>;
   ideation: {
     giftHistory: Array<{
@@ -1109,13 +1112,7 @@ function WishlistSourceRow({
               </div>
             ) : null}
           </div>
-          <span className="inline-flex h-[22px] flex-none items-center gap-1 rounded-full bg-muted px-2.5 text-[11px] font-extrabold text-muted-foreground">
-            <LuCheck size={12} />
-            Spoken for
-          </span>
-        </div>
-        <div className="mt-2 text-[11.5px] font-semibold text-muted-foreground">
-          Someone's already covering this one.
+          <ClaimDescriptor disclosure={item.claimDisclosure} variant="label" />
         </div>
       </div>
     );

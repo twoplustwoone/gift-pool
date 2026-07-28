@@ -4,6 +4,7 @@ import { data, type ActionFunctionArgs } from 'react-router';
 import { z } from 'zod';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { releaseSoloClaimForItem } from '#app/utils/wishlist-claims.server.ts';
 import { wishlistItemStatusSchema } from '#app/utils/wishlist.ts';
 const WishlistStatusSchema = z.object({
   intent: z.literal('update-wishlist-item-status'),
@@ -83,11 +84,19 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     });
   }
-  await prisma.wishlistClaim.deleteMany({
-    where: {
-      wishlistItemId,
-    },
-  });
+  // Solo claims only — `releaseSoloClaimForItem` no-ops on a pool-held claim
+  // (claimedByUserId: null; see the DB CHECK in the WishlistClaim migration —
+  // exactly one of claimedByUserId/poolId is set). Pool claims are released
+  // only by pool lifecycle events. Same predicate as
+  // cleanupWishlistClaimsForOwner in wishlist.server.ts.
+  //
+  // Routed through the module's transactional release-and-settle path
+  // (rather than a bare deleteMany) so a pool that has already decided on
+  // this item inherits the claim in the same commit as the release — a bare
+  // delete would leave the item unclaimed even though the pool still has
+  // intent, letting someone else claim it out from under the pool on the
+  // next request.
+  await releaseSoloClaimForItem(wishlistItemId);
   const statusTextMap: Record<
     string,
     {
