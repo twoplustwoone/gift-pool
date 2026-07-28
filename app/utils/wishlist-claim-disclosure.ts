@@ -50,7 +50,11 @@ export type ClaimDisclosure = {
 
 export type ClaimSurface = 'label' | 'badge' | 'row';
 
-const HIDDEN: ClaimDisclosure = {
+// Exported so callers merging `loadClaimStates`'s Map back onto a wider item
+// list have a safe, typed default for items the map has no entry for (an
+// unclaimed item never gets a row) instead of hand-rolling an equivalent
+// literal at each call site.
+export const HIDDEN_CLAIM_DISCLOSURE: ClaimDisclosure = {
   show: false,
   tone: 'none',
   text: '',
@@ -58,8 +62,12 @@ const HIDDEN: ClaimDisclosure = {
   poolLink: null,
   canJoinPool: false,
 };
+const HIDDEN = HIDDEN_CLAIM_DISCLOSURE;
 
-const anonymous = (tone: ClaimDisclosureTone, text: string): ClaimDisclosure => ({
+const anonymous = (
+  tone: ClaimDisclosureTone,
+  text: string,
+): ClaimDisclosure => ({
   show: true,
   tone,
   text,
@@ -82,7 +90,9 @@ export function resolveClaimDisclosure(
 
   if (holder.kind === 'user') {
     const canName =
-      !viewer.isAnonymous && viewer.sharesPoolWithHolderUser && holder.displayName !== null;
+      !viewer.isAnonymous &&
+      viewer.sharesPoolWithHolderUser &&
+      holder.displayName !== null;
     return canName
       ? {
           show: true,

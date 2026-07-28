@@ -43,18 +43,41 @@ import { cn, getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
 import { formatCents } from '#app/utils/pool-contributions.ts';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
+import {
+  HIDDEN_CLAIM_DISCLOSURE,
+  type ClaimDisclosure,
+} from '#app/utils/wishlist-claim-disclosure.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
 import {
   isWishlistItemActive,
   type WishlistItemStatusValue,
 } from '#app/utils/wishlist.ts';
-import { Text, Flex } from '../ui-kit';
+import { Text } from '../ui-kit';
+import { ClaimDescriptor } from './claim-descriptor.tsx';
 import { type usePressFeedback } from './hooks/use-press-feedback.ts';
 import { WishlistStatusBadge, getWishlistStatusMeta } from './status';
 import {
   WishlistRowActionsItem,
   WishlistRowActionsMenu,
 } from './wishlist-row-actions';
+
+// A claim row can exist with `claimedByUserId: null` when a pool holds it
+// instead of a person. Collapsing that straight to `null` (as the previous
+// `?? null` did) made pool-held items read as unclaimed — the exact
+// free-to-grab bug this feature exists to close. The sentinel is never a
+// real user id, so it flows through every `purchaseBy === userId` /
+// `purchaseBy !== userId` comparison below unchanged: a pool hold simply
+// reads as "claimed by someone else."
+export const POOL_HELD_SENTINEL = '__pool-claim__';
+
+// Exported for direct unit testing of the sentinel mapping in isolation from
+// the optimistic-UI hook that consumes it.
+export function toPurchaseBySentinel(
+  claim: { claimedByUserId: string | null } | null | undefined,
+): string | null {
+  if (!claim) return null;
+  return claim.claimedByUserId ?? POOL_HELD_SENTINEL;
+}
 
 export const DeleteFormSchema = z.object({
   intent: z.literal('delete-wishlist-item'),
@@ -93,7 +116,8 @@ type WishlistItemRecord = (Pick<
     priceCents: number | null;
     currency: string | null;
   }> &
-  Partial<{ claim: { claimedByUserId: string | null } | null }>;
+  Partial<{ claim: { claimedByUserId: string | null } | null }> &
+  Partial<{ claimDisclosure: ClaimDisclosure }>;
 type WishlistItemProps = Readonly<{
   wishlistItem: WishlistItemRecord;
   isOwner?: boolean;
@@ -114,6 +138,7 @@ type WishlistArchivedTriggerProps = Readonly<{
 }>;
 type WishlistNonOwnerExtrasProps = Readonly<{
   allowClaims: boolean;
+  disclosure: ClaimDisclosure;
   handlePurchaseToggle: (event: React.SyntheticEvent) => void;
   isClaimed: boolean;
   isPurchasePending: boolean;
@@ -170,7 +195,7 @@ function useWishlistPurchaseController({
 }) {
   const purchaseFetcher = useFetcher<WishlistPurchaseActionResponse>();
   const isPurchasePending = purchaseFetcher.state !== 'idle';
-  const serverPurchaseBy = wishlistItem.claim?.claimedByUserId ?? null;
+  const serverPurchaseBy = toPurchaseBySentinel(wishlistItem.claim);
   const [purchaseBy, setPurchaseBy] = React.useState<string | null>(
     serverPurchaseBy,
   );
@@ -384,6 +409,7 @@ function WishlistArchivedTrigger({
 
 function WishlistNonOwnerExtras({
   allowClaims,
+  disclosure,
   handlePurchaseToggle,
   isClaimed,
   isPurchasePending,
@@ -396,14 +422,7 @@ function WishlistNonOwnerExtras({
 }: WishlistNonOwnerExtrasProps) {
   if (allowClaims) {
     if (isPurchasedBySomeoneElse) {
-      return (
-        <Flex align="center" gap={2}>
-          <LuGift className="h-4 w-4 text-warning" aria-hidden />
-          <Text size="sm" className="text-warning">
-            Someone already grabbed this one.
-          </Text>
-        </Flex>
-      );
+      return <ClaimDescriptor disclosure={disclosure} variant="label" />;
     }
 
     return (
@@ -432,14 +451,7 @@ function WishlistNonOwnerExtras({
   }
 
   if (isClaimed) {
-    return (
-      <Flex align="center" gap={2}>
-        <LuGift className="h-4 w-4 text-warning" aria-hidden />
-        <Text size="sm" className="text-warning">
-          Someone already grabbed this one.
-        </Text>
-      </Flex>
-    );
+    return <ClaimDescriptor disclosure={disclosure} variant="label" />;
   }
 
   return (
@@ -641,7 +653,11 @@ function WishlistNonOwnerTrigger({
   wishlistItem,
 }: Omit<
   WishlistNonOwnerTriggerProps,
-  'imageBlock' | 'press' | 'purchaseButtonClassName' | 'purchaseButtonIconOnly' | 'purchaseStatusText'
+  | 'imageBlock'
+  | 'press'
+  | 'purchaseButtonClassName'
+  | 'purchaseButtonIconOnly'
+  | 'purchaseStatusText'
 > & {
   displayImageSrc: string | null;
   imageErrored: boolean;
@@ -1018,14 +1034,11 @@ export const WishlistItem = ({
     userId: user?.id,
     wishlistItem,
   });
-  const {
-    displayImageSrc,
-    handleImageError,
-    imageErrored,
-  } = useWishlistImageController({
-    isOwner,
-    wishlistItem,
-  });
+  const { displayImageSrc, handleImageError, imageErrored } =
+    useWishlistImageController({
+      isOwner,
+      wishlistItem,
+    });
   const [isClaimInfoOpen, setIsClaimInfoOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const typeChangeFetcher = useFetcher();
@@ -1039,7 +1052,8 @@ export const WishlistItem = ({
       formData.set('type', newType);
       if (wishlistItem.url) formData.set('url', wishlistItem.url);
       if (wishlistItem.note) formData.set('note', wishlistItem.note);
-      if (wishlistItem.categoryId) formData.set('categoryId', wishlistItem.categoryId);
+      if (wishlistItem.categoryId)
+        formData.set('categoryId', wishlistItem.categoryId);
       formData.set('imageAction', 'none');
       formData.set('clientMutationId', createClientMutationId());
       Promise.resolve(
@@ -1057,11 +1071,13 @@ export const WishlistItem = ({
   // renders INSIDE the item-editor modal (not on the row itself). The row
   // only needs handlePurchaseToggle + isPurchased* flags; the modal shows
   // the full "Claim this gift" button with the visible label + check state.
-  const purchaseStatusText = isPurchasedBySomeoneElse
-    ? 'Someone already grabbed this'
-    : isPurchasedByMe
-      ? 'You’re on gift duty for this one'
-      : null;
+  // The "claimed by someone else" case renders through ClaimDescriptor
+  // instead (tiered attribution) — this stays self-claim-only.
+  const purchaseStatusText = isPurchasedByMe
+    ? 'You’re on gift duty for this one'
+    : null;
+  const claimDisclosure =
+    wishlistItem.claimDisclosure ?? HIDDEN_CLAIM_DISCLOSURE;
   const purchaseActionLabel = isPurchasedByMe
     ? 'Change my mind'
     : "I'll grab this";
@@ -1135,6 +1151,7 @@ export const WishlistItem = ({
     const viewPurchaseExtras = (
       <WishlistNonOwnerExtras
         allowClaims={allowClaims}
+        disclosure={claimDisclosure}
         handlePurchaseToggle={handlePurchaseToggle}
         isClaimed={isClaimed}
         isPurchasePending={isPurchasePending}

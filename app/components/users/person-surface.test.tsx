@@ -16,6 +16,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import type * as ReactRouter from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { HIDDEN_CLAIM_DISCLOSURE } from '#app/utils/wishlist-claim-disclosure.ts';
 import {
   PersonSurface,
   type PersonSurfaceViewData,
@@ -196,6 +197,7 @@ describe('PersonSurface form emission', () => {
             currency: null,
             claimed: false,
             claimedByViewer: false,
+            claimDisclosure: HIDDEN_CLAIM_DISCLOSURE,
           },
         ],
         openPools: [{ id: 'p1', title: 'Pool' }],
@@ -291,5 +293,74 @@ describe('PersonSurface pool continuation (§6.3)', () => {
       screen.getByRole('button', { name: /organize a gift/i }),
     ).toBeInTheDocument();
     expect(screen.queryByTestId('continue-planning')).not.toBeInTheDocument();
+  });
+});
+
+describe('PersonSurface wishlist claim attribution', () => {
+  it('renders the tiered ClaimDescriptor text in place of the old generic "Spoken for" badge', () => {
+    renderSurface(
+      baseData({
+        wishlistSource: [
+          {
+            id: 'w1',
+            title: 'Espresso machine',
+            url: null,
+            priceCents: null,
+            currency: null,
+            claimed: true,
+            claimedByViewer: false,
+            claimDisclosure: {
+              show: true,
+              tone: 'pool',
+              text: 'Kitchen Crew is getting this',
+              name: 'Kitchen Crew',
+              poolLink: '/pools/p1',
+              canJoinPool: true,
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(
+      screen.getByText('Kitchen Crew is getting this'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Spoken for')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Someone's already covering this one."),
+    ).not.toBeInTheDocument();
+    // No claim/unclaim form for an item someone else already has.
+    expect(
+      screen.queryByRole('button', { name: /getting this/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders zero-attribution text when the viewer has no relationship to the holding pool', () => {
+    renderSurface(
+      baseData({
+        wishlistSource: [
+          {
+            id: 'w1',
+            title: 'Espresso machine',
+            url: null,
+            priceCents: null,
+            currency: null,
+            claimed: true,
+            claimedByViewer: false,
+            claimDisclosure: {
+              show: true,
+              tone: 'warning',
+              text: 'Already claimed',
+              name: null,
+              poolLink: null,
+              canJoinPool: false,
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByText('Already claimed')).toBeInTheDocument();
+    expect(screen.queryByText('Spoken for')).not.toBeInTheDocument();
   });
 });
