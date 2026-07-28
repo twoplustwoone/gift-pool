@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { claimForUser, releaseUserClaim } from '#app/utils/wishlist-claims.server.ts';
 import { usersShareWishlistAccess } from '#app/utils/wishlist.server.ts';
 const PurchaseFormSchema = z.object({
   wishlistItemId: z.string(),
@@ -109,31 +110,26 @@ export async function action({ request }: ActionFunctionArgs) {
     );
   }
   if (intent === 'purchase') {
-    if (wishlistItem.claim && wishlistItem.claim.claimedByUserId !== userId) {
+    const outcome = await claimForUser(wishlistItemId, userId);
+    if (!outcome.ok) {
       return data(
         {
           ok: false,
           wishlistItemId,
           claim: currentClaim,
-          error: 'This item has already been marked as purchased.',
+          // Today's message ("already marked as purchased") is false when a
+          // pool holds it — a DECIDED pool has explicitly not purchased
+          // anything. PURCHASED is a separate, later pool status.
+          error:
+            outcome.reason === 'held-by-pool'
+              ? 'A group is already getting this one.'
+              : 'Someone already grabbed this one.',
         },
         {
           status: 400,
         },
       );
     }
-    await prisma.wishlistClaim.upsert({
-      where: {
-        wishlistItemId,
-      },
-      create: {
-        wishlistItemId,
-        claimedByUserId: userId,
-      },
-      update: {
-        claimedByUserId: userId,
-      },
-    });
     queueLogEvent({
       name: 'wishlist_purchase_recorded',
       userId,
@@ -151,7 +147,8 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     };
   }
-  if (wishlistItem.claim?.claimedByUserId !== userId) {
+  const release = await releaseUserClaim(wishlistItemId, userId);
+  if (!release.ok) {
     return data(
       {
         ok: false,
@@ -164,11 +161,6 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     );
   }
-  await prisma.wishlistClaim.delete({
-    where: {
-      wishlistItemId,
-    },
-  });
   return {
     ok: true,
     wishlistItemId,

@@ -203,7 +203,7 @@ test('rejects a viewer without wishlist access (not a friend, no shared group)',
   });
 });
 
-test('rejects claiming an item already claimed by someone else', async () => {
+test('rejects claiming an item already claimed by another user', async () => {
   const { user: owner } = await createUserWithSession();
   const { user: firstClaimant } = await createUserWithSession();
   const { user: secondClaimant, cookie } = await createUserWithSession();
@@ -222,9 +222,36 @@ test('rejects claiming an item already claimed by someone else', async () => {
   expect(getRouteResultStatus(response)).toBe(400);
   await expect(getRouteResultData(response)).resolves.toMatchObject({
     ok: false,
-    error: 'This item has already been marked as purchased.',
+    error: 'Someone already grabbed this one.',
     claim: { claimedByUserId: firstClaimant.id },
   });
+});
+
+test('rejects claiming an item already held by a pool, without implying it was purchased', async () => {
+  const { user: owner } = await createUserWithSession();
+  const { user: organizer } = await createUserWithSession();
+  const { user: viewer, cookie } = await createUserWithSession();
+  await makeFriends(owner.id, viewer.id);
+  const item = await createWishlistItem({ ownerId: owner.id });
+  const pool = await prisma.pool.create({
+    data: { title: 'Pool', organizerId: organizer.id, recipientUserId: owner.id },
+  });
+  await prisma.wishlistClaim.create({
+    data: { wishlistItemId: item.id, poolId: pool.id },
+  });
+
+  const response = await invoke({
+    cookie,
+    form: { wishlistItemId: item.id, intent: 'purchase' },
+  });
+
+  expect(getRouteResultStatus(response)).toBe(400);
+  const payload = await getRouteResultData(response);
+  expect(payload).toMatchObject({
+    ok: false,
+    error: 'A group is already getting this one.',
+  });
+  expect((payload as { error: string }).error).not.toMatch(/purchased/i);
 });
 
 test('claims an item on the happy path and logs the purchase event', async () => {
