@@ -563,11 +563,13 @@ const ChosenGiftBanner = ({
   finalPriceCents,
   poolId,
   canManage,
+  conflict,
 }: {
   idea: Idea;
   finalPriceCents: number | null;
   poolId: string;
   canManage: boolean;
+  conflict: ClaimDisclosure | null;
 }) => {
   const fetcher = useFetcher();
 
@@ -598,6 +600,25 @@ const ChosenGiftBanner = ({
             </a>
           )}
         </Stack>
+        {/* Conflict disclosure: stays mounted for as long as the pool has
+            decided on an item it doesn't hold the claim on — unlike the
+            idea-card badge, which unmounts the instant the pool leaves
+            OPEN/VOTING. This is the only surface a returning viewer or a
+            different assigned purchaser ever sees the warning on, since the
+            choose-idea toast only reaches the browser that submitted it. */}
+        {conflict && (
+          <div
+            className="flex flex-col gap-1.5 rounded-lg border border-warning/30 bg-warning-muted p-3"
+            data-testid="chosen-gift-conflict"
+          >
+            <ClaimDescriptor disclosure={conflict} variant="badge" />
+            <Text size="xs" className="text-warning">
+              This pool doesn&rsquo;t hold the claim on this item, so
+              there&rsquo;s a real risk of a duplicate purchase. Check with the
+              group before buying.
+            </Text>
+          </div>
+        )}
         {/* Final price: display + optional inline editor for managers */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -1125,6 +1146,7 @@ const PoolIndex = () => {
       finalPriceCents={pool.finalPriceCents}
       poolId={pool.id}
       canManage={canManage}
+      conflict={ideaConflicts.get(chosenIdea.id) ?? null}
     />
   ) : null;
 

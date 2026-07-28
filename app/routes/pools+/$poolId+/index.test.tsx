@@ -630,6 +630,56 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('shows the conflict on the chosen gift for a decided pool that does not hold the claim — from loader data, not a toast', () => {
+    // No fetcher submission happened in this render at all (fetcherState.data
+    // stays undefined) — the viewer is someone who reloaded the page or never
+    // submitted the decision themselves, so the toast effect never fires.
+    // The only way this warning can reach them is loader-driven.
+    loaderDataSnapshot.pool.status = 'DECIDED';
+    loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
+    loaderDataSnapshot.pool.purchaserId = 'buyer-1';
+    loaderDataSnapshot.viewer.userId = 'deliverer-1';
+    loaderDataSnapshot.ideaClaimConflicts = [
+      [
+        'idea-1',
+        {
+          show: true,
+          tone: 'warning',
+          text: 'Already claimed',
+          name: null,
+          poolLink: null,
+          canJoinPool: false,
+        },
+      ],
+    ];
+
+    renderRoute();
+
+    expect(toastWarning).not.toHaveBeenCalled();
+    const conflict = screen.getByTestId('chosen-gift-conflict');
+    expect(conflict).toHaveTextContent('Already claimed');
+    // Honest about today's behavior: it must never promise the claimant will
+    // be contacted — there is no notification or keep/release flow yet.
+    expect(conflict.textContent?.toLowerCase()).not.toContain('contact');
+    expect(conflict.textContent?.toLowerCase()).not.toContain('notif');
+  });
+
+  it('shows no conflict on the chosen gift when the pool holds its own claim', () => {
+    loaderDataSnapshot.pool.status = 'DECIDED';
+    loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
+    loaderDataSnapshot.pool.purchaserId = 'buyer-1';
+    // A chosen idea absent from ideaClaimConflicts means this pool holds the
+    // claim (loadIdeaClaimConflicts excludes exactly that case) — the normal,
+    // non-conflicted state, which must render nothing.
+    loaderDataSnapshot.ideaClaimConflicts = [];
+
+    renderRoute();
+
+    expect(
+      screen.queryByTestId('chosen-gift-conflict'),
+    ).not.toBeInTheDocument();
+  });
+
   it('marks a claimed picker item as such, keeps it selectable, and discloses no name/pool/link', async () => {
     loaderDataSnapshot.recipientWishlistItems = [
       {
