@@ -128,3 +128,57 @@ export async function releaseUserClaim(
     return { ok: true, transferredToPoolId };
   });
 }
+
+/**
+ * Reconcile a pool's claims with its current decision. Called after the pool
+ * decides, re-decides, or is cancelled. Releasing an old item settles it, so a
+ * pool switching from A to B frees A for whoever was waiting on it.
+ */
+export async function syncPoolClaim(poolId: string): Promise<{
+  claimedItemId: string | null;
+  conflictedItemId: string | null;
+  releasedItemIds: string[];
+}> {
+  return prisma.$transaction(async (tx) => {
+    const pool = await tx.pool.findUnique({
+      where: { id: poolId },
+      select: { status: true, chosenIdea: { select: { wishlistItemId: true } } },
+    });
+
+    const intendedItemId =
+      pool && (POOL_INTENT_STATUSES as readonly string[]).includes(pool.status)
+        ? (pool.chosenIdea?.wishlistItemId ?? null)
+        : null;
+
+    // Drop any claim this pool holds that is no longer what it intends.
+    const stale = await tx.wishlistClaim.findMany({
+      where: { poolId, ...(intendedItemId ? { NOT: { wishlistItemId: intendedItemId } } : {}) },
+      select: { id: true, wishlistItemId: true },
+    });
+    const releasedItemIds: string[] = [];
+    for (const claim of stale) {
+      await tx.wishlistClaim.delete({ where: { id: claim.id } });
+      releasedItemIds.push(claim.wishlistItemId);
+    }
+    // Settle only after every release, so an heir can't take an item this pool
+    // is about to release and then re-take.
+    for (const itemId of releasedItemIds) await settleItem(tx, itemId);
+
+    if (!intendedItemId) {
+      return { claimedItemId: null, conflictedItemId: null, releasedItemIds };
+    }
+
+    const holder = await tx.wishlistClaim.findUnique({
+      where: { wishlistItemId: intendedItemId },
+      select: { poolId: true },
+    });
+    if (holder) {
+      return holder.poolId === poolId
+        ? { claimedItemId: intendedItemId, conflictedItemId: null, releasedItemIds }
+        : { claimedItemId: null, conflictedItemId: intendedItemId, releasedItemIds };
+    }
+
+    await tx.wishlistClaim.create({ data: { wishlistItemId: intendedItemId, poolId } });
+    return { claimedItemId: intendedItemId, conflictedItemId: null, releasedItemIds };
+  });
+}

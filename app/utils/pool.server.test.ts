@@ -25,6 +25,7 @@ const poolUpdate = vi.fn();
 const poolUpdateMany = vi.fn();
 const queueLogEvent = vi.fn();
 const queuePoolActivityNotifications = vi.fn();
+const syncPoolClaim = vi.fn();
 
 vi.mock('nanoid', () => ({
   nanoid: () => nanoid(),
@@ -74,6 +75,10 @@ vi.mock('#app/utils/analytics.server.ts', () => ({
 vi.mock('#app/utils/pool-notifications.server.ts', () => ({
   queuePoolActivityNotifications: (...args: Array<unknown>) =>
     queuePoolActivityNotifications(...args),
+}));
+
+vi.mock('#app/utils/wishlist-claims.server.ts', () => ({
+  syncPoolClaim: (...args: Array<unknown>) => syncPoolClaim(...args),
 }));
 
 import {
@@ -129,6 +134,9 @@ beforeEach(() => {
   poolUpdateMany.mockReset().mockResolvedValue({ count: 1 });
   queueLogEvent.mockReset().mockReturnValue({ eventId: 'event-123' });
   queuePoolActivityNotifications.mockReset();
+  syncPoolClaim
+    .mockReset()
+    .mockResolvedValue({ claimedItemId: null, conflictedItemId: null, releasedItemIds: [] });
 });
 
 describe('pool server utilities', () => {
@@ -572,6 +580,7 @@ describe('pool server utilities', () => {
         chosenIdeaId: 'idea-1',
         finalPriceCents: 8000,
         status: 'DECIDED',
+        decidedAt: expect.any(Date),
       },
       where: {
         id: 'pool-1',
@@ -587,6 +596,7 @@ describe('pool server utilities', () => {
       actorId: 'user-1',
       payload: { finalPriceCents: 8000, ideaId: 'idea-1', name: 'Speaker' },
     });
+    expect(syncPoolClaim).toHaveBeenCalledWith('pool-1');
     expect(queuePoolActivityNotifications).toHaveBeenCalledWith({
       type: NOTIFICATION_TYPES.POOL_GIFT_CHOSEN,
       poolId: 'pool-1',
@@ -822,6 +832,7 @@ describe('pool server utilities', () => {
     });
     expect(poolDelete).not.toHaveBeenCalled();
     expect(giftIdeaDelete).not.toHaveBeenCalled();
+    expect(syncPoolClaim).toHaveBeenCalledWith('pool-1');
   });
 
   it('getContributionBreakdown returns null without a confirmed final price', async () => {

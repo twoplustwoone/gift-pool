@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import { createUser } from '#tests/db-utils.ts';
-import { claimForUser, releaseUserClaim } from './wishlist-claims.server.ts';
+import { claimForUser, releaseUserClaim, syncPoolClaim } from './wishlist-claims.server.ts';
+import { cancelPool, chooseIdea } from './pool.server.ts';
 
 async function fixture() {
   const [owner, friend, organizer] = await Promise.all([
@@ -159,5 +160,56 @@ describe('settlement on release', () => {
     expect(result.ok).toBe(false);
     const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
     expect(claim?.claimedByUserId).toBe(friend.id);
+  });
+});
+
+describe('syncPoolClaim', () => {
+  it('claims a free wishlist item when the pool decides', async () => {
+    const { owner, organizer, item } = await fixture();
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const result = await syncPoolClaim(pool.id);
+    expect(result.claimedItemId).toBe(item.id);
+    expect(result.conflictedItemId).toBeNull();
+    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    expect(claim?.poolId).toBe(pool.id);
+  });
+
+  it('reports a conflict and takes nothing when a person already holds it', async () => {
+    const { owner, friend, organizer, item } = await fixture();
+    await claimForUser(item.id, friend.id);
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+
+    const result = await syncPoolClaim(pool.id);
+
+    expect(result.claimedItemId).toBeNull();
+    expect(result.conflictedItemId).toBe(item.id);
+    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    expect(claim?.claimedByUserId).toBe(friend.id);
+  });
+
+  it('releases the old item and settles it when the pool re-decides', async () => {
+    const { owner, organizer, item } = await fixture();
+    const other = await prisma.wishlistItem.create({
+      data: { ownerId: owner.id, title: 'Headphones', type: 'item', sortOrder: 1 },
+    });
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    await syncPoolClaim(pool.id);
+
+    const newIdea = await prisma.giftIdea.create({
+      data: { poolId: pool.id, proposedById: organizer.id, name: 'Headphones', wishlistItemId: other.id },
+    });
+    await chooseIdea(pool.id, newIdea.id, organizer.id);
+
+    expect(await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } })).toBeNull();
+    const moved = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: other.id } });
+    expect(moved?.poolId).toBe(pool.id);
+  });
+
+  it('releases the claim when the pool is cancelled', async () => {
+    const { owner, organizer, item } = await fixture();
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    await syncPoolClaim(pool.id);
+    await cancelPool(pool.id, organizer.id);
+    expect(await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } })).toBeNull();
   });
 });

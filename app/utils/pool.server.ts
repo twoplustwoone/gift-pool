@@ -13,6 +13,7 @@ import {
 import { calculateContributions } from '#app/utils/pool-contributions.ts'
 import { queuePoolActivityNotifications } from '#app/utils/pool-notifications.server.ts'
 import { assertPoolStatus } from '#app/utils/pool-permissions.server.ts'
+import { syncPoolClaim } from '#app/utils/wishlist-claims.server.ts'
 import type { DecisionMode, OccasionType } from '#app/utils/pool-constants.ts'
 
 // ─── Selects ──────────────────────────────────────────────────────────────────
@@ -604,6 +605,7 @@ export async function chooseIdea(
 			status: POOL_STATUS.DECIDED,
 			chosenIdeaId: ideaId,
 			finalPriceCents: resolvedPrice,
+			decidedAt: new Date(),
 		},
 	})
 	if (decision.count === 0) return
@@ -612,6 +614,10 @@ export async function chooseIdea(
 		actorId,
 		payload: { ideaId, name: idea.name, finalPriceCents: resolvedPrice },
 	})
+
+	// Claim the recipient's wishlist item, if the chosen idea links one. Runs
+	// after the decision commits; a conflict is reported, never blocking.
+	await syncPoolClaim(poolId)
 
 	const { eventId } = queueLogEvent({
 		name: 'pool_decided',
@@ -778,6 +784,9 @@ export async function cancelPool(poolId: string, actorId: string) {
 	if (cancellation.count === 0) return
 
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_CANCELLED, { actorId })
+
+	// Cancelling frees the wishlist item — and hands it to any other pool waiting.
+	await syncPoolClaim(poolId)
 
 	const { eventId } = queueLogEvent({
 		name: 'pool_cancelled',
