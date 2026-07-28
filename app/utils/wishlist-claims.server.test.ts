@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import { createUser } from '#tests/db-utils.ts';
-import { claimForUser, releaseUserClaim, syncPoolClaim } from './wishlist-claims.server.ts';
+import { claimForUser, loadClaimStates, releaseUserClaim, syncPoolClaim } from './wishlist-claims.server.ts';
 import { cancelPool, chooseIdea } from './pool.server.ts';
 
 async function fixture() {
@@ -245,5 +245,63 @@ describe('syncPoolClaim', () => {
     await syncPoolClaim(pool.id);
     await cancelPool(pool.id, organizer.id);
     expect(await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } })).toBeNull();
+  });
+});
+
+describe('loadClaimStates', () => {
+  it('returns nothing at all for the wishlist owner', async () => {
+    const { owner, friend, item } = await fixture();
+    await claimForUser(item.id, friend.id);
+    const states = await loadClaimStates([item.id], { userId: owner.id, isOwner: true });
+    expect(states.get(item.id)?.show).toBe(false);
+  });
+
+  it('names the pool to one of its contributors and not to an outsider', async () => {
+    const { owner, friend, organizer, item } = await fixture();
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    await prisma.poolContributor.create({ data: { poolId: pool.id, userId: organizer.id } });
+    await syncPoolClaim(pool.id);
+
+    const inside = await loadClaimStates([item.id], { userId: organizer.id, isOwner: false });
+    expect(inside.get(item.id)?.name).toBe('Birthday pool');
+
+    const outside = await loadClaimStates([item.id], { userId: friend.id, isOwner: false });
+    expect(outside.get(item.id)?.text).toBe('Already claimed');
+    expect(JSON.stringify(outside.get(item.id))).not.toContain('Birthday pool');
+  });
+
+  it('gives an anonymous viewer claim state with zero attribution', async () => {
+    const { owner, organizer, item } = await fixture();
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    await syncPoolClaim(pool.id);
+    const states = await loadClaimStates([item.id], { userId: null, isOwner: false });
+    expect(states.get(item.id)?.show).toBe(true);
+    expect(states.get(item.id)?.name).toBeNull();
+  });
+
+  it('stops naming the group to a member who has been removed from it', async () => {
+    const { owner, friend, organizer, item } = await fixture();
+    const group = await prisma.giftGroup.create({
+      data: { name: 'Sunday Roasters', createdById: organizer.id },
+    });
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    await prisma.pool.update({ where: { id: pool.id }, data: { giftGroupId: group.id } });
+    await syncPoolClaim(pool.id);
+    const membership = await prisma.usersInGiftGroups.create({
+      data: { userId: friend.id, giftGroupId: group.id },
+    });
+
+    const asMember = await loadClaimStates([item.id], { userId: friend.id, isOwner: false });
+    expect(asMember.get(item.id)?.name).toBe('Sunday Roasters');
+
+    // The membership row survives removal — only removedAt makes it non-current.
+    await prisma.usersInGiftGroups.update({
+      where: { userId_giftGroupId: { userId: membership.userId, giftGroupId: group.id } },
+      data: { removedAt: new Date() },
+    });
+
+    const afterRemoval = await loadClaimStates([item.id], { userId: friend.id, isOwner: false });
+    expect(afterRemoval.get(item.id)?.name).toBeNull();
+    expect(JSON.stringify(afterRemoval.get(item.id))).not.toContain('Sunday Roasters');
   });
 });

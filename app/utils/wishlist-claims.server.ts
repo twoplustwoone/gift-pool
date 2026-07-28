@@ -11,6 +11,11 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from './db.server.ts';
 import { POOL_STATUS } from './pool-constants.ts';
+import {
+  resolveClaimDisclosure,
+  type ClaimDisclosure,
+  type ClaimHolder,
+} from './wishlist-claim-disclosure.ts';
 
 export const POOL_INTENT_STATUSES = [
   POOL_STATUS.DECIDED,
@@ -185,4 +190,108 @@ export async function syncPoolClaim(poolId: string): Promise<{
     await tx.wishlistClaim.create({ data: { wishlistItemId: intendedItemId, poolId } });
     return { claimedItemId: intendedItemId, conflictedItemId: null, released };
   });
+}
+
+/**
+ * The read model for wishlist claims: gathers the facts (who holds the
+ * claim, whether the viewer contributes to or is a current member of the
+ * holding pool's group) and hands them to the pure privacy ladder in
+ * wishlist-claim-disclosure.ts, which is the only place that decides what
+ * gets shown. This function never re-derives or second-guesses that
+ * decision — it only assembles the inputs.
+ */
+export async function loadClaimStates(
+  wishlistItemIds: string[],
+  viewer: { userId: string | null; isOwner: boolean },
+): Promise<Map<string, ClaimDisclosure>> {
+  const states = new Map<string, ClaimDisclosure>();
+  if (wishlistItemIds.length === 0) return states;
+
+  const claims = await prisma.wishlistClaim.findMany({
+    where: { wishlistItemId: { in: wishlistItemIds } },
+    select: {
+      wishlistItemId: true,
+      claimedByUserId: true,
+      claimedByUser: { select: { name: true, username: true } },
+      pool: {
+        select: {
+          id: true,
+          title: true,
+          giftGroupId: true,
+          giftGroup: { select: { name: true } },
+          contributors: viewer.userId
+            ? { where: { userId: viewer.userId }, select: { id: true } }
+            : false,
+        },
+      },
+    },
+  });
+
+  const groupIds = claims
+    .map((claim) => claim.pool?.giftGroupId)
+    .filter((id): id is string => Boolean(id));
+  const memberGroupIds = new Set(
+    viewer.userId && groupIds.length
+      ? (
+          await prisma.usersInGiftGroups.findMany({
+            where: {
+              userId: viewer.userId,
+              giftGroupId: { in: groupIds },
+              // A membership row survives removal — `removedAt` is what makes
+              // it current. Without this filter a removed member would keep
+              // being told the group's name, which is exactly the leak the
+              // ladder exists to prevent. Same predicate the repo uses in
+              // group-overview.server.ts and occasion-reminders.server.ts.
+              removedAt: null,
+            },
+            select: { giftGroupId: true },
+          })
+        ).map((membership) => membership.giftGroupId)
+      : [],
+  );
+
+  for (const claim of claims) {
+    const holder: ClaimHolder = claim.pool
+      ? {
+          kind: 'pool',
+          poolId: claim.pool.id,
+          poolTitle: claim.pool.title,
+          giftGroupName: claim.pool.giftGroup?.name ?? null,
+        }
+      : {
+          kind: 'user',
+          userId: claim.claimedByUserId ?? '',
+          displayName: claim.claimedByUser?.name ?? claim.claimedByUser?.username ?? null,
+        };
+
+    const contributesToHolderPool = Boolean(
+      claim.pool && Array.isArray(claim.pool.contributors) && claim.pool.contributors.length > 0,
+    );
+
+    states.set(
+      claim.wishlistItemId,
+      resolveClaimDisclosure(
+        holder,
+        {
+          isOwner: viewer.isOwner,
+          // `loadClaimStates`'s caller is the only source of `viewer` here,
+          // and a null userId always means an unattributed surface for this
+          // caller — but that equivalence is local to this function, not a
+          // general rule. `isAnonymous` is a surface-policy flag on
+          // ViewerRelationship, not a viewer-identity one; do not copy this
+          // line to a caller (e.g. the public share page) where a signed-in
+          // viewer can still be on an unattributed surface.
+          isAnonymous: viewer.userId === null,
+          contributesToHolderPool,
+          memberOfHolderGroup:
+            !contributesToHolderPool &&
+            Boolean(claim.pool?.giftGroupId && memberGroupIds.has(claim.pool.giftGroupId)),
+          sharesPoolWithHolderUser: false,
+        },
+        'label',
+      ),
+    );
+  }
+
+  return states;
 }
