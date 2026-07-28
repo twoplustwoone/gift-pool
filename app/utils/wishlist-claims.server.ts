@@ -301,6 +301,36 @@ export async function releaseSoloClaimsMatching(
   return released;
 }
 
+export type ClaimOutcomeFeedback = 'LOVED' | 'OKAY' | 'SKIPPED';
+
+/**
+ * Records post-occasion "did it land" feedback on a *solo* claim. Callers
+ * (currently `recordWishlistClaimOutcome` in person-surface.server.ts) still
+ * own authorization framing (throwing the caller-appropriate error shape);
+ * this just keeps the actual write to WishlistClaim inside the module. Does
+ * not touch a pool-held claim's outcome — that lives on `Pool.outcomeFeedback`
+ * and is a separate write outside this module's remit.
+ */
+export async function setClaimOutcomeFeedback(
+  wishlistItemId: string,
+  userId: string,
+  feedback: ClaimOutcomeFeedback,
+): Promise<{ ok: boolean }> {
+  const claim = await prisma.wishlistClaim.findUnique({
+    where: { wishlistItemId },
+    select: { claimedByUserId: true },
+  });
+  if (!claim || claim.claimedByUserId !== userId) {
+    return { ok: false };
+  }
+
+  await prisma.wishlistClaim.update({
+    where: { wishlistItemId },
+    data: { outcomeFeedback: feedback },
+  });
+  return { ok: true };
+}
+
 /**
  * The read model for wishlist claims: gathers the facts (who holds the
  * claim, whether the viewer contributes to or is a current member of the

@@ -16,7 +16,7 @@ import {
   HIDDEN_CLAIM_DISCLOSURE,
   type ClaimDisclosure,
 } from '#app/utils/wishlist-claim-disclosure.ts';
-import { loadClaimStates } from '#app/utils/wishlist-claims.server.ts';
+import { loadClaimStates, setClaimOutcomeFeedback } from '#app/utils/wishlist-claims.server.ts';
 
 // Post-occasion detection window (spec §4): 14 days after the occasion.
 export const POST_OCCASION_WINDOW_DAYS = 14;
@@ -330,17 +330,13 @@ export async function recordWishlistClaimOutcome(input: {
   requestId?: string | null;
 }) {
   const { userId, wishlistItemId, feedback } = input;
-  const claim = await prisma.wishlistClaim.findUnique({
-    where: { wishlistItemId },
-    select: { claimedByUserId: true },
-  });
-  if (!claim || claim.claimedByUserId !== userId) {
+  // The actual write to WishlistClaim goes through wishlist-claims.server.ts
+  // — it is the only code in the app permitted to write that table. This
+  // function still owns authorization framing (the 404 shape below).
+  const result = await setClaimOutcomeFeedback(wishlistItemId, userId, feedback);
+  if (!result.ok) {
     throw data({ error: 'Claim not found.' }, { status: 404 });
   }
-  await prisma.wishlistClaim.update({
-    where: { wishlistItemId },
-    data: { outcomeFeedback: feedback },
-  });
 
   queueLogEvent({
     name: 'gift_outcome_recorded',
