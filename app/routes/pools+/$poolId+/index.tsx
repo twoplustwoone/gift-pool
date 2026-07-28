@@ -342,8 +342,8 @@ const IdeaCard = ({
                       </DialogTitle>
                       <DialogDescription>
                         {conflict.name
-                          ? `${conflict.name} claimed ${idea.name} on their wishlist. Decide on it anyway and we'll ask if they're still getting it themselves — so you won't both buy it.`
-                          : `Someone has already claimed ${idea.name}. Decide on it anyway and we'll ask if they're still getting it themselves — so you won't both buy it.`}
+                          ? `${conflict.name} already claimed ${idea.name} on their wishlist. If you choose it anyway, your pool won't hold the claim — so there's a real risk you both end up buying it.`
+                          : `Someone already claimed ${idea.name} on their wishlist. If you choose it anyway, your pool won't hold the claim — so there's a real risk you both end up buying it.`}
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -1101,6 +1101,17 @@ const PoolIndex = () => {
     if (chooseFetcher.data?.claimedItemId) {
       toast.success(
         'Marked as claimed on their wishlist, so nobody else buys it.',
+      );
+    } else if (chooseFetcher.data?.conflictedItemId) {
+      // Covers both the case where the idea card already warned about a
+      // conflict, and the case where the item was claimed by someone else
+      // in the gap between the loader render and this POST — the loader
+      // showed it as free, so a silent success here would send the
+      // organizer off to buy a duplicate with no indication anything went
+      // wrong. Generic on purpose: the action has no disclosure object here,
+      // so the client must never guess who holds the claim.
+      toast.warning(
+        "Someone else already claimed this — your pool didn't get it, so there's a real risk you both buy it.",
       );
     }
   }, [chooseFetcher.data]);

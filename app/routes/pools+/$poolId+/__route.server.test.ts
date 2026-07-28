@@ -223,7 +223,9 @@ beforeEach(() => {
   callVote.mockReset().mockResolvedValue(undefined);
   cancelPool.mockReset().mockResolvedValue(undefined);
   castVote.mockReset().mockResolvedValue(undefined);
-  chooseIdea.mockReset().mockResolvedValue({ claimedItemId: null });
+  chooseIdea
+    .mockReset()
+    .mockResolvedValue({ claimedItemId: null, conflictedItemId: null });
   closeVote.mockReset().mockResolvedValue(undefined);
   deleteIdea.mockReset().mockResolvedValue(undefined);
   deletePool.mockReset().mockResolvedValue(undefined);
@@ -1027,7 +1029,10 @@ describe('pool detail route action', () => {
   });
 
   it('threads claimedItemId back through the response so the client can toast', async () => {
-    chooseIdea.mockResolvedValueOnce({ claimedItemId: 'wish-1' });
+    chooseIdea.mockResolvedValueOnce({
+      claimedItemId: 'wish-1',
+      conflictedItemId: null,
+    });
 
     const result = await action(
       toActionArgs({
@@ -1044,6 +1049,34 @@ describe('pool detail route action', () => {
     expect(getRouteResultStatus(result)).toBe(200);
     await expect(getRouteResultData(result)).resolves.toMatchObject({
       claimedItemId: 'wish-1',
+    });
+  });
+
+  it('threads conflictedItemId back through the response so a decision-time conflict is never silent', async () => {
+    // The loader may have rendered this idea as unconflicted — the item can
+    // still be claimed by someone else in the gap before this POST commits.
+    // Without this, the pool moves to DECIDED (unmounting the idea list)
+    // with zero indication anything went wrong.
+    chooseIdea.mockResolvedValueOnce({
+      claimedItemId: null,
+      conflictedItemId: 'wish-1',
+    });
+
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          ideaId: 'idea-1',
+          intent: 'choose-idea',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    await expect(getRouteResultData(result)).resolves.toMatchObject({
+      conflictedItemId: 'wish-1',
     });
   });
 

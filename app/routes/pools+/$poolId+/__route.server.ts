@@ -586,16 +586,19 @@ export async function action({ request, params }: ActionFunctionArgs) {
       if (!(await canManagePool(userId, poolForPerms))) {
         throw data({ error: 'Not allowed.' }, { status: 403 });
       }
-      const { claimedItemId } = await chooseIdea(
+      const { claimedItemId, conflictedItemId } = await chooseIdea(
         poolId,
         v.ideaId,
         userId,
         v.finalPriceCents ?? null,
       );
       // Threaded through so the idea card can toast when this decision
-      // silently claimed a previously-free wishlist item — otherwise the
-      // feature is invisible to the person who caused it.
-      return data({ ...submission.reply(), claimedItemId });
+      // silently claimed a previously-free wishlist item, or warn when the
+      // item turned out to already be claimed by someone else at commit
+      // time (e.g. discovered after the loader rendered this idea as
+      // unconflicted) — otherwise either outcome is invisible to the person
+      // who caused it, and the organizer may go buy a duplicate.
+      return data({ ...submission.reply(), claimedItemId, conflictedItemId });
     }
 
     case Intent.UpdateContribution: {

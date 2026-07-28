@@ -11,10 +11,15 @@ import { type ClaimDisclosure } from '#app/utils/wishlist-claim-disclosure.ts';
 const clipboardWriteText = vi.fn();
 const fetcherSubmit = vi.fn();
 const toastSuccess = vi.fn();
+const toastWarning = vi.fn();
 const fetcherState = {
   data: undefined as
     | undefined
-    | { inviteUrl?: string; claimedItemId?: string | null },
+    | {
+        inviteUrl?: string;
+        claimedItemId?: string | null;
+        conflictedItemId?: string | null;
+      },
   formData: undefined as FormData | undefined,
   state: 'idle' as 'idle' | 'loading' | 'submitting',
 };
@@ -22,6 +27,7 @@ const fetcherState = {
 vi.mock('sonner', () => ({
   toast: {
     success: (...args: Array<unknown>) => toastSuccess(...args),
+    warning: (...args: Array<unknown>) => toastWarning(...args),
   },
 }));
 
@@ -200,6 +206,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     clipboardWriteText.mockReset().mockResolvedValue(undefined);
     fetcherSubmit.mockReset();
     toastSuccess.mockReset();
+    toastWarning.mockReset();
     fetcherState.data = undefined;
     fetcherState.formData = undefined;
     fetcherState.state = 'idle';
@@ -821,6 +828,60 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
 
       expect(toastSuccess).toHaveBeenCalledWith(
         'Marked as claimed on their wishlist, so nobody else buys it.',
+      );
+    });
+
+    it('warns when a conflict is discovered at decision time even though the loader rendered the idea as unconflicted', () => {
+      // The loader saw no conflict, so the idea card submitted with no
+      // confirmation dialog — the pool still lost the claim underneath it,
+      // and the organizer must not be left with silence.
+      loaderDataSnapshot.ideaClaimConflicts = [];
+      fetcherState.data = { claimedItemId: null, conflictedItemId: 'wish-1' };
+
+      renderRoute();
+
+      expect(toastWarning).toHaveBeenCalledTimes(1);
+      const [message] = toastWarning.mock.calls[0] as [string];
+      // Generic on purpose — the action response carries no disclosure
+      // object, so the client must never guess a claimant's identity.
+      expect(message).not.toMatch(/sarah/i);
+      expect(message.toLowerCase()).toContain("didn't get it");
+      expect(toastSuccess).not.toHaveBeenCalled();
+    });
+
+    it('does not claim the claimant will be contacted or notified', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [
+        [
+          'idea-1',
+          {
+            show: true,
+            tone: 'warning',
+            text: 'Claimed by Sarah',
+            name: 'Sarah',
+            poolLink: null,
+            canJoinPool: false,
+          },
+        ],
+      ];
+
+      renderRoute();
+
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      await userEvent.click(chooseButton!);
+
+      const dialog = await screen.findByRole('dialog', {
+        name: "Sarah's already getting this one",
+      });
+      const dialogText = dialog.textContent ?? '';
+      // No promise of a Keep/Release follow-up to the claimant — that
+      // feature does not exist yet.
+      expect(dialogText).not.toMatch(/ask (them|if)/i);
+      expect(dialogText).not.toMatch(/let them know/i);
+      expect(dialogText).not.toMatch(/we'll/i);
+      expect(dialogText).toContain(
+        "your pool won't hold the claim — so there's a real risk you both end up buying it.",
       );
     });
   });

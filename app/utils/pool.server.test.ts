@@ -611,6 +611,23 @@ describe('pool server utilities', () => {
     });
   });
 
+  it('threads conflictedItemId back so a decision-time conflict is not silent', async () => {
+    giftIdeaFindFirst.mockResolvedValue({
+      estimatedPriceCents: 8000,
+      name: 'Speaker',
+    });
+    syncPoolClaimInTx.mockResolvedValueOnce({
+      claimedItemId: null,
+      conflictedItemId: 'wish-9',
+      released: [],
+    });
+
+    await expect(chooseIdea('pool-1', 'idea-1', 'user-1')).resolves.toEqual({
+      claimedItemId: null,
+      conflictedItemId: 'wish-9',
+    });
+  });
+
   it('propagates a claim-sync failure and skips every post-decision side effect', async () => {
     // The decision (`updateMany`) and the claim sync now commit in the same
     // `$transaction` — a rejection from the sync must abort the whole thing,
