@@ -169,9 +169,17 @@ export async function action({ request }: ActionFunctionArgs) {
     source: 'server',
     properties: { wishlistItemId, toPoolId: release.transferredToPoolId },
   });
+  // A transfer means the item is NOT free — settlement handed the claim
+  // straight to the longest-waiting pool inside the same transaction as the
+  // release (see `releaseUserClaim`). Reporting `claim: null` here would be a
+  // lie the client believes: it renders the item as free to grab while a
+  // pool actively holds it. `{ claimedByUserId: null }` is the same shape
+  // the loaders use for a pool-held claim (see `mapWishlistItems` /
+  // `w.public.$token.tsx`), so the client's existing sentinel mapping
+  // (`toPurchaseBySentinel`) reconciles it correctly without special-casing.
   return {
     ok: true,
     wishlistItemId,
-    claim: null,
+    claim: release.transferredToPoolId ? { claimedByUserId: null } : null,
   };
 }

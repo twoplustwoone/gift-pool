@@ -23,8 +23,15 @@ let useFetcherCallCount = 0;
 
 const purchaseFetcherState = {
   Form: (props: React.ComponentProps<'form'>) => <form {...props} />,
-  data: undefined,
-  state: 'idle' as const,
+  data: undefined as
+    | undefined
+    | {
+        claim: { claimedByUserId: string | null } | null;
+        ok: boolean;
+        wishlistItemId: string;
+        error?: string;
+      },
+  state: 'idle' as 'idle' | 'loading' | 'submitting',
   submit: vi.fn(),
 };
 
@@ -245,5 +252,76 @@ describe('wishlist item behavior', () => {
       'clientMutationId',
     ) as HTMLInputElement | null;
     expect(mutationIdInput?.value).toBeTruthy();
+  });
+
+  it('does not render an item as free after a release that transfers the claim to a pool', async () => {
+    // Reachable scenario this guards against: a friend claims an item, a
+    // pool later decides on the same item (conflict — the pool takes
+    // nothing yet), the friend releases. Settlement hands the claim
+    // straight to the waiting pool. The friend's screen must not show the
+    // item as free to grab — that's the duplicate-purchase bug this whole
+    // module exists to prevent.
+    mockUser = { id: 'viewer-id', roles: [] };
+    purchaseFetcherState.state = 'idle';
+    purchaseFetcherState.data = undefined;
+
+    const wishlistItem = {
+      categoryId: null,
+      claim: { claimedByUserId: 'viewer-id' },
+      id: 'item-1',
+      note: null,
+      ownerId: 'owner-id',
+      status: 'ACTIVE' as const,
+      title: 'Item one',
+      type: 'text',
+      updatedAt: new Date('2026-03-31T12:00:00.000Z'),
+      url: null,
+    };
+
+    const { rerender } = render(
+      <WishlistItem categories={[]} wishlistItem={wishlistItem} />,
+    );
+
+    expect(screen.getByTestId('wishlist-item-row')).not.toHaveAttribute(
+      'data-claimable',
+      'true',
+    );
+
+    const toggleButton = screen.getByRole('button', {
+      name: 'Let someone else pick up this gift',
+    });
+    await userEvent.click(toggleButton);
+
+    expect(purchaseFetcherState.submit).toHaveBeenCalledWith(
+      { intent: 'unpurchase', wishlistItemId: 'item-1' },
+      { method: 'post', action: '/wishlist/purchase' },
+    );
+
+    // Fetcher goes pending — matches real react-router behavior.
+    purchaseFetcherState.state = 'submitting';
+    rerender(<WishlistItem categories={[]} wishlistItem={wishlistItem} />);
+
+    // The server responds: the release transferred the claim to a pool, so
+    // the item is pool-held now — never `claim: null`.
+    purchaseFetcherState.state = 'idle';
+    purchaseFetcherState.data = {
+      claim: { claimedByUserId: null },
+      ok: true,
+      wishlistItemId: 'item-1',
+    };
+    rerender(<WishlistItem categories={[]} wishlistItem={wishlistItem} />);
+
+    expect(screen.getByTestId('wishlist-item-row')).not.toHaveAttribute(
+      'data-claimable',
+      'true',
+    );
+    // The "grab it" toggle must be gone — the item reads as claimed by
+    // someone else (the pool), not free.
+    expect(
+      screen.queryByRole('button', { name: "I'll grab this gift" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Let someone else pick up this gift' }),
+    ).not.toBeInTheDocument();
   });
 });

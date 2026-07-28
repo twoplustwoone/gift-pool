@@ -86,8 +86,9 @@ export const DeleteFormSchema = z.object({
 
 export type WishlistItemOwnerLayout = 'default' | 'reorder';
 type WishlistItemDragState = 'idle' | 'dragging-item' | 'dragging-category';
-// Pool claims render through ClaimDescriptor (PR3); this surface is
-// solo-only until then, so claimedByUserId may be null for a pool claim.
+// Pool claims render through ClaimDescriptor. claimedByUserId is null for a
+// pool-held claim — see `toPurchaseBySentinel` above for how that's told
+// apart from "unclaimed".
 type WishlistClaimPayload = { claimedByUserId: string | null } | null;
 type WishlistPurchaseActionResponse = {
   ok: boolean;
@@ -218,7 +219,13 @@ function useWishlistPurchaseController({
       actionData?.wishlistItemId === wishlistItem.id && actionData.ok === false;
 
     if (actionData?.wishlistItemId === wishlistItem.id) {
-      const reconciledPurchaseBy = actionData.claim?.claimedByUserId ?? null;
+      // Route the server's claim payload through the same sentinel mapping
+      // as the initial render (`serverPurchaseBy` above). Reading
+      // `claimedByUserId` directly here would collapse a pool-held claim
+      // (`{ claimedByUserId: null }`, meaning "a pool holds this now") down
+      // to the same value as "unclaimed" — the exact free-to-grab bug this
+      // module exists to close, reappearing through the fetcher path.
+      const reconciledPurchaseBy = toPurchaseBySentinel(actionData.claim);
       if (actionData.ok) {
         setPurchaseBy(reconciledPurchaseBy);
         purchaseRollbackRef.current = reconciledPurchaseBy;

@@ -132,11 +132,16 @@ describe('w.public.$token loader — claim attribution', () => {
 
     // Belt-and-braces: the pool title and group name must not leak anywhere
     // in the payload, not just in the claimDisclosure field we asserted on.
+    // Checked on both responses — the anonymous one is what an unauthenticated
+    // stranger actually hits, so it deserves the check at least as much as
+    // the signed-in-contributor response.
     expect(JSON.stringify(asSignedInContributor)).not.toContain(
       'Espresso pool',
     );
     expect(JSON.stringify(asSignedInContributor)).not.toContain(
       'Secret Coffee Crew',
     );
+    expect(JSON.stringify(anonymous)).not.toContain('Espresso pool');
+    expect(JSON.stringify(anonymous)).not.toContain('Secret Coffee Crew');
   });
 });

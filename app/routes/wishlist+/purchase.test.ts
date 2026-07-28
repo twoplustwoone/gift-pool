@@ -338,6 +338,70 @@ test('releases a claim held by the requester and returns claim: null', async () 
   ).resolves.toBeNull();
 });
 
+test('releasing a claim that transfers to a waiting pool reports the item as pool-held, not free', async () => {
+  const { user: owner } = await createUserWithSession();
+  const { user: organizer } = await createUserWithSession();
+  const { user: viewer, cookie } = await createUserWithSession();
+  await makeFriends(owner.id, viewer.id);
+  const item = await createWishlistItem({ ownerId: owner.id });
+
+  // The friend claims the item first.
+  await prisma.wishlistClaim.create({
+    data: { wishlistItemId: item.id, claimedByUserId: viewer.id },
+  });
+
+  // A pool decides on the same item afterward. It conflicts with the
+  // existing solo claim, so it takes nothing yet — but it now has intent
+  // and is waiting.
+  const pool = await prisma.pool.create({
+    data: { title: 'Pool', organizerId: organizer.id, recipientUserId: owner.id },
+  });
+  const idea = await prisma.giftIdea.create({
+    data: {
+      poolId: pool.id,
+      proposedById: organizer.id,
+      name: 'Espresso machine',
+      wishlistItemId: item.id,
+    },
+  });
+  await prisma.pool.update({
+    where: { id: pool.id },
+    data: { status: 'DECIDED', chosenIdeaId: idea.id, decidedAt: new Date() },
+  });
+
+  const response = await invoke({
+    cookie,
+    form: { wishlistItemId: item.id, intent: 'unpurchase' },
+  });
+
+  expect(getRouteResultStatus(response)).toBe(200);
+  const payload = await getRouteResultData(response);
+  expect(payload).toMatchObject({
+    ok: true,
+    wishlistItemId: item.id,
+    // Not `claim: null` — the pool immediately took the claim on release, so
+    // the item must not be reported as free to grab.
+    claim: { claimedByUserId: null },
+  });
+
+  const claim = await prisma.wishlistClaim.findUniqueOrThrow({
+    where: { wishlistItemId: item.id },
+  });
+  expect(claim.poolId).toBe(pool.id);
+  expect(claim.claimedByUserId).toBeNull();
+
+  expect(queueLogEvent).toHaveBeenCalledWith(
+    expect.objectContaining({
+      name: 'wishlist_claim_transferred',
+      userId: viewer.id,
+      properties: expect.objectContaining({
+        wishlistItemId: item.id,
+        toPoolId: pool.id,
+      }),
+    }),
+  );
+});
+
 test('rejects releasing a claim held by someone else', async () => {
   const { user: owner } = await createUserWithSession();
   const { user: holder } = await createUserWithSession();

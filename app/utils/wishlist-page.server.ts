@@ -117,8 +117,8 @@ function mapWishlistItems(
     status: string;
     hasImage: boolean;
     imageSource: string | null;
-    // Pool claims render through ClaimDescriptor (PR3); this surface is
-    // solo-only until then, so claimedByUserId may be null for a pool claim.
+    // A claim row can hold either a solo claimedByUserId or a pool — see
+    // ClaimDescriptor. claimedByUserId is null for a pool-held claim.
     claim?: {
       claimedByUserId: string | null;
     } | null;
