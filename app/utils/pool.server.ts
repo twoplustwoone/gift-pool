@@ -1,9 +1,10 @@
-import { captureMessage } from '@sentry/react-router'
+import { captureException, captureMessage } from '@sentry/react-router'
 import { data } from 'react-router'
 import { nanoid } from 'nanoid'
 import { queueLogEvent } from '#app/utils/analytics.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts'
+import { queueNotification } from '#app/utils/notification-dispatcher.server.ts'
 import { logPoolActivity } from '#app/utils/pool-activity.server.ts'
 import {
 	POOL_ACTIVITY_TYPE,
@@ -577,7 +578,14 @@ export async function chooseIdea(
 ): Promise<{ claimedItemId: string | null; conflictedItemId: string | null }> {
 	const idea = await prisma.giftIdea.findFirst({
 		where: { id: ideaId, poolId },
-		select: { estimatedPriceCents: true, name: true },
+		select: {
+			estimatedPriceCents: true,
+			name: true,
+			// Only used to compose the conflict notification below — never to
+			// disclose the pool to the claim holder (see
+			// queueWishlistClaimConflictNotification's own comment).
+			pool: { select: { title: true } },
+		},
 	})
 
 	if (!idea) {
@@ -647,6 +655,11 @@ export async function chooseIdea(
 			source: 'server',
 			properties: { poolId, wishlistItemId: claimSync.conflictedItemId },
 		})
+		queueWishlistClaimConflictNotification(
+			poolId,
+			idea.pool.title,
+			claimSync.conflictedItemId,
+		)
 	}
 	for (const release of claimSync.released) {
 		if (!release.transferredToPoolId) continue
@@ -684,6 +697,71 @@ export async function chooseIdea(
 		claimedItemId: claimSync.claimedItemId,
 		conflictedItemId: claimSync.conflictedItemId,
 	}
+}
+
+// Asks the person holding a conflicting claim whether they're still getting
+// the item — the Keep/Release loop. Fire-and-forget with its own try/catch,
+// matching the "side effects off the action response" pattern: a failure
+// here must never turn the already-committed decision into a 500 for the
+// organizer who chose the idea.
+//
+// Reads the claim fresh (not the pre-transaction snapshot) because the truth
+// can have moved between `syncPoolClaimInTx` committing and this running —
+// e.g. the holder released in the interim and the item already settled to
+// this very pool. Re-reading means we only ever ask about a conflict that
+// still exists.
+//
+// `poolTitle` is carried into the payload for bookkeeping only. The claim
+// holder may have no relationship to this pool's group — the notification's
+// own renderer (notification-events.server.tsx) must never put it in the
+// rendered message; see the payload comment in notification-catalog.ts and
+// the privacy ladder in wishlist-claim-disclosure.ts.
+function queueWishlistClaimConflictNotification(
+	poolId: string,
+	poolTitle: string,
+	wishlistItemId: string,
+): void {
+	void (async () => {
+		const claim = await prisma.wishlistClaim.findUnique({
+			where: { wishlistItemId },
+			select: {
+				claimedByUserId: true,
+				wishlistItem: {
+					select: {
+						title: true,
+						owner: { select: { name: true, username: true } },
+					},
+				},
+			},
+		})
+		// The other side of a conflict can be another pool, not a person — the
+		// claim holder is only present here when `claimedByUserId` is set.
+		// There is nobody to ask when a pool holds it.
+		if (!claim?.claimedByUserId || !claim.wishlistItem) return
+
+		queueNotification({
+			userId: claim.claimedByUserId,
+			type: NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT,
+			payload: {
+				wishlistItemId,
+				itemTitle: claim.wishlistItem.title,
+				recipientName:
+					claim.wishlistItem.owner.name ?? claim.wishlistItem.owner.username,
+				recipientUsername: claim.wishlistItem.owner.username,
+				poolId,
+				poolTitle,
+			},
+			// One notification per conflicted decision: this key is claimed in
+			// the `NotificationDelivery` ledger (per channel) before any channel
+			// delivers, so re-entering this path for the same pool+item — a
+			// retry, or re-deciding back onto an item that's still conflicted —
+			// never asks the claim holder twice. See
+			// notification-dispatcher.server.ts / claimNotificationDelivery.
+			sourceIdentifier: `claim-conflict:${poolId}:${wishlistItemId}`,
+		})
+	})().catch((error: unknown) => {
+		captureException(error)
+	})
 }
 
 // Update the confirmed final price after the gift has been decided.

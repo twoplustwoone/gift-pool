@@ -519,12 +519,22 @@ type OrganizerNudgePayload = {
 };
 
 // Shared by all three wishlist-claim events (Task 15 registers the types;
-// Task 16 populates and sends them). `wishlistItemId` identifies the claim,
-// `poolId`/`poolTitle` the pool whose decision created or resolved the
-// conflict with this recipient's existing claim.
+// Task 16 sends WISHLIST_CLAIM_CONFLICT — TRANSFERRED/RELEASED remain
+// registered but unqueued until a future task needs them). `wishlistItemId`
+// identifies the claim; `itemTitle`/`recipientName`/`recipientUsername`
+// describe what's on the line and are safe to disclose to the claim holder
+// outright — they already know both, having claimed this exact item on this
+// exact person's wishlist. `poolId`/`poolTitle` identify the pool whose
+// decision created or resolved the conflict — kept here for bookkeeping and
+// for a future notification back to the pool's own side, NOT for use in
+// WISHLIST_CLAIM_CONFLICT's rendered copy: that notification can reach
+// someone with no relationship to the pool's group, and the privacy ladder
+// (wishlist-claim-disclosure.ts) never names a pool to an outsider.
 type WishlistClaimConflictPayload = {
   wishlistItemId: string;
   itemTitle: string;
+  recipientName: string;
+  recipientUsername: string;
   poolId: string;
   poolTitle: string;
 };

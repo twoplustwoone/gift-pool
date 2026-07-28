@@ -4,6 +4,7 @@ import { FriendRequestReceivedEmail } from '#app/emails/friend-request-received.
 import { PoolActivityEmail } from '#app/emails/pool-activity.tsx';
 import { PoolInvitationReceivedEmail } from '#app/emails/pool-invitation-received.tsx';
 import { UpcomingBirthdayEmail } from '#app/emails/upcoming-birthday.tsx';
+import { WishlistClaimConflictEmail } from '#app/emails/wishlist-claim-conflict.tsx';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { OCCASION_REMINDER_EMAIL_SRC } from '#app/utils/analytics.ts';
 import { buildAppUrl } from '#app/utils/app-url.server.ts';
@@ -111,9 +112,13 @@ export async function renderNotificationChannel<C extends NotificationChannel>(
     case NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER:
       return renderPoolActivity(intent, channel);
     case NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT:
+      return renderWishlistClaimConflict(intent, channel);
     case NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED:
     case NOTIFICATION_TYPES.WISHLIST_CLAIM_RELEASED:
-      // Registered in the catalog (Task 15); rendering is wired in Task 16.
+      // Registered in the catalog (Task 15). Nothing queues these two yet —
+      // Task 16 only sends WISHLIST_CLAIM_CONFLICT (see its report). Left as
+      // an explicit placeholder rather than inventing copy for an event no
+      // code path fires, which nobody could review against real behavior.
       throw new Error(`Rendering for ${intent.type} is not implemented yet.`);
   }
 }
@@ -336,6 +341,72 @@ async function renderUpcomingBirthday<C extends NotificationChannel>(
           messageParams,
         ),
         url: `/users/${payload.birthdayUsername}`,
+        tag: getNotificationOccurrenceKey(intent),
+      } as NotificationChannelMessageMap[C];
+  }
+}
+
+async function renderWishlistClaimConflict<C extends NotificationChannel>(
+  intent: NotificationIntent<'WISHLIST_CLAIM_CONFLICT'>,
+  channel: C,
+): Promise<NotificationChannelMessageMap[C]> {
+  const { payload } = intent;
+  // No poolId/poolTitle here on purpose — this notification can reach
+  // someone with no relationship to the pool's group, and the privacy
+  // ladder (wishlist-claim-disclosure.ts) never names a pool to an
+  // outsider. `wishlistUrl` points at the wishlist the recipient already
+  // knows about (it's the one they claimed on), never at the pool.
+  const messageParams = {
+    item: payload.itemTitle,
+    recipient: payload.recipientName,
+  };
+  const message = translate(
+    'en',
+    'notifications.wishlistClaimConflict.message',
+    messageParams,
+  );
+  const wishlistUrl = `/users/${payload.recipientUsername}/wishlist`;
+
+  switch (channel) {
+    case NOTIFICATION_CHANNELS.IN_APP:
+      return {
+        status: 'UNREAD',
+        messageKey: 'notifications.wishlistClaimConflict.message',
+        messageParams: JSON.stringify(messageParams),
+        targetUrl: wishlistUrl,
+        metadata: JSON.stringify({ wishlistItemId: payload.wishlistItemId }),
+        actions: JSON.stringify([
+          {
+            kind: 'WISHLIST_CLAIM_KEEP',
+            labelKey: 'notifications.wishlistClaimConflict.keep',
+          },
+          {
+            kind: 'WISHLIST_CLAIM_RELEASE',
+            labelKey: 'notifications.wishlistClaimConflict.release',
+          },
+        ]),
+        friendRequestId: null,
+      } as NotificationChannelMessageMap[C];
+    case NOTIFICATION_CHANNELS.EMAIL: {
+      const managePreferencesUrl = await buildManagePreferencesUrl(intent);
+      return {
+        subject: `Still getting ${payload.itemTitle} for ${payload.recipientName}?`,
+        react: (
+          <WishlistClaimConflictEmail
+            appName={appName}
+            itemTitle={payload.itemTitle}
+            recipientName={payload.recipientName}
+            wishlistUrl={buildAppUrl(wishlistUrl)}
+            managePreferencesUrl={managePreferencesUrl}
+          />
+        ),
+      } as NotificationChannelMessageMap[C];
+    }
+    case NOTIFICATION_CHANNELS.WEB_PUSH:
+      return {
+        title: translate('en', 'notifications.wishlistClaimConflict.pushTitle'),
+        body: message,
+        url: wishlistUrl,
         tag: getNotificationOccurrenceKey(intent),
       } as NotificationChannelMessageMap[C];
   }

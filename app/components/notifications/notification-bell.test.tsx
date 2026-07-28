@@ -72,6 +72,10 @@ vi.mock('#app/utils/i18n.tsx', () => ({
         'notifications.poolInvitation.declineSuccess': 'Invitation declined',
         'notifications.title': 'Notifications',
         'notifications.viewMore': 'View more',
+        'notifications.wishlistClaimConflict.keepSuccess':
+          "Kept — you're still on gift duty for this one.",
+        'notifications.wishlistClaimConflict.releaseSuccess':
+          "Released — the group's got it from here. Thanks!",
         'toasts.genericError': 'Something went wrong',
       })[key] ?? key,
   }),
@@ -401,5 +405,104 @@ describe('NotificationBell', () => {
     );
     expect(navigate).toHaveBeenCalledWith('/pools/pool-1');
     expect(toastSuccess).toHaveBeenCalledWith('Pool joined');
+  });
+
+  function wishlistClaimConflictListResponse() {
+    return jsonResponse({
+      hasMore: false,
+      nextCursor: null,
+      notifications: [
+        {
+          actions: [
+            { kind: 'WISHLIST_CLAIM_KEEP', label: 'Keep it' },
+            { kind: 'WISHLIST_CLAIM_RELEASE', label: 'Release it' },
+          ],
+          createdAt: '2026-03-31T12:00:00.000Z',
+          friendRequestId: null,
+          poolInvitationId: null,
+          id: 'notification-1',
+          messageKey: 'wishlist.claim.conflict',
+          messageParams: null,
+          metadata: { wishlistItemId: 'wish-9' },
+          status: 'UNREAD',
+          targetUrl: '/users/taylor/wishlist',
+          type: 'WISHLIST_CLAIM_CONFLICT',
+        },
+      ],
+      unreadCount: 1,
+    });
+  }
+
+  it('releases a wishlist claim inline through the same unpurchase path as the wishlist page, then dismisses the notification', async () => {
+    fetchMock
+      .mockResolvedValueOnce(wishlistClaimConflictListResponse())
+      .mockResolvedValueOnce(
+        jsonResponse({ ok: true, wishlistItemId: 'wish-9', claim: null }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ success: true, unreadCount: 0 }));
+
+    renderBell(1);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Notifications' }),
+    );
+    await screen.findByText('wishlist.claim.conflict');
+    await userEvent.click(screen.getByRole('button', { name: 'Release it' }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('wishlist.claim.conflict'),
+      ).not.toBeInTheDocument();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/wishlist/purchase',
+      expect.objectContaining({ method: 'POST', credentials: 'same-origin' }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/notifications/notification-1/delete',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(track).toHaveBeenCalledWith('notification_action_completed', {
+      kind: 'WISHLIST_CLAIM_RELEASE',
+      success: true,
+    });
+    expect(toastSuccess).toHaveBeenCalledWith(
+      "Released — the group's got it from here. Thanks!",
+    );
+  });
+
+  it('keeps a wishlist claim by dismissing only — never calls the purchase route', async () => {
+    fetchMock
+      .mockResolvedValueOnce(wishlistClaimConflictListResponse())
+      .mockResolvedValueOnce(jsonResponse({ success: true, unreadCount: 0 }));
+
+    renderBell(1);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Notifications' }),
+    );
+    await screen.findByText('wishlist.claim.conflict');
+    await userEvent.click(screen.getByRole('button', { name: 'Keep it' }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('wishlist.claim.conflict'),
+      ).not.toBeInTheDocument();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/wishlist/purchase',
+      expect.anything(),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/notifications/notification-1/delete',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(track).toHaveBeenCalledWith('notification_action_completed', {
+      kind: 'WISHLIST_CLAIM_KEEP',
+      success: true,
+    });
+    expect(toastSuccess).toHaveBeenCalledWith(
+      "Kept — you're still on gift duty for this one.",
+    );
   });
 });

@@ -83,6 +83,9 @@ const MARK_ALL_ENDPOINT = '/api/notifications/read-all';
 const FRIEND_ACCEPT_EVENT = 'FRIEND_ACCEPT';
 const POOL_INVITATION_ACCEPT_EVENT = 'POOL_INVITATION_ACCEPT';
 const POOL_INVITATION_DECLINE_EVENT = 'POOL_INVITATION_DECLINE';
+const WISHLIST_CLAIM_KEEP_EVENT = 'WISHLIST_CLAIM_KEEP';
+const WISHLIST_CLAIM_RELEASE_EVENT = 'WISHLIST_CLAIM_RELEASE';
+const WISHLIST_PURCHASE_ENDPOINT = '/wishlist/purchase';
 
 type PendingActionKey = `${string}:${string}`;
 type NotificationTranslator = ReturnType<typeof useTranslation>['t'];
@@ -118,7 +121,8 @@ function NotificationRowActions({
             size="sm"
             variant={
               action.kind === FRIEND_ACCEPT_EVENT ||
-              action.kind === POOL_INVITATION_ACCEPT_EVENT
+              action.kind === POOL_INVITATION_ACCEPT_EVENT ||
+              action.kind === WISHLIST_CLAIM_RELEASE_EVENT
                 ? 'default'
                 : 'secondary'
             }
@@ -675,6 +679,102 @@ export const NotificationBell = () => {
     [navigate, pendingActionKeys, setUnreadCount, t],
   );
 
+  // Keep and Release both resolve the notification inline — neither
+  // navigates away. Release actually mutates the claim (via the same
+  // `/wishlist/purchase` unpurchase path the wishlist page uses); Keep only
+  // dismisses, since overriding someone's claim is an explicit non-goal.
+  const handleWishlistClaimAction = useCallback(
+    async (
+      notification: ApiNotification,
+      action: NotificationActionPayload,
+    ) => {
+      const actionKey: PendingActionKey = `${notification.id}:${action.kind}`;
+      if (pendingActionKeys.has(actionKey)) return;
+      const metadata = (notification.metadata ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const wishlistItemId = metadata.wishlistItemId as string | undefined;
+      const isRelease = action.kind === WISHLIST_CLAIM_RELEASE_EVENT;
+      if (isRelease && !wishlistItemId) return;
+
+      const previousNotifications = notificationsRef.current;
+      const previousUnreadCount = unreadCountRef.current;
+      const wasUnread = notification.status === 'UNREAD';
+
+      setPendingActionKeys((prev) => new Set(prev).add(actionKey));
+      try {
+        if (isRelease && wishlistItemId) {
+          const releaseFormData = new FormData();
+          releaseFormData.set('wishlistItemId', wishlistItemId);
+          releaseFormData.set('intent', 'unpurchase');
+          const releaseResponse = await fetch(WISHLIST_PURCHASE_ENDPOINT, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+            body: releaseFormData,
+          });
+          const releasePayload = (await releaseResponse
+            .json()
+            .catch(() => null)) as { ok?: boolean } | null;
+          if (!releaseResponse.ok || !releasePayload?.ok) {
+            throw new Error('Unable to release wishlist claim');
+          }
+        }
+
+        // Both actions dismiss the notification once they've done their work.
+        setNotifications((prev) =>
+          prev.filter((item) => item.id !== notification.id),
+        );
+        if (wasUnread) {
+          setUnreadCount(Math.max(0, previousUnreadCount - 1));
+        }
+        const dismissResponse = await fetch(
+          `${NOTIFICATIONS_ENDPOINT}/${notification.id}/delete`,
+          {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          },
+        );
+        if (dismissResponse.ok) {
+          const dismissPayload = (await dismissResponse.json()) as {
+            unreadCount?: number;
+          };
+          if (typeof dismissPayload.unreadCount === 'number') {
+            setUnreadCount(dismissPayload.unreadCount);
+          }
+        }
+
+        track('notification_action_completed', {
+          kind: action.kind,
+          success: true,
+        });
+        toast.success(
+          isRelease
+            ? t('notifications.wishlistClaimConflict.releaseSuccess')
+            : t('notifications.wishlistClaimConflict.keepSuccess'),
+        );
+      } catch (err) {
+        console.error(err);
+        setNotifications(previousNotifications);
+        setUnreadCount(previousUnreadCount);
+        track('notification_action_completed', {
+          kind: action.kind,
+          success: false,
+        });
+        toast.error(t('toasts.genericError'));
+      } finally {
+        setPendingActionKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(actionKey);
+          return next;
+        });
+      }
+    },
+    [pendingActionKeys, setUnreadCount, t],
+  );
+
   const displayCount = unreadCount > 9 ? '9+' : unreadCount.toString();
 
   const handleDeleteNotificationClick = useCallback(
@@ -699,9 +799,16 @@ export const NotificationBell = () => {
         handlePoolInvitationAction(notification, action).catch(() => {});
         return;
       }
+      if (
+        action.kind === WISHLIST_CLAIM_KEEP_EVENT ||
+        action.kind === WISHLIST_CLAIM_RELEASE_EVENT
+      ) {
+        handleWishlistClaimAction(notification, action).catch(() => {});
+        return;
+      }
       handleFriendAction(notification, action).catch(() => {});
     },
-    [handleFriendAction, handlePoolInvitationAction],
+    [handleFriendAction, handlePoolInvitationAction, handleWishlistClaimAction],
   );
   const handleLoadMore = useCallback(() => {
     loadNotifications({

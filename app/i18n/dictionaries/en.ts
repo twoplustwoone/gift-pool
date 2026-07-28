@@ -85,6 +85,15 @@ export const en = {
       message: '{{sender}} reminded you to deliver the gift for {{pool}}',
       pushTitle: 'Delivery reminder',
     },
+    wishlistClaimConflict: {
+      message:
+        'A group has also decided to get {{item}} for {{recipient}}. Are you still getting it yourself?',
+      pushTitle: 'Still getting this?',
+      keep: 'Keep it',
+      release: 'Release it',
+      keepSuccess: "Kept — you're still on gift duty for this one.",
+      releaseSuccess: "Released — the group's got it from here. Thanks!",
+    },
     markAllReadSuccess: 'All notifications marked as read.',
   },
   friends: {
