@@ -63,6 +63,11 @@ import {
 import { dollarsToCents } from '#app/utils/price.ts';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
+import { type ClaimDisclosure } from '#app/utils/wishlist-claim-disclosure.ts';
+import {
+  loadClaimStates,
+  loadIdeaClaimConflicts,
+} from '#app/utils/wishlist-claims.server.ts';
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
@@ -110,11 +115,20 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     canManage,
   });
 
-  // My vote (if any)
-  const myVote = await prisma.ideaVote.findUnique({
-    where: { poolId_voterId: { poolId, voterId: userId } },
-    select: { ideaId: true },
-  });
+  // My vote (if any). Runs alongside the idea claim-conflict lookup below —
+  // neither depends on the other's result.
+  const [myVote, ideaClaimConflicts] = await Promise.all([
+    prisma.ideaVote.findUnique({
+      where: { poolId_voterId: { poolId, voterId: userId } },
+      select: { ideaId: true },
+    }),
+    // Per-idea claim conflicts (badge surface): flags any proposed idea whose
+    // linked wishlist item is already claimed by someone other than this
+    // pool. Shipped as an array of [ideaId, disclosure] pairs — loader data
+    // round-trips through the client as JSON, and a Map doesn't survive that.
+    loadIdeaClaimConflicts(poolId, userId),
+  ]);
+  const ideaClaimConflictEntries = Array.from(ideaClaimConflicts.entries());
 
   // Contribution breakdown (only meaningful when DECIDED+). Projected per
   // viewer: full rows for the purchaser, own-share-only for everyone else.
@@ -139,7 +153,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   // (e.g. via invite code) must not bypass the recipient's privacy setting.
   const ideasOpen =
     pool.status === POOL_STATUS.OPEN || pool.status === POOL_STATUS.VOTING;
-  const recipientWishlistItems =
+  const recipientWishlistItemsBase =
     pool.recipientUserId &&
     ideasOpen &&
     (await canViewWishlistOf(userId, pool.recipientUserId))
@@ -160,6 +174,27 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
           orderBy: [{ categoryId: 'asc' }, { sortOrder: 'asc' }],
         })
       : [];
+
+  // Picker chip (Task 13 part 2): resolved at the 'row' surface, which
+  // resolveClaimDisclosure forces to a fully anonymous "Already claimed"
+  // regardless of viewer relationship — the picker is a compose-time list
+  // and must never name a person, pool, or group. `isOwner: false` is safe
+  // unconditionally here: the recipient is already 404'd out of this loader
+  // above, so every viewer reaching this line is a contributor, never the
+  // owner.
+  const pickerClaimStates: Map<string, ClaimDisclosure> =
+    recipientWishlistItemsBase.length > 0
+      ? await loadClaimStates(
+          recipientWishlistItemsBase.map((item) => item.id),
+          { userId, isOwner: false },
+          'row',
+        )
+      : new Map();
+
+  const recipientWishlistItems = recipientWishlistItemsBase.map((item) => ({
+    ...item,
+    claimDisclosure: pickerClaimStates.get(item.id) ?? null,
+  }));
 
   const organizerReminderKinds: OrganizerNudgeKind[] = [];
   if (canManage && ideasOpen) {
@@ -206,6 +241,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     contributionBreakdown,
     inviteUrl,
     recipientWishlistItems,
+    ideaClaimConflicts: ideaClaimConflictEntries,
     organizerReminderStates,
     notificationAwareness: await getContextNotificationAwareness({
       userId,
@@ -550,8 +586,19 @@ export async function action({ request, params }: ActionFunctionArgs) {
       if (!(await canManagePool(userId, poolForPerms))) {
         throw data({ error: 'Not allowed.' }, { status: 403 });
       }
-      await chooseIdea(poolId, v.ideaId, userId, v.finalPriceCents ?? null);
-      return data(submission.reply());
+      const { claimedItemId, conflictedItemId } = await chooseIdea(
+        poolId,
+        v.ideaId,
+        userId,
+        v.finalPriceCents ?? null,
+      );
+      // Threaded through so the idea card can toast when this decision
+      // silently claimed a previously-free wishlist item, or warn when the
+      // item turned out to already be claimed by someone else at commit
+      // time (e.g. discovered after the loader rendered this idea as
+      // unconflicted) — otherwise either outcome is invisible to the person
+      // who caused it, and the organizer may go buy a duplicate.
+      return data({ ...submission.reply(), claimedItemId, conflictedItemId });
     }
 
     case Intent.UpdateContribution: {

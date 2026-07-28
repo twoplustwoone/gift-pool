@@ -45,6 +45,8 @@ const queueLogEvent = vi.fn();
 const redirectWithToast = vi.fn();
 const getContextNotificationAwareness = vi.fn();
 const getOrganizerNudgeAvailability = vi.fn();
+const loadClaimStates = vi.fn();
+const loadIdeaClaimConflicts = vi.fn();
 
 vi.mock('#app/utils/auth.server.ts', () => ({
   requireUserId: (...args: Array<unknown>) => requireUserId(...args),
@@ -85,6 +87,17 @@ vi.mock('#app/utils/db.server.ts', () => ({
       findFirst: (...args: Array<unknown>) => wishlistItemFindFirst(...args),
     },
   },
+}));
+
+// The loader resolves wishlist-claim state through these two. They hit Prisma
+// models this file's client mock does not define, so leaving them real makes
+// every loader test throw. Their real behaviour is covered against a live
+// database in app/utils/wishlist-claims.server.test.ts — the same split
+// pool.server.test.ts uses for syncPoolClaim.
+vi.mock('#app/utils/wishlist-claims.server.ts', () => ({
+  loadClaimStates: (...args: Array<unknown>) => loadClaimStates(...args),
+  loadIdeaClaimConflicts: (...args: Array<unknown>) =>
+    loadIdeaClaimConflicts(...args),
 }));
 
 vi.mock('#app/utils/pool.server.ts', () => ({
@@ -210,7 +223,9 @@ beforeEach(() => {
   callVote.mockReset().mockResolvedValue(undefined);
   cancelPool.mockReset().mockResolvedValue(undefined);
   castVote.mockReset().mockResolvedValue(undefined);
-  chooseIdea.mockReset().mockResolvedValue(undefined);
+  chooseIdea
+    .mockReset()
+    .mockResolvedValue({ claimedItemId: null, conflictedItemId: null });
   closeVote.mockReset().mockResolvedValue(undefined);
   deleteIdea.mockReset().mockResolvedValue(undefined);
   deletePool.mockReset().mockResolvedValue(undefined);
@@ -250,6 +265,8 @@ beforeEach(() => {
       status: 'AVAILABLE',
     }),
   );
+  loadClaimStates.mockReset().mockResolvedValue(new Map());
+  loadIdeaClaimConflicts.mockReset().mockResolvedValue(new Map());
 });
 
 describe('pool detail route loader', () => {
@@ -1009,6 +1026,58 @@ describe('pool detail route action', () => {
       'viewer-1',
       2500,
     );
+  });
+
+  it('threads claimedItemId back through the response so the client can toast', async () => {
+    chooseIdea.mockResolvedValueOnce({
+      claimedItemId: 'wish-1',
+      conflictedItemId: null,
+    });
+
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          ideaId: 'idea-1',
+          intent: 'choose-idea',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    await expect(getRouteResultData(result)).resolves.toMatchObject({
+      claimedItemId: 'wish-1',
+    });
+  });
+
+  it('threads conflictedItemId back through the response so a decision-time conflict is never silent', async () => {
+    // The loader may have rendered this idea as unconflicted — the item can
+    // still be claimed by someone else in the gap before this POST commits.
+    // Without this, the pool moves to DECIDED (unmounting the idea list)
+    // with zero indication anything went wrong.
+    chooseIdea.mockResolvedValueOnce({
+      claimedItemId: null,
+      conflictedItemId: 'wish-1',
+    });
+
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          ideaId: 'idea-1',
+          intent: 'choose-idea',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    await expect(getRouteResultData(result)).resolves.toMatchObject({
+      conflictedItemId: 'wish-1',
+    });
   });
 
   it('updates the current user contribution in cents', async () => {

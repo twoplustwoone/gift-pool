@@ -6,13 +6,30 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { type ClaimDisclosure } from '#app/utils/wishlist-claim-disclosure.ts';
 
 const clipboardWriteText = vi.fn();
+const fetcherSubmit = vi.fn();
+const toastSuccess = vi.fn();
+const toastWarning = vi.fn();
 const fetcherState = {
-  data: undefined as undefined | { inviteUrl?: string },
+  data: undefined as
+    | undefined
+    | {
+        inviteUrl?: string;
+        claimedItemId?: string | null;
+        conflictedItemId?: string | null;
+      },
   formData: undefined as FormData | undefined,
   state: 'idle' as 'idle' | 'loading' | 'submitting',
 };
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: (...args: Array<unknown>) => toastSuccess(...args),
+    warning: (...args: Array<unknown>) => toastWarning(...args),
+  },
+}));
 
 type UserImageFixture = { id: string; altText: string | null } | null;
 
@@ -43,6 +60,7 @@ const loaderDataSnapshot = {
         shortfallCents: number;
         allReceived: boolean;
       },
+  ideaClaimConflicts: [] as Array<[string, ClaimDisclosure]>,
   inviteUrl: 'https://giftpool.app/pools/join/invite-1' as string | null,
   isOrganizer: true,
   myVoteIdeaId: 'idea-1' as string | null,
@@ -151,6 +169,7 @@ const loaderDataSnapshot = {
     url: string | null;
     priceCents: number | null;
     currency: string | null;
+    claimDisclosure: ClaimDisclosure | null;
   }>,
   viewer: {
     contributionCents: 3000,
@@ -173,7 +192,7 @@ vi.mock('react-router', async () => {
       data: fetcherState.data,
       formData: fetcherState.formData,
       state: fetcherState.state,
-      submit: vi.fn(),
+      submit: fetcherSubmit,
     }),
     useNavigation: () => ({ state: 'idle' }),
     useRouteLoaderData: () => loaderDataSnapshot,
@@ -185,6 +204,9 @@ import PoolIndex from './index.tsx';
 describe('app/routes/pools+/$poolId+/index.tsx', () => {
   beforeEach(() => {
     clipboardWriteText.mockReset().mockResolvedValue(undefined);
+    fetcherSubmit.mockReset();
+    toastSuccess.mockReset();
+    toastWarning.mockReset();
     fetcherState.data = undefined;
     fetcherState.formData = undefined;
     fetcherState.state = 'idle';
@@ -219,6 +241,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
       url: null,
     };
     loaderDataSnapshot.recipientWishlistItems = [];
+    loaderDataSnapshot.ideaClaimConflicts = [];
     loaderDataSnapshot.viewer.userId = 'viewer-1';
 
     vi.stubGlobal('navigator', {
@@ -324,6 +347,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
         url: 'https://shop.example.com/espresso',
         priceCents: 24999,
         currency: 'USD',
+        claimDisclosure: null,
       },
     ];
 
@@ -570,5 +594,425 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     expect(
       screen.queryByRole('button', { name: 'Mark as delivered' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('renders the conflict badge instead of the "From wishlist" pill when a conflict exists', () => {
+    loaderDataSnapshot.ideaClaimConflicts = [
+      [
+        'idea-1',
+        {
+          show: true,
+          tone: 'warning',
+          text: 'Another group is getting this',
+          name: null,
+          poolLink: null,
+          canJoinPool: false,
+        },
+      ],
+    ];
+
+    renderRoute();
+
+    expect(
+      screen.getByText('Another group is getting this'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('From wishlist')).not.toBeInTheDocument();
+  });
+
+  it('renders the unmodified "From wishlist" pill when there is no conflict', () => {
+    loaderDataSnapshot.ideaClaimConflicts = [];
+
+    renderRoute();
+
+    expect(screen.getByText('From wishlist')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Another group is getting this'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows the conflict on the chosen gift for a decided pool that does not hold the claim — from loader data, not a toast', () => {
+    // No fetcher submission happened in this render at all (fetcherState.data
+    // stays undefined) — the viewer is someone who reloaded the page or never
+    // submitted the decision themselves, so the toast effect never fires.
+    // The only way this warning can reach them is loader-driven.
+    loaderDataSnapshot.pool.status = 'DECIDED';
+    loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
+    loaderDataSnapshot.pool.purchaserId = 'buyer-1';
+    loaderDataSnapshot.viewer.userId = 'deliverer-1';
+    loaderDataSnapshot.ideaClaimConflicts = [
+      [
+        'idea-1',
+        {
+          show: true,
+          tone: 'warning',
+          text: 'Already claimed',
+          name: null,
+          poolLink: null,
+          canJoinPool: false,
+        },
+      ],
+    ];
+
+    renderRoute();
+
+    expect(toastWarning).not.toHaveBeenCalled();
+    const conflict = screen.getByTestId('chosen-gift-conflict');
+    expect(conflict).toHaveTextContent('Already claimed');
+    // Honest about today's behavior: it must never promise the claimant will
+    // be contacted — there is no notification or keep/release flow yet.
+    expect(conflict.textContent?.toLowerCase()).not.toContain('contact');
+    expect(conflict.textContent?.toLowerCase()).not.toContain('notif');
+    // Pre-purchase, "check before buying" is still actionable advice.
+    expect(conflict.textContent?.toLowerCase()).toContain('before buying');
+  });
+
+  it('keeps the chosen-gift conflict visible once PURCHASED, without instructing to check before buying', () => {
+    // A returning contributor (or a different assigned deliverer) still
+    // needs to know this pool never held the claim — but by PURCHASED the
+    // purchase has already happened, so "check before buying" would be
+    // stale, already-too-late advice.
+    loaderDataSnapshot.pool.status = 'PURCHASED';
+    loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
+    loaderDataSnapshot.pool.purchaserId = 'buyer-1';
+    loaderDataSnapshot.viewer.userId = 'deliverer-1';
+    loaderDataSnapshot.ideaClaimConflicts = [
+      [
+        'idea-1',
+        {
+          show: true,
+          tone: 'warning',
+          text: 'Already claimed',
+          name: null,
+          poolLink: null,
+          canJoinPool: false,
+        },
+      ],
+    ];
+
+    renderRoute();
+
+    const conflict = screen.getByTestId('chosen-gift-conflict');
+    expect(conflict).toHaveTextContent('Already claimed');
+    expect(conflict.textContent?.toLowerCase()).not.toContain(
+      'before buying',
+    );
+    // Still communicates the actual risk, just without the stale action.
+    expect(conflict.textContent?.toLowerCase()).toContain(
+      'duplicate purchase',
+    );
+  });
+
+  it('shows no conflict on the chosen gift when the pool holds its own claim', () => {
+    loaderDataSnapshot.pool.status = 'DECIDED';
+    loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
+    loaderDataSnapshot.pool.purchaserId = 'buyer-1';
+    // A chosen idea absent from ideaClaimConflicts means this pool holds the
+    // claim (loadIdeaClaimConflicts excludes exactly that case) — the normal,
+    // non-conflicted state, which must render nothing.
+    loaderDataSnapshot.ideaClaimConflicts = [];
+
+    renderRoute();
+
+    expect(
+      screen.queryByTestId('chosen-gift-conflict'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('marks a claimed picker item as such, keeps it selectable, and discloses no name/pool/link', async () => {
+    loaderDataSnapshot.recipientWishlistItems = [
+      {
+        id: 'wish-9',
+        title: 'Espresso machine',
+        url: 'https://shop.example.com/espresso',
+        priceCents: 24999,
+        currency: 'USD',
+        claimDisclosure: {
+          show: true,
+          tone: 'warning',
+          text: 'Already claimed',
+          name: null,
+          poolLink: null,
+          canJoinPool: false,
+        },
+      },
+    ];
+
+    renderRoute();
+
+    const picker = screen.getByTestId('wishlist-item-picker');
+    await userEvent.click(picker);
+    await screen.findAllByRole('option');
+    const option = screen
+      .getAllByRole('option')
+      .find((el) => el.textContent?.includes('Espresso machine'));
+    expect(option).toBeDefined();
+    expect(option).toHaveTextContent('Already claimed');
+    if (!option) throw new Error('option not found');
+    // Selectable, not disabled — conflicts advise, never block.
+    expect(option).not.toHaveAttribute('aria-disabled', 'true');
+    expect(option).not.toHaveAttribute('data-disabled');
+
+    await userEvent.click(option);
+    expect(
+      document.querySelector<HTMLInputElement>('input[name="wishlistItemId"]')
+        ?.value,
+    ).toBe('wish-9');
+
+    // Negative containment: the picker must never name a person, pool, or
+    // group, and must never carry a link — it's a compose-time list.
+    expect(option).not.toHaveTextContent(/pool/i);
+    expect(option.querySelector('a')).not.toBeInTheDocument();
+  });
+
+  describe('conflicted-decision confirmation', () => {
+    it('opens a confirmation dialog instead of submitting when the idea has a claim conflict', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [
+        [
+          'idea-1',
+          {
+            show: true,
+            tone: 'warning',
+            text: 'Claimed by Sarah',
+            name: 'Sarah',
+            poolLink: null,
+            canJoinPool: false,
+          },
+        ],
+      ];
+
+      renderRoute();
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      await userEvent.click(chooseButton!);
+
+      expect(
+        await screen.findByRole('dialog', {
+          name: "Sarah's already getting this one",
+        }),
+      ).toBeVisible();
+      // A single click never submits when the idea is conflicted.
+      expect(fetcherSubmit).not.toHaveBeenCalled();
+    });
+
+    it('submits immediately with no dialog for an unconflicted idea', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [];
+
+      renderRoute();
+
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      // Unconflicted ideas render as a plain submit button inside a form —
+      // a single click submits natively, with no JS gate and no dialog
+      // anywhere in the tree. (jsdom doesn't implement real form
+      // submission, so this is asserted structurally rather than by
+      // clicking — clicking would just hit jsdom's unimplemented
+      // requestSubmit, not exercise anything this feature owns.)
+      expect(chooseButton).toHaveAttribute('type', 'submit');
+      expect(chooseButton!.closest('form')).not.toBeNull();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('confirming proceeds with the decision', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [
+        [
+          'idea-1',
+          {
+            show: true,
+            tone: 'warning',
+            text: 'Claimed by Sarah',
+            name: 'Sarah',
+            poolLink: null,
+            canJoinPool: false,
+          },
+        ],
+      ];
+
+      renderRoute();
+
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      await userEvent.click(chooseButton!);
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Choose it anyway' }),
+      );
+
+      expect(fetcherSubmit).toHaveBeenCalledTimes(1);
+      const [submittedFormData] = fetcherSubmit.mock.calls[0] as [FormData];
+      expect(submittedFormData.get('intent')).toBe('choose-idea');
+      expect(submittedFormData.get('poolId')).toBe('pool-1');
+      expect(submittedFormData.get('ideaId')).toBe('idea-1');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('dismissing does not submit', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [
+        [
+          'idea-1',
+          {
+            show: true,
+            tone: 'warning',
+            text: 'Claimed by Sarah',
+            name: 'Sarah',
+            poolLink: null,
+            canJoinPool: false,
+          },
+        ],
+      ];
+
+      renderRoute();
+
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      await userEvent.click(chooseButton!);
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Keep looking' }),
+      );
+
+      expect(fetcherSubmit).not.toHaveBeenCalled();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('carries no attribution when the disclosure withheld a name, and never describes a pool holder as a person', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [
+        [
+          'idea-1',
+          {
+            show: true,
+            tone: 'warning',
+            text: 'Another group is getting this',
+            name: null,
+            poolLink: null,
+            canJoinPool: false,
+          },
+        ],
+      ];
+
+      renderRoute();
+
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      await userEvent.click(chooseButton!);
+
+      const dialog = await screen.findByRole('dialog', {
+        name: "This one's already claimed",
+      });
+      expect(dialog).toBeVisible();
+      // Leads with the ladder's own wording for this tier — a pool holder,
+      // not a person.
+      expect(dialog).toHaveTextContent('Another group is getting this');
+      // Never reconstruct attribution the disclosure withheld.
+      expect(dialog).not.toHaveTextContent(/sarah/i);
+      const dialogText = dialog.textContent?.toLowerCase() ?? '';
+      // Never rewrite a pool holder into a person, and never misattribute
+      // the wishlist — it belongs to the pool's recipient, not the holder.
+      expect(dialogText).not.toContain('someone');
+      expect(dialogText).not.toContain('on their wishlist');
+    });
+
+    it('names the claimer for a solo conflict without misattributing whose wishlist it is', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [
+        [
+          'idea-1',
+          {
+            show: true,
+            tone: 'warning',
+            text: 'Claimed by Sarah',
+            name: 'Sarah',
+            poolLink: null,
+            canJoinPool: false,
+          },
+        ],
+      ];
+
+      renderRoute();
+
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      await userEvent.click(chooseButton!);
+
+      const dialog = await screen.findByRole('dialog', {
+        name: "Sarah's already getting this one",
+      });
+      expect(dialog).toBeVisible();
+      expect(dialog).toHaveTextContent('Claimed by Sarah');
+      // The wishlist belongs to the pool's recipient, not to Sarah — never
+      // imply otherwise.
+      expect(dialog.textContent?.toLowerCase()).not.toContain(
+        'on their wishlist',
+      );
+    });
+
+    it('toasts once a decision actually claims a previously-free wishlist item', () => {
+      loaderDataSnapshot.ideaClaimConflicts = [];
+      fetcherState.data = { claimedItemId: 'wish-1' };
+
+      renderRoute();
+
+      expect(toastSuccess).toHaveBeenCalledWith(
+        'Marked as claimed on their wishlist.',
+      );
+    });
+
+    it('warns when a conflict is discovered at decision time even though the loader rendered the idea as unconflicted', () => {
+      // The loader saw no conflict, so the idea card submitted with no
+      // confirmation dialog — the pool still lost the claim underneath it,
+      // and the organizer must not be left with silence.
+      loaderDataSnapshot.ideaClaimConflicts = [];
+      fetcherState.data = { claimedItemId: null, conflictedItemId: 'wish-1' };
+
+      renderRoute();
+
+      expect(toastWarning).toHaveBeenCalledTimes(1);
+      const [message] = toastWarning.mock.calls[0] as [string];
+      // Generic on purpose — the action response carries no disclosure
+      // object, so the client must never guess a claimant's identity.
+      expect(message).not.toMatch(/sarah/i);
+      expect(message.toLowerCase()).toContain("didn't get it");
+      expect(toastSuccess).not.toHaveBeenCalled();
+    });
+
+    it('does not claim the claimant will be contacted or notified', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [
+        [
+          'idea-1',
+          {
+            show: true,
+            tone: 'warning',
+            text: 'Claimed by Sarah',
+            name: 'Sarah',
+            poolLink: null,
+            canJoinPool: false,
+          },
+        ],
+      ];
+
+      renderRoute();
+
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      await userEvent.click(chooseButton!);
+
+      const dialog = await screen.findByRole('dialog', {
+        name: "Sarah's already getting this one",
+      });
+      const dialogText = dialog.textContent ?? '';
+      // No promise of a Keep/Release follow-up to the claimant — that
+      // feature does not exist yet.
+      expect(dialogText).not.toMatch(/ask (them|if)/i);
+      expect(dialogText).not.toMatch(/let them know/i);
+      expect(dialogText).not.toMatch(/we'll/i);
+      expect(dialogText).toContain(
+        "your pool won't hold the claim — so there's a real risk you both end up buying it.",
+      );
+    });
   });
 });

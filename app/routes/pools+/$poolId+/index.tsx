@@ -3,7 +3,7 @@
 // in a child route submit to that child's action, not the parent's.
 export { action } from './__route.server';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 import {
@@ -21,6 +21,7 @@ import {
   useNavigation,
   useRouteLoaderData,
 } from 'react-router';
+import { toast } from 'sonner';
 import { z } from 'zod';
 import { OrganizerReminderAction } from '#app/components/pools/organizer-reminder-action.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
@@ -28,6 +29,14 @@ import { Badge } from '#app/components/ui/badge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { Input } from '#app/components/ui/input.tsx';
+import {
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogDescription as DialogDescription,
+  ResponsiveDialogFooter as DialogFooter,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+} from '#app/components/ui/responsive-dialog.tsx';
 import {
   Select,
   SelectContent,
@@ -38,18 +47,29 @@ import {
 import { SystemLabel } from '#app/components/ui/system-label.tsx';
 import { Textarea } from '#app/components/ui/textarea.tsx';
 import { Flex, Stack, Text } from '#app/components/ui-kit';
+import { ClaimDescriptor } from '#app/components/wishlist/claim-descriptor.tsx';
 import { formatCents } from '#app/utils/pool-contributions.ts';
 import {
   DECISION_MODE,
   POOL_STATUS,
   type PoolStatus,
 } from '#app/utils/pool-constants.ts';
+import { type ClaimDisclosure } from '#app/utils/wishlist-claim-disclosure.ts';
 import { type loader as routeLoader } from './__route.server';
 
 type LoaderData = Awaited<ReturnType<typeof routeLoader>>;
 type Pool = LoaderData['pool'];
 type Idea = Pool['ideas'][number];
 type Contributor = Pool['contributors'][number];
+
+// Shared fetcher key for "choose this idea" across every IdeaCard AND the
+// page-level toast effect. Choosing an idea moves the pool out of the
+// active (OPEN/VOTING) status, which unmounts the whole ideas section —
+// including whichever IdeaCard submitted — in the same render the action
+// response lands. A component-local useEffect on that submission would
+// never fire. Keying the fetcher lets the always-mounted PoolIndex read the
+// same fetcher's `.data` to fire the "claimed on their wishlist" toast.
+const CHOOSE_IDEA_FETCHER_KEY = 'pool-choose-idea';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -144,6 +164,7 @@ const IdeaCard = ({
   canManage,
   canDelete,
   canChoose,
+  conflict,
 }: {
   idea: Idea;
   poolId: string;
@@ -152,15 +173,29 @@ const IdeaCard = ({
   canManage: boolean;
   canDelete: boolean;
   canChoose: boolean;
+  conflict: ClaimDisclosure | null;
 }) => {
   const voteFetcher = useFetcher();
-  const chooseFetcher = useFetcher();
+  const chooseFetcher = useFetcher({ key: CHOOSE_IDEA_FETCHER_KEY });
   const deleteFetcher = useFetcher();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const hasMyVote = myVoteIdeaId === idea.id;
   const isChoosingThis =
     chooseFetcher.state !== 'idle' &&
     (chooseFetcher.formData?.get('ideaId') as string) === idea.id;
+
+  // Every unconflicted idea stays a single instant click (D12) — only a
+  // conflicted idea interrupts with a confirmation, since the organizer may
+  // legitimately know something the app doesn't.
+  const submitChoose = () => {
+    const formData = new FormData();
+    formData.set('intent', 'choose-idea');
+    formData.set('poolId', poolId);
+    formData.set('ideaId', idea.id);
+    void chooseFetcher.submit(formData, { method: 'post' });
+    setConfirmOpen(false);
+  };
 
   const wishlistItem = idea.wishlistItem;
   // Routed through the pool-scoped image resource, not
@@ -224,11 +259,14 @@ const IdeaCard = ({
                 <LuLink size={11} /> View link
               </a>
             )}
-            {idea.wishlistItem && (
-              <span className="inline-flex items-center rounded-full border border-pool/30 bg-pool/15 px-2.5 py-0.5 text-xs font-medium text-pool">
-                From wishlist
-              </span>
-            )}
+            {idea.wishlistItem &&
+              (conflict ? (
+                <ClaimDescriptor disclosure={conflict} variant="badge" />
+              ) : (
+                <span className="inline-flex items-center rounded-full border border-pool/30 bg-pool/15 px-2.5 py-0.5 text-xs font-medium text-pool">
+                  From wishlist
+                </span>
+              ))}
           </div>
         </div>
       </div>
@@ -277,24 +315,76 @@ const IdeaCard = ({
             </voteFetcher.Form>
           )}
 
-          {/* Choose this — outline so it doesn't shout on every card */}
-          {canChoose && (
-            <chooseFetcher.Form method="post">
-              <input type="hidden" name="intent" value="choose-idea" />
-              <input type="hidden" name="poolId" value={poolId} />
-              <input type="hidden" name="ideaId" value={idea.id} />
-              <Button
-                type="submit"
-                size="sm"
-                variant="outline"
-                className="h-7 gap-1.5 text-xs"
-                disabled={isChoosingThis}
-              >
-                <LuCheck size={12} />
-                {isChoosingThis ? 'Choosing…' : 'Choose'}
-              </Button>
-            </chooseFetcher.Form>
-          )}
+          {/* Choose this — outline so it doesn't shout on every card.
+              Unconflicted ideas stay a single instant click (D12); a
+              conflicted idea opens a confirmation instead of submitting. */}
+          {canChoose &&
+            (conflict ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1.5 text-xs"
+                  disabled={isChoosingThis}
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  <LuCheck size={12} />
+                  {isChoosingThis ? 'Choosing…' : 'Choose'}
+                </Button>
+                <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>
+                        {conflict.name
+                          ? `${conflict.name}'s already getting this one`
+                          : "This one's already claimed"}
+                      </DialogTitle>
+                      {/* Lead with disclosure.text verbatim — it's already
+                          worded correctly for this viewer's tier (person,
+                          withheld person, or another pool) — then append the
+                          honest consequence instead of rewriting who holds
+                          the claim or whose wishlist it's on. */}
+                      <DialogDescription>
+                        {`${conflict.text}. If you choose it anyway, your pool won't hold the claim — so there's a real risk you both end up buying it.`}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setConfirmOpen(false)}
+                      >
+                        Keep looking
+                      </Button>
+                      <Button
+                        type="button"
+                        className="bg-warning text-warning-foreground hover:bg-warning/90"
+                        onClick={submitChoose}
+                      >
+                        Choose it anyway
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </>
+            ) : (
+              <chooseFetcher.Form method="post">
+                <input type="hidden" name="intent" value="choose-idea" />
+                <input type="hidden" name="poolId" value={poolId} />
+                <input type="hidden" name="ideaId" value={idea.id} />
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1.5 text-xs"
+                  disabled={isChoosingThis}
+                >
+                  <LuCheck size={12} />
+                  {isChoosingThis ? 'Choosing…' : 'Choose'}
+                </Button>
+              </chooseFetcher.Form>
+            ))}
 
           {/* Remove — in the footer, separated from title */}
           {deleteFetcher.state === 'idle' && canDelete && (
@@ -410,6 +500,13 @@ const ProposeIdeaForm = ({
                     {item.priceCents == null
                       ? ''
                       : ` — ${formatCents(item.priceCents, item.currency ?? 'USD')}`}
+                    {item.claimDisclosure?.show ? (
+                      <ClaimDescriptor
+                        disclosure={item.claimDisclosure}
+                        variant="row"
+                        className="ml-2"
+                      />
+                    ) : null}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -469,11 +566,19 @@ const ChosenGiftBanner = ({
   finalPriceCents,
   poolId,
   canManage,
+  conflict,
+  buyingAdviceStale,
 }: {
   idea: Idea;
   finalPriceCents: number | null;
   poolId: string;
   canManage: boolean;
+  conflict: ClaimDisclosure | null;
+  // True once this pool has passed the point where "check before buying" is
+  // still actionable (PURCHASED or DELIVERED) — the banner stays mounted at
+  // every stage (see comment below), so the instruction has to match what's
+  // actually still ahead of the viewer.
+  buyingAdviceStale: boolean;
 }) => {
   const fetcher = useFetcher();
 
@@ -504,6 +609,31 @@ const ChosenGiftBanner = ({
             </a>
           )}
         </Stack>
+        {/* Conflict disclosure: stays mounted for as long as the pool has
+            decided on an item it doesn't hold the claim on — unlike the
+            idea-card badge, which unmounts the instant the pool leaves
+            OPEN/VOTING. This is the only surface a returning viewer or a
+            different assigned purchaser ever sees the warning on, since the
+            choose-idea toast only reaches the browser that submitted it. */}
+        {conflict && (
+          <div
+            className="flex flex-col gap-1.5 rounded-lg border border-warning/30 bg-warning-muted p-3"
+            data-testid="chosen-gift-conflict"
+          >
+            <ClaimDescriptor disclosure={conflict} variant="badge" />
+            <Text size="xs" className="text-warning">
+              {buyingAdviceStale
+                ? // Buying is either already done (PURCHASED/DELIVERED) or can
+                  // no longer happen through this pool (CANCELLED), so "check
+                  // before buying" points at an action that isn't available.
+                  // The duplicate risk is still worth stating: a cancelled
+                  // pool's released claim may have transferred elsewhere, and
+                  // contributors may already have bought.
+                  'This pool didn’t hold the claim on this item, so there’s a real risk of a duplicate purchase. Worth checking with the group if it hasn’t come up already.'
+                : 'This pool doesn’t hold the claim on this item, so there’s a real risk of a duplicate purchase. Check with the group before buying.'}
+            </Text>
+          </div>
+        )}
         {/* Final price: display + optional inline editor for managers */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -971,7 +1101,15 @@ const PoolIndex = () => {
     contributionBreakdown,
     recipientWishlistItems,
     organizerReminderStates,
+    ideaClaimConflicts,
   } = useRouteLoaderData<typeof routeLoader>('routes/pools+/$poolId+/_layout')!;
+
+  // Loader data round-trips through JSON, so the Map is shipped as entry
+  // pairs — rebuild it once per render rather than re-deriving per card.
+  const ideaConflicts = useMemo(
+    () => new Map(ideaClaimConflicts),
+    [ideaClaimConflicts],
+  );
 
   const status = pool.status as PoolStatus;
   const isOpen = status === POOL_STATUS.OPEN;
@@ -989,6 +1127,35 @@ const PoolIndex = () => {
 
   const navigation = useNavigation();
 
+  // Hoisted here (not in IdeaCard) because choosing an idea moves the pool
+  // out of the active status, unmounting the whole ideas section in the
+  // same render the action response lands — a component-local effect on
+  // the submitting IdeaCard would never fire. PoolIndex never unmounts, and
+  // the shared CHOOSE_IDEA_FETCHER_KEY lets it observe the same submission.
+  const chooseFetcher = useFetcher({ key: CHOOSE_IDEA_FETCHER_KEY });
+  useEffect(() => {
+    if (chooseFetcher.data?.claimedItemId) {
+      // States the claim, does not guarantee an outcome: another pool that
+      // already intends this item can still proceed via "Choose it anyway",
+      // so promising nobody else buys it would be false by construction.
+      toast.success('Marked as claimed on their wishlist.');
+    } else if (chooseFetcher.data?.conflictedItemId) {
+      // Covers both the case where the idea card already warned about a
+      // conflict, and the case where the item was claimed by someone else
+      // in the gap between the loader render and this POST — the loader
+      // showed it as free, so a silent success here would send the
+      // organizer off to buy a duplicate with no indication anything went
+      // wrong. Entity-neutral on purpose: the action has no disclosure object
+      // here, so the client knows neither who holds the claim nor whether the
+      // holder is a person or another pool. "Someone else"/"you both" would
+      // assert a person, reintroducing the holder-type error fixed in the
+      // dialog above.
+      toast.warning(
+        "This item is already claimed — your pool didn't get it, so there's a real risk of a duplicate purchase.",
+      );
+    }
+  }, [chooseFetcher.data]);
+
   // ── Stage-adaptive composition (§6.5): the shell is stable, the main
   // column changes by stage. In Complete, factual memory dominates and the
   // operational sections collapse into history.
@@ -998,6 +1165,10 @@ const PoolIndex = () => {
       finalPriceCents={pool.finalPriceCents}
       poolId={pool.id}
       canManage={canManage}
+      conflict={ideaConflicts.get(chosenIdea.id) ?? null}
+      buyingAdviceStale={
+        isPurchased || isDelivered || status === POOL_STATUS.CANCELLED
+      }
     />
   ) : null;
 
@@ -1254,6 +1425,7 @@ const PoolIndex = () => {
                   canChoose={
                     canManage && (isOpen || isVoting) && !pool.chosenIdeaId
                   }
+                  conflict={ideaConflicts.get(idea.id) ?? null}
                 />
               ))}
             </Stack>

@@ -151,6 +151,22 @@ describe('app/routes/pools+/$poolId+/settings.tsx', () => {
     ).toBeInTheDocument();
   });
 
+  it('describes cancellation as releasing this pool\'s claim, never promising the item ends up unclaimed', async () => {
+    // syncPoolClaimInTx settles a released claim onto the longest-waiting
+    // pool immediately when one exists, so "will be unclaimed" is false in
+    // exactly the case where it matters most. The confirmation must describe
+    // releasing our claim, not the item's resulting state, and must hold for
+    // OPEN/VOTING pools that hold no claim at all too.
+    renderRoute();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel pool' }));
+
+    const description = await screen.findByText(/release/i);
+    expect(description.textContent).not.toMatch(/will be unclaimed/i);
+    expect(description.textContent?.toLowerCase()).toContain(
+      'may transfer',
+    );
+  });
+
   it('selects and sends eligible people from the responsive picker', async () => {
     const candidate = invitationPerson('naomi', 'Naomi');
     loaderDataSnapshot.invitationState.candidates = [
