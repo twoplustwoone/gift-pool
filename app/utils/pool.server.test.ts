@@ -25,7 +25,6 @@ const poolUpdate = vi.fn();
 const poolUpdateMany = vi.fn();
 const queueLogEvent = vi.fn();
 const queuePoolActivityNotifications = vi.fn();
-const syncPoolClaim = vi.fn();
 const syncPoolClaimInTx = vi.fn();
 
 vi.mock('nanoid', () => ({
@@ -85,7 +84,6 @@ vi.mock('#app/utils/pool-notifications.server.ts', () => ({
 }));
 
 vi.mock('#app/utils/wishlist-claims.server.ts', () => ({
-  syncPoolClaim: (...args: Array<unknown>) => syncPoolClaim(...args),
   syncPoolClaimInTx: (...args: Array<unknown>) => syncPoolClaimInTx(...args),
 }));
 
@@ -142,9 +140,6 @@ beforeEach(() => {
   poolUpdateMany.mockReset().mockResolvedValue({ count: 1 });
   queueLogEvent.mockReset().mockReturnValue({ eventId: 'event-123' });
   queuePoolActivityNotifications.mockReset();
-  syncPoolClaim
-    .mockReset()
-    .mockResolvedValue({ claimedItemId: null, conflictedItemId: null, released: [] });
   syncPoolClaimInTx
     .mockReset()
     .mockResolvedValue({ claimedItemId: null, conflictedItemId: null, released: [] });
@@ -866,7 +861,29 @@ describe('pool server utilities', () => {
     });
     expect(poolDelete).not.toHaveBeenCalled();
     expect(giftIdeaDelete).not.toHaveBeenCalled();
-    expect(syncPoolClaim).toHaveBeenCalledWith('pool-1');
+    expect(syncPoolClaimInTx).toHaveBeenCalledWith(expect.anything(), 'pool-1');
+  });
+
+  it('rolls back the CANCELLED transition when the claim sync fails mid-transaction', async () => {
+    // Regression for the P1 finding: cancelPool used to call syncPoolClaim
+    // (opening its own separate transaction) *after* the status update had
+    // already committed, and swallowed sync failures to Sentry — so a failed
+    // sync left a cancelled pool still holding its claim, permanently (the
+    // early return above makes a retry a no-op once status already reads
+    // CANCELLED). Status update and claim sync now commit in the same
+    // `$transaction`, so a rejection from the sync must abort the whole
+    // thing — nothing downstream (activity log, analytics, notification
+    // fanout) fires for a cancellation that didn't land. The real-DB
+    // rollback of the pool row itself is covered in
+    // wishlist-claims.server.test.ts, which exercises the actual Prisma
+    // transaction rather than this mocked client.
+    syncPoolClaimInTx.mockRejectedValueOnce(new Error('claim sync boom'));
+
+    await expect(cancelPool('pool-1', 'user-1')).rejects.toThrow('claim sync boom');
+
+    expect(logPoolActivity).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
+    expect(queuePoolActivityNotifications).not.toHaveBeenCalled();
   });
 
   it('getContributionBreakdown returns null without a confirmed final price', async () => {

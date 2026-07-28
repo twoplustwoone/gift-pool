@@ -284,6 +284,36 @@ describe('chooseIdea + claim sync atomicity', () => {
   });
 });
 
+describe('cancelPool + claim sync atomicity', () => {
+  it('rolls back the CANCELLED transition when the claim sync fails mid-transaction', async () => {
+    // Regression for the P1 finding: cancelPool used to set the pool
+    // CANCELLED, then call a separately-transacted sync whose failures were
+    // swallowed to Sentry — leaving a cancelled pool that still owned its
+    // wishlist claim, with no retry path (cancelPool early-returns once the
+    // pool already reads CANCELLED). The status transition and the claim
+    // sync now commit inside one `prisma.$transaction`, so a rejection from
+    // the sync must roll back the cancellation too.
+    const { owner, organizer, item } = await fixture();
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    await syncPoolClaim(pool.id);
+
+    const spy = vi
+      .spyOn(wishlistClaims, 'syncPoolClaimInTx')
+      .mockRejectedValueOnce(new Error('claim sync boom'));
+
+    await expect(cancelPool(pool.id, organizer.id)).rejects.toThrow('claim sync boom');
+
+    const reloaded = await prisma.pool.findUniqueOrThrow({ where: { id: pool.id } });
+    expect(reloaded.status).not.toBe('CANCELLED');
+    // The pool must still hold its claim — the bug this regression closes is
+    // a cancelled pool that lost its claim with no way to get it back.
+    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    expect(claim?.poolId).toBe(pool.id);
+
+    spy.mockRestore();
+  });
+});
+
 describe('releaseSoloClaimForItem', () => {
   it('hands the item to a waiting pool instead of leaving it unclaimed', async () => {
     // Regression for the P1 finding: the owner-archive route used to

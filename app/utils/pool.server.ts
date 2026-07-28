@@ -1,4 +1,4 @@
-import { captureException, captureMessage } from '@sentry/react-router'
+import { captureMessage } from '@sentry/react-router'
 import { data } from 'react-router'
 import { nanoid } from 'nanoid'
 import { queueLogEvent } from '#app/utils/analytics.server.ts'
@@ -13,11 +13,7 @@ import {
 import { calculateContributions } from '#app/utils/pool-contributions.ts'
 import { queuePoolActivityNotifications } from '#app/utils/pool-notifications.server.ts'
 import { assertPoolStatus } from '#app/utils/pool-permissions.server.ts'
-import {
-	syncPoolClaim,
-	syncPoolClaimInTx,
-	type SyncPoolClaimResult,
-} from '#app/utils/wishlist-claims.server.ts'
+import { syncPoolClaimInTx } from '#app/utils/wishlist-claims.server.ts'
 import type { DecisionMode, OccasionType } from '#app/utils/pool-constants.ts'
 
 // ─── Selects ──────────────────────────────────────────────────────────────────
@@ -571,25 +567,6 @@ export async function closeVote(poolId: string, actorId: string) {
 
 // ─── Decision ─────────────────────────────────────────────────────────────────
 
-// By the time this runs, the pool's status change is already committed —
-// cancelPool's CANCELLED. (chooseIdea's DECIDED transition instead commits
-// the claim sync in the *same* transaction as the status change — see
-// `chooseIdea` — so a sync failure there rolls back the decision rather than
-// landing here.) A sync failure (SQLITE_BUSY under LiteFS, or the P2002 its
-// internal `create` can hit racing a solo claimer onto the same item) must
-// not turn that committed decision into a 500, and must not skip the
-// notification fanout that follows. Capture to Sentry and degrade to firing
-// no claim events, matching how queueLogEvent / queueNotification tail
-// fanout failures instead of throwing them.
-async function syncPoolClaimSafely(poolId: string): Promise<SyncPoolClaimResult> {
-	try {
-		return await syncPoolClaim(poolId)
-	} catch (error) {
-		captureException(error)
-		return { claimedItemId: null, conflictedItemId: null, released: [] }
-	}
-}
-
 // Choose an idea as the winner and move the pool to DECIDED.
 // finalPriceCents defaults to the idea's estimatedPriceCents if not provided.
 export async function chooseIdea(
@@ -842,16 +819,31 @@ export async function markDelivered(poolId: string, actorId: string) {
 }
 
 export async function cancelPool(poolId: string, actorId: string) {
-	const cancellation = await prisma.pool.updateMany({
-		where: { id: poolId, status: { not: POOL_STATUS.CANCELLED } },
-		data: { status: POOL_STATUS.CANCELLED },
-	})
-	if (cancellation.count === 0) return
+	// The status transition and its claim sync must commit as one unit — same
+	// reasoning as chooseIdea. Split them and a sync failure (SQLITE_BUSY under
+	// LiteFS) leaves the pool CANCELLED with its claim never released — and
+	// unrecoverably so, because the early return below makes a retry a no-op
+	// once the pool already reads CANCELLED. Wrapping both in one transaction
+	// means a sync failure rolls back the cancellation instead, so the caller
+	// sees the failure and can retry from a pool that still isn't cancelled.
+	const claimSync = await prisma.$transaction(async (tx) => {
+		const cancellation = await tx.pool.updateMany({
+			where: { id: poolId, status: { not: POOL_STATUS.CANCELLED } },
+			data: { status: POOL_STATUS.CANCELLED },
+		})
+		if (cancellation.count === 0) return null
 
+		return syncPoolClaimInTx(tx, poolId)
+	})
+	if (claimSync === null) return
+
+	// logPoolActivity, queueLogEvent, and queuePoolActivityNotifications all
+	// run after the transaction closes — see chooseIdea's comment on the same
+	// pattern: queueLogEvent inside a transaction produces spurious
+	// SQLITE_BUSY under LiteFS, and a fanout failure here must never turn the
+	// now-committed cancellation into a 500.
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_CANCELLED, { actorId })
 
-	// Cancelling frees the wishlist item — and hands it to any other pool waiting.
-	const claimSync = await syncPoolClaimSafely(poolId)
 	for (const release of claimSync.released) {
 		if (!release.transferredToPoolId) continue
 		queueLogEvent({
