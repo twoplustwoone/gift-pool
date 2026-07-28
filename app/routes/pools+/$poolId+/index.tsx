@@ -338,12 +338,15 @@ const IdeaCard = ({
                       <DialogTitle>
                         {conflict.name
                           ? `${conflict.name}'s already getting this one`
-                          : 'Someone else is already getting this one'}
+                          : "This one's already claimed"}
                       </DialogTitle>
+                      {/* Lead with disclosure.text verbatim — it's already
+                          worded correctly for this viewer's tier (person,
+                          withheld person, or another pool) — then append the
+                          honest consequence instead of rewriting who holds
+                          the claim or whose wishlist it's on. */}
                       <DialogDescription>
-                        {conflict.name
-                          ? `${conflict.name} already claimed ${idea.name} on their wishlist. If you choose it anyway, your pool won't hold the claim — so there's a real risk you both end up buying it.`
-                          : `Someone already claimed ${idea.name} on their wishlist. If you choose it anyway, your pool won't hold the claim — so there's a real risk you both end up buying it.`}
+                        {`${conflict.text}. If you choose it anyway, your pool won't hold the claim — so there's a real risk you both end up buying it.`}
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -564,12 +567,18 @@ const ChosenGiftBanner = ({
   poolId,
   canManage,
   conflict,
+  purchaseCompleted,
 }: {
   idea: Idea;
   finalPriceCents: number | null;
   poolId: string;
   canManage: boolean;
   conflict: ClaimDisclosure | null;
+  // True once this pool has passed the point where "check before buying" is
+  // still actionable (PURCHASED or DELIVERED) — the banner stays mounted at
+  // every stage (see comment below), so the instruction has to match what's
+  // actually still ahead of the viewer.
+  purchaseCompleted: boolean;
 }) => {
   const fetcher = useFetcher();
 
@@ -613,9 +622,12 @@ const ChosenGiftBanner = ({
           >
             <ClaimDescriptor disclosure={conflict} variant="badge" />
             <Text size="xs" className="text-warning">
-              This pool doesn&rsquo;t hold the claim on this item, so
-              there&rsquo;s a real risk of a duplicate purchase. Check with the
-              group before buying.
+              {purchaseCompleted
+                ? // Purchase has already happened by this stage — "check
+                  // before buying" would be stale advice. State the risk
+                  // without pointing at an action that's already past.
+                  'This pool didn’t hold the claim on this item, so there’s a real risk of a duplicate purchase. Worth checking with the group if it hasn’t come up already.'
+                : 'This pool doesn’t hold the claim on this item, so there’s a real risk of a duplicate purchase. Check with the group before buying.'}
             </Text>
           </div>
         )}
@@ -1147,6 +1159,7 @@ const PoolIndex = () => {
       poolId={pool.id}
       canManage={canManage}
       conflict={ideaConflicts.get(chosenIdea.id) ?? null}
+      purchaseCompleted={isPurchased || isDelivered}
     />
   ) : null;
 

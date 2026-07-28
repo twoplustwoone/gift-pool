@@ -662,6 +662,44 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     // be contacted — there is no notification or keep/release flow yet.
     expect(conflict.textContent?.toLowerCase()).not.toContain('contact');
     expect(conflict.textContent?.toLowerCase()).not.toContain('notif');
+    // Pre-purchase, "check before buying" is still actionable advice.
+    expect(conflict.textContent?.toLowerCase()).toContain('before buying');
+  });
+
+  it('keeps the chosen-gift conflict visible once PURCHASED, without instructing to check before buying', () => {
+    // A returning contributor (or a different assigned deliverer) still
+    // needs to know this pool never held the claim — but by PURCHASED the
+    // purchase has already happened, so "check before buying" would be
+    // stale, already-too-late advice.
+    loaderDataSnapshot.pool.status = 'PURCHASED';
+    loaderDataSnapshot.pool.chosenIdeaId = 'idea-1';
+    loaderDataSnapshot.pool.purchaserId = 'buyer-1';
+    loaderDataSnapshot.viewer.userId = 'deliverer-1';
+    loaderDataSnapshot.ideaClaimConflicts = [
+      [
+        'idea-1',
+        {
+          show: true,
+          tone: 'warning',
+          text: 'Already claimed',
+          name: null,
+          poolLink: null,
+          canJoinPool: false,
+        },
+      ],
+    ];
+
+    renderRoute();
+
+    const conflict = screen.getByTestId('chosen-gift-conflict');
+    expect(conflict).toHaveTextContent('Already claimed');
+    expect(conflict.textContent?.toLowerCase()).not.toContain(
+      'before buying',
+    );
+    // Still communicates the actual risk, just without the stale action.
+    expect(conflict.textContent?.toLowerCase()).toContain(
+      'duplicate purchase',
+    );
   });
 
   it('shows no conflict on the chosen gift when the pool holds its own claim', () => {
@@ -840,7 +878,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    it('carries no attribution when the disclosure withheld a name', async () => {
+    it('carries no attribution when the disclosure withheld a name, and never describes a pool holder as a person', async () => {
       loaderDataSnapshot.ideaClaimConflicts = [
         [
           'idea-1',
@@ -863,11 +901,53 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
       await userEvent.click(chooseButton!);
 
       const dialog = await screen.findByRole('dialog', {
-        name: 'Someone else is already getting this one',
+        name: "This one's already claimed",
       });
       expect(dialog).toBeVisible();
+      // Leads with the ladder's own wording for this tier — a pool holder,
+      // not a person.
+      expect(dialog).toHaveTextContent('Another group is getting this');
       // Never reconstruct attribution the disclosure withheld.
       expect(dialog).not.toHaveTextContent(/sarah/i);
+      const dialogText = dialog.textContent?.toLowerCase() ?? '';
+      // Never rewrite a pool holder into a person, and never misattribute
+      // the wishlist — it belongs to the pool's recipient, not the holder.
+      expect(dialogText).not.toContain('someone');
+      expect(dialogText).not.toContain('on their wishlist');
+    });
+
+    it('names the claimer for a solo conflict without misattributing whose wishlist it is', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [
+        [
+          'idea-1',
+          {
+            show: true,
+            tone: 'warning',
+            text: 'Claimed by Sarah',
+            name: 'Sarah',
+            poolLink: null,
+            canJoinPool: false,
+          },
+        ],
+      ];
+
+      renderRoute();
+
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      await userEvent.click(chooseButton!);
+
+      const dialog = await screen.findByRole('dialog', {
+        name: "Sarah's already getting this one",
+      });
+      expect(dialog).toBeVisible();
+      expect(dialog).toHaveTextContent('Claimed by Sarah');
+      // The wishlist belongs to the pool's recipient, not to Sarah — never
+      // imply otherwise.
+      expect(dialog.textContent?.toLowerCase()).not.toContain(
+        'on their wishlist',
+      );
     });
 
     it('toasts once a decision actually claims a previously-free wishlist item', () => {
