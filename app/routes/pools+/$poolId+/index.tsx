@@ -567,7 +567,7 @@ const ChosenGiftBanner = ({
   poolId,
   canManage,
   conflict,
-  purchaseCompleted,
+  buyingAdviceStale,
 }: {
   idea: Idea;
   finalPriceCents: number | null;
@@ -578,7 +578,7 @@ const ChosenGiftBanner = ({
   // still actionable (PURCHASED or DELIVERED) — the banner stays mounted at
   // every stage (see comment below), so the instruction has to match what's
   // actually still ahead of the viewer.
-  purchaseCompleted: boolean;
+  buyingAdviceStale: boolean;
 }) => {
   const fetcher = useFetcher();
 
@@ -622,10 +622,13 @@ const ChosenGiftBanner = ({
           >
             <ClaimDescriptor disclosure={conflict} variant="badge" />
             <Text size="xs" className="text-warning">
-              {purchaseCompleted
-                ? // Purchase has already happened by this stage — "check
-                  // before buying" would be stale advice. State the risk
-                  // without pointing at an action that's already past.
+              {buyingAdviceStale
+                ? // Buying is either already done (PURCHASED/DELIVERED) or can
+                  // no longer happen through this pool (CANCELLED), so "check
+                  // before buying" points at an action that isn't available.
+                  // The duplicate risk is still worth stating: a cancelled
+                  // pool's released claim may have transferred elsewhere, and
+                  // contributors may already have bought.
                   'This pool didn’t hold the claim on this item, so there’s a real risk of a duplicate purchase. Worth checking with the group if it hasn’t come up already.'
                 : 'This pool doesn’t hold the claim on this item, so there’s a real risk of a duplicate purchase. Check with the group before buying.'}
             </Text>
@@ -1163,7 +1166,9 @@ const PoolIndex = () => {
       poolId={pool.id}
       canManage={canManage}
       conflict={ideaConflicts.get(chosenIdea.id) ?? null}
-      purchaseCompleted={isPurchased || isDelivered}
+      buyingAdviceStale={
+        isPurchased || isDelivered || status === POOL_STATUS.CANCELLED
+      }
     />
   ) : null;
 
