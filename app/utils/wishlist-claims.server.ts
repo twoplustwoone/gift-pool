@@ -61,10 +61,13 @@ async function settleItem(tx: Tx, wishlistItemId: string): Promise<string | null
     },
     select: { id: true, decidedAt: true, createdAt: true },
   });
-  if (candidates.length === 0) return null;
+  const [first, ...rest] = candidates;
+  if (!first) return null;
 
-  const heir = candidates.reduce((longestWaiting, candidate) =>
-    waitedLonger(candidate, longestWaiting) ? candidate : longestWaiting,
+  const heir = rest.reduce(
+    (longestWaiting, candidate) =>
+      waitedLonger(candidate, longestWaiting) ? candidate : longestWaiting,
+    first,
   );
 
   await tx.wishlistClaim.create({ data: { wishlistItemId, poolId: heir.id } });
