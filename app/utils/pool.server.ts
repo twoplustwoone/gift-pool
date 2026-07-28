@@ -635,6 +635,18 @@ export async function chooseIdea(
 			properties: { poolId, wishlistItemId: claimSync.conflictedItemId },
 		})
 	}
+	for (const release of claimSync.released) {
+		if (!release.transferredToPoolId) continue
+		queueLogEvent({
+			name: 'wishlist_claim_transferred',
+			userId: actorId,
+			source: 'server',
+			properties: {
+				wishlistItemId: release.wishlistItemId,
+				toPoolId: release.transferredToPoolId,
+			},
+		})
+	}
 
 	const { eventId } = queueLogEvent({
 		name: 'pool_decided',
@@ -803,7 +815,19 @@ export async function cancelPool(poolId: string, actorId: string) {
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_CANCELLED, { actorId })
 
 	// Cancelling frees the wishlist item — and hands it to any other pool waiting.
-	await syncPoolClaim(poolId)
+	const claimSync = await syncPoolClaim(poolId)
+	for (const release of claimSync.released) {
+		if (!release.transferredToPoolId) continue
+		queueLogEvent({
+			name: 'wishlist_claim_transferred',
+			userId: actorId,
+			source: 'server',
+			properties: {
+				wishlistItemId: release.wishlistItemId,
+				toPoolId: release.transferredToPoolId,
+			},
+		})
+	}
 
 	const { eventId } = queueLogEvent({
 		name: 'pool_cancelled',

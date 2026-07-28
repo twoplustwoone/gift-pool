@@ -205,6 +205,40 @@ describe('syncPoolClaim', () => {
     expect(moved?.poolId).toBe(pool.id);
   });
 
+  it('reports a released item as transferred when settlement hands it to a waiting pool', async () => {
+    const { owner, organizer, item } = await fixture();
+    const other = await prisma.wishlistItem.create({
+      data: { ownerId: owner.id, title: 'Headphones', type: 'item', sortOrder: 1 },
+    });
+    const holder = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-01'));
+    await syncPoolClaim(holder.id);
+
+    // A second pool has intent on the same item and is left waiting behind the holder.
+    const waiter = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-10'));
+
+    // The holder re-decides onto a different item, freeing `item` for the waiter.
+    const newIdea = await prisma.giftIdea.create({
+      data: {
+        poolId: holder.id,
+        proposedById: organizer.id,
+        name: 'Headphones',
+        wishlistItemId: other.id,
+      },
+    });
+    await prisma.pool.update({
+      where: { id: holder.id },
+      data: { chosenIdeaId: newIdea.id, decidedAt: new Date('2026-07-15') },
+    });
+
+    const result = await syncPoolClaim(holder.id);
+
+    expect(result.released).toEqual([
+      { wishlistItemId: item.id, transferredToPoolId: waiter.id },
+    ]);
+    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    expect(claim?.poolId).toBe(waiter.id);
+  });
+
   it('releases the claim when the pool is cancelled', async () => {
     const { owner, organizer, item } = await fixture();
     const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());

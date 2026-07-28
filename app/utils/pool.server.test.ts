@@ -136,7 +136,7 @@ beforeEach(() => {
   queuePoolActivityNotifications.mockReset();
   syncPoolClaim
     .mockReset()
-    .mockResolvedValue({ claimedItemId: null, conflictedItemId: null, releasedItemIds: [] });
+    .mockResolvedValue({ claimedItemId: null, conflictedItemId: null, released: [] });
 });
 
 describe('pool server utilities', () => {

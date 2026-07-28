@@ -137,7 +137,7 @@ export async function releaseUserClaim(
 export async function syncPoolClaim(poolId: string): Promise<{
   claimedItemId: string | null;
   conflictedItemId: string | null;
-  releasedItemIds: string[];
+  released: Array<{ wishlistItemId: string; transferredToPoolId: string | null }>;
 }> {
   return prisma.$transaction(async (tx) => {
     const pool = await tx.pool.findUnique({
@@ -162,10 +162,14 @@ export async function syncPoolClaim(poolId: string): Promise<{
     }
     // Settle only after every release, so an heir can't take an item this pool
     // is about to release and then re-take.
-    for (const itemId of releasedItemIds) await settleItem(tx, itemId);
+    const released: Array<{ wishlistItemId: string; transferredToPoolId: string | null }> = [];
+    for (const itemId of releasedItemIds) {
+      const transferredToPoolId = await settleItem(tx, itemId);
+      released.push({ wishlistItemId: itemId, transferredToPoolId });
+    }
 
     if (!intendedItemId) {
-      return { claimedItemId: null, conflictedItemId: null, releasedItemIds };
+      return { claimedItemId: null, conflictedItemId: null, released };
     }
 
     const holder = await tx.wishlistClaim.findUnique({
@@ -174,11 +178,11 @@ export async function syncPoolClaim(poolId: string): Promise<{
     });
     if (holder) {
       return holder.poolId === poolId
-        ? { claimedItemId: intendedItemId, conflictedItemId: null, releasedItemIds }
-        : { claimedItemId: null, conflictedItemId: intendedItemId, releasedItemIds };
+        ? { claimedItemId: intendedItemId, conflictedItemId: null, released }
+        : { claimedItemId: null, conflictedItemId: intendedItemId, released };
     }
 
     await tx.wishlistClaim.create({ data: { wishlistItemId: intendedItemId, poolId } });
-    return { claimedItemId: intendedItemId, conflictedItemId: null, releasedItemIds };
+    return { claimedItemId: intendedItemId, conflictedItemId: null, released };
   });
 }
