@@ -86,6 +86,15 @@ export async function action({ request }: ActionFunctionArgs) {
   await prisma.wishlistClaim.deleteMany({
     where: {
       wishlistItemId,
+      // Solo claims only. A pool-held claim has claimedByUserId: null (see
+      // the DB CHECK in the WishlistClaim migration — exactly one of
+      // claimedByUserId/poolId is set), so omitting this predicate would
+      // delete a pool's claim every time the owner archives or restores the
+      // item, with nothing to bring it back (syncPoolClaim only reruns on
+      // pool decide/cancel). Pool claims are released only by pool lifecycle
+      // events. Same predicate as cleanupWishlistClaimsForOwner in
+      // wishlist.server.ts — do not remove it here either.
+      claimedByUserId: { not: null },
     },
   });
   const statusTextMap: Record<

@@ -1,4 +1,4 @@
-import { captureMessage } from '@sentry/react-router'
+import { captureException, captureMessage } from '@sentry/react-router'
 import { data } from 'react-router'
 import { nanoid } from 'nanoid'
 import { queueLogEvent } from '#app/utils/analytics.server.ts'
@@ -13,7 +13,7 @@ import {
 import { calculateContributions } from '#app/utils/pool-contributions.ts'
 import { queuePoolActivityNotifications } from '#app/utils/pool-notifications.server.ts'
 import { assertPoolStatus } from '#app/utils/pool-permissions.server.ts'
-import { syncPoolClaim } from '#app/utils/wishlist-claims.server.ts'
+import { syncPoolClaim, type SyncPoolClaimResult } from '#app/utils/wishlist-claims.server.ts'
 import type { DecisionMode, OccasionType } from '#app/utils/pool-constants.ts'
 
 // ─── Selects ──────────────────────────────────────────────────────────────────
@@ -567,6 +567,22 @@ export async function closeVote(poolId: string, actorId: string) {
 
 // ─── Decision ─────────────────────────────────────────────────────────────────
 
+// By the time this runs, the pool's status change is already committed —
+// chooseIdea's DECIDED, cancelPool's CANCELLED. A sync failure (SQLITE_BUSY
+// under LiteFS, or the P2002 its internal `create` can hit racing a solo
+// claimer onto the same item) must not turn that committed decision into a
+// 500, and must not skip the notification fanout that follows. Capture to
+// Sentry and degrade to firing no claim events, matching how queueLogEvent /
+// queueNotification tail fanout failures instead of throwing them.
+async function syncPoolClaimSafely(poolId: string): Promise<SyncPoolClaimResult> {
+	try {
+		return await syncPoolClaim(poolId)
+	} catch (error) {
+		captureException(error)
+		return { claimedItemId: null, conflictedItemId: null, released: [] }
+	}
+}
+
 // Choose an idea as the winner and move the pool to DECIDED.
 // finalPriceCents defaults to the idea's estimatedPriceCents if not provided.
 export async function chooseIdea(
@@ -617,7 +633,7 @@ export async function chooseIdea(
 
 	// Claim the recipient's wishlist item, if the chosen idea links one. Runs
 	// after the decision commits; a conflict is reported, never blocking.
-	const claimSync = await syncPoolClaim(poolId)
+	const claimSync = await syncPoolClaimSafely(poolId)
 
 	if (claimSync.claimedItemId) {
 		queueLogEvent({
@@ -815,7 +831,7 @@ export async function cancelPool(poolId: string, actorId: string) {
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_CANCELLED, { actorId })
 
 	// Cancelling frees the wishlist item — and hands it to any other pool waiting.
-	const claimSync = await syncPoolClaim(poolId)
+	const claimSync = await syncPoolClaimSafely(poolId)
 	for (const release of claimSync.released) {
 		if (!release.transferredToPoolId) continue
 		queueLogEvent({

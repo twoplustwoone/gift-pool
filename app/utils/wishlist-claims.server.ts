@@ -139,11 +139,13 @@ export async function releaseUserClaim(
  * decides, re-decides, or is cancelled. Releasing an old item settles it, so a
  * pool switching from A to B frees A for whoever was waiting on it.
  */
-export async function syncPoolClaim(poolId: string): Promise<{
+export type SyncPoolClaimResult = {
   claimedItemId: string | null;
   conflictedItemId: string | null;
   released: Array<{ wishlistItemId: string; transferredToPoolId: string | null }>;
-}> {
+};
+
+export async function syncPoolClaim(poolId: string): Promise<SyncPoolClaimResult> {
   return prisma.$transaction(async (tx) => {
     const pool = await tx.pool.findUnique({
       where: { id: poolId },

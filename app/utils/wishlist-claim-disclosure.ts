@@ -123,13 +123,16 @@ export function resolveClaimDisclosure(
 
   if (viewer.memberOfHolderGroup && holder.giftGroupName !== null) {
     // Safe: group members already see every active pool in their group via
-    // queryActivePools, so naming it discloses nothing new.
+    // queryActivePools, so naming it discloses nothing new. No poolLink,
+    // though: this tier can't open the pool page (contributors-only, see
+    // __route.server.ts) — a join affordance for this tier is deliberately
+    // unbuilt, so a link here would 404 every time it's tapped.
     return {
       show: true,
       tone: 'pool',
       text: `${holder.giftGroupName} is getting this`,
       name: holder.giftGroupName,
-      poolLink: `/pools/${holder.poolId}`,
+      poolLink: null,
       canJoinPool: true,
     };
   }

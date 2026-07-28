@@ -73,11 +73,15 @@ describe('resolveClaimDisclosure — pool-held claims, five tiers', () => {
     expect(d.canJoinPool).toBe(false);
   });
 
-  it('tier 3: a group member outside the pool sees the group named and can join', () => {
+  it('tier 3: a group member outside the pool sees the group named and can join, but gets no pool link', () => {
+    // canJoinPool is true, but the join affordance for this tier is
+    // deliberately unbuilt and the pool route 404s every non-contributor —
+    // so this tier must not get a poolLink (see __route.server.ts).
     const d = resolveClaimDisclosure(POOL_HOLDER, viewer({ memberOfHolderGroup: true }), 'label');
     expect(d.name).toBe('Sunday Roasters');
     expect(d.text).toBe('Sunday Roasters is getting this');
     expect(d.canJoinPool).toBe(true);
+    expect(d.poolLink).toBeNull();
   });
 
   it('tier 4: any other signed-in viewer gets no attribution', () => {
@@ -171,12 +175,13 @@ describe('resolveClaimDisclosure — the badge surface', () => {
     expect(d.canJoinPool).toBe(false);
   });
 
-  it('names the group for a group member on the badge surface too', () => {
+  it('names the group for a group member on the badge surface too, with no pool link', () => {
     const d = resolveClaimDisclosure(POOL_HOLDER, viewer({ memberOfHolderGroup: true }), 'badge');
     expect(d.show).toBe(true);
     expect(d.name).toBe('Sunday Roasters');
     expect(d.text).toBe('Sunday Roasters is getting this');
     expect(d.canJoinPool).toBe(true);
+    expect(d.poolLink).toBeNull();
   });
 });
 
