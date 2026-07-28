@@ -116,7 +116,11 @@ export async function action({ request }: ActionFunctionArgs) {
         {
           ok: false,
           wishlistItemId,
-          claim: currentClaim,
+          // The actual current claim, not `currentClaim` (read before this
+          // attempt). A loser of a concurrent race must see the winner's
+          // claim, or the optimistic controller reconciles its UI back to
+          // "unclaimed" while the winner's row already exists in the DB.
+          claim: outcome.claim,
           // Today's message ("already marked as purchased") is false when a
           // pool holds it — a DECIDED pool has explicitly not purchased
           // anything. PURCHASED is a separate, later pool status.

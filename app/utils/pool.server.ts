@@ -13,7 +13,11 @@ import {
 import { calculateContributions } from '#app/utils/pool-contributions.ts'
 import { queuePoolActivityNotifications } from '#app/utils/pool-notifications.server.ts'
 import { assertPoolStatus } from '#app/utils/pool-permissions.server.ts'
-import { syncPoolClaim, type SyncPoolClaimResult } from '#app/utils/wishlist-claims.server.ts'
+import {
+	syncPoolClaim,
+	syncPoolClaimInTx,
+	type SyncPoolClaimResult,
+} from '#app/utils/wishlist-claims.server.ts'
 import type { DecisionMode, OccasionType } from '#app/utils/pool-constants.ts'
 
 // ─── Selects ──────────────────────────────────────────────────────────────────
@@ -568,12 +572,15 @@ export async function closeVote(poolId: string, actorId: string) {
 // ─── Decision ─────────────────────────────────────────────────────────────────
 
 // By the time this runs, the pool's status change is already committed —
-// chooseIdea's DECIDED, cancelPool's CANCELLED. A sync failure (SQLITE_BUSY
-// under LiteFS, or the P2002 its internal `create` can hit racing a solo
-// claimer onto the same item) must not turn that committed decision into a
-// 500, and must not skip the notification fanout that follows. Capture to
-// Sentry and degrade to firing no claim events, matching how queueLogEvent /
-// queueNotification tail fanout failures instead of throwing them.
+// cancelPool's CANCELLED. (chooseIdea's DECIDED transition instead commits
+// the claim sync in the *same* transaction as the status change — see
+// `chooseIdea` — so a sync failure there rolls back the decision rather than
+// landing here.) A sync failure (SQLITE_BUSY under LiteFS, or the P2002 its
+// internal `create` can hit racing a solo claimer onto the same item) must
+// not turn that committed decision into a 500, and must not skip the
+// notification fanout that follows. Capture to Sentry and degrade to firing
+// no claim events, matching how queueLogEvent / queueNotification tail
+// fanout failures instead of throwing them.
 async function syncPoolClaimSafely(poolId: string): Promise<SyncPoolClaimResult> {
 	try {
 		return await syncPoolClaim(poolId)
@@ -602,38 +609,51 @@ export async function chooseIdea(
 
 	const resolvedPrice = finalPriceCents ?? idea.estimatedPriceCents ?? null
 
-	const decision = await prisma.pool.updateMany({
-		where: {
-			id: poolId,
-			// Forward-only: a gift can be (re)chosen while OPEN/VOTING/DECIDED, but
-			// never from a terminal/purchased state — that would resurrect a
-			// CANCELLED pool or roll a DELIVERED one back to DECIDED.
-			status: {
-				in: [POOL_STATUS.OPEN, POOL_STATUS.VOTING, POOL_STATUS.DECIDED],
+	// The status transition and the claim it triggers must commit as one
+	// unit. If they were separate writes, a concurrent `POST
+	// /wishlist/purchase` could land a solo claim on the item in the window
+	// between them — the pool decided first, but the solo claimer would win
+	// the item, exactly the bug this feature exists to prevent. Wrapping both
+	// in one transaction also means a sync failure (SQLITE_BUSY, a P2002 race)
+	// rolls back the decision instead of leaving it DECIDED with no claim and
+	// no retry path.
+	const claimSync = await prisma.$transaction(async (tx) => {
+		const decision = await tx.pool.updateMany({
+			where: {
+				id: poolId,
+				// Forward-only: a gift can be (re)chosen while OPEN/VOTING/DECIDED,
+				// but never from a terminal/purchased state — that would resurrect
+				// a CANCELLED pool or roll a DELIVERED one back to DECIDED.
+				status: {
+					in: [POOL_STATUS.OPEN, POOL_STATUS.VOTING, POOL_STATUS.DECIDED],
+				},
+				OR: [
+					{ status: { not: POOL_STATUS.DECIDED } },
+					{ chosenIdeaId: null },
+					{ chosenIdeaId: { not: ideaId } },
+				],
 			},
-			OR: [
-				{ status: { not: POOL_STATUS.DECIDED } },
-				{ chosenIdeaId: null },
-				{ chosenIdeaId: { not: ideaId } },
-			],
-		},
-		data: {
-			status: POOL_STATUS.DECIDED,
-			chosenIdeaId: ideaId,
-			finalPriceCents: resolvedPrice,
-			decidedAt: new Date(),
-		},
-	})
-	if (decision.count === 0) return
+			data: {
+				status: POOL_STATUS.DECIDED,
+				chosenIdeaId: ideaId,
+				finalPriceCents: resolvedPrice,
+				decidedAt: new Date(),
+			},
+		})
+		if (decision.count === 0) return null
 
+		return syncPoolClaimInTx(tx, poolId)
+	})
+	if (claimSync === null) return
+
+	// logPoolActivity, queueLogEvent, and queuePoolActivityNotifications all
+	// run after the transaction closes: queueLogEvent inside a transaction
+	// produces spurious SQLITE_BUSY under LiteFS, and a fanout failure here
+	// must never turn the now-committed decision into a 500.
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.IDEA_CHOSEN, {
 		actorId,
 		payload: { ideaId, name: idea.name, finalPriceCents: resolvedPrice },
 	})
-
-	// Claim the recipient's wishlist item, if the chosen idea links one. Runs
-	// after the decision commits; a conflict is reported, never blocking.
-	const claimSync = await syncPoolClaimSafely(poolId)
 
 	if (claimSync.claimedItemId) {
 		queueLogEvent({

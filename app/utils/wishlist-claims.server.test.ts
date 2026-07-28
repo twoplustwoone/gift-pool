@@ -1,9 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import { createUser } from '#tests/db-utils.ts';
+import * as wishlistClaims from './wishlist-claims.server.ts';
 import { claimForUser, loadClaimStates, releaseUserClaim, syncPoolClaim } from './wishlist-claims.server.ts';
 import { cancelPool, chooseIdea } from './pool.server.ts';
 
@@ -54,6 +55,7 @@ describe('claimForUser', () => {
     await expect(claimForUser(item.id, friend.id)).resolves.toEqual({
       ok: false,
       reason: 'held-by-pool',
+      claim: { claimedByUserId: null },
     });
   });
 
@@ -245,6 +247,135 @@ describe('syncPoolClaim', () => {
     await syncPoolClaim(pool.id);
     await cancelPool(pool.id, organizer.id);
     expect(await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } })).toBeNull();
+  });
+});
+
+describe('chooseIdea + claim sync atomicity', () => {
+  it('rolls back the DECIDED transition when the claim sync fails mid-transaction', async () => {
+    // Regression for the P1 finding: chooseIdea's status transition and its
+    // claim sync used to be two separate writes, leaving a window where a
+    // concurrent solo claim could steal the item a pool just decided on —
+    // and a sync failure left the pool stuck DECIDED with no claim and no
+    // retry path. They now commit inside one `prisma.$transaction`, so a
+    // rejection from the sync must roll back the pool's status change too.
+    // Spying on the real `syncPoolClaimInTx` export (rather than mocking the
+    // whole module) keeps this a real Prisma transaction end to end — only
+    // the sync's outcome is forced to fail.
+    const { owner, organizer, item } = await fixture();
+    const pool = await prisma.pool.create({
+      data: { title: 'Birthday pool', organizerId: organizer.id, recipientUserId: owner.id },
+    });
+    const idea = await prisma.giftIdea.create({
+      data: { poolId: pool.id, proposedById: organizer.id, name: 'Spa voucher', wishlistItemId: item.id },
+    });
+
+    const spy = vi
+      .spyOn(wishlistClaims, 'syncPoolClaimInTx')
+      .mockRejectedValueOnce(new Error('claim sync boom'));
+
+    await expect(chooseIdea(pool.id, idea.id, organizer.id)).rejects.toThrow('claim sync boom');
+
+    const reloaded = await prisma.pool.findUniqueOrThrow({ where: { id: pool.id } });
+    expect(reloaded.status).not.toBe('DECIDED');
+    expect(reloaded.chosenIdeaId).toBeNull();
+    expect(await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } })).toBeNull();
+
+    spy.mockRestore();
+  });
+});
+
+describe('releaseSoloClaimForItem', () => {
+  it('hands the item to a waiting pool instead of leaving it unclaimed', async () => {
+    // Regression for the P1 finding: the owner-archive route used to
+    // bare-delete a solo claim without settling it, so a pool that had
+    // already decided on the item was left with no claim after the owner
+    // archived (or restored) it.
+    const { owner, friend, organizer, item } = await fixture();
+    await claimForUser(item.id, friend.id);
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+
+    const result = await wishlistClaims.releaseSoloClaimForItem(item.id);
+
+    expect(result).toEqual({ ok: true, transferredToPoolId: pool.id });
+    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    expect(claim?.poolId).toBe(pool.id);
+    expect(claim?.claimedByUserId).toBeNull();
+  });
+
+  it('leaves a pool-held claim untouched', async () => {
+    const { owner, organizer, item } = await fixture();
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    await syncPoolClaim(pool.id);
+
+    const result = await wishlistClaims.releaseSoloClaimForItem(item.id);
+
+    expect(result).toEqual({ ok: false, transferredToPoolId: null });
+    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    expect(claim?.poolId).toBe(pool.id);
+  });
+
+  it('is a no-op when the item has no claim', async () => {
+    const { item } = await fixture();
+    const result = await wishlistClaims.releaseSoloClaimForItem(item.id);
+    expect(result).toEqual({ ok: false, transferredToPoolId: null });
+  });
+});
+
+describe('claimForUser losing a race', () => {
+  it('tells the loser of a concurrent race the winning claim, not a pre-race null', async () => {
+    // Regression for the P2 finding: the caller (purchase.ts) used to send
+    // back the claim state it read *before* calling claimForUser — null, for
+    // a free item — so a loser of a genuine concurrent race had its UI
+    // reconciled back to "unclaimed" even though the winner's row already
+    // existed. claimForUser must report the actual post-race state.
+    const { friend, organizer, item } = await fixture();
+
+    const results = await Promise.all([
+      claimForUser(item.id, friend.id),
+      claimForUser(item.id, organizer.id),
+    ]);
+
+    const loser = results.find((r) => !r.ok);
+    expect(loser).toBeDefined();
+    if (!loser || loser.ok) throw new Error('expected a losing outcome');
+    expect(loser.reason).toBe('held-by-user');
+    // The loser must be told the actual winner, not null.
+    expect(loser.claim.claimedByUserId).not.toBeNull();
+    expect([friend.id, organizer.id]).toContain(loser.claim.claimedByUserId);
+
+    const claim = await prisma.wishlistClaim.findUniqueOrThrow({
+      where: { wishlistItemId: item.id },
+    });
+    expect(loser.claim.claimedByUserId).toBe(claim.claimedByUserId);
+  });
+
+  it('reports a pre-existing user claim without needing a race', async () => {
+    const { friend, organizer, item } = await fixture();
+    await prisma.wishlistClaim.create({
+      data: { wishlistItemId: item.id, claimedByUserId: organizer.id },
+    });
+
+    const result = await claimForUser(item.id, friend.id);
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'held-by-user',
+      claim: { claimedByUserId: organizer.id },
+    });
+  });
+
+  it('reports a pool-held claim with the null-claimedByUserId sentinel', async () => {
+    const { owner, friend, organizer, item } = await fixture();
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    await syncPoolClaim(pool.id);
+
+    const result = await claimForUser(item.id, friend.id);
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'held-by-pool',
+      claim: { claimedByUserId: null },
+    });
   });
 });
 

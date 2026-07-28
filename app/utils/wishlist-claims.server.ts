@@ -74,10 +74,21 @@ async function settleItem(tx: Tx, wishlistItemId: string): Promise<string | null
   return heir.id;
 }
 
+export type ClaimForUserFailure = {
+  ok: false;
+  reason: 'held-by-user' | 'held-by-pool';
+  // The claim as it actually stands after the attempt — never the
+  // pre-attempt read. A loser of a concurrent race must be told the winner's
+  // claim exists, or its UI reconciles back to "unclaimed" while the winner's
+  // row sits in the DB. `claimedByUserId: null` here means a pool holds it
+  // (same sentinel shape used across the module for a pool-held claim).
+  claim: { claimedByUserId: string | null };
+};
+
 export async function claimForUser(
   wishlistItemId: string,
   userId: string,
-): Promise<{ ok: true } | { ok: false; reason: 'held-by-user' | 'held-by-pool' }> {
+): Promise<{ ok: true } | ClaimForUserFailure> {
   const existing = await prisma.wishlistClaim.findUnique({
     where: { wishlistItemId },
     select: { claimedByUserId: true, poolId: true },
@@ -85,7 +96,11 @@ export async function claimForUser(
 
   if (existing) {
     if (existing.claimedByUserId === userId) return { ok: true };
-    return { ok: false, reason: existing.poolId ? 'held-by-pool' : 'held-by-user' };
+    return {
+      ok: false,
+      reason: existing.poolId ? 'held-by-pool' : 'held-by-user',
+      claim: { claimedByUserId: existing.claimedByUserId },
+    };
   }
 
   try {
@@ -104,7 +119,11 @@ export async function claimForUser(
         select: { claimedByUserId: true, poolId: true },
       });
       if (winner?.claimedByUserId === userId) return { ok: true };
-      return { ok: false, reason: winner?.poolId ? 'held-by-pool' : 'held-by-user' };
+      return {
+        ok: false,
+        reason: winner?.poolId ? 'held-by-pool' : 'held-by-user',
+        claim: { claimedByUserId: winner?.claimedByUserId ?? null },
+      };
     }
     throw error;
   }
@@ -138,6 +157,35 @@ export async function releaseUserClaim(
 }
 
 /**
+ * Owner-facing release: drops a *solo* claim on an item regardless of which
+ * user holds it (unlike `releaseUserClaim`, this is not gated to the caller's
+ * own claim — the owner archiving/restoring their item is not "the claimer").
+ * A pool-held claim (`claimedByUserId: null`) is left untouched; pool claims
+ * are released only by pool lifecycle events (decide/re-decide/cancel).
+ *
+ * Same atomicity requirement as `releaseUserClaim`: delete-then-settle must
+ * commit as one transaction, or a waiting pool can lose the race for the item
+ * it just watched become free.
+ */
+export async function releaseSoloClaimForItem(
+  wishlistItemId: string,
+): Promise<{ ok: boolean; transferredToPoolId: string | null }> {
+  return prisma.$transaction(async (tx) => {
+    const claim = await tx.wishlistClaim.findUnique({
+      where: { wishlistItemId },
+      select: { id: true, claimedByUserId: true },
+    });
+    if (!claim || claim.claimedByUserId === null) {
+      return { ok: false, transferredToPoolId: null };
+    }
+
+    await tx.wishlistClaim.delete({ where: { id: claim.id } });
+    const transferredToPoolId = await settleItem(tx, wishlistItemId);
+    return { ok: true, transferredToPoolId };
+  });
+}
+
+/**
  * Reconcile a pool's claims with its current decision. Called after the pool
  * decides, re-decides, or is cancelled. Releasing an old item settles it, so a
  * pool switching from A to B frees A for whoever was waiting on it.
@@ -148,53 +196,61 @@ export type SyncPoolClaimResult = {
   released: Array<{ wishlistItemId: string; transferredToPoolId: string | null }>;
 };
 
-export async function syncPoolClaim(poolId: string): Promise<SyncPoolClaimResult> {
-  return prisma.$transaction(async (tx) => {
-    const pool = await tx.pool.findUnique({
-      where: { id: poolId },
-      select: { status: true, chosenIdea: { select: { wishlistItemId: true } } },
-    });
-
-    const intendedItemId =
-      pool && (POOL_INTENT_STATUSES as readonly string[]).includes(pool.status)
-        ? (pool.chosenIdea?.wishlistItemId ?? null)
-        : null;
-
-    // Drop any claim this pool holds that is no longer what it intends.
-    const stale = await tx.wishlistClaim.findMany({
-      where: { poolId, ...(intendedItemId ? { NOT: { wishlistItemId: intendedItemId } } : {}) },
-      select: { id: true, wishlistItemId: true },
-    });
-    const releasedItemIds: string[] = [];
-    for (const claim of stale) {
-      await tx.wishlistClaim.delete({ where: { id: claim.id } });
-      releasedItemIds.push(claim.wishlistItemId);
-    }
-    // Settle only after every release, so an heir can't take an item this pool
-    // is about to release and then re-take.
-    const released: Array<{ wishlistItemId: string; transferredToPoolId: string | null }> = [];
-    for (const itemId of releasedItemIds) {
-      const transferredToPoolId = await settleItem(tx, itemId);
-      released.push({ wishlistItemId: itemId, transferredToPoolId });
-    }
-
-    if (!intendedItemId) {
-      return { claimedItemId: null, conflictedItemId: null, released };
-    }
-
-    const holder = await tx.wishlistClaim.findUnique({
-      where: { wishlistItemId: intendedItemId },
-      select: { poolId: true },
-    });
-    if (holder) {
-      return holder.poolId === poolId
-        ? { claimedItemId: intendedItemId, conflictedItemId: null, released }
-        : { claimedItemId: null, conflictedItemId: intendedItemId, released };
-    }
-
-    await tx.wishlistClaim.create({ data: { wishlistItemId: intendedItemId, poolId } });
-    return { claimedItemId: intendedItemId, conflictedItemId: null, released };
+/**
+ * Transaction-accepting core of `syncPoolClaim`. Callers that must commit the
+ * sync together with another write (e.g. `chooseIdea`'s status transition)
+ * pass their own transaction client in here instead of going through the
+ * thin `syncPoolClaim` wrapper, which opens its own transaction.
+ */
+export async function syncPoolClaimInTx(tx: Tx, poolId: string): Promise<SyncPoolClaimResult> {
+  const pool = await tx.pool.findUnique({
+    where: { id: poolId },
+    select: { status: true, chosenIdea: { select: { wishlistItemId: true } } },
   });
+
+  const intendedItemId =
+    pool && (POOL_INTENT_STATUSES as readonly string[]).includes(pool.status)
+      ? (pool.chosenIdea?.wishlistItemId ?? null)
+      : null;
+
+  // Drop any claim this pool holds that is no longer what it intends.
+  const stale = await tx.wishlistClaim.findMany({
+    where: { poolId, ...(intendedItemId ? { NOT: { wishlistItemId: intendedItemId } } : {}) },
+    select: { id: true, wishlistItemId: true },
+  });
+  const releasedItemIds: string[] = [];
+  for (const claim of stale) {
+    await tx.wishlistClaim.delete({ where: { id: claim.id } });
+    releasedItemIds.push(claim.wishlistItemId);
+  }
+  // Settle only after every release, so an heir can't take an item this pool
+  // is about to release and then re-take.
+  const released: Array<{ wishlistItemId: string; transferredToPoolId: string | null }> = [];
+  for (const itemId of releasedItemIds) {
+    const transferredToPoolId = await settleItem(tx, itemId);
+    released.push({ wishlistItemId: itemId, transferredToPoolId });
+  }
+
+  if (!intendedItemId) {
+    return { claimedItemId: null, conflictedItemId: null, released };
+  }
+
+  const holder = await tx.wishlistClaim.findUnique({
+    where: { wishlistItemId: intendedItemId },
+    select: { poolId: true },
+  });
+  if (holder) {
+    return holder.poolId === poolId
+      ? { claimedItemId: intendedItemId, conflictedItemId: null, released }
+      : { claimedItemId: null, conflictedItemId: intendedItemId, released };
+  }
+
+  await tx.wishlistClaim.create({ data: { wishlistItemId: intendedItemId, poolId } });
+  return { claimedItemId: intendedItemId, conflictedItemId: null, released };
+}
+
+export async function syncPoolClaim(poolId: string): Promise<SyncPoolClaimResult> {
+  return prisma.$transaction((tx) => syncPoolClaimInTx(tx, poolId));
 }
 
 /**

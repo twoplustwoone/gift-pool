@@ -254,6 +254,43 @@ test('rejects claiming an item already held by a pool, without implying it was p
   expect((payload as { error: string }).error).not.toMatch(/purchased/i);
 });
 
+test('the loser of a concurrent claim race is told the winner, not a stale "unclaimed"', async () => {
+  // Regression for the P2 finding: the route used to return `currentClaim`,
+  // the claim state read *before* calling claimForUser — null for a free
+  // item. A loser of a genuine concurrent race would then have its UI
+  // reconciled back to "unclaimed" even though the winner's row already
+  // existed. The route must now report the actual post-race claim.
+  const { user: owner } = await createUserWithSession();
+  const { user: firstViewer, cookie: firstCookie } = await createUserWithSession();
+  const { user: secondViewer, cookie: secondCookie } = await createUserWithSession();
+  await makeFriends(owner.id, firstViewer.id);
+  await makeFriends(owner.id, secondViewer.id);
+  const item = await createWishlistItem({ ownerId: owner.id });
+
+  const [firstResponse, secondResponse] = await Promise.all([
+    invoke({ cookie: firstCookie, form: { wishlistItemId: item.id, intent: 'purchase' } }),
+    invoke({ cookie: secondCookie, form: { wishlistItemId: item.id, intent: 'purchase' } }),
+  ]);
+
+  type RaceResult = { ok: boolean; claim: { claimedByUserId: string | null } | null };
+  const [firstData, secondData] = await Promise.all([
+    getRouteResultData<RaceResult>(firstResponse),
+    getRouteResultData<RaceResult>(secondResponse),
+  ]);
+
+  const winner = firstData.ok ? firstData : secondData;
+  const loser = firstData.ok ? secondData : firstData;
+  expect(firstData.ok).not.toBe(secondData.ok);
+  expect(loser.claim).not.toBeNull();
+  expect(loser.claim?.claimedByUserId).not.toBeNull();
+  expect(loser.claim?.claimedByUserId).toBe(winner.claim?.claimedByUserId);
+
+  const claim = await prisma.wishlistClaim.findUniqueOrThrow({
+    where: { wishlistItemId: item.id },
+  });
+  expect(loser.claim?.claimedByUserId).toBe(claim.claimedByUserId);
+});
+
 test('claims an item on the happy path and logs the purchase event', async () => {
   const { user: owner } = await createUserWithSession();
   const { user: viewer, cookie } = await createUserWithSession();

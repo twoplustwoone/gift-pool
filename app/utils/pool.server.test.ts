@@ -26,6 +26,7 @@ const poolUpdateMany = vi.fn();
 const queueLogEvent = vi.fn();
 const queuePoolActivityNotifications = vi.fn();
 const syncPoolClaim = vi.fn();
+const syncPoolClaimInTx = vi.fn();
 
 vi.mock('nanoid', () => ({
   nanoid: () => nanoid(),
@@ -36,8 +37,12 @@ vi.mock('@sentry/react-router', () => ({
   captureMessage: (...args: Array<unknown>) => captureMessage(...args),
 }));
 
-vi.mock('#app/utils/db.server.ts', () => ({
-  prisma: {
+vi.mock('#app/utils/db.server.ts', () => {
+  // `$transaction` runs the callback against this same mocked client, so a
+  // transaction body's `tx.pool.updateMany(...)` etc. hit the very mocks
+  // (`poolUpdateMany` and friends) that non-transactional callers already
+  // exercise — no separate tx-mock surface to keep in sync.
+  const prismaMock: any = {
     giftIdea: {
       create: (...args: Array<unknown>) => giftIdeaCreate(...args),
       delete: (...args: Array<unknown>) => giftIdeaDelete(...args),
@@ -61,8 +66,10 @@ vi.mock('#app/utils/db.server.ts', () => ({
         poolContributorFindUnique(...args),
       update: (...args: Array<unknown>) => poolContributorUpdate(...args),
     },
-  },
-}));
+    $transaction: (fn: (tx: unknown) => unknown) => fn(prismaMock),
+  };
+  return { prisma: prismaMock };
+});
 
 vi.mock('#app/utils/pool-activity.server.ts', () => ({
   logPoolActivity: (...args: Array<unknown>) => logPoolActivity(...args),
@@ -79,6 +86,7 @@ vi.mock('#app/utils/pool-notifications.server.ts', () => ({
 
 vi.mock('#app/utils/wishlist-claims.server.ts', () => ({
   syncPoolClaim: (...args: Array<unknown>) => syncPoolClaim(...args),
+  syncPoolClaimInTx: (...args: Array<unknown>) => syncPoolClaimInTx(...args),
 }));
 
 import {
@@ -135,6 +143,9 @@ beforeEach(() => {
   queueLogEvent.mockReset().mockReturnValue({ eventId: 'event-123' });
   queuePoolActivityNotifications.mockReset();
   syncPoolClaim
+    .mockReset()
+    .mockResolvedValue({ claimedItemId: null, conflictedItemId: null, released: [] });
+  syncPoolClaimInTx
     .mockReset()
     .mockResolvedValue({ claimedItemId: null, conflictedItemId: null, released: [] });
 });
@@ -596,13 +607,36 @@ describe('pool server utilities', () => {
       actorId: 'user-1',
       payload: { finalPriceCents: 8000, ideaId: 'idea-1', name: 'Speaker' },
     });
-    expect(syncPoolClaim).toHaveBeenCalledWith('pool-1');
+    expect(syncPoolClaimInTx).toHaveBeenCalledWith(expect.anything(), 'pool-1');
     expect(queuePoolActivityNotifications).toHaveBeenCalledWith({
       type: NOTIFICATION_TYPES.POOL_GIFT_CHOSEN,
       poolId: 'pool-1',
       actorUserId: 'user-1',
       occurrenceId: 'event-123',
     });
+  });
+
+  it('propagates a claim-sync failure and skips every post-decision side effect', async () => {
+    // The decision (`updateMany`) and the claim sync now commit in the same
+    // `$transaction` — a rejection from the sync must abort the whole thing,
+    // so nothing downstream of the transaction (activity log, analytics,
+    // notification fanout) ever fires for a decision that didn't land. The
+    // real-DB rollback of the pool row itself is covered in
+    // wishlist-claims.server.test.ts, which exercises the actual Prisma
+    // transaction rather than this mocked client.
+    giftIdeaFindFirst.mockResolvedValue({
+      estimatedPriceCents: 8000,
+      name: 'Speaker',
+    });
+    syncPoolClaimInTx.mockRejectedValueOnce(new Error('claim sync boom'));
+
+    await expect(chooseIdea('pool-1', 'idea-1', 'user-1')).rejects.toThrow(
+      'claim sync boom',
+    );
+
+    expect(logPoolActivity).not.toHaveBeenCalled();
+    expect(queueLogEvent).not.toHaveBeenCalled();
+    expect(queuePoolActivityNotifications).not.toHaveBeenCalled();
   });
 
   it('does not repeat decision side effects when the gift is already chosen', async () => {
