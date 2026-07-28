@@ -617,7 +617,24 @@ export async function chooseIdea(
 
 	// Claim the recipient's wishlist item, if the chosen idea links one. Runs
 	// after the decision commits; a conflict is reported, never blocking.
-	await syncPoolClaim(poolId)
+	const claimSync = await syncPoolClaim(poolId)
+
+	if (claimSync.claimedItemId) {
+		queueLogEvent({
+			name: 'wishlist_claim_granted',
+			userId: actorId,
+			source: 'server',
+			properties: { poolId, claimantType: 'pool', wishlistItemId: claimSync.claimedItemId },
+		})
+	}
+	if (claimSync.conflictedItemId) {
+		queueLogEvent({
+			name: 'wishlist_claim_conflict_shown',
+			userId: actorId,
+			source: 'server',
+			properties: { poolId, wishlistItemId: claimSync.conflictedItemId },
+		})
+	}
 
 	const { eventId } = queueLogEvent({
 		name: 'pool_decided',

@@ -161,6 +161,14 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     );
   }
+  queueLogEvent({
+    name: release.transferredToPoolId
+      ? 'wishlist_claim_transferred'
+      : 'wishlist_claim_released',
+    userId,
+    source: 'server',
+    properties: { wishlistItemId, toPoolId: release.transferredToPoolId },
+  });
   return {
     ok: true,
     wishlistItemId,
