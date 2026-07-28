@@ -45,6 +45,8 @@ const queueLogEvent = vi.fn();
 const redirectWithToast = vi.fn();
 const getContextNotificationAwareness = vi.fn();
 const getOrganizerNudgeAvailability = vi.fn();
+const loadClaimStates = vi.fn();
+const loadIdeaClaimConflicts = vi.fn();
 
 vi.mock('#app/utils/auth.server.ts', () => ({
   requireUserId: (...args: Array<unknown>) => requireUserId(...args),
@@ -85,6 +87,17 @@ vi.mock('#app/utils/db.server.ts', () => ({
       findFirst: (...args: Array<unknown>) => wishlistItemFindFirst(...args),
     },
   },
+}));
+
+// The loader resolves wishlist-claim state through these two. They hit Prisma
+// models this file's client mock does not define, so leaving them real makes
+// every loader test throw. Their real behaviour is covered against a live
+// database in app/utils/wishlist-claims.server.test.ts — the same split
+// pool.server.test.ts uses for syncPoolClaim.
+vi.mock('#app/utils/wishlist-claims.server.ts', () => ({
+  loadClaimStates: (...args: Array<unknown>) => loadClaimStates(...args),
+  loadIdeaClaimConflicts: (...args: Array<unknown>) =>
+    loadIdeaClaimConflicts(...args),
 }));
 
 vi.mock('#app/utils/pool.server.ts', () => ({
@@ -250,6 +263,8 @@ beforeEach(() => {
       status: 'AVAILABLE',
     }),
   );
+  loadClaimStates.mockReset().mockResolvedValue(new Map());
+  loadIdeaClaimConflicts.mockReset().mockResolvedValue(new Map());
 });
 
 describe('pool detail route loader', () => {
