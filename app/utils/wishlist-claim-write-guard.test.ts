@@ -18,6 +18,19 @@
  * delete/deleteMany), on either a `prisma` or an in-transaction `tx` client.
  * Reads (findUnique, findMany, findFirst, findUniqueOrThrow, count) are not
  * flagged and never need to be.
+ *
+ * LIMITATION — this guard is a source-text grep. It cannot see, and does not
+ * catch, rows removed by a database-level `onDelete: Cascade` (e.g.
+ * `WishlistClaim.claimedByUserId` cascading when its `User` is deleted). No
+ * `.wishlistClaim` call appears in that code path, so the claim vanishes
+ * without ever running `settleItem`, and this test stays green while the
+ * settlement invariant is silently violated (see the account-deletion P1
+ * fix in profile.index.tsx, which routes the cascade-adjacent delete through
+ * `releaseSoloClaimsMatching` first for exactly this reason). Any new
+ * cascade path that can remove a `WishlistClaim` row — a new `onDelete:
+ * Cascade` relation reaching `User`, `WishlistItem`, or `Pool` — needs its
+ * own explicit settlement call before the cascading delete runs; this test
+ * will not tell you it's missing.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -86,7 +99,12 @@ describe('WishlistClaim write invariant', () => {
           'longest-waiting pool never inherits an item it has already decided on. This has ' +
           'been a real, shipped bug three separate times. Route this write through an ' +
           'existing or new export of wishlist-claims.server.ts instead of writing ' +
-          '`.wishlistClaim` directly.',
+          '`.wishlistClaim` directly.\n\n' +
+          'NOTE: this test greps source text, so it cannot see a WishlistClaim row removed ' +
+          'by a database-level onDelete: Cascade (e.g. via User deletion) — that path has no ' +
+          '`.wishlistClaim` call to flag and stays green even though settlement never runs. ' +
+          'If you are adding a new cascade that can reach WishlistClaim, settle it explicitly ' +
+          'before the cascading delete; this test will not catch a missing one.',
       );
     }
 

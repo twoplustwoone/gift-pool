@@ -268,9 +268,18 @@ export async function syncPoolClaim(poolId: string): Promise<SyncPoolClaimResult
  * are intentionally NOT all released in one shared transaction — there is no
  * cross-item invariant to protect, and holding one giant transaction open
  * across an unbounded number of rows is worse for LiteFS contention than many
- * small ones. The inner re-check guards against a claim that was released by
- * someone else (e.g. the claimer themselves) between the initial `findMany`
- * and this item's turn.
+ * small ones. The inner re-check re-applies the caller's full `where` (not
+ * just the claim id) inside the transaction, so it atomically re-evaluates
+ * the same predicate the outer `findMany` used, at delete time — exactly
+ * what the bare `deleteMany` this replaced did. This matters because `where`
+ * is not just "does this row still exist": it typically encodes an access
+ * predicate (e.g. "no longer shares a group/friendship with the owner"), and
+ * that predicate can flip back to false between the initial `findMany` and
+ * this item's turn — e.g. a friendship accepted concurrently with an owner's
+ * page-view cleanup. An id-only recheck would still delete (and possibly
+ * transfer to a waiting pool) a claim that has become valid again; the
+ * id-plus-`where` recheck skips it instead, matching what the atomic
+ * `deleteMany` guaranteed.
  */
 export async function releaseSoloClaimsMatching(
   where: Prisma.WishlistClaimWhereInput,
@@ -283,8 +292,8 @@ export async function releaseSoloClaimsMatching(
   const released: Array<{ wishlistItemId: string; transferredToPoolId: string | null }> = [];
   for (const claim of claims) {
     const outcome = await prisma.$transaction(async (tx) => {
-      const current = await tx.wishlistClaim.findUnique({
-        where: { id: claim.id },
+      const current = await tx.wishlistClaim.findFirst({
+        where: { AND: [{ id: claim.id }, where] },
         select: { id: true },
       });
       if (!current) return { released: false as const };

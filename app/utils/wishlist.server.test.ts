@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import { createUser } from '#tests/db-utils.ts';
 import { cleanupWishlistClaimsForOwner } from './wishlist.server.ts';
@@ -114,5 +114,52 @@ describe('cleanupWishlistClaimsForOwner', () => {
     });
     expect(claim.poolId).toBe(pool.id);
     expect(claim.claimedByUserId).toBeNull();
+  });
+
+  it('skips a claim whose claimant regains access between the find and its transaction — TOCTOU', async () => {
+    // Regression for the P2 finding: releaseSoloClaimsMatching's outer
+    // findMany matched this claim (stranger, no shared access with owner),
+    // but only rechecked the claim's *id* inside the per-item transaction —
+    // not the access predicate itself. If the stranger and owner became
+    // friends in the gap between the find and this claim's turn, the old
+    // code deleted (and could transfer to a waiting pool) a claim that had
+    // already become valid again. The bare `deleteMany` this replaced
+    // evaluated the whole predicate atomically at deletion time; the fix
+    // re-applies the full caller `where` (not just the id) inside the
+    // transaction to match that.
+    const owner = await prisma.user.create({ data: createUser() });
+    const stranger = await prisma.user.create({ data: createUser() });
+    const item = await prisma.wishlistItem.create({
+      data: {
+        ownerId: owner.id,
+        title: 'Espresso machine',
+        sortOrder: 0,
+        type: 'text',
+      },
+    });
+    const claim = await prisma.wishlistClaim.create({
+      data: { wishlistItemId: item.id, claimedByUserId: stranger.id },
+    });
+
+    // Simulate a friendship being accepted concurrently with the owner's
+    // wishlist-page cleanup: it lands after the outer `findMany` matched
+    // this claim, but before this claim's own release transaction runs.
+    const originalTransaction = prisma.$transaction.bind(prisma);
+    const transactionSpy = vi
+      .spyOn(prisma, '$transaction')
+      .mockImplementationOnce(async (callback: any) => {
+        await prisma.friendship.create({
+          data: { userAId: stranger.id, userBId: owner.id },
+        });
+        return originalTransaction(callback);
+      });
+
+    await cleanupWishlistClaimsForOwner(owner.id);
+    transactionSpy.mockRestore();
+
+    const stillExists = await prisma.wishlistClaim.findUnique({
+      where: { id: claim.id },
+    });
+    expect(stillExists).not.toBeNull();
   });
 });
