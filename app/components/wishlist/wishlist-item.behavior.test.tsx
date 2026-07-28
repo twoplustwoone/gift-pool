@@ -10,6 +10,7 @@ import { DeleteWishlistItem, WishlistItem } from './wishlist-item';
 const mockOpenView = vi.fn();
 const mockOpenEdit = vi.fn();
 const track = vi.fn();
+const toastError = vi.fn();
 
 let mockUser: { id: string; roles: string[] } | null = {
   id: 'owner-id',
@@ -76,6 +77,13 @@ vi.mock('#app/utils/analytics.client.ts', () => ({
   track: (...args: Array<unknown>) => track(...args),
 }));
 
+vi.mock('sonner', () => ({
+  toast: {
+    error: (...args: Array<unknown>) => toastError(...args),
+    success: vi.fn(),
+  },
+}));
+
 vi.mock('#app/utils/request-info.ts', () => ({
   useOptionalRequestInfo: () => requestInfoSnapshot,
 }));
@@ -102,21 +110,47 @@ vi.mock('#app/utils/misc.tsx', async () => {
 vi.mock('#app/routes/wishlist+/__wishlist-item-editor', () => {
   const React = require('react');
   const WishlistItemEditor = React.forwardRef(
-    ({ trigger }: { trigger?: React.ReactNode }, ref: React.ForwardedRef<unknown>) => {
+    (
+      {
+        trigger,
+        viewExtras,
+      }: { trigger?: React.ReactNode; viewExtras?: React.ReactNode },
+      ref: React.ForwardedRef<unknown>,
+    ) => {
+      // Real usage only mounts viewExtras once the modal is open (the real
+      // component is a Dialog that doesn't render its content until then).
+      // Gating on this local `isOpen` state — flipped by openView/openEdit,
+      // same as the real handle — keeps that behavior faithful: tests that
+      // never open the modal still see exactly one claim control (the row's),
+      // and a test that does open it (via the row's onOpen -> openView) can
+      // assert on the modal-only "claimed by someone else" surface
+      // (WishlistNonOwnerExtras) without duplicating controls across both.
+      const [isOpen, setIsOpen] = React.useState(false);
       React.useImperativeHandle(
         ref,
         () => ({
-          close: vi.fn(),
-          open: vi.fn(),
+          close: () => setIsOpen(false),
+          open: () => setIsOpen(true),
           openCreate: vi.fn(),
-          openEdit: mockOpenEdit,
-          openView: mockOpenView,
-          toggle: vi.fn(),
+          openEdit: () => {
+            mockOpenEdit();
+            setIsOpen(true);
+          },
+          openView: () => {
+            mockOpenView();
+            setIsOpen(true);
+          },
+          toggle: () => setIsOpen((value: boolean) => !value),
         }),
         [],
       );
 
-      return trigger ?? null;
+      return (
+        <>
+          {trigger ?? null}
+          {isOpen ? (viewExtras ?? null) : null}
+        </>
+      );
     },
   );
 
@@ -323,5 +357,89 @@ describe('wishlist item behavior', () => {
     expect(
       screen.queryByRole('button', { name: 'Let someone else pick up this gift' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('shows an unattributed "Already claimed" state — never blank space — and toasts why when a concurrent claim race is lost', async () => {
+    // Reachable scenario this guards against: a viewer loads the item while
+    // it's unclaimed, so the loader hands them HIDDEN_CLAIM_DISCLOSURE. They
+    // tap "I'll grab this," but another user or a pool wins the race first.
+    // The optimistic state correctly reconciles to "claimed by someone
+    // else," but the disclosure computed at load time is still HIDDEN —
+    // without a fallback, the claim-detail surface (WishlistNonOwnerExtras
+    // -> ClaimDescriptor) used to render nothing at all, and the
+    // reconciliation effect returned early before ever showing the error
+    // toast.
+    mockUser = { id: 'viewer-id', roles: [] };
+    purchaseFetcherState.state = 'idle';
+    purchaseFetcherState.data = undefined;
+    toastError.mockClear();
+
+    const wishlistItem = {
+      categoryId: null,
+      claim: null,
+      id: 'item-1',
+      note: null,
+      ownerId: 'owner-id',
+      status: 'ACTIVE' as const,
+      title: 'Item one',
+      type: 'text',
+      updatedAt: new Date('2026-03-31T12:00:00.000Z'),
+      url: null,
+      // No claimDisclosure — the component falls back to
+      // HIDDEN_CLAIM_DISCLOSURE, matching the loader's response for an
+      // item that was unclaimed at load time.
+    };
+
+    const { rerender } = render(
+      <WishlistItem categories={[]} wishlistItem={wishlistItem} />,
+    );
+
+    const toggleButton = screen.getByRole('button', {
+      name: "I'll grab this gift",
+    });
+    await userEvent.click(toggleButton);
+
+    expect(purchaseFetcherState.submit).toHaveBeenCalledWith(
+      { intent: 'purchase', wishlistItemId: 'item-1' },
+      { method: 'post', action: '/wishlist/purchase' },
+    );
+
+    // Fetcher goes pending.
+    purchaseFetcherState.state = 'submitting';
+    rerender(<WishlistItem categories={[]} wishlistItem={wishlistItem} />);
+
+    // Someone else won the race: the server refuses the claim and reports
+    // the item now held by someone else, with its own distinct refusal
+    // copy.
+    purchaseFetcherState.state = 'idle';
+    purchaseFetcherState.data = {
+      claim: { claimedByUserId: 'someone-else' },
+      error: 'Someone already grabbed this one.',
+      ok: false,
+      wishlistItemId: 'item-1',
+    };
+    rerender(<WishlistItem categories={[]} wishlistItem={wishlistItem} />);
+
+    // The user learns WHY the claim button just disappeared.
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith(
+        'Someone already grabbed this one.',
+      );
+    });
+
+    // Open the item detail view — this is exactly the surface
+    // (WishlistNonOwnerExtras -> ClaimDescriptor) that used to render
+    // nothing, because the stale HIDDEN disclosure loaded before the race
+    // was passed straight through.
+    await userEvent.click(screen.getByTestId('wishlist-item-row'));
+    expect(mockOpenView).toHaveBeenCalledWith();
+
+    expect(screen.getByText('Already claimed')).toBeInTheDocument();
+
+    // No attribution: the client cannot know who won the race and must
+    // never invent a name, pool title, or link for it.
+    expect(screen.queryByText(/claimed by/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('someone-else')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 });

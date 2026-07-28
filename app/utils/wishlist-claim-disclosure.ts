@@ -76,6 +76,24 @@ const anonymous = (
   canJoinPool: false,
 });
 
+// A generic "someone else has this" disclosure, carrying the same
+// zero-attribution shape `anonymous()` produces for every tier of the
+// ladder above (no name, no pool link, no group name, canJoinPool: false).
+//
+// For clients that already know — via optimistic reconciliation of a claim
+// mutation's response — that an item is claimed by someone else, but whose
+// `claimDisclosure` is stale (e.g. still `HIDDEN_CLAIM_DISCLOSURE` from a
+// load-time render where the item was unclaimed, because another user or
+// pool won a concurrent claim race). The client cannot know who won that
+// race, so it must never invent attribution the server never sent it — this
+// constant is exactly the same shape the resolver itself would have produced
+// for an unattributed viewer, just reached without a fresh server round
+// trip. Reuse this instead of hand-rolling an equivalent literal.
+export const UNATTRIBUTED_CLAIM_DISCLOSURE: ClaimDisclosure = anonymous(
+  'warning',
+  'Already claimed',
+);
+
 export function resolveClaimDisclosure(
   holder: ClaimHolder | null,
   viewer: ViewerRelationship,

@@ -45,6 +45,7 @@ import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { useOptionalUser, userHasPermission } from '#app/utils/user.ts';
 import {
   HIDDEN_CLAIM_DISCLOSURE,
+  UNATTRIBUTED_CLAIM_DISCLOSURE,
   type ClaimDisclosure,
 } from '#app/utils/wishlist-claim-disclosure.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
@@ -234,6 +235,15 @@ function useWishlistPurchaseController({
       if (reconciledPurchaseBy !== purchaseRollbackRef.current) {
         setPurchaseBy(reconciledPurchaseBy);
         purchaseRollbackRef.current = reconciledPurchaseBy;
+        // This is the lost-race case: the server refused the mutation
+        // (isFailedMutation) but reports the item now held by someone else,
+        // so the state above already reconciles to "claimed by someone
+        // else." The toast is what tells the user WHY their claim button
+        // just vanished — without it there's no feedback at all until a
+        // reload, which is exactly the silent-disappearance bug this fixes.
+        if (isFailedMutation) {
+          toast.error(actionData.error ?? 'Unable to update gift claim.');
+        }
         return;
       }
     }
@@ -1083,8 +1093,21 @@ export const WishlistItem = ({
   const purchaseStatusText = isPurchasedByMe
     ? 'You’re on gift duty for this one'
     : null;
-  const claimDisclosure =
+  const loadedClaimDisclosure =
     wishlistItem.claimDisclosure ?? HIDDEN_CLAIM_DISCLOSURE;
+  // The loader's disclosure is computed against the claim state AT LOAD
+  // TIME. If the viewer loaded the item while it was unclaimed (disclosure:
+  // HIDDEN) and then lost a concurrent claim race — another user or a pool
+  // won first — the optimistic reconciliation above flips
+  // isPurchasedBySomeoneElse to true, but this stale disclosure still says
+  // "show nothing." Left alone, that renders as blank space where the claim
+  // button used to be. Fall back to the same zero-attribution shape the
+  // resolver produces for a viewer who isn't allowed to know who holds the
+  // claim — never attribution the client invents itself.
+  const claimDisclosure =
+    isPurchasedBySomeoneElse && !loadedClaimDisclosure.show
+      ? UNATTRIBUTED_CLAIM_DISCLOSURE
+      : loadedClaimDisclosure;
   const purchaseActionLabel = isPurchasedByMe
     ? 'Change my mind'
     : "I'll grab this";
