@@ -1132,19 +1132,23 @@ const PoolIndex = () => {
   const chooseFetcher = useFetcher({ key: CHOOSE_IDEA_FETCHER_KEY });
   useEffect(() => {
     if (chooseFetcher.data?.claimedItemId) {
-      toast.success(
-        'Marked as claimed on their wishlist, so nobody else buys it.',
-      );
+      // States the claim, does not guarantee an outcome: another pool that
+      // already intends this item can still proceed via "Choose it anyway",
+      // so promising nobody else buys it would be false by construction.
+      toast.success('Marked as claimed on their wishlist.');
     } else if (chooseFetcher.data?.conflictedItemId) {
       // Covers both the case where the idea card already warned about a
       // conflict, and the case where the item was claimed by someone else
       // in the gap between the loader render and this POST — the loader
       // showed it as free, so a silent success here would send the
       // organizer off to buy a duplicate with no indication anything went
-      // wrong. Generic on purpose: the action has no disclosure object here,
-      // so the client must never guess who holds the claim.
+      // wrong. Entity-neutral on purpose: the action has no disclosure object
+      // here, so the client knows neither who holds the claim nor whether the
+      // holder is a person or another pool. "Someone else"/"you both" would
+      // assert a person, reintroducing the holder-type error fixed in the
+      // dialog above.
       toast.warning(
-        "Someone else already claimed this — your pool didn't get it, so there's a real risk you both buy it.",
+        "This item is already claimed — your pool didn't get it, so there's a real risk of a duplicate purchase.",
       );
     }
   }, [chooseFetcher.data]);

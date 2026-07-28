@@ -957,7 +957,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
       renderRoute();
 
       expect(toastSuccess).toHaveBeenCalledWith(
-        'Marked as claimed on their wishlist, so nobody else buys it.',
+        'Marked as claimed on their wishlist.',
       );
     });
 
