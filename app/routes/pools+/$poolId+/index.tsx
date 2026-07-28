@@ -3,7 +3,7 @@
 // in a child route submit to that child's action, not the parent's.
 export { action } from './__route.server';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getFormProps, getInputProps, useForm } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 import {
@@ -38,12 +38,14 @@ import {
 import { SystemLabel } from '#app/components/ui/system-label.tsx';
 import { Textarea } from '#app/components/ui/textarea.tsx';
 import { Flex, Stack, Text } from '#app/components/ui-kit';
+import { ClaimDescriptor } from '#app/components/wishlist/claim-descriptor.tsx';
 import { formatCents } from '#app/utils/pool-contributions.ts';
 import {
   DECISION_MODE,
   POOL_STATUS,
   type PoolStatus,
 } from '#app/utils/pool-constants.ts';
+import { type ClaimDisclosure } from '#app/utils/wishlist-claim-disclosure.ts';
 import { type loader as routeLoader } from './__route.server';
 
 type LoaderData = Awaited<ReturnType<typeof routeLoader>>;
@@ -144,6 +146,7 @@ const IdeaCard = ({
   canManage,
   canDelete,
   canChoose,
+  conflict,
 }: {
   idea: Idea;
   poolId: string;
@@ -152,6 +155,7 @@ const IdeaCard = ({
   canManage: boolean;
   canDelete: boolean;
   canChoose: boolean;
+  conflict: ClaimDisclosure | null;
 }) => {
   const voteFetcher = useFetcher();
   const chooseFetcher = useFetcher();
@@ -224,11 +228,14 @@ const IdeaCard = ({
                 <LuLink size={11} /> View link
               </a>
             )}
-            {idea.wishlistItem && (
-              <span className="inline-flex items-center rounded-full border border-pool/30 bg-pool/15 px-2.5 py-0.5 text-xs font-medium text-pool">
-                From wishlist
-              </span>
-            )}
+            {idea.wishlistItem &&
+              (conflict ? (
+                <ClaimDescriptor disclosure={conflict} variant="badge" />
+              ) : (
+                <span className="inline-flex items-center rounded-full border border-pool/30 bg-pool/15 px-2.5 py-0.5 text-xs font-medium text-pool">
+                  From wishlist
+                </span>
+              ))}
           </div>
         </div>
       </div>
@@ -410,6 +417,13 @@ const ProposeIdeaForm = ({
                     {item.priceCents == null
                       ? ''
                       : ` — ${formatCents(item.priceCents, item.currency ?? 'USD')}`}
+                    {item.claimDisclosure?.show ? (
+                      <ClaimDescriptor
+                        disclosure={item.claimDisclosure}
+                        variant="row"
+                        className="ml-2"
+                      />
+                    ) : null}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -971,7 +985,15 @@ const PoolIndex = () => {
     contributionBreakdown,
     recipientWishlistItems,
     organizerReminderStates,
+    ideaClaimConflicts,
   } = useRouteLoaderData<typeof routeLoader>('routes/pools+/$poolId+/_layout')!;
+
+  // Loader data round-trips through JSON, so the Map is shipped as entry
+  // pairs — rebuild it once per render rather than re-deriving per card.
+  const ideaConflicts = useMemo(
+    () => new Map(ideaClaimConflicts),
+    [ideaClaimConflicts],
+  );
 
   const status = pool.status as PoolStatus;
   const isOpen = status === POOL_STATUS.OPEN;
@@ -1254,6 +1276,7 @@ const PoolIndex = () => {
                   canChoose={
                     canManage && (isOpen || isVoting) && !pool.chosenIdeaId
                   }
+                  conflict={ideaConflicts.get(idea.id) ?? null}
                 />
               ))}
             </Stack>

@@ -471,6 +471,40 @@ describe('loadClaimStates', () => {
     expect(afterRemoval.get(item.id)?.name).toBeNull();
     expect(JSON.stringify(afterRemoval.get(item.id))).not.toContain('Sunday Roasters');
   });
+
+  it('defaults to the label surface when no surface argument is given', async () => {
+    const { owner, organizer, item } = await fixture();
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    await prisma.poolContributor.create({ data: { poolId: pool.id, userId: organizer.id } });
+    await syncPoolClaim(pool.id);
+
+    const defaulted = await loadClaimStates([item.id], { userId: organizer.id, isOwner: false });
+    const explicitLabel = await loadClaimStates(
+      [item.id],
+      { userId: organizer.id, isOwner: false },
+      'label',
+    );
+    expect(defaulted.get(item.id)).toEqual(explicitLabel.get(item.id));
+    expect(defaulted.get(item.id)?.name).toBe('Birthday pool');
+  });
+
+  it("the 'row' surface names nobody, even to a viewer the label surface would name", async () => {
+    const { owner, organizer, item } = await fixture();
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    await prisma.poolContributor.create({ data: { poolId: pool.id, userId: organizer.id } });
+    await syncPoolClaim(pool.id);
+
+    // Sanity: the label surface *would* name this pool to its own contributor.
+    const label = await loadClaimStates([item.id], { userId: organizer.id, isOwner: false }, 'label');
+    expect(label.get(item.id)?.name).toBe('Birthday pool');
+
+    const row = await loadClaimStates([item.id], { userId: organizer.id, isOwner: false }, 'row');
+    expect(row.get(item.id)?.show).toBe(true);
+    expect(row.get(item.id)?.name).toBeNull();
+    expect(row.get(item.id)?.poolLink).toBeNull();
+    expect(row.get(item.id)?.text).toBe('Already claimed');
+    expect(JSON.stringify(row.get(item.id))).not.toContain('Birthday pool');
+  });
 });
 
 describe('loadIdeaClaimConflicts', () => {

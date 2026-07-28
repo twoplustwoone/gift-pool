@@ -63,7 +63,11 @@ import {
 import { dollarsToCents } from '#app/utils/price.ts';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
-import { loadIdeaClaimConflicts } from '#app/utils/wishlist-claims.server.ts';
+import { type ClaimDisclosure } from '#app/utils/wishlist-claim-disclosure.ts';
+import {
+  loadClaimStates,
+  loadIdeaClaimConflicts,
+} from '#app/utils/wishlist-claims.server.ts';
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
@@ -149,7 +153,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   // (e.g. via invite code) must not bypass the recipient's privacy setting.
   const ideasOpen =
     pool.status === POOL_STATUS.OPEN || pool.status === POOL_STATUS.VOTING;
-  const recipientWishlistItems =
+  const recipientWishlistItemsBase =
     pool.recipientUserId &&
     ideasOpen &&
     (await canViewWishlistOf(userId, pool.recipientUserId))
@@ -170,6 +174,27 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
           orderBy: [{ categoryId: 'asc' }, { sortOrder: 'asc' }],
         })
       : [];
+
+  // Picker chip (Task 13 part 2): resolved at the 'row' surface, which
+  // resolveClaimDisclosure forces to a fully anonymous "Already claimed"
+  // regardless of viewer relationship — the picker is a compose-time list
+  // and must never name a person, pool, or group. `isOwner: false` is safe
+  // unconditionally here: the recipient is already 404'd out of this loader
+  // above, so every viewer reaching this line is a contributor, never the
+  // owner.
+  const pickerClaimStates: Map<string, ClaimDisclosure> =
+    recipientWishlistItemsBase.length > 0
+      ? await loadClaimStates(
+          recipientWishlistItemsBase.map((item) => item.id),
+          { userId, isOwner: false },
+          'row',
+        )
+      : new Map();
+
+  const recipientWishlistItems = recipientWishlistItemsBase.map((item) => ({
+    ...item,
+    claimDisclosure: pickerClaimStates.get(item.id) ?? null,
+  }));
 
   const organizerReminderKinds: OrganizerNudgeKind[] = [];
   if (canManage && ideasOpen) {

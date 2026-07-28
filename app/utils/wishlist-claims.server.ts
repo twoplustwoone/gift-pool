@@ -15,6 +15,7 @@ import {
   resolveClaimDisclosure,
   type ClaimDisclosure,
   type ClaimHolder,
+  type ClaimSurface,
 } from './wishlist-claim-disclosure.ts';
 
 export const POOL_INTENT_STATUSES = [
@@ -351,6 +352,7 @@ export async function setClaimOutcomeFeedback(
 export async function loadClaimStates(
   wishlistItemIds: string[],
   viewer: { userId: string | null; isOwner: boolean },
+  surface: ClaimSurface = 'label',
 ): Promise<Map<string, ClaimDisclosure>> {
   const states = new Map<string, ClaimDisclosure>();
   if (wishlistItemIds.length === 0) return states;
@@ -436,7 +438,7 @@ export async function loadClaimStates(
             Boolean(claim.pool?.giftGroupId && memberGroupIds.has(claim.pool.giftGroupId)),
           sharesPoolWithHolderUser: false,
         },
-        'label',
+        surface,
       ),
     );
   }

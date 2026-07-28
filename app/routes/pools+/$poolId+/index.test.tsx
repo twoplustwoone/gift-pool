@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { type ClaimDisclosure } from '#app/utils/wishlist-claim-disclosure.ts';
 
 const clipboardWriteText = vi.fn();
 const fetcherState = {
@@ -43,6 +44,7 @@ const loaderDataSnapshot = {
         shortfallCents: number;
         allReceived: boolean;
       },
+  ideaClaimConflicts: [] as Array<[string, ClaimDisclosure]>,
   inviteUrl: 'https://giftpool.app/pools/join/invite-1' as string | null,
   isOrganizer: true,
   myVoteIdeaId: 'idea-1' as string | null,
@@ -151,6 +153,7 @@ const loaderDataSnapshot = {
     url: string | null;
     priceCents: number | null;
     currency: string | null;
+    claimDisclosure: ClaimDisclosure | null;
   }>,
   viewer: {
     contributionCents: 3000,
@@ -219,6 +222,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
       url: null,
     };
     loaderDataSnapshot.recipientWishlistItems = [];
+    loaderDataSnapshot.ideaClaimConflicts = [];
     loaderDataSnapshot.viewer.userId = 'viewer-1';
 
     vi.stubGlobal('navigator', {
@@ -324,6 +328,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
         url: 'https://shop.example.com/espresso',
         priceCents: 24999,
         currency: 'USD',
+        claimDisclosure: null,
       },
     ];
 
@@ -570,5 +575,85 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     expect(
       screen.queryByRole('button', { name: 'Mark as delivered' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('renders the conflict badge instead of the "From wishlist" pill when a conflict exists', () => {
+    loaderDataSnapshot.ideaClaimConflicts = [
+      [
+        'idea-1',
+        {
+          show: true,
+          tone: 'warning',
+          text: 'Another group is getting this',
+          name: null,
+          poolLink: null,
+          canJoinPool: false,
+        },
+      ],
+    ];
+
+    renderRoute();
+
+    expect(
+      screen.getByText('Another group is getting this'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('From wishlist')).not.toBeInTheDocument();
+  });
+
+  it('renders the unmodified "From wishlist" pill when there is no conflict', () => {
+    loaderDataSnapshot.ideaClaimConflicts = [];
+
+    renderRoute();
+
+    expect(screen.getByText('From wishlist')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Another group is getting this'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('marks a claimed picker item as such, keeps it selectable, and discloses no name/pool/link', async () => {
+    loaderDataSnapshot.recipientWishlistItems = [
+      {
+        id: 'wish-9',
+        title: 'Espresso machine',
+        url: 'https://shop.example.com/espresso',
+        priceCents: 24999,
+        currency: 'USD',
+        claimDisclosure: {
+          show: true,
+          tone: 'warning',
+          text: 'Already claimed',
+          name: null,
+          poolLink: null,
+          canJoinPool: false,
+        },
+      },
+    ];
+
+    renderRoute();
+
+    const picker = screen.getByTestId('wishlist-item-picker');
+    await userEvent.click(picker);
+    await screen.findAllByRole('option');
+    const option = screen
+      .getAllByRole('option')
+      .find((el) => el.textContent?.includes('Espresso machine'));
+    expect(option).toBeDefined();
+    expect(option).toHaveTextContent('Already claimed');
+    if (!option) throw new Error('option not found');
+    // Selectable, not disabled — conflicts advise, never block.
+    expect(option).not.toHaveAttribute('aria-disabled', 'true');
+    expect(option).not.toHaveAttribute('data-disabled');
+
+    await userEvent.click(option);
+    expect(
+      document.querySelector<HTMLInputElement>('input[name="wishlistItemId"]')
+        ?.value,
+    ).toBe('wish-9');
+
+    // Negative containment: the picker must never name a person, pool, or
+    // group, and must never carry a link — it's a compose-time list.
+    expect(option).not.toHaveTextContent(/pool/i);
+    expect(option.querySelector('a')).not.toBeInTheDocument();
   });
 });
