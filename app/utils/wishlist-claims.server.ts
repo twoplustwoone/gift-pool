@@ -254,6 +254,54 @@ export async function syncPoolClaim(poolId: string): Promise<SyncPoolClaimResult
 }
 
 /**
+ * Batch-capable release for callers that must drop many solo claims in one
+ * pass — currently only `cleanupWishlistClaimsForOwner`, which is scoped by
+ * owner rather than by item and so can match any number of claims at once.
+ * `where` is a caller-supplied predicate over WishlistClaim (e.g. "solo
+ * claims by users who no longer share access with this owner"); this
+ * function owns none of that domain logic, only the release-and-settle
+ * mechanics, so the invariant (never bare-delete a claim without settling
+ * it) holds no matter how many rows match.
+ *
+ * Each matched claim is released in its own transaction: a per-item
+ * find-then-delete-then-settle, exactly like `releaseSoloClaimForItem`. Items
+ * are intentionally NOT all released in one shared transaction — there is no
+ * cross-item invariant to protect, and holding one giant transaction open
+ * across an unbounded number of rows is worse for LiteFS contention than many
+ * small ones. The inner re-check guards against a claim that was released by
+ * someone else (e.g. the claimer themselves) between the initial `findMany`
+ * and this item's turn.
+ */
+export async function releaseSoloClaimsMatching(
+  where: Prisma.WishlistClaimWhereInput,
+): Promise<Array<{ wishlistItemId: string; transferredToPoolId: string | null }>> {
+  const claims = await prisma.wishlistClaim.findMany({
+    where,
+    select: { id: true, wishlistItemId: true },
+  });
+
+  const released: Array<{ wishlistItemId: string; transferredToPoolId: string | null }> = [];
+  for (const claim of claims) {
+    const outcome = await prisma.$transaction(async (tx) => {
+      const current = await tx.wishlistClaim.findUnique({
+        where: { id: claim.id },
+        select: { id: true },
+      });
+      if (!current) return { released: false as const };
+
+      await tx.wishlistClaim.delete({ where: { id: claim.id } });
+      const transferredToPoolId = await settleItem(tx, claim.wishlistItemId);
+      return { released: true as const, transferredToPoolId };
+    });
+
+    if (outcome.released) {
+      released.push({ wishlistItemId: claim.wishlistItemId, transferredToPoolId: outcome.transferredToPoolId });
+    }
+  }
+  return released;
+}
+
+/**
  * The read model for wishlist claims: gathers the facts (who holds the
  * claim, whether the viewer contributes to or is a current member of the
  * holding pool's group) and hands them to the pure privacy ladder in
