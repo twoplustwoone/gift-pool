@@ -63,6 +63,7 @@ import {
 import { dollarsToCents } from '#app/utils/price.ts';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
+import { loadIdeaClaimConflicts } from '#app/utils/wishlist-claims.server.ts';
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
@@ -110,11 +111,20 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     canManage,
   });
 
-  // My vote (if any)
-  const myVote = await prisma.ideaVote.findUnique({
-    where: { poolId_voterId: { poolId, voterId: userId } },
-    select: { ideaId: true },
-  });
+  // My vote (if any). Runs alongside the idea claim-conflict lookup below —
+  // neither depends on the other's result.
+  const [myVote, ideaClaimConflicts] = await Promise.all([
+    prisma.ideaVote.findUnique({
+      where: { poolId_voterId: { poolId, voterId: userId } },
+      select: { ideaId: true },
+    }),
+    // Per-idea claim conflicts (badge surface): flags any proposed idea whose
+    // linked wishlist item is already claimed by someone other than this
+    // pool. Shipped as an array of [ideaId, disclosure] pairs — loader data
+    // round-trips through the client as JSON, and a Map doesn't survive that.
+    loadIdeaClaimConflicts(poolId, userId),
+  ]);
+  const ideaClaimConflictEntries = Array.from(ideaClaimConflicts.entries());
 
   // Contribution breakdown (only meaningful when DECIDED+). Projected per
   // viewer: full rows for the purchaser, own-share-only for everyone else.
@@ -206,6 +216,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     contributionBreakdown,
     inviteUrl,
     recipientWishlistItems,
+    ideaClaimConflicts: ideaClaimConflictEntries,
     organizerReminderStates,
     notificationAwareness: await getContextNotificationAwareness({
       userId,

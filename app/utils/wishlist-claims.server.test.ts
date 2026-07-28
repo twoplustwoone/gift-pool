@@ -4,9 +4,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import { createUser } from '#tests/db-utils.ts';
-import * as wishlistClaims from './wishlist-claims.server.ts';
-import { claimForUser, loadClaimStates, releaseUserClaim, syncPoolClaim } from './wishlist-claims.server.ts';
 import { cancelPool, chooseIdea } from './pool.server.ts';
+import * as wishlistClaims from './wishlist-claims.server.ts';
+import {
+  claimForUser,
+  loadClaimStates,
+  loadIdeaClaimConflicts,
+  releaseUserClaim,
+  syncPoolClaim,
+} from './wishlist-claims.server.ts';
 
 async function fixture() {
   const [owner, friend, organizer] = await Promise.all([
@@ -464,5 +470,83 @@ describe('loadClaimStates', () => {
     const afterRemoval = await loadClaimStates([item.id], { userId: friend.id, isOwner: false });
     expect(afterRemoval.get(item.id)?.name).toBeNull();
     expect(JSON.stringify(afterRemoval.get(item.id))).not.toContain('Sunday Roasters');
+  });
+});
+
+describe('loadIdeaClaimConflicts', () => {
+  it('names a claimer who contributes to this pool, and not one who does not', async () => {
+    const { owner, friend, organizer, item } = await fixture();
+    await claimForUser(item.id, friend.id);
+    const pool = await prisma.pool.create({
+      data: { title: 'Pool', organizerId: organizer.id, recipientUserId: owner.id },
+    });
+    const idea = await prisma.giftIdea.create({
+      data: { poolId: pool.id, proposedById: organizer.id, name: 'Spa', wishlistItemId: item.id },
+    });
+    await prisma.poolContributor.create({ data: { poolId: pool.id, userId: organizer.id } });
+
+    const outside = await loadIdeaClaimConflicts(pool.id, organizer.id);
+    expect(outside.get(idea.id)?.name).toBeNull();
+    expect(outside.get(idea.id)?.text).toBe('Already claimed');
+    // Negative containment: the claimer's identity must not leak into the
+    // serialised disclosure even indirectly (e.g. via an unused field).
+    expect(JSON.stringify(outside.get(idea.id))).not.toContain(friend.id);
+
+    await prisma.poolContributor.create({ data: { poolId: pool.id, userId: friend.id } });
+    const inside = await loadIdeaClaimConflicts(pool.id, organizer.id);
+    expect(inside.get(idea.id)?.name).not.toBeNull();
+    expect(inside.get(idea.id)?.tone).toBe('warning');
+  });
+
+  it('is absent for an idea whose item this same pool already holds the claim on', async () => {
+    const { owner, organizer, item } = await fixture();
+    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const idea = await prisma.giftIdea.findFirstOrThrow({ where: { poolId: pool.id } });
+    await syncPoolClaim(pool.id);
+
+    const conflicts = await loadIdeaClaimConflicts(pool.id, organizer.id);
+
+    expect(conflicts.has(idea.id)).toBe(false);
+  });
+
+  it('never names a rival pool, even to a viewer who also contributes there', async () => {
+    const { owner, organizer, item } = await fixture();
+    const holder = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    await syncPoolClaim(holder.id);
+
+    // A second pool proposes the same (now pool-claimed) item as an idea.
+    const viewerPool = await prisma.pool.create({
+      data: { title: 'Rival viewing pool', organizerId: organizer.id, recipientUserId: owner.id },
+    });
+    const idea = await prisma.giftIdea.create({
+      data: {
+        poolId: viewerPool.id,
+        proposedById: organizer.id,
+        name: 'Spa voucher',
+        wishlistItemId: item.id,
+      },
+    });
+    // The viewer contributes to both pools — must still learn nothing about
+    // the holder pool's identity from this surface.
+    await prisma.poolContributor.create({ data: { poolId: holder.id, userId: organizer.id } });
+    await prisma.poolContributor.create({ data: { poolId: viewerPool.id, userId: organizer.id } });
+
+    const conflicts = await loadIdeaClaimConflicts(viewerPool.id, organizer.id);
+
+    expect(conflicts.get(idea.id)?.text).toBe('Another group is getting this');
+    expect(conflicts.get(idea.id)?.name).toBeNull();
+    expect(conflicts.get(idea.id)?.poolLink).toBeNull();
+    const serialised = JSON.stringify(conflicts.get(idea.id));
+    expect(serialised).not.toContain('Birthday pool');
+    expect(serialised).not.toContain(holder.id);
+  });
+
+  it('returns an empty map when the pool has no ideas linked to wishlist items', async () => {
+    const { owner, organizer } = await fixture();
+    const pool = await prisma.pool.create({
+      data: { title: 'Empty pool', organizerId: organizer.id, recipientUserId: owner.id },
+    });
+    const conflicts = await loadIdeaClaimConflicts(pool.id, organizer.id);
+    expect(conflicts.size).toBe(0);
   });
 });

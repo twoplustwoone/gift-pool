@@ -443,3 +443,102 @@ export async function loadClaimStates(
 
   return states;
 }
+
+/**
+ * The read model for a pool's gift-idea list: for each idea whose linked
+ * wishlist item is claimed by someone *other than this pool*, resolves what
+ * this pool's viewer may be told about the conflict. A pool holding its own
+ * claim on the item is the expected steady state, not a conflict — those
+ * ideas are absent from the returned map.
+ *
+ * Sibling of `loadClaimStates` (same gather-facts-then-defer-to-the-ladder
+ * shape) but for the `'badge'` surface: keyed by gift idea id rather than
+ * wishlist item id, and the pool-vs-pool tiers collapse to "another group is
+ * getting this" — the viewer here is always an authenticated contributor to
+ * *this* pool, so `isAnonymous` is always false, and a rival pool's identity
+ * is never disclosed regardless of any relationship the viewer might have to
+ * it (hence `contributesToHolderPool`/`memberOfHolderGroup` are hardcoded
+ * false rather than derived — this surface's whole point is "don't name the
+ * other group").
+ */
+export async function loadIdeaClaimConflicts(
+  poolId: string,
+  viewerUserId: string,
+): Promise<Map<string, ClaimDisclosure>> {
+  const conflicts = new Map<string, ClaimDisclosure>();
+
+  const ideas = await prisma.giftIdea.findMany({
+    where: { poolId, wishlistItemId: { not: null } },
+    select: { id: true, wishlistItemId: true },
+  });
+  if (ideas.length === 0) return conflicts;
+
+  const itemIds = ideas
+    .map((idea) => idea.wishlistItemId)
+    .filter((id): id is string => id !== null);
+
+  const [pool, claims] = await Promise.all([
+    prisma.pool.findUnique({
+      where: { id: poolId },
+      select: {
+        recipientUserId: true,
+        contributors: { select: { userId: true } },
+      },
+    }),
+    prisma.wishlistClaim.findMany({
+      where: { wishlistItemId: { in: itemIds } },
+      select: {
+        wishlistItemId: true,
+        poolId: true,
+        claimedByUserId: true,
+        claimedByUser: { select: { name: true, username: true } },
+        pool: { select: { id: true, title: true } },
+      },
+    }),
+  ]);
+
+  const contributorIds = new Set(pool?.contributors.map((c) => c.userId) ?? []);
+  const claimsByItem = new Map(claims.map((claim) => [claim.wishlistItemId, claim]));
+
+  for (const idea of ideas) {
+    if (!idea.wishlistItemId) continue;
+    const claim = claimsByItem.get(idea.wishlistItemId);
+    // Unclaimed, or this pool holding its own claim — not a conflict.
+    if (!claim || claim.poolId === poolId) continue;
+
+    const holder: ClaimHolder = claim.pool
+      ? {
+          kind: 'pool',
+          poolId: claim.pool.id,
+          poolTitle: claim.pool.title,
+          giftGroupName: null,
+        }
+      : {
+          kind: 'user',
+          userId: claim.claimedByUserId ?? '',
+          displayName: claim.claimedByUser?.name ?? claim.claimedByUser?.username ?? null,
+        };
+
+    conflicts.set(
+      idea.id,
+      resolveClaimDisclosure(
+        holder,
+        {
+          // Defensive, not load-bearing: the pool page loader already blocks
+          // the recipient from reaching this code (see __route.server.ts), so
+          // this is always false in practice. Derived rather than hardcoded
+          // so the module doesn't silently rely on that upstream gate.
+          isOwner: pool !== null && viewerUserId === pool.recipientUserId,
+          isAnonymous: false,
+          contributesToHolderPool: false,
+          memberOfHolderGroup: false,
+          sharesPoolWithHolderUser:
+            claim.claimedByUserId !== null && contributorIds.has(claim.claimedByUserId),
+        },
+        'badge',
+      ),
+    );
+  }
+
+  return conflicts;
+}
