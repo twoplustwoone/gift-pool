@@ -210,7 +210,7 @@ beforeEach(() => {
   callVote.mockReset().mockResolvedValue(undefined);
   cancelPool.mockReset().mockResolvedValue(undefined);
   castVote.mockReset().mockResolvedValue(undefined);
-  chooseIdea.mockReset().mockResolvedValue(undefined);
+  chooseIdea.mockReset().mockResolvedValue({ claimedItemId: null });
   closeVote.mockReset().mockResolvedValue(undefined);
   deleteIdea.mockReset().mockResolvedValue(undefined);
   deletePool.mockReset().mockResolvedValue(undefined);
@@ -1009,6 +1009,27 @@ describe('pool detail route action', () => {
       'viewer-1',
       2500,
     );
+  });
+
+  it('threads claimedItemId back through the response so the client can toast', async () => {
+    chooseIdea.mockResolvedValueOnce({ claimedItemId: 'wish-1' });
+
+    const result = await action(
+      toActionArgs({
+        context: {} as never,
+        params: { poolId: 'pool-1' },
+        request: createFormRequest({
+          ideaId: 'idea-1',
+          intent: 'choose-idea',
+          poolId: 'pool-1',
+        }),
+      }),
+    );
+
+    expect(getRouteResultStatus(result)).toBe(200);
+    await expect(getRouteResultData(result)).resolves.toMatchObject({
+      claimedItemId: 'wish-1',
+    });
   });
 
   it('updates the current user contribution in cents', async () => {

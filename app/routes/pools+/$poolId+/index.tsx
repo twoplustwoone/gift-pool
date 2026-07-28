@@ -21,6 +21,7 @@ import {
   useNavigation,
   useRouteLoaderData,
 } from 'react-router';
+import { toast } from 'sonner';
 import { z } from 'zod';
 import { OrganizerReminderAction } from '#app/components/pools/organizer-reminder-action.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
@@ -28,6 +29,14 @@ import { Badge } from '#app/components/ui/badge.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { Input } from '#app/components/ui/input.tsx';
+import {
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogDescription as DialogDescription,
+  ResponsiveDialogFooter as DialogFooter,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+} from '#app/components/ui/responsive-dialog.tsx';
 import {
   Select,
   SelectContent,
@@ -52,6 +61,15 @@ type LoaderData = Awaited<ReturnType<typeof routeLoader>>;
 type Pool = LoaderData['pool'];
 type Idea = Pool['ideas'][number];
 type Contributor = Pool['contributors'][number];
+
+// Shared fetcher key for "choose this idea" across every IdeaCard AND the
+// page-level toast effect. Choosing an idea moves the pool out of the
+// active (OPEN/VOTING) status, which unmounts the whole ideas section —
+// including whichever IdeaCard submitted — in the same render the action
+// response lands. A component-local useEffect on that submission would
+// never fire. Keying the fetcher lets the always-mounted PoolIndex read the
+// same fetcher's `.data` to fire the "claimed on their wishlist" toast.
+const CHOOSE_IDEA_FETCHER_KEY = 'pool-choose-idea';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -158,13 +176,26 @@ const IdeaCard = ({
   conflict: ClaimDisclosure | null;
 }) => {
   const voteFetcher = useFetcher();
-  const chooseFetcher = useFetcher();
+  const chooseFetcher = useFetcher({ key: CHOOSE_IDEA_FETCHER_KEY });
   const deleteFetcher = useFetcher();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const hasMyVote = myVoteIdeaId === idea.id;
   const isChoosingThis =
     chooseFetcher.state !== 'idle' &&
     (chooseFetcher.formData?.get('ideaId') as string) === idea.id;
+
+  // Every unconflicted idea stays a single instant click (D12) — only a
+  // conflicted idea interrupts with a confirmation, since the organizer may
+  // legitimately know something the app doesn't.
+  const submitChoose = () => {
+    const formData = new FormData();
+    formData.set('intent', 'choose-idea');
+    formData.set('poolId', poolId);
+    formData.set('ideaId', idea.id);
+    void chooseFetcher.submit(formData, { method: 'post' });
+    setConfirmOpen(false);
+  };
 
   const wishlistItem = idea.wishlistItem;
   // Routed through the pool-scoped image resource, not
@@ -284,24 +315,73 @@ const IdeaCard = ({
             </voteFetcher.Form>
           )}
 
-          {/* Choose this — outline so it doesn't shout on every card */}
-          {canChoose && (
-            <chooseFetcher.Form method="post">
-              <input type="hidden" name="intent" value="choose-idea" />
-              <input type="hidden" name="poolId" value={poolId} />
-              <input type="hidden" name="ideaId" value={idea.id} />
-              <Button
-                type="submit"
-                size="sm"
-                variant="outline"
-                className="h-7 gap-1.5 text-xs"
-                disabled={isChoosingThis}
-              >
-                <LuCheck size={12} />
-                {isChoosingThis ? 'Choosing…' : 'Choose'}
-              </Button>
-            </chooseFetcher.Form>
-          )}
+          {/* Choose this — outline so it doesn't shout on every card.
+              Unconflicted ideas stay a single instant click (D12); a
+              conflicted idea opens a confirmation instead of submitting. */}
+          {canChoose &&
+            (conflict ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1.5 text-xs"
+                  disabled={isChoosingThis}
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  <LuCheck size={12} />
+                  {isChoosingThis ? 'Choosing…' : 'Choose'}
+                </Button>
+                <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>
+                        {conflict.name
+                          ? `${conflict.name}'s already getting this one`
+                          : 'Someone else is already getting this one'}
+                      </DialogTitle>
+                      <DialogDescription>
+                        {conflict.name
+                          ? `${conflict.name} claimed ${idea.name} on their wishlist. Decide on it anyway and we'll ask if they're still getting it themselves — so you won't both buy it.`
+                          : `Someone has already claimed ${idea.name}. Decide on it anyway and we'll ask if they're still getting it themselves — so you won't both buy it.`}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setConfirmOpen(false)}
+                      >
+                        Keep looking
+                      </Button>
+                      <Button
+                        type="button"
+                        className="bg-warning text-warning-foreground hover:bg-warning/90"
+                        onClick={submitChoose}
+                      >
+                        Choose it anyway
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </>
+            ) : (
+              <chooseFetcher.Form method="post">
+                <input type="hidden" name="intent" value="choose-idea" />
+                <input type="hidden" name="poolId" value={poolId} />
+                <input type="hidden" name="ideaId" value={idea.id} />
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1.5 text-xs"
+                  disabled={isChoosingThis}
+                >
+                  <LuCheck size={12} />
+                  {isChoosingThis ? 'Choosing…' : 'Choose'}
+                </Button>
+              </chooseFetcher.Form>
+            ))}
 
           {/* Remove — in the footer, separated from title */}
           {deleteFetcher.state === 'idle' && canDelete && (
@@ -1010,6 +1090,20 @@ const PoolIndex = () => {
     viewer?.user.name ?? viewer?.user.username ?? 'A pool manager';
 
   const navigation = useNavigation();
+
+  // Hoisted here (not in IdeaCard) because choosing an idea moves the pool
+  // out of the active status, unmounting the whole ideas section in the
+  // same render the action response lands — a component-local effect on
+  // the submitting IdeaCard would never fire. PoolIndex never unmounts, and
+  // the shared CHOOSE_IDEA_FETCHER_KEY lets it observe the same submission.
+  const chooseFetcher = useFetcher({ key: CHOOSE_IDEA_FETCHER_KEY });
+  useEffect(() => {
+    if (chooseFetcher.data?.claimedItemId) {
+      toast.success(
+        'Marked as claimed on their wishlist, so nobody else buys it.',
+      );
+    }
+  }, [chooseFetcher.data]);
 
   // ── Stage-adaptive composition (§6.5): the shell is stable, the main
   // column changes by stage. In Complete, factual memory dominates and the

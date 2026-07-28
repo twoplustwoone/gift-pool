@@ -574,7 +574,7 @@ export async function chooseIdea(
 	ideaId: string,
 	actorId: string,
 	finalPriceCents?: number | null,
-) {
+): Promise<{ claimedItemId: string | null }> {
 	const idea = await prisma.giftIdea.findFirst({
 		where: { id: ideaId, poolId },
 		select: { estimatedPriceCents: true, name: true },
@@ -621,7 +621,7 @@ export async function chooseIdea(
 
 		return syncPoolClaimInTx(tx, poolId)
 	})
-	if (claimSync === null) return
+	if (claimSync === null) return { claimedItemId: null }
 
 	// logPoolActivity, queueLogEvent, and queuePoolActivityNotifications all
 	// run after the transaction closes: queueLogEvent inside a transaction
@@ -673,6 +673,11 @@ export async function chooseIdea(
 		actorUserId: actorId,
 		occurrenceId: eventId,
 	})
+
+	// Threaded back through the action response so the client can surface a
+	// toast when this decision silently claimed a previously-free wishlist
+	// item — otherwise the feature is invisible to the person who caused it.
+	return { claimedItemId: claimSync.claimedItemId }
 }
 
 // Update the confirmed final price after the gift has been decided.

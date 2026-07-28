@@ -9,11 +9,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type ClaimDisclosure } from '#app/utils/wishlist-claim-disclosure.ts';
 
 const clipboardWriteText = vi.fn();
+const fetcherSubmit = vi.fn();
+const toastSuccess = vi.fn();
 const fetcherState = {
-  data: undefined as undefined | { inviteUrl?: string },
+  data: undefined as
+    | undefined
+    | { inviteUrl?: string; claimedItemId?: string | null },
   formData: undefined as FormData | undefined,
   state: 'idle' as 'idle' | 'loading' | 'submitting',
 };
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: (...args: Array<unknown>) => toastSuccess(...args),
+  },
+}));
 
 type UserImageFixture = { id: string; altText: string | null } | null;
 
@@ -176,7 +186,7 @@ vi.mock('react-router', async () => {
       data: fetcherState.data,
       formData: fetcherState.formData,
       state: fetcherState.state,
-      submit: vi.fn(),
+      submit: fetcherSubmit,
     }),
     useNavigation: () => ({ state: 'idle' }),
     useRouteLoaderData: () => loaderDataSnapshot,
@@ -188,6 +198,8 @@ import PoolIndex from './index.tsx';
 describe('app/routes/pools+/$poolId+/index.tsx', () => {
   beforeEach(() => {
     clipboardWriteText.mockReset().mockResolvedValue(undefined);
+    fetcherSubmit.mockReset();
+    toastSuccess.mockReset();
     fetcherState.data = undefined;
     fetcherState.formData = undefined;
     fetcherState.state = 'idle';
@@ -655,5 +667,161 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
     // group, and must never carry a link — it's a compose-time list.
     expect(option).not.toHaveTextContent(/pool/i);
     expect(option.querySelector('a')).not.toBeInTheDocument();
+  });
+
+  describe('conflicted-decision confirmation', () => {
+    it('opens a confirmation dialog instead of submitting when the idea has a claim conflict', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [
+        [
+          'idea-1',
+          {
+            show: true,
+            tone: 'warning',
+            text: 'Claimed by Sarah',
+            name: 'Sarah',
+            poolLink: null,
+            canJoinPool: false,
+          },
+        ],
+      ];
+
+      renderRoute();
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      await userEvent.click(chooseButton!);
+
+      expect(
+        await screen.findByRole('dialog', {
+          name: "Sarah's already getting this one",
+        }),
+      ).toBeVisible();
+      // A single click never submits when the idea is conflicted.
+      expect(fetcherSubmit).not.toHaveBeenCalled();
+    });
+
+    it('submits immediately with no dialog for an unconflicted idea', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [];
+
+      renderRoute();
+
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      // Unconflicted ideas render as a plain submit button inside a form —
+      // a single click submits natively, with no JS gate and no dialog
+      // anywhere in the tree. (jsdom doesn't implement real form
+      // submission, so this is asserted structurally rather than by
+      // clicking — clicking would just hit jsdom's unimplemented
+      // requestSubmit, not exercise anything this feature owns.)
+      expect(chooseButton).toHaveAttribute('type', 'submit');
+      expect(chooseButton!.closest('form')).not.toBeNull();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('confirming proceeds with the decision', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [
+        [
+          'idea-1',
+          {
+            show: true,
+            tone: 'warning',
+            text: 'Claimed by Sarah',
+            name: 'Sarah',
+            poolLink: null,
+            canJoinPool: false,
+          },
+        ],
+      ];
+
+      renderRoute();
+
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      await userEvent.click(chooseButton!);
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Choose it anyway' }),
+      );
+
+      expect(fetcherSubmit).toHaveBeenCalledTimes(1);
+      const [submittedFormData] = fetcherSubmit.mock.calls[0] as [FormData];
+      expect(submittedFormData.get('intent')).toBe('choose-idea');
+      expect(submittedFormData.get('poolId')).toBe('pool-1');
+      expect(submittedFormData.get('ideaId')).toBe('idea-1');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('dismissing does not submit', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [
+        [
+          'idea-1',
+          {
+            show: true,
+            tone: 'warning',
+            text: 'Claimed by Sarah',
+            name: 'Sarah',
+            poolLink: null,
+            canJoinPool: false,
+          },
+        ],
+      ];
+
+      renderRoute();
+
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      await userEvent.click(chooseButton!);
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Keep looking' }),
+      );
+
+      expect(fetcherSubmit).not.toHaveBeenCalled();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('carries no attribution when the disclosure withheld a name', async () => {
+      loaderDataSnapshot.ideaClaimConflicts = [
+        [
+          'idea-1',
+          {
+            show: true,
+            tone: 'warning',
+            text: 'Another group is getting this',
+            name: null,
+            poolLink: null,
+            canJoinPool: false,
+          },
+        ],
+      ];
+
+      renderRoute();
+
+      const [chooseButton] = screen.getAllByRole('button', {
+        name: 'Choose',
+      });
+      await userEvent.click(chooseButton!);
+
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Someone else is already getting this one',
+      });
+      expect(dialog).toBeVisible();
+      // Never reconstruct attribution the disclosure withheld.
+      expect(dialog).not.toHaveTextContent(/sarah/i);
+    });
+
+    it('toasts once a decision actually claims a previously-free wishlist item', () => {
+      loaderDataSnapshot.ideaClaimConflicts = [];
+      fetcherState.data = { claimedItemId: 'wish-1' };
+
+      renderRoute();
+
+      expect(toastSuccess).toHaveBeenCalledWith(
+        'Marked as claimed on their wishlist, so nobody else buys it.',
+      );
+    });
   });
 });

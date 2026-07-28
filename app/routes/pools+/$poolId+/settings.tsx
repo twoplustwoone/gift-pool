@@ -705,7 +705,7 @@ const DangerZone = ({
 					{canCancel && (
 						<ConfirmDialog
 							title="Cancel this pool?"
-							description="Contributors will no longer be able to act on it. This can't be undone."
+							description="Contributors will no longer be able to act on it, and the wishlist item will be unclaimed. This can't be undone."
 							confirmText="Cancel pool"
 							onConfirm={() => submitIntent(cancelFetcher, 'cancel-pool')}
 						>

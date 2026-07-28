@@ -586,8 +586,16 @@ export async function action({ request, params }: ActionFunctionArgs) {
       if (!(await canManagePool(userId, poolForPerms))) {
         throw data({ error: 'Not allowed.' }, { status: 403 });
       }
-      await chooseIdea(poolId, v.ideaId, userId, v.finalPriceCents ?? null);
-      return data(submission.reply());
+      const { claimedItemId } = await chooseIdea(
+        poolId,
+        v.ideaId,
+        userId,
+        v.finalPriceCents ?? null,
+      );
+      // Threaded through so the idea card can toast when this decision
+      // silently claimed a previously-free wishlist item — otherwise the
+      // feature is invisible to the person who caused it.
+      return data({ ...submission.reply(), claimedItemId });
     }
 
     case Intent.UpdateContribution: {
