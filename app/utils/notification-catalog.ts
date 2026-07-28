@@ -12,6 +12,9 @@ export const NOTIFICATION_TYPES = {
   POOL_VOTE_REMINDER: 'POOL_VOTE_REMINDER',
   POOL_PURCHASE_REMINDER: 'POOL_PURCHASE_REMINDER',
   POOL_DELIVERY_REMINDER: 'POOL_DELIVERY_REMINDER',
+  WISHLIST_CLAIM_CONFLICT: 'WISHLIST_CLAIM_CONFLICT',
+  WISHLIST_CLAIM_TRANSFERRED: 'WISHLIST_CLAIM_TRANSFERRED',
+  WISHLIST_CLAIM_RELEASED: 'WISHLIST_CLAIM_RELEASED',
 } as const;
 
 export type NotificationType =
@@ -51,6 +54,23 @@ export function isOrganizerNudgeNotificationType(
 ): type is OrganizerNudgeNotificationType {
   return ORGANIZER_NUDGE_NOTIFICATION_TYPES.includes(
     type as OrganizerNudgeNotificationType,
+  );
+}
+
+export const WISHLIST_CLAIM_NOTIFICATION_TYPES = [
+  NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT,
+  NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+  NOTIFICATION_TYPES.WISHLIST_CLAIM_RELEASED,
+] as const;
+
+export type WishlistClaimNotificationType =
+  (typeof WISHLIST_CLAIM_NOTIFICATION_TYPES)[number];
+
+export function isWishlistClaimNotificationType(
+  type: NotificationType,
+): type is WishlistClaimNotificationType {
+  return WISHLIST_CLAIM_NOTIFICATION_TYPES.includes(
+    type as WishlistClaimNotificationType,
   );
 }
 
@@ -109,6 +129,7 @@ export const NOTIFICATION_TOPICS = {
   POOL_PROGRESS: 'POOL_PROGRESS',
   ASSIGNMENTS: 'ASSIGNMENTS',
   ORGANIZER_NUDGES: 'ORGANIZER_NUDGES',
+  WISHLIST_CLAIM_CONFLICTS: 'WISHLIST_CLAIM_CONFLICTS',
 } as const;
 
 export type NotificationTopic =
@@ -219,6 +240,17 @@ export const NOTIFICATION_TOPIC_CATALOG = {
       pushEnabled: false,
     },
   },
+  [NOTIFICATION_TOPICS.WISHLIST_CLAIM_CONFLICTS]: {
+    category: NOTIFICATION_CATEGORIES.POOL_COORDINATION,
+    label: 'Wishlist claim conflicts',
+    description:
+      'When a pool decides on a gift you already claimed, and when that conflict resolves.',
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: false,
+      pushEnabled: false,
+    },
+  },
 } as const satisfies Record<NotificationTopic, NotificationTopicDefinition>;
 
 /**
@@ -314,6 +346,31 @@ export const NOTIFICATION_EVENT_CATALOG = {
     topic: NOTIFICATION_TOPICS.ORGANIZER_NUDGES,
     importance: 'IMPORTANT',
     context: 'POOL',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  // The claimant of a wishlist item is not necessarily a member or
+  // contributor of the pool that decided on it (context: 'NONE', same
+  // reasoning as POOL_INVITATION_RECEIVED above) — these notify a person
+  // outside the pool about what happened to their claim.
+  [NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT]: {
+    topic: NOTIFICATION_TOPICS.WISHLIST_CLAIM_CONFLICTS,
+    importance: 'IMPORTANT',
+    context: 'NONE',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED]: {
+    topic: NOTIFICATION_TOPICS.WISHLIST_CLAIM_CONFLICTS,
+    importance: 'IMPORTANT',
+    context: 'NONE',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.WISHLIST_CLAIM_RELEASED]: {
+    topic: NOTIFICATION_TOPICS.WISHLIST_CLAIM_CONFLICTS,
+    importance: 'IMPORTANT',
+    context: 'NONE',
     supportedChannels: allChannels,
     deliveryStrategy: 'PER_CHANNEL_LEDGER',
   },
@@ -461,6 +518,17 @@ type OrganizerNudgePayload = {
   senderDisplayName: string;
 };
 
+// Shared by all three wishlist-claim events (Task 15 registers the types;
+// Task 16 populates and sends them). `wishlistItemId` identifies the claim,
+// `poolId`/`poolTitle` the pool whose decision created or resolved the
+// conflict with this recipient's existing claim.
+type WishlistClaimConflictPayload = {
+  wishlistItemId: string;
+  itemTitle: string;
+  poolId: string;
+  poolTitle: string;
+};
+
 type PayloadByType = {
   [NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED]: FriendRequestPayload;
   [NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED]: FriendRequestPayload;
@@ -486,6 +554,9 @@ type PayloadByType = {
   [NOTIFICATION_TYPES.POOL_VOTE_REMINDER]: OrganizerNudgePayload;
   [NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER]: OrganizerNudgePayload;
   [NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER]: OrganizerNudgePayload;
+  [NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT]: WishlistClaimConflictPayload;
+  [NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED]: WishlistClaimConflictPayload;
+  [NOTIFICATION_TYPES.WISHLIST_CLAIM_RELEASED]: WishlistClaimConflictPayload;
 };
 
 export type NotificationPayload<T extends NotificationType> = PayloadByType[T];

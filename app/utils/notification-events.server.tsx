@@ -78,9 +78,12 @@ export function getNotificationOccurrenceKey(
     case NOTIFICATION_TYPES.POOL_VOTE_REMINDER:
     case NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER:
     case NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER:
-      throw new Error(
-        `Pool notification ${intent.type} requires a sourceIdentifier.`,
-      );
+    // Registered in the catalog (Task 15); occurrence-key derivation and
+    // rendering are wired in Task 16.
+    case NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT:
+    case NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED:
+    case NOTIFICATION_TYPES.WISHLIST_CLAIM_RELEASED:
+      throw new Error(`Notification ${intent.type} requires a sourceIdentifier.`);
   }
 }
 
@@ -107,6 +110,11 @@ export async function renderNotificationChannel<C extends NotificationChannel>(
     case NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER:
     case NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER:
       return renderPoolActivity(intent, channel);
+    case NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT:
+    case NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED:
+    case NOTIFICATION_TYPES.WISHLIST_CLAIM_RELEASED:
+      // Registered in the catalog (Task 15); rendering is wired in Task 16.
+      throw new Error(`Rendering for ${intent.type} is not implemented yet.`);
   }
 }
 
