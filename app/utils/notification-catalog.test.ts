@@ -107,11 +107,10 @@ describe('notification catalog', () => {
     expect(isNotificationType(null)).toBe(false);
   });
 
-  it('maps all three wishlist-claim events to one shared topic', () => {
+  it('maps both wishlist-claim events to one shared topic', () => {
     const topics = [
       NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT,
       NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
-      NOTIFICATION_TYPES.WISHLIST_CLAIM_RELEASED,
     ].map((t) => getNotificationEventDefinition(t).topic);
     expect(new Set(topics).size).toBe(1);
   });

@@ -32,6 +32,7 @@ import { Text } from '#app/components/ui-kit/text.tsx';
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { useDoubleCheck } from '#app/utils/misc.tsx';
+import { queueWishlistClaimTransferredNotification } from '#app/utils/pool.server.ts';
 import { authSessionStorage } from '#app/utils/session.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import {
@@ -837,7 +838,14 @@ async function deleteDataAction({ userId }: ProfileActionArgs) {
   // remove the evidence of that claim — goes away. `releaseSoloClaimsMatching`
   // is a no-op (empty array, no throw) when the user holds no solo claims,
   // so this never blocks deletion.
-  await releaseSoloClaimsMatching({ claimedByUserId: userId });
+  const released = await releaseSoloClaimsMatching({ claimedByUserId: userId });
+  for (const release of released) {
+    if (!release.transferredToPoolId) continue;
+    queueWishlistClaimTransferredNotification(
+      release.transferredToPoolId,
+      release.wishlistItemId,
+    );
+  }
   await prisma.user.delete({ where: { id: userId } });
   return redirectWithToast('/', {
     type: 'success',

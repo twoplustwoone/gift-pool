@@ -94,6 +94,11 @@ export const en = {
       keepSuccess: "Kept — you're still on gift duty for this one.",
       releaseSuccess: "Released — the group's got it from here. Thanks!",
     },
+    wishlistClaimTransferred: {
+      message:
+        'The other claim on {{item}} for {{recipient}} was released — {{pool}} now holds it, so there’s no more duplicate risk from that claim.',
+      pushTitle: 'Duplicate risk cleared',
+    },
     markAllReadSuccess: 'All notifications marked as read.',
   },
   friends: {

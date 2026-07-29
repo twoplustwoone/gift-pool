@@ -79,11 +79,13 @@ export function getNotificationOccurrenceKey(
     case NOTIFICATION_TYPES.POOL_VOTE_REMINDER:
     case NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER:
     case NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER:
-    // Registered in the catalog (Task 15); occurrence-key derivation and
-    // rendering are wired in Task 16.
+    // Both wishlist-claim events are always queued with an explicit
+    // `sourceIdentifier` (see queueWishlistClaimConflictNotification and
+    // queueWishlistClaimTransferredNotification in pool.server.ts), so the
+    // early return above always catches them — this case exists only so the
+    // switch stays exhaustive.
     case NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT:
     case NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED:
-    case NOTIFICATION_TYPES.WISHLIST_CLAIM_RELEASED:
       throw new Error(`Notification ${intent.type} requires a sourceIdentifier.`);
   }
 }
@@ -114,12 +116,7 @@ export async function renderNotificationChannel<C extends NotificationChannel>(
     case NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT:
       return renderWishlistClaimConflict(intent, channel);
     case NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED:
-    case NOTIFICATION_TYPES.WISHLIST_CLAIM_RELEASED:
-      // Registered in the catalog (Task 15). Nothing queues these two yet —
-      // Task 16 only sends WISHLIST_CLAIM_CONFLICT (see its report). Left as
-      // an explicit placeholder rather than inventing copy for an event no
-      // code path fires, which nobody could review against real behavior.
-      throw new Error(`Rendering for ${intent.type} is not implemented yet.`);
+      return renderWishlistClaimTransferred(intent, channel);
   }
 }
 
@@ -407,6 +404,69 @@ async function renderWishlistClaimConflict<C extends NotificationChannel>(
         title: translate('en', 'notifications.wishlistClaimConflict.pushTitle'),
         body: message,
         url: wishlistUrl,
+        tag: getNotificationOccurrenceKey(intent),
+      } as NotificationChannelMessageMap[C];
+  }
+}
+
+async function renderWishlistClaimTransferred<C extends NotificationChannel>(
+  intent: NotificationIntent<'WISHLIST_CLAIM_TRANSFERRED'>,
+  channel: C,
+): Promise<NotificationChannelMessageMap[C]> {
+  const { payload } = intent;
+  // Unlike WISHLIST_CLAIM_CONFLICT, this notification's audience is the
+  // inheriting pool's own contributors, who already know their own pool —
+  // naming it here is safe (see the payload comment in
+  // notification-catalog.ts). It links to the pool, not the recipient's
+  // wishlist, for the same reason.
+  const messageParams = {
+    item: payload.itemTitle,
+    recipient: payload.recipientName,
+    pool: payload.poolTitle,
+  };
+  const message = translate(
+    'en',
+    'notifications.wishlistClaimTransferred.message',
+    messageParams,
+  );
+  const poolUrl = `/pools/${payload.poolId}`;
+
+  switch (channel) {
+    case NOTIFICATION_CHANNELS.IN_APP:
+      return {
+        status: 'UNREAD',
+        messageKey: 'notifications.wishlistClaimTransferred.message',
+        messageParams: JSON.stringify(messageParams),
+        targetUrl: poolUrl,
+        metadata: JSON.stringify({
+          poolId: payload.poolId,
+          wishlistItemId: payload.wishlistItemId,
+        }),
+        friendRequestId: null,
+      } as NotificationChannelMessageMap[C];
+    case NOTIFICATION_CHANNELS.EMAIL: {
+      const managePreferencesUrl = await buildManagePreferencesUrl(intent);
+      return {
+        subject: `Duplicate risk cleared on ${payload.itemTitle} — ${appName}`,
+        react: (
+          <PoolActivityEmail
+            appName={appName}
+            heading={message}
+            message="Open the pool for the full details."
+            poolUrl={buildAppUrl(poolUrl)}
+            managePreferencesUrl={managePreferencesUrl}
+          />
+        ),
+      } as NotificationChannelMessageMap[C];
+    }
+    case NOTIFICATION_CHANNELS.WEB_PUSH:
+      return {
+        title: translate(
+          'en',
+          'notifications.wishlistClaimTransferred.pushTitle',
+        ),
+        body: message,
+        url: poolUrl,
         tag: getNotificationOccurrenceKey(intent),
       } as NotificationChannelMessageMap[C];
   }

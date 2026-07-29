@@ -672,6 +672,10 @@ export async function chooseIdea(
 				toPoolId: release.transferredToPoolId,
 			},
 		})
+		queueWishlistClaimTransferredNotification(
+			release.transferredToPoolId,
+			release.wishlistItemId,
+		)
 	}
 
 	const { eventId } = queueLogEvent({
@@ -759,6 +763,85 @@ function queueWishlistClaimConflictNotification(
 			// notification-dispatcher.server.ts / claimNotificationDelivery.
 			sourceIdentifier: `claim-conflict:${poolId}:${wishlistItemId}`,
 		})
+	})().catch((error: unknown) => {
+		captureException(error)
+	})
+}
+
+// The other half of the conflict story `queueWishlistClaimConflictNotification`
+// starts: once a claim settles onto a pool — a person releasing (directly, or
+// indirectly via an archive/status change, an access-loss cleanup, or account
+// deletion), or this pool inheriting from a pool that just cancelled or
+// re-decided away from the item — the organizer was told there was a real
+// risk of a duplicate purchase, and without this call they never learn it's
+// over. Exported so every settlement call site that can produce a
+// `transferredToPoolId` (chooseIdea/cancelPool below, plus the release paths
+// in wishlist+/purchase.ts, wishlist+/status.ts, wishlist.server.ts, and
+// settings+/profile.index.tsx) can reuse the same fanout instead of
+// hand-rolling it. Fire-and-forget with its own try/catch, matching the
+// "side effects off the action response" pattern — several of those call
+// sites run from a GET loader's cleanup pass, where a read failure here must
+// never turn a page view into a 500.
+//
+// Notifies every contributor, not just the organizer — see the schema
+// comment on `Pool.organizerId` ("all role-holders are also
+// PoolContributors"), and any contributor could be the one about to buy the
+// item duplicate. Unlike the conflict notification, `poolId`/`poolTitle` ARE
+// safe to use in this one's rendered copy: the audience is this pool's own
+// contributors, who already know their own pool.
+export function queueWishlistClaimTransferredNotification(
+	poolId: string,
+	wishlistItemId: string,
+): void {
+	void (async () => {
+		const [pool, claim] = await Promise.all([
+			prisma.pool.findUnique({
+				where: { id: poolId },
+				select: { title: true, contributors: { select: { userId: true } } },
+			}),
+			prisma.wishlistClaim.findUnique({
+				where: { wishlistItemId },
+				select: {
+					poolId: true,
+					wishlistItem: {
+						select: {
+							title: true,
+							owner: { select: { name: true, username: true } },
+						},
+					},
+				},
+			}),
+		])
+		if (!pool) return
+		// Read fresh rather than trust the caller's snapshot: the claim can have
+		// moved again by the time this runs (e.g. this pool immediately
+		// re-decided away from the item). Only notify while this pool still
+		// actually holds it.
+		if (!claim || claim.poolId !== poolId || !claim.wishlistItem) return
+
+		for (const contributor of pool.contributors) {
+			queueNotification({
+				userId: contributor.userId,
+				type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+				payload: {
+					wishlistItemId,
+					itemTitle: claim.wishlistItem.title,
+					recipientName:
+						claim.wishlistItem.owner.name ?? claim.wishlistItem.owner.username,
+					recipientUsername: claim.wishlistItem.owner.username,
+					poolId,
+					poolTitle: pool.title,
+				},
+				// One notification per contributor per settlement: the same key
+				// across every contributor is fine because the NotificationDelivery
+				// ledger dedupes on (userId, sourceIdentifier) — see
+				// claimNotificationDelivery in notification-dispatcher.server.ts.
+				// Re-entering this path for the same pool+item (a retry, or the
+				// cleanup loader re-running on the next page view) never notifies
+				// twice.
+				sourceIdentifier: `claim-transferred:${poolId}:${wishlistItemId}`,
+			})
+		}
 	})().catch((error: unknown) => {
 		captureException(error)
 	})
@@ -944,6 +1027,10 @@ export async function cancelPool(poolId: string, actorId: string) {
 				toPoolId: release.transferredToPoolId,
 			},
 		})
+		queueWishlistClaimTransferredNotification(
+			release.transferredToPoolId,
+			release.wishlistItemId,
+		)
 	}
 
 	const { eventId } = queueLogEvent({

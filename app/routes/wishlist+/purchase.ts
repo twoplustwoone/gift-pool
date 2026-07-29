@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { queueWishlistClaimTransferredNotification } from '#app/utils/pool.server.ts';
 import { claimForUser, releaseUserClaim } from '#app/utils/wishlist-claims.server.ts';
 import { usersShareWishlistAccess } from '#app/utils/wishlist.server.ts';
 const PurchaseFormSchema = z.object({
@@ -173,6 +174,12 @@ export async function action({ request }: ActionFunctionArgs) {
     source: 'server',
     properties: { wishlistItemId, toPoolId: release.transferredToPoolId },
   });
+  if (release.transferredToPoolId) {
+    queueWishlistClaimTransferredNotification(
+      release.transferredToPoolId,
+      wishlistItemId,
+    );
+  }
   // A transfer means the item is NOT free — settlement handed the claim
   // straight to the longest-waiting pool inside the same transaction as the
   // release (see `releaseUserClaim`). Reporting `claim: null` here would be a

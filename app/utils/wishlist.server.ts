@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { prisma } from './db.server.ts';
 import { usersShareAGroupOrAreFriendsByIds } from './groups.server.ts';
+import { queueWishlistClaimTransferredNotification } from './pool.server.ts';
 import { releaseSoloClaimsMatching } from './wishlist-claims.server.ts';
 
 const PUBLIC_SHARE_TOKEN_BYTES = 24;
@@ -13,7 +14,7 @@ export async function cleanupWishlistClaimsForOwner(ownerId: string) {
   // match many claims at once (scoped by owner, not by item), which is why
   // it goes through the batch-capable `releaseSoloClaimsMatching` rather than
   // one-at-a-time `releaseSoloClaimForItem`.
-  await releaseSoloClaimsMatching({
+  const released = await releaseSoloClaimsMatching({
     wishlistItem: { ownerId },
     // Solo claims only. A pool-held claim has claimedByUserId: null (see
     // the DB CHECK in the WishlistClaim migration — exactly one of
@@ -40,6 +41,14 @@ export async function cleanupWishlistClaimsForOwner(ownerId: string) {
       ],
     },
   });
+
+  for (const release of released) {
+    if (!release.transferredToPoolId) continue;
+    queueWishlistClaimTransferredNotification(
+      release.transferredToPoolId,
+      release.wishlistItemId,
+    );
+  }
 }
 
 export async function usersShareWishlistAccess({
