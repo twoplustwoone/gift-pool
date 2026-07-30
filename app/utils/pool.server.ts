@@ -1,9 +1,10 @@
-import { captureMessage } from '@sentry/react-router'
+import { captureException, captureMessage } from '@sentry/react-router'
 import { data } from 'react-router'
 import { nanoid } from 'nanoid'
 import { queueLogEvent } from '#app/utils/analytics.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts'
+import { queueNotification } from '#app/utils/notification-dispatcher.server.ts'
 import { logPoolActivity } from '#app/utils/pool-activity.server.ts'
 import {
 	POOL_ACTIVITY_TYPE,
@@ -13,7 +14,11 @@ import {
 import { calculateContributions } from '#app/utils/pool-contributions.ts'
 import { queuePoolActivityNotifications } from '#app/utils/pool-notifications.server.ts'
 import { assertPoolStatus } from '#app/utils/pool-permissions.server.ts'
-import { syncPoolClaimInTx } from '#app/utils/wishlist-claims.server.ts'
+import {
+	CLAIM_TRANSACTION_OPTIONS,
+	POOL_INTENT_STATUSES,
+	syncPoolClaimInTx,
+} from '#app/utils/wishlist-claims.server.ts'
 import type { DecisionMode, OccasionType } from '#app/utils/pool-constants.ts'
 
 // ─── Selects ──────────────────────────────────────────────────────────────────
@@ -577,7 +582,14 @@ export async function chooseIdea(
 ): Promise<{ claimedItemId: string | null; conflictedItemId: string | null }> {
 	const idea = await prisma.giftIdea.findFirst({
 		where: { id: ideaId, poolId },
-		select: { estimatedPriceCents: true, name: true },
+		select: {
+			estimatedPriceCents: true,
+			name: true,
+			// Only used to compose the conflict notification below — never to
+			// disclose the pool to the claim holder (see
+			// queueWishlistClaimConflictNotification's own comment).
+			pool: { select: { title: true } },
+		},
 	})
 
 	if (!idea) {
@@ -620,7 +632,7 @@ export async function chooseIdea(
 		if (decision.count === 0) return null
 
 		return syncPoolClaimInTx(tx, poolId)
-	})
+	}, CLAIM_TRANSACTION_OPTIONS)
 	if (claimSync === null) return { claimedItemId: null, conflictedItemId: null }
 
 	// logPoolActivity, queueLogEvent, and queuePoolActivityNotifications all
@@ -647,9 +659,14 @@ export async function chooseIdea(
 			source: 'server',
 			properties: { poolId, wishlistItemId: claimSync.conflictedItemId },
 		})
+		queueWishlistClaimConflictNotification(
+			poolId,
+			idea.pool.title,
+			claimSync.conflictedItemId,
+		)
 	}
 	for (const release of claimSync.released) {
-		if (!release.transferredToPoolId) continue
+		if (!release.transferredToPoolId || !release.transferredClaimId) continue
 		queueLogEvent({
 			name: 'wishlist_claim_transferred',
 			userId: actorId,
@@ -659,6 +676,11 @@ export async function chooseIdea(
 				toPoolId: release.transferredToPoolId,
 			},
 		})
+		queueWishlistClaimTransferredNotification(
+			release.transferredToPoolId,
+			release.wishlistItemId,
+			release.transferredClaimId,
+		)
 	}
 
 	const { eventId } = queueLogEvent({
@@ -684,6 +706,269 @@ export async function chooseIdea(
 		claimedItemId: claimSync.claimedItemId,
 		conflictedItemId: claimSync.conflictedItemId,
 	}
+}
+
+// Asks the person holding a conflicting claim whether they're still getting
+// the item — the Keep/Release loop. Fire-and-forget with its own try/catch,
+// matching the "side effects off the action response" pattern: a failure
+// here must never turn the already-committed decision into a 500 for the
+// organizer who chose the idea.
+//
+// Reads the claim fresh (not the pre-transaction snapshot) because the truth
+// can have moved between `syncPoolClaimInTx` committing and this running —
+// e.g. the holder released in the interim and the item already settled to
+// this very pool. Re-reading means we only ever ask about a conflict that
+// still exists.
+//
+// `poolTitle` is carried into the payload for bookkeeping only. The claim
+// holder may have no relationship to this pool's group — the notification's
+// own renderer (notification-events.server.tsx) must never put it in the
+// rendered message; see the payload comment in notification-catalog.ts and
+// the privacy ladder in wishlist-claim-disclosure.ts.
+function queueWishlistClaimConflictNotification(
+	poolId: string,
+	poolTitle: string,
+	wishlistItemId: string,
+): void {
+	void (async () => {
+		const [claim, pool] = await Promise.all([
+			prisma.wishlistClaim.findUnique({
+				where: { wishlistItemId },
+				select: {
+					id: true,
+					claimedByUserId: true,
+					wishlistItem: {
+						select: {
+							title: true,
+							owner: { select: { name: true, username: true } },
+						},
+					},
+				},
+			}),
+			// Re-read the pool's *current* intent, not just the claim's current
+			// holder. The claim re-read above only proves someone still holds
+			// the item — it says nothing about whether this pool still wants
+			// it. Between the transaction that queued this fanout committing
+			// and this read running, the pool can have been re-decided onto a
+			// different idea (or cancelled): the solo claim on the original
+			// item is still perfectly live, but there is no longer a conflict
+			// to report. Sending anyway would tell the holder about a fight
+			// that's over, and — because the send claims the ledger key below
+			// — would silently swallow a genuine future conflict if the pool
+			// is later re-decided back onto this exact item.
+			prisma.pool.findUnique({
+				where: { id: poolId },
+				select: { status: true, chosenIdea: { select: { wishlistItemId: true } } },
+			}),
+		])
+		// The other side of a conflict can be another pool, not a person — the
+		// claim holder is only present here when `claimedByUserId` is set.
+		// There is nobody to ask when a pool holds it.
+		if (!claim?.claimedByUserId || !claim.wishlistItem) return
+
+		const poolStillIntendsThisItem =
+			pool !== null &&
+			(POOL_INTENT_STATUSES as readonly string[]).includes(pool.status) &&
+			pool.chosenIdea?.wishlistItemId === wishlistItemId
+		if (!poolStillIntendsThisItem) return
+
+		queueNotification({
+			userId: claim.claimedByUserId,
+			type: NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT,
+			payload: {
+				wishlistItemId,
+				itemTitle: claim.wishlistItem.title,
+				recipientName:
+					claim.wishlistItem.owner.name ?? claim.wishlistItem.owner.username,
+				recipientUsername: claim.wishlistItem.owner.username,
+				poolId,
+				poolTitle,
+				// The specific claim occurrence this notification is about. The
+				// Release action carries this back so a stale notification (the
+				// claimant released elsewhere, re-claimed, then clicked an old
+				// notification's Release) can't destroy a claim it never asked
+				// about — see releaseUserClaim's expectedClaimId in
+				// wishlist-claims.server.ts.
+				claimId: claim.id,
+			},
+			// One notification per conflicted *claim*, not per conflicted
+			// pool/item pair: the key includes the claim row's own id, which is
+			// freshly minted every time `wishlist-claims.server.ts` creates a
+			// claim. `poolId`/`wishlistItemId` alone would dedupe permanently —
+			// after the first Keep/Release resolves this claim, the holder (or
+			// someone else) can re-claim the same item and this pool can decide
+			// on it again, which is a genuinely new conflict that must ask
+			// again. The claim id is the right variable: it stays fixed for
+			// every re-entry into this path *for the same still-live claim*
+			// (a retry, or re-deciding back onto an item that's still
+			// conflicted), so those correctly stay deduped — unlike, say,
+			// `Pool.decidedAt`, which changes on every re-decision and would
+			// re-notify on each one. See notification-dispatcher.server.ts /
+			// claimNotificationDelivery.
+			sourceIdentifier: `claim-conflict:${poolId}:${wishlistItemId}:${claim.id}`,
+		})
+	})().catch((error: unknown) => {
+		captureException(error)
+	})
+}
+
+// Runs after a successfully committed release so a WISHLIST_CLAIM_CONFLICT
+// notification about *that exact claim occurrence* can never resurrect its
+// Release action once the claim is gone. Before this, resolving the
+// notification depended entirely on a second client request (the dismiss
+// call in api.notifications.$id.delete.ts) succeeding — if that request
+// failed, the notification stayed UNREAD, and a refresh re-offered a Release
+// button that would fail every time (the claim it targets no longer exists,
+// and `releaseUserClaim`'s `expectedClaimId` check correctly rejects it as
+// stale). This makes resolution durable: it happens server-side as part of
+// the release itself, with no client follow-up required.
+//
+// Matched by the claim's own id, carried in the notification's
+// `metadata.claimId` (see `queueWishlistClaimConflictNotification` above) —
+// not by `wishlistItemId`, which could also match a different, still-live
+// conflict notification raised later about a fresh claim the same user takes
+// out on the same item.
+//
+// Never throws: cleaning up stale notification chrome is unimportant next to
+// the already-committed release, so any failure here is reported to Sentry
+// and swallowed. Callers can simply `await` this without their own
+// try/catch — matches the "side effects off the action response" rule that a
+// fanout/cleanup failure must never turn a committed mutation into a 500.
+export async function resolveWishlistClaimConflictNotifications(
+	userId: string,
+	releasedClaimId: string,
+): Promise<void> {
+	try {
+		const candidates = await prisma.notification.findMany({
+			where: { userId, type: NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT },
+			select: { id: true, metadata: true },
+		})
+		const staleIds = candidates
+			.filter((notification) => {
+				if (!notification.metadata) return false
+				try {
+					const parsed = JSON.parse(notification.metadata) as { claimId?: unknown }
+					return parsed.claimId === releasedClaimId
+				} catch {
+					return false
+				}
+			})
+			.map((notification) => notification.id)
+		if (staleIds.length === 0) return
+		await prisma.notification.deleteMany({ where: { id: { in: staleIds } } })
+	} catch (error) {
+		captureException(error)
+	}
+}
+
+// The other half of the conflict story `queueWishlistClaimConflictNotification`
+// starts: once a claim settles onto a pool — a person releasing (directly, or
+// indirectly via an archive/status change, an access-loss cleanup, or account
+// deletion), or this pool inheriting from a pool that just cancelled or
+// re-decided away from the item — the organizer was told there was a real
+// risk of a duplicate purchase, and without this call they never learn it's
+// over. Exported so every settlement call site that can produce a
+// `transferredToPoolId` (chooseIdea/cancelPool below, plus the release paths
+// in wishlist+/purchase.ts, wishlist+/status.ts, wishlist.server.ts, and
+// settings+/profile.index.tsx) can reuse the same fanout instead of
+// hand-rolling it. Fire-and-forget with its own try/catch, matching the
+// "side effects off the action response" pattern — several of those call
+// sites run from a GET loader's cleanup pass, where a read failure here must
+// never turn a page view into a 500.
+//
+// Notifies every contributor, not just the organizer — see the schema
+// comment on `Pool.organizerId` ("all role-holders are also
+// PoolContributors"), and any contributor could be the one about to buy the
+// item duplicate. Unlike the conflict notification, `poolId`/`poolTitle` ARE
+// safe to use in this one's rendered copy: the audience is this pool's own
+// contributors, who already know their own pool. For the same reason this
+// notification is context: 'POOL' (unlike CONFLICT's 'NONE' — see the
+// catalog entries in notification-catalog.ts): the audience is exactly this
+// pool's contributors, so a contributor who has muted the pool must not be
+// pinged, and that requires passing `{ kind: 'POOL', poolId }` on the intent
+// below so `resolveNotificationPolicy` actually consults pool-context
+// preferences instead of skipping them.
+export function queueWishlistClaimTransferredNotification(
+	poolId: string,
+	wishlistItemId: string,
+	// The id of the WishlistClaim row this settlement just created (see
+	// `settleItem` in wishlist-claims.server.ts). Required, not derived from
+	// re-reading the claim below: it identifies *this* settlement for the
+	// ledger key, so a later, genuinely new settlement onto the same pool+item
+	// (this pool inherits, later decides away, then inherits again after a
+	// fresh solo claim is created and released) gets a distinct key instead of
+	// matching — and being silently suppressed by — the first transfer's
+	// ledger rows. This is the same fix already applied to the sibling
+	// conflict-notification key; see queueWishlistClaimConflictNotification.
+	claimId: string,
+): void {
+	void (async () => {
+		const [pool, claim] = await Promise.all([
+			prisma.pool.findUnique({
+				where: { id: poolId },
+				select: { title: true, contributors: { select: { userId: true } } },
+			}),
+			prisma.wishlistClaim.findUnique({
+				where: { wishlistItemId },
+				select: {
+					id: true,
+					poolId: true,
+					wishlistItem: {
+						select: {
+							title: true,
+							owner: { select: { name: true, username: true } },
+						},
+					},
+				},
+			}),
+		])
+		if (!pool) return
+		// Read fresh rather than trust the caller's snapshot: the claim can have
+		// moved again by the time this runs (e.g. this pool immediately
+		// re-decided away from the item). Checking `poolId` alone is not
+		// enough, though: it only proves *some* claim this pool holds is on
+		// this item right now, not that it's *this settlement's* claim. A
+		// delayed fanout for an older settlement (A) can lose a race to a
+		// newer one (B) — the pool decides away, a fresh solo claim on the
+		// same item is made and released, and the pool inherits the item
+		// again as settlement B — by the time A's fanout runs it would see
+		// B's live row, pass a `poolId`-only check, and report B's details
+		// under A's ledger key (B's own fanout then sends again under its own
+		// key: a duplicate). Requiring the live row's id to match the id this
+		// settlement created makes a stale settlement's fanout a no-op
+		// instead.
+		if (!claim || claim.poolId !== poolId || claim.id !== claimId || !claim.wishlistItem) {
+			return
+		}
+
+		for (const contributor of pool.contributors) {
+			queueNotification({
+				userId: contributor.userId,
+				type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+				context: { kind: 'POOL', poolId },
+				payload: {
+					wishlistItemId,
+					itemTitle: claim.wishlistItem.title,
+					recipientName:
+						claim.wishlistItem.owner.name ?? claim.wishlistItem.owner.username,
+					recipientUsername: claim.wishlistItem.owner.username,
+					poolId,
+					poolTitle: pool.title,
+				},
+				// One notification per contributor per settlement: the same key
+				// across every contributor is fine because the NotificationDelivery
+				// ledger dedupes on (userId, sourceIdentifier) — see
+				// claimNotificationDelivery in notification-dispatcher.server.ts.
+				// Re-entering this path for the same settlement (a retry, or the
+				// cleanup loader re-running on the next page view) never notifies
+				// twice. The claim id keeps a *different* settlement distinct — see
+				// the parameter doc above.
+				sourceIdentifier: `claim-transferred:${poolId}:${wishlistItemId}:${claimId}`,
+			})
+		}
+	})().catch((error: unknown) => {
+		captureException(error)
+	})
 }
 
 // Update the confirmed final price after the gift has been decided.
@@ -845,7 +1130,7 @@ export async function cancelPool(poolId: string, actorId: string) {
 		if (cancellation.count === 0) return null
 
 		return syncPoolClaimInTx(tx, poolId)
-	})
+	}, CLAIM_TRANSACTION_OPTIONS)
 	if (claimSync === null) return
 
 	// logPoolActivity, queueLogEvent, and queuePoolActivityNotifications all
@@ -856,7 +1141,7 @@ export async function cancelPool(poolId: string, actorId: string) {
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_CANCELLED, { actorId })
 
 	for (const release of claimSync.released) {
-		if (!release.transferredToPoolId) continue
+		if (!release.transferredToPoolId || !release.transferredClaimId) continue
 		queueLogEvent({
 			name: 'wishlist_claim_transferred',
 			userId: actorId,
@@ -866,6 +1151,11 @@ export async function cancelPool(poolId: string, actorId: string) {
 				toPoolId: release.transferredToPoolId,
 			},
 		})
+		queueWishlistClaimTransferredNotification(
+			release.transferredToPoolId,
+			release.wishlistItemId,
+			release.transferredClaimId,
+		)
 	}
 
 	const { eventId } = queueLogEvent({

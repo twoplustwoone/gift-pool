@@ -439,6 +439,163 @@ test('releasing a claim that transfers to a waiting pool reports the item as poo
   );
 });
 
+test('a release bound to a stale claim id does not destroy the current claim', async () => {
+  // Regression for the most serious finding: the notification's Release
+  // action now carries the WishlistClaim.id it was raised about. Reachable
+  // sequence — the claimant releases from the wishlist UI (no claimId, the
+  // notification row survives), re-claims the same item (a brand new claim
+  // row), then clicks Release on the now-stale notification. That must fail
+  // safely rather than silently dropping the user's current claim.
+  const { user: owner } = await createUserWithSession();
+  const { user: viewer, cookie } = await createUserWithSession();
+  await makeFriends(owner.id, viewer.id);
+  const item = await createWishlistItem({ ownerId: owner.id });
+
+  const originalClaim = await prisma.wishlistClaim.create({
+    data: { wishlistItemId: item.id, claimedByUserId: viewer.id },
+  });
+
+  // Released directly from the wishlist UI — no claimId, always allowed.
+  const firstRelease = await invoke({
+    cookie,
+    form: { wishlistItemId: item.id, intent: 'unpurchase' },
+  });
+  expect(getRouteResultStatus(firstRelease)).toBe(200);
+
+  // Re-claims the same item: a brand new WishlistClaim row.
+  const reclaim = await invoke({
+    cookie,
+    form: { wishlistItemId: item.id, intent: 'purchase' },
+  });
+  expect(getRouteResultStatus(reclaim)).toBe(200);
+  const currentClaim = await prisma.wishlistClaim.findUniqueOrThrow({
+    where: { wishlistItemId: item.id },
+  });
+  expect(currentClaim.id).not.toBe(originalClaim.id);
+
+  // Clicks Release on the stale notification, which still carries the
+  // original claim's id.
+  const staleRelease = await invoke({
+    cookie,
+    form: { wishlistItemId: item.id, intent: 'unpurchase', claimId: originalClaim.id },
+  });
+
+  expect(getRouteResultStatus(staleRelease)).toBe(400);
+  await expect(getRouteResultData(staleRelease)).resolves.toMatchObject({
+    ok: false,
+    claim: { claimedByUserId: viewer.id },
+  });
+
+  const claimAfter = await prisma.wishlistClaim.findUniqueOrThrow({
+    where: { wishlistItemId: item.id },
+  });
+  expect(claimAfter.id).toBe(currentClaim.id);
+  expect(claimAfter.claimedByUserId).toBe(viewer.id);
+});
+
+test('releases when the claimId matches the current claim exactly', async () => {
+  const { user: owner } = await createUserWithSession();
+  const { user: viewer, cookie } = await createUserWithSession();
+  await makeFriends(owner.id, viewer.id);
+  const item = await createWishlistItem({ ownerId: owner.id });
+  const claim = await prisma.wishlistClaim.create({
+    data: { wishlistItemId: item.id, claimedByUserId: viewer.id },
+  });
+
+  const response = await invoke({
+    cookie,
+    form: { wishlistItemId: item.id, intent: 'unpurchase', claimId: claim.id },
+  });
+
+  expect(getRouteResultStatus(response)).toBe(200);
+  await expect(getRouteResultData(response)).resolves.toMatchObject({
+    ok: true,
+    claim: null,
+  });
+  await expect(
+    prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } }),
+  ).resolves.toBeNull();
+});
+
+test('resolves the matching WISHLIST_CLAIM_CONFLICT notification when the release commits, so a reload cannot offer Release again', async () => {
+  // Regression for the P2 finding: resolving the notification used to
+  // depend entirely on a second client request (the bell's separate dismiss
+  // call) succeeding. If that request failed, the notification stayed
+  // UNREAD server-side and a refresh re-offered a Release button bound to a
+  // claim that no longer existed — one that would fail every time it was
+  // clicked. The release path now resolves it directly, with no client
+  // follow-up required.
+  const { user: owner } = await createUserWithSession();
+  const { user: viewer, cookie } = await createUserWithSession();
+  await makeFriends(owner.id, viewer.id);
+  const item = await createWishlistItem({ ownerId: owner.id });
+  const claim = await prisma.wishlistClaim.create({
+    data: { wishlistItemId: item.id, claimedByUserId: viewer.id },
+  });
+  const notification = await prisma.notification.create({
+    data: {
+      userId: viewer.id,
+      type: 'WISHLIST_CLAIM_CONFLICT',
+      status: 'UNREAD',
+      messageKey: 'notifications.wishlistClaimConflict.message',
+      metadata: JSON.stringify({ wishlistItemId: item.id, claimId: claim.id }),
+      actions: JSON.stringify([
+        { kind: 'WISHLIST_CLAIM_KEEP', labelKey: 'notifications.wishlistClaimConflict.keep' },
+        { kind: 'WISHLIST_CLAIM_RELEASE', labelKey: 'notifications.wishlistClaimConflict.release' },
+      ]),
+    },
+  });
+
+  const response = await invoke({
+    cookie,
+    form: { wishlistItemId: item.id, intent: 'unpurchase', claimId: claim.id },
+  });
+
+  expect(getRouteResultStatus(response)).toBe(200);
+  await expect(getRouteResultData(response)).resolves.toMatchObject({ ok: true });
+
+  // Gone outright — not merely marked read — so a subsequent notifications
+  // list load (what "a reload" means server-side) has nothing left that
+  // could render a Release action for this claim.
+  await expect(
+    prisma.notification.findUnique({ where: { id: notification.id } }),
+  ).resolves.toBeNull();
+});
+
+test('leaves a WISHLIST_CLAIM_CONFLICT notification for a different claim occurrence untouched', async () => {
+  // Matching must be scoped to the exact claim occurrence (metadata.claimId),
+  // not just the wishlist item — otherwise resolving this release could wipe
+  // out a still-live conflict notification raised later about a fresh claim
+  // the same user takes out on the same item.
+  const { user: owner } = await createUserWithSession();
+  const { user: viewer, cookie } = await createUserWithSession();
+  await makeFriends(owner.id, viewer.id);
+  const item = await createWishlistItem({ ownerId: owner.id });
+  const claim = await prisma.wishlistClaim.create({
+    data: { wishlistItemId: item.id, claimedByUserId: viewer.id },
+  });
+  const unrelatedNotification = await prisma.notification.create({
+    data: {
+      userId: viewer.id,
+      type: 'WISHLIST_CLAIM_CONFLICT',
+      status: 'UNREAD',
+      messageKey: 'notifications.wishlistClaimConflict.message',
+      metadata: JSON.stringify({ wishlistItemId: item.id, claimId: 'claim-does-not-match' }),
+      actions: JSON.stringify([]),
+    },
+  });
+
+  const response = await invoke({
+    cookie,
+    form: { wishlistItemId: item.id, intent: 'unpurchase', claimId: claim.id },
+  });
+
+  expect(getRouteResultStatus(response)).toBe(200);
+  await expect(
+    prisma.notification.findUnique({ where: { id: unrelatedNotification.id } }),
+  ).resolves.not.toBeNull();
+});
+
 test('rejects releasing a claim held by someone else', async () => {
   const { user: owner } = await createUserWithSession();
   const { user: holder } = await createUserWithSession();

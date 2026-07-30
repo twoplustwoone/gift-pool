@@ -4,6 +4,7 @@ import { FriendRequestReceivedEmail } from '#app/emails/friend-request-received.
 import { PoolActivityEmail } from '#app/emails/pool-activity.tsx';
 import { PoolInvitationReceivedEmail } from '#app/emails/pool-invitation-received.tsx';
 import { UpcomingBirthdayEmail } from '#app/emails/upcoming-birthday.tsx';
+import { WishlistClaimConflictEmail } from '#app/emails/wishlist-claim-conflict.tsx';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { OCCASION_REMINDER_EMAIL_SRC } from '#app/utils/analytics.ts';
 import { buildAppUrl } from '#app/utils/app-url.server.ts';
@@ -78,9 +79,14 @@ export function getNotificationOccurrenceKey(
     case NOTIFICATION_TYPES.POOL_VOTE_REMINDER:
     case NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER:
     case NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER:
-      throw new Error(
-        `Pool notification ${intent.type} requires a sourceIdentifier.`,
-      );
+    // Both wishlist-claim events are always queued with an explicit
+    // `sourceIdentifier` (see queueWishlistClaimConflictNotification and
+    // queueWishlistClaimTransferredNotification in pool.server.ts), so the
+    // early return above always catches them — this case exists only so the
+    // switch stays exhaustive.
+    case NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT:
+    case NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED:
+      throw new Error(`Notification ${intent.type} requires a sourceIdentifier.`);
   }
 }
 
@@ -107,6 +113,10 @@ export async function renderNotificationChannel<C extends NotificationChannel>(
     case NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER:
     case NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER:
       return renderPoolActivity(intent, channel);
+    case NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT:
+      return renderWishlistClaimConflict(intent, channel);
+    case NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED:
+      return renderWishlistClaimTransferred(intent, channel);
   }
 }
 
@@ -328,6 +338,141 @@ async function renderUpcomingBirthday<C extends NotificationChannel>(
           messageParams,
         ),
         url: `/users/${payload.birthdayUsername}`,
+        tag: getNotificationOccurrenceKey(intent),
+      } as NotificationChannelMessageMap[C];
+  }
+}
+
+async function renderWishlistClaimConflict<C extends NotificationChannel>(
+  intent: NotificationIntent<'WISHLIST_CLAIM_CONFLICT'>,
+  channel: C,
+): Promise<NotificationChannelMessageMap[C]> {
+  const { payload } = intent;
+  // No poolId/poolTitle here on purpose — this notification can reach
+  // someone with no relationship to the pool's group, and the privacy
+  // ladder (wishlist-claim-disclosure.ts) never names a pool to an
+  // outsider. `wishlistUrl` points at the wishlist the recipient already
+  // knows about (it's the one they claimed on), never at the pool.
+  const messageParams = {
+    item: payload.itemTitle,
+    recipient: payload.recipientName,
+  };
+  const message = translate(
+    'en',
+    'notifications.wishlistClaimConflict.message',
+    messageParams,
+  );
+  const wishlistUrl = `/users/${payload.recipientUsername}/wishlist`;
+
+  switch (channel) {
+    case NOTIFICATION_CHANNELS.IN_APP:
+      return {
+        status: 'UNREAD',
+        messageKey: 'notifications.wishlistClaimConflict.message',
+        messageParams: JSON.stringify(messageParams),
+        targetUrl: wishlistUrl,
+        metadata: JSON.stringify({
+          wishlistItemId: payload.wishlistItemId,
+          // Carried through to the Release action so it can bind the
+          // mutation to this exact claim occurrence — see
+          // releaseUserClaim's expectedClaimId in wishlist-claims.server.ts.
+          claimId: payload.claimId,
+        }),
+        actions: JSON.stringify([
+          {
+            kind: 'WISHLIST_CLAIM_KEEP',
+            labelKey: 'notifications.wishlistClaimConflict.keep',
+          },
+          {
+            kind: 'WISHLIST_CLAIM_RELEASE',
+            labelKey: 'notifications.wishlistClaimConflict.release',
+          },
+        ]),
+        friendRequestId: null,
+      } as NotificationChannelMessageMap[C];
+    case NOTIFICATION_CHANNELS.EMAIL: {
+      const managePreferencesUrl = await buildManagePreferencesUrl(intent);
+      return {
+        subject: `Still getting ${payload.itemTitle} for ${payload.recipientName}?`,
+        react: (
+          <WishlistClaimConflictEmail
+            appName={appName}
+            itemTitle={payload.itemTitle}
+            recipientName={payload.recipientName}
+            wishlistUrl={buildAppUrl(wishlistUrl)}
+            managePreferencesUrl={managePreferencesUrl}
+          />
+        ),
+      } as NotificationChannelMessageMap[C];
+    }
+    case NOTIFICATION_CHANNELS.WEB_PUSH:
+      return {
+        title: translate('en', 'notifications.wishlistClaimConflict.pushTitle'),
+        body: message,
+        url: wishlistUrl,
+        tag: getNotificationOccurrenceKey(intent),
+      } as NotificationChannelMessageMap[C];
+  }
+}
+
+async function renderWishlistClaimTransferred<C extends NotificationChannel>(
+  intent: NotificationIntent<'WISHLIST_CLAIM_TRANSFERRED'>,
+  channel: C,
+): Promise<NotificationChannelMessageMap[C]> {
+  const { payload } = intent;
+  // Unlike WISHLIST_CLAIM_CONFLICT, this notification's audience is the
+  // inheriting pool's own contributors, who already know their own pool —
+  // naming it here is safe (see the payload comment in
+  // notification-catalog.ts). It links to the pool, not the recipient's
+  // wishlist, for the same reason.
+  const messageParams = {
+    item: payload.itemTitle,
+    recipient: payload.recipientName,
+    pool: payload.poolTitle,
+  };
+  const message = translate(
+    'en',
+    'notifications.wishlistClaimTransferred.message',
+    messageParams,
+  );
+  const poolUrl = `/pools/${payload.poolId}`;
+
+  switch (channel) {
+    case NOTIFICATION_CHANNELS.IN_APP:
+      return {
+        status: 'UNREAD',
+        messageKey: 'notifications.wishlistClaimTransferred.message',
+        messageParams: JSON.stringify(messageParams),
+        targetUrl: poolUrl,
+        metadata: JSON.stringify({
+          poolId: payload.poolId,
+          wishlistItemId: payload.wishlistItemId,
+        }),
+        friendRequestId: null,
+      } as NotificationChannelMessageMap[C];
+    case NOTIFICATION_CHANNELS.EMAIL: {
+      const managePreferencesUrl = await buildManagePreferencesUrl(intent);
+      return {
+        subject: `Duplicate risk cleared on ${payload.itemTitle} — ${appName}`,
+        react: (
+          <PoolActivityEmail
+            appName={appName}
+            heading={message}
+            message="Open the pool for the full details."
+            poolUrl={buildAppUrl(poolUrl)}
+            managePreferencesUrl={managePreferencesUrl}
+          />
+        ),
+      } as NotificationChannelMessageMap[C];
+    }
+    case NOTIFICATION_CHANNELS.WEB_PUSH:
+      return {
+        title: translate(
+          'en',
+          'notifications.wishlistClaimTransferred.pushTitle',
+        ),
+        body: message,
+        url: poolUrl,
         tag: getNotificationOccurrenceKey(intent),
       } as NotificationChannelMessageMap[C];
   }

@@ -344,9 +344,12 @@ const IdeaCard = ({
                           worded correctly for this viewer's tier (person,
                           withheld person, or another pool) — then append the
                           honest consequence instead of rewriting who holds
-                          the claim or whose wishlist it's on. */}
+                          the claim or whose wishlist it's on. If a person
+                          holds it, choosing anyway now asks them to keep or
+                          release — but Keep is a legitimate choice, so this
+                          must not promise the conflict resolves. */}
                       <DialogDescription>
-                        {`${conflict.text}. If you choose it anyway, your pool won't hold the claim — so there's a real risk you both end up buying it.`}
+                        {`${conflict.text}. If you choose it anyway, your pool won't hold the claim. If a person holds it, we'll ask whether they're still getting it — but they can choose to keep it, so there's still a real risk you both end up buying it.`}
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

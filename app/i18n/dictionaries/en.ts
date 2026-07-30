@@ -85,6 +85,22 @@ export const en = {
       message: '{{sender}} reminded you to deliver the gift for {{pool}}',
       pushTitle: 'Delivery reminder',
     },
+    wishlistClaimConflict: {
+      message:
+        'A group has also decided to get {{item}} for {{recipient}}. Are you still getting it yourself?',
+      pushTitle: 'Still getting this?',
+      keep: 'Keep it',
+      release: 'Release it',
+      keepSuccess: "Kept — you're still on gift duty for this one.",
+      releaseSuccess: "Released — the group's got it from here. Thanks!",
+      releaseStale:
+        "That's out of date — your current claim on this item wasn't touched.",
+    },
+    wishlistClaimTransferred: {
+      message:
+        'The other claim on {{item}} for {{recipient}} was released — {{pool}} now holds it, so there’s no more duplicate risk from that claim.',
+      pushTitle: 'Duplicate risk cleared',
+    },
     markAllReadSuccess: 'All notifications marked as read.',
   },
   friends: {

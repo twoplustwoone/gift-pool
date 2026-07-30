@@ -979,7 +979,7 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
       expect(toastSuccess).not.toHaveBeenCalled();
     });
 
-    it('does not claim the claimant will be contacted or notified', async () => {
+    it('mentions the automatic keep/release ask without promising the conflict resolves', async () => {
       loaderDataSnapshot.ideaClaimConflicts = [
         [
           'idea-1',
@@ -1005,13 +1005,13 @@ describe('app/routes/pools+/$poolId+/index.tsx', () => {
         name: "Sarah's already getting this one",
       });
       const dialogText = dialog.textContent ?? '';
-      // No promise of a Keep/Release follow-up to the claimant — that
-      // feature does not exist yet.
-      expect(dialogText).not.toMatch(/ask (them|if)/i);
-      expect(dialogText).not.toMatch(/let them know/i);
-      expect(dialogText).not.toMatch(/we'll/i);
+      // Task 16 wired the ask, so the dialog should now say so — but Keep is
+      // a legitimate outcome for the claimant, so this must never promise
+      // the conflict resolves or that nobody else ends up buying it.
+      expect(dialogText).toMatch(/we'll ask/i);
+      expect(dialogText).not.toMatch(/nobody else (will )?buys?/i);
       expect(dialogText).toContain(
-        "your pool won't hold the claim — so there's a real risk you both end up buying it.",
+        "there's still a real risk you both end up buying it.",
       );
     });
   });

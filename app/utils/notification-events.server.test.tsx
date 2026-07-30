@@ -261,3 +261,94 @@ describe('pool activity notification rendering', () => {
     });
   });
 });
+
+describe('wishlist claim conflict notification rendering', () => {
+  const conflictIntent: NotificationIntent<'WISHLIST_CLAIM_CONFLICT'> = {
+    userId: 'claimer-1',
+    type: NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT,
+    sourceIdentifier: 'claim-conflict:pool-1:wish-9',
+    payload: {
+      wishlistItemId: 'wish-9',
+      itemTitle: 'Noise-cancelling headphones',
+      recipientName: 'Taylor',
+      recipientUsername: 'taylor',
+      poolId: 'pool-1',
+      poolTitle: 'Taylor birthday',
+      claimId: 'claim-1',
+    },
+  };
+
+  beforeEach(() => {
+    createPreferenceToken.mockResolvedValue('preference-token');
+  });
+
+  it('renders the bell notification with Keep/Release actions and no pool identity', async () => {
+    const inApp = await renderNotificationChannel(
+      conflictIntent,
+      NOTIFICATION_CHANNELS.IN_APP,
+    );
+
+    expect(inApp).toMatchObject({
+      messageKey: 'notifications.wishlistClaimConflict.message',
+      messageParams: JSON.stringify({
+        item: 'Noise-cancelling headphones',
+        recipient: 'Taylor',
+      }),
+      targetUrl: '/users/taylor/wishlist',
+      metadata: JSON.stringify({
+        wishlistItemId: 'wish-9',
+        claimId: 'claim-1',
+      }),
+      actions: JSON.stringify([
+        {
+          kind: 'WISHLIST_CLAIM_KEEP',
+          labelKey: 'notifications.wishlistClaimConflict.keep',
+        },
+        {
+          kind: 'WISHLIST_CLAIM_RELEASE',
+          labelKey: 'notifications.wishlistClaimConflict.release',
+        },
+      ]),
+    });
+    // Never leaks the pool or group identity to the claim holder.
+    expect(JSON.stringify(inApp)).not.toContain('pool-1');
+    expect(JSON.stringify(inApp)).not.toContain('Taylor birthday');
+  });
+
+  it('renders web push pointing at the wishlist, not the pool', async () => {
+    const push = await renderNotificationChannel(
+      conflictIntent,
+      NOTIFICATION_CHANNELS.WEB_PUSH,
+    );
+
+    expect(push).toEqual({
+      title: 'Still getting this?',
+      body: 'A group has also decided to get Noise-cancelling headphones for Taylor. Are you still getting it yourself?',
+      url: '/users/taylor/wishlist',
+      tag: 'claim-conflict:pool-1:wish-9',
+    });
+  });
+
+  it('renders the opt-in email without naming the pool', async () => {
+    const message = await renderNotificationChannel(
+      conflictIntent,
+      NOTIFICATION_CHANNELS.EMAIL,
+    );
+    const markup = renderToStaticMarkup(message.react);
+
+    expect(message.subject).toBe(
+      'Still getting Noise-cancelling headphones for Taylor?',
+    );
+    expect(markup).toContain('Open wishlist');
+    expect(markup).toContain('https://giftpool.example/users/taylor/wishlist');
+    expect(markup).toContain('Manage notification preferences');
+    expect(markup).not.toContain('Taylor birthday');
+    expect(markup).not.toContain('pool-1');
+  });
+
+  it('uses the caller-supplied sourceIdentifier instead of deriving one', () => {
+    expect(getNotificationOccurrenceKey(conflictIntent)).toBe(
+      'claim-conflict:pool-1:wish-9',
+    );
+  });
+});

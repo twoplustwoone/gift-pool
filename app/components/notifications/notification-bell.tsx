@@ -83,6 +83,9 @@ const MARK_ALL_ENDPOINT = '/api/notifications/read-all';
 const FRIEND_ACCEPT_EVENT = 'FRIEND_ACCEPT';
 const POOL_INVITATION_ACCEPT_EVENT = 'POOL_INVITATION_ACCEPT';
 const POOL_INVITATION_DECLINE_EVENT = 'POOL_INVITATION_DECLINE';
+const WISHLIST_CLAIM_KEEP_EVENT = 'WISHLIST_CLAIM_KEEP';
+const WISHLIST_CLAIM_RELEASE_EVENT = 'WISHLIST_CLAIM_RELEASE';
+const WISHLIST_PURCHASE_ENDPOINT = '/wishlist/purchase';
 
 type PendingActionKey = `${string}:${string}`;
 type NotificationTranslator = ReturnType<typeof useTranslation>['t'];
@@ -118,7 +121,8 @@ function NotificationRowActions({
             size="sm"
             variant={
               action.kind === FRIEND_ACCEPT_EVENT ||
-              action.kind === POOL_INVITATION_ACCEPT_EVENT
+              action.kind === POOL_INVITATION_ACCEPT_EVENT ||
+              action.kind === WISHLIST_CLAIM_RELEASE_EVENT
                 ? 'default'
                 : 'secondary'
             }
@@ -675,6 +679,152 @@ export const NotificationBell = () => {
     [navigate, pendingActionKeys, setUnreadCount, t],
   );
 
+  // Keep and Release both resolve the notification inline — neither
+  // navigates away. Release actually mutates the claim (via the same
+  // `/wishlist/purchase` unpurchase path the wishlist page uses); Keep only
+  // dismisses, since overriding someone's claim is an explicit non-goal.
+  const handleWishlistClaimAction = useCallback(
+    async (
+      notification: ApiNotification,
+      action: NotificationActionPayload,
+    ) => {
+      const actionKey: PendingActionKey = `${notification.id}:${action.kind}`;
+      if (pendingActionKeys.has(actionKey)) return;
+      const metadata = (notification.metadata ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const wishlistItemId = metadata.wishlistItemId as string | undefined;
+      // Present on WISHLIST_CLAIM_CONFLICT notifications — binds Release to
+      // the exact claim occurrence this notification was raised about, so a
+      // stale notification (the user released elsewhere and re-claimed the
+      // same item) can't drop their new claim. See the payload comment in
+      // notification-catalog.ts and releaseUserClaim's expectedClaimId.
+      const claimId = metadata.claimId as string | undefined;
+      const isRelease = action.kind === WISHLIST_CLAIM_RELEASE_EVENT;
+      if (isRelease && !wishlistItemId) return;
+
+      const previousNotifications = notificationsRef.current;
+      const previousUnreadCount = unreadCountRef.current;
+      const wasUnread = notification.status === 'UNREAD';
+
+      // Tracks whether the release itself — the one irreversible side
+      // effect here, since it can hand the claim off to the pool — has
+      // already committed server-side. Once true, nothing below may roll
+      // the optimistic UI back to a state that offers Release again: the
+      // claim is gone, and a second Release attempt could only fail
+      // forever. Only a failure of the release call itself (still false at
+      // that point) triggers the rollback.
+      let releaseCompleted = false;
+      // Set when the server rejected the release because `claimId` no
+      // longer matches the claim actually live on the item — i.e. this
+      // notification is stale. Surfaced as a distinct, legible toast rather
+      // than the generic failure message, per the fix for a stale Release
+      // silently no-op'ing on the wrong claim.
+      let releaseStale = false;
+
+      setPendingActionKeys((prev) => new Set(prev).add(actionKey));
+      try {
+        if (isRelease && wishlistItemId) {
+          const releaseFormData = new FormData();
+          releaseFormData.set('wishlistItemId', wishlistItemId);
+          releaseFormData.set('intent', 'unpurchase');
+          if (claimId) releaseFormData.set('claimId', claimId);
+          const releaseResponse = await fetch(WISHLIST_PURCHASE_ENDPOINT, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+            body: releaseFormData,
+          });
+          const releasePayload = (await releaseResponse
+            .json()
+            .catch(() => null)) as { ok?: boolean; reason?: string } | null;
+          if (!releaseResponse.ok || !releasePayload?.ok) {
+            releaseStale = releasePayload?.reason === 'stale';
+            throw new Error('Unable to release wishlist claim');
+          }
+          releaseCompleted = true;
+        }
+
+        // Both actions dismiss the notification once they've done their work.
+        setNotifications((prev) =>
+          prev.filter((item) => item.id !== notification.id),
+        );
+        if (wasUnread) {
+          setUnreadCount(Math.max(0, previousUnreadCount - 1));
+        }
+        try {
+          const dismissResponse = await fetch(
+            `${NOTIFICATIONS_ENDPOINT}/${notification.id}/delete`,
+            {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { Accept: 'application/json' },
+            },
+          );
+          if (!dismissResponse.ok) {
+            throw new Error('Unable to dismiss notification');
+          }
+          const dismissPayload = (await dismissResponse.json()) as {
+            unreadCount?: number;
+          };
+          if (typeof dismissPayload.unreadCount === 'number') {
+            setUnreadCount(dismissPayload.unreadCount);
+          }
+        } catch (dismissErr) {
+          if (releaseCompleted) {
+            // The release already committed server-side by this point —
+            // only log the dismissal failure, never roll back past it. The
+            // notification row itself is already resolved: the release path
+            // deletes any WISHLIST_CLAIM_CONFLICT notification bound to the
+            // claim it just released (see
+            // resolveWishlistClaimConflictNotifications in pool.server.ts),
+            // so a failure of this separate dismiss request can't resurface
+            // a Release action for a claim that's already gone.
+            console.error(dismissErr);
+          } else {
+            // Keep has no irreversible side effect: dismissal IS the whole
+            // action. Let the failure reach the outer catch so the rollback
+            // below runs and the UI doesn't lie about Keep having worked.
+            throw dismissErr;
+          }
+        }
+
+        track('notification_action_completed', {
+          kind: action.kind,
+          success: true,
+        });
+        toast.success(
+          isRelease
+            ? t('notifications.wishlistClaimConflict.releaseSuccess')
+            : t('notifications.wishlistClaimConflict.keepSuccess'),
+        );
+      } catch (err) {
+        console.error(err);
+        if (!releaseCompleted) {
+          setNotifications(previousNotifications);
+          setUnreadCount(previousUnreadCount);
+        }
+        track('notification_action_completed', {
+          kind: action.kind,
+          success: false,
+        });
+        toast.error(
+          releaseStale
+            ? t('notifications.wishlistClaimConflict.releaseStale')
+            : t('toasts.genericError'),
+        );
+      } finally {
+        setPendingActionKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(actionKey);
+          return next;
+        });
+      }
+    },
+    [pendingActionKeys, setUnreadCount, t],
+  );
+
   const displayCount = unreadCount > 9 ? '9+' : unreadCount.toString();
 
   const handleDeleteNotificationClick = useCallback(
@@ -699,9 +849,16 @@ export const NotificationBell = () => {
         handlePoolInvitationAction(notification, action).catch(() => {});
         return;
       }
+      if (
+        action.kind === WISHLIST_CLAIM_KEEP_EVENT ||
+        action.kind === WISHLIST_CLAIM_RELEASE_EVENT
+      ) {
+        handleWishlistClaimAction(notification, action).catch(() => {});
+        return;
+      }
       handleFriendAction(notification, action).catch(() => {});
     },
-    [handleFriendAction, handlePoolInvitationAction],
+    [handleFriendAction, handlePoolInvitationAction, handleWishlistClaimAction],
   );
   const handleLoadMore = useCallback(() => {
     loadNotifications({

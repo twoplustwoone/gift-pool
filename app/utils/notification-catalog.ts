@@ -12,6 +12,8 @@ export const NOTIFICATION_TYPES = {
   POOL_VOTE_REMINDER: 'POOL_VOTE_REMINDER',
   POOL_PURCHASE_REMINDER: 'POOL_PURCHASE_REMINDER',
   POOL_DELIVERY_REMINDER: 'POOL_DELIVERY_REMINDER',
+  WISHLIST_CLAIM_CONFLICT: 'WISHLIST_CLAIM_CONFLICT',
+  WISHLIST_CLAIM_TRANSFERRED: 'WISHLIST_CLAIM_TRANSFERRED',
 } as const;
 
 export type NotificationType =
@@ -51,6 +53,22 @@ export function isOrganizerNudgeNotificationType(
 ): type is OrganizerNudgeNotificationType {
   return ORGANIZER_NUDGE_NOTIFICATION_TYPES.includes(
     type as OrganizerNudgeNotificationType,
+  );
+}
+
+export const WISHLIST_CLAIM_NOTIFICATION_TYPES = [
+  NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT,
+  NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+] as const;
+
+export type WishlistClaimNotificationType =
+  (typeof WISHLIST_CLAIM_NOTIFICATION_TYPES)[number];
+
+export function isWishlistClaimNotificationType(
+  type: NotificationType,
+): type is WishlistClaimNotificationType {
+  return WISHLIST_CLAIM_NOTIFICATION_TYPES.includes(
+    type as WishlistClaimNotificationType,
   );
 }
 
@@ -109,6 +127,7 @@ export const NOTIFICATION_TOPICS = {
   POOL_PROGRESS: 'POOL_PROGRESS',
   ASSIGNMENTS: 'ASSIGNMENTS',
   ORGANIZER_NUDGES: 'ORGANIZER_NUDGES',
+  WISHLIST_CLAIM_CONFLICTS: 'WISHLIST_CLAIM_CONFLICTS',
 } as const;
 
 export type NotificationTopic =
@@ -219,6 +238,17 @@ export const NOTIFICATION_TOPIC_CATALOG = {
       pushEnabled: false,
     },
   },
+  [NOTIFICATION_TOPICS.WISHLIST_CLAIM_CONFLICTS]: {
+    category: NOTIFICATION_CATEGORIES.POOL_COORDINATION,
+    label: 'Wishlist claim conflicts',
+    description:
+      'When a pool decides on a gift you already claimed, and when that conflict resolves.',
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: false,
+      pushEnabled: false,
+    },
+  },
 } as const satisfies Record<NotificationTopic, NotificationTopicDefinition>;
 
 /**
@@ -312,6 +342,33 @@ export const NOTIFICATION_EVENT_CATALOG = {
   },
   [NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER]: {
     topic: NOTIFICATION_TOPICS.ORGANIZER_NUDGES,
+    importance: 'IMPORTANT',
+    context: 'POOL',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  // The claimant of a wishlist item is not necessarily a member or
+  // contributor of the pool that decided on it (context: 'NONE', same
+  // reasoning as POOL_INVITATION_RECEIVED above) — this notifies a person
+  // outside the pool about what happened to their claim.
+  [NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT]: {
+    topic: NOTIFICATION_TOPICS.WISHLIST_CLAIM_CONFLICTS,
+    importance: 'IMPORTANT',
+    context: 'NONE',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  // Unlike CONFLICT, this notifies the pool's own contributors — context:
+  // 'POOL', because the audience is exactly the inheriting pool's
+  // contributors (see queueWishlistClaimTransferredNotification in
+  // pool.server.ts, which fans this out to each contributor individually and
+  // passes `{ kind: 'POOL', poolId }` on every intent). A contributor who has
+  // muted that pool must not be pinged, so contextual activity settings have
+  // to actually apply here — unlike CONFLICT, where the recipient may have no
+  // relationship to the pool's group at all and there is no pool context to
+  // consult.
+  [NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED]: {
+    topic: NOTIFICATION_TOPICS.WISHLIST_CLAIM_CONFLICTS,
     importance: 'IMPORTANT',
     context: 'POOL',
     supportedChannels: allChannels,
@@ -461,6 +518,40 @@ type OrganizerNudgePayload = {
   senderDisplayName: string;
 };
 
+// Shared by both wishlist-claim events. `wishlistItemId` identifies the
+// claim; `itemTitle`/`recipientName`/`recipientUsername` describe what's on
+// the line and are safe to disclose to either audience outright — a claim
+// holder already knows both (they claimed this exact item on this exact
+// person's wishlist), and a pool contributor already sees the item through
+// the pool's own idea list. `poolId`/`poolTitle` identify the pool whose
+// decision created or resolved the conflict. They must NOT appear in
+// WISHLIST_CLAIM_CONFLICT's rendered copy: that notification can reach
+// someone with no relationship to the pool's group, and the privacy ladder
+// (wishlist-claim-disclosure.ts) never names a pool to an outsider. They ARE
+// safe in WISHLIST_CLAIM_TRANSFERRED's rendered copy: that notification's
+// audience is the inheriting pool's own contributors, who already know their
+// own pool.
+type WishlistClaimEventPayload = {
+  wishlistItemId: string;
+  itemTitle: string;
+  recipientName: string;
+  recipientUsername: string;
+  poolId: string;
+  poolTitle: string;
+};
+
+// CONFLICT-only: identifies the specific WishlistClaim occurrence this
+// notification was raised about. Its Release action carries this back
+// through the request so the mutation can be bound to that exact occurrence
+// (see releaseUserClaim's expectedClaimId in wishlist-claims.server.ts) — a
+// stale notification (claimant released elsewhere, re-claimed, then clicked
+// an old notification's Release) fails safely instead of dropping the
+// user's current claim. TRANSFERRED has no equivalent need: it isn't
+// actionable, so there is nothing for a stale click to destroy.
+type WishlistClaimConflictPayload = WishlistClaimEventPayload & {
+  claimId: string;
+};
+
 type PayloadByType = {
   [NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED]: FriendRequestPayload;
   [NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED]: FriendRequestPayload;
@@ -486,6 +577,8 @@ type PayloadByType = {
   [NOTIFICATION_TYPES.POOL_VOTE_REMINDER]: OrganizerNudgePayload;
   [NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER]: OrganizerNudgePayload;
   [NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER]: OrganizerNudgePayload;
+  [NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT]: WishlistClaimConflictPayload;
+  [NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED]: WishlistClaimEventPayload;
 };
 
 export type NotificationPayload<T extends NotificationType> = PayloadByType[T];

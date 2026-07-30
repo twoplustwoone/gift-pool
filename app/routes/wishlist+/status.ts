@@ -4,6 +4,7 @@ import { data, type ActionFunctionArgs } from 'react-router';
 import { z } from 'zod';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { queueWishlistClaimTransferredNotification } from '#app/utils/pool.server.ts';
 import { releaseSoloClaimForItem } from '#app/utils/wishlist-claims.server.ts';
 import { wishlistItemStatusSchema } from '#app/utils/wishlist.ts';
 const WishlistStatusSchema = z.object({
@@ -96,7 +97,14 @@ export async function action({ request }: ActionFunctionArgs) {
   // delete would leave the item unclaimed even though the pool still has
   // intent, letting someone else claim it out from under the pool on the
   // next request.
-  await releaseSoloClaimForItem(wishlistItemId);
+  const release = await releaseSoloClaimForItem(wishlistItemId);
+  if (release.transferredToPoolId && release.transferredClaimId) {
+    queueWishlistClaimTransferredNotification(
+      release.transferredToPoolId,
+      wishlistItemId,
+      release.transferredClaimId,
+    );
+  }
   const statusTextMap: Record<
     string,
     {

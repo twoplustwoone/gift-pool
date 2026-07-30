@@ -7,6 +7,9 @@ import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts';
 const nanoid = vi.fn(() => 'invite-123');
 
 const captureMessage = vi.fn();
+const captureException = vi.fn();
+const queueNotification = vi.fn();
+const wishlistClaimFindUnique = vi.fn();
 
 const giftIdeaCreate = vi.fn();
 const giftIdeaDelete = vi.fn();
@@ -14,6 +17,8 @@ const giftIdeaFindFirst = vi.fn();
 const ideaVoteUpsert = vi.fn();
 const ideaVoteCount = vi.fn();
 const logPoolActivity = vi.fn();
+const notificationFindMany = vi.fn();
+const notificationDeleteMany = vi.fn();
 const poolContributorCreate = vi.fn();
 const poolContributorDelete = vi.fn();
 const poolContributorFindUnique = vi.fn();
@@ -32,7 +37,7 @@ vi.mock('nanoid', () => ({
 }));
 
 vi.mock('@sentry/react-router', () => ({
-  captureException: vi.fn(),
+  captureException: (...args: Array<unknown>) => captureException(...args),
   captureMessage: (...args: Array<unknown>) => captureMessage(...args),
 }));
 
@@ -65,6 +70,18 @@ vi.mock('#app/utils/db.server.ts', () => {
         poolContributorFindUnique(...args),
       update: (...args: Array<unknown>) => poolContributorUpdate(...args),
     },
+    // Read-only in this module: `chooseIdea` looks up the current claim
+    // holder (post-transaction) to compose the conflict notification. Only
+    // wishlist-claims.server.ts is permitted to write WishlistClaim — see
+    // wishlist-claim-write-guard.test.ts.
+    wishlistClaim: {
+      findUnique: (...args: Array<unknown>) =>
+        wishlistClaimFindUnique(...args),
+    },
+    notification: {
+      findMany: (...args: Array<unknown>) => notificationFindMany(...args),
+      deleteMany: (...args: Array<unknown>) => notificationDeleteMany(...args),
+    },
     $transaction: (fn: (tx: unknown) => unknown) => fn(prismaMock),
   };
   return { prisma: prismaMock };
@@ -83,8 +100,22 @@ vi.mock('#app/utils/pool-notifications.server.ts', () => ({
     queuePoolActivityNotifications(...args),
 }));
 
-vi.mock('#app/utils/wishlist-claims.server.ts', () => ({
-  syncPoolClaimInTx: (...args: Array<unknown>) => syncPoolClaimInTx(...args),
+vi.mock('#app/utils/wishlist-claims.server.ts', async (importOriginal) => {
+  // `POOL_INTENT_STATUSES` is a plain constant (no DB access) that
+  // `queueWishlistClaimConflictNotification`'s pool re-read relies on to
+  // decide whether the pool is still in a "decided" status — keep it real
+  // rather than re-declaring it here, so the two can't drift. Only
+  // `syncPoolClaimInTx` (which does hit the DB) is swapped for the spy.
+  const actual =
+    await importOriginal<typeof import('#app/utils/wishlist-claims.server.ts')>();
+  return {
+    ...actual,
+    syncPoolClaimInTx: (...args: Array<unknown>) => syncPoolClaimInTx(...args),
+  };
+});
+
+vi.mock('#app/utils/notification-dispatcher.server.ts', () => ({
+  queueNotification: (...args: Array<unknown>) => queueNotification(...args),
 }));
 
 import {
@@ -112,11 +143,16 @@ import {
   updateContribution,
   updateFinalPrice,
   updatePool,
+  queueWishlistClaimTransferredNotification,
+  resolveWishlistClaimConflictNotifications,
 } from './pool.server.ts';
 
 beforeEach(() => {
   nanoid.mockReset().mockReturnValue('invite-123');
   captureMessage.mockReset();
+  captureException.mockReset();
+  queueNotification.mockReset();
+  wishlistClaimFindUnique.mockReset().mockResolvedValue(null);
   giftIdeaCreate
     .mockReset()
     .mockResolvedValue({ id: 'idea-1', name: 'Speaker' });
@@ -125,6 +161,8 @@ beforeEach(() => {
   ideaVoteUpsert.mockReset().mockResolvedValue(undefined);
   ideaVoteCount.mockReset().mockResolvedValue(0);
   logPoolActivity.mockReset().mockResolvedValue(undefined);
+  notificationFindMany.mockReset().mockResolvedValue([]);
+  notificationDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   poolContributorCreate.mockReset().mockResolvedValue({ id: 'contrib-1' });
   poolContributorDelete.mockReset().mockResolvedValue(undefined);
   poolContributorFindUnique.mockReset();
@@ -615,6 +653,7 @@ describe('pool server utilities', () => {
     giftIdeaFindFirst.mockResolvedValue({
       estimatedPriceCents: 8000,
       name: 'Speaker',
+      pool: { title: 'Taylor birthday' },
     });
     syncPoolClaimInTx.mockResolvedValueOnce({
       claimedItemId: null,
@@ -625,6 +664,538 @@ describe('pool server utilities', () => {
     await expect(chooseIdea('pool-1', 'idea-1', 'user-1')).resolves.toEqual({
       claimedItemId: null,
       conflictedItemId: 'wish-9',
+    });
+  });
+
+  it('asks the claim holder to keep or release when the holder is a person', async () => {
+    giftIdeaFindFirst.mockResolvedValue({
+      estimatedPriceCents: 8000,
+      name: 'Speaker',
+      pool: { title: 'Taylor birthday' },
+    });
+    syncPoolClaimInTx.mockResolvedValueOnce({
+      claimedItemId: null,
+      conflictedItemId: 'wish-9',
+      released: [],
+    });
+    wishlistClaimFindUnique.mockResolvedValueOnce({
+      id: 'claim-1',
+      claimedByUserId: 'holder-1',
+      wishlistItem: {
+        title: 'Noise-cancelling headphones',
+        owner: { name: 'Taylor', username: 'taylor' },
+      },
+    });
+    // The pool re-read: still DECIDED and still pointed at wish-9, so the
+    // conflict this fanout was queued for is still live.
+    poolFindUnique.mockResolvedValueOnce({
+      status: 'DECIDED',
+      chosenIdea: { wishlistItemId: 'wish-9' },
+    });
+
+    await chooseIdea('pool-1', 'idea-1', 'user-1');
+
+    expect(wishlistClaimFindUnique).toHaveBeenCalledWith({
+      where: { wishlistItemId: 'wish-9' },
+      select: expect.anything(),
+    });
+    await vi.waitFor(() => {
+      expect(queueNotification).toHaveBeenCalledWith({
+        userId: 'holder-1',
+        type: NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT,
+        payload: {
+          wishlistItemId: 'wish-9',
+          itemTitle: 'Noise-cancelling headphones',
+          recipientName: 'Taylor',
+          recipientUsername: 'taylor',
+          poolId: 'pool-1',
+          poolTitle: 'Taylor birthday',
+          claimId: 'claim-1',
+        },
+        sourceIdentifier: 'claim-conflict:pool-1:wish-9:claim-1',
+      });
+    });
+  });
+
+  it('varies the conflict-notification key with the claim id, so a recreated conflict is a distinct delivery', async () => {
+    giftIdeaFindFirst.mockResolvedValue({
+      estimatedPriceCents: 8000,
+      name: 'Speaker',
+      pool: { title: 'Taylor birthday' },
+    });
+    syncPoolClaimInTx.mockResolvedValue({
+      claimedItemId: null,
+      conflictedItemId: 'wish-9',
+      released: [],
+    });
+    // Both re-decisions genuinely still point the pool at wish-9.
+    poolFindUnique.mockResolvedValue({
+      status: 'DECIDED',
+      chosenIdea: { wishlistItemId: 'wish-9' },
+    });
+    // First conflict: the original claim.
+    wishlistClaimFindUnique.mockResolvedValueOnce({
+      id: 'claim-1',
+      claimedByUserId: 'holder-1',
+      wishlistItem: {
+        title: 'Noise-cancelling headphones',
+        owner: { name: 'Taylor', username: 'taylor' },
+      },
+    });
+    await chooseIdea('pool-1', 'idea-1', 'user-1');
+    await vi.waitFor(() => {
+      expect(queueNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceIdentifier: 'claim-conflict:pool-1:wish-9:claim-1',
+        }),
+      );
+    });
+
+    // Same pool/item decide again, but the holder released and re-claimed in
+    // between — a fresh WishlistClaim row (different id) backs this
+    // genuinely new conflict, so the key must differ from the first.
+    wishlistClaimFindUnique.mockResolvedValueOnce({
+      id: 'claim-2',
+      claimedByUserId: 'holder-1',
+      wishlistItem: {
+        title: 'Noise-cancelling headphones',
+        owner: { name: 'Taylor', username: 'taylor' },
+      },
+    });
+    await chooseIdea('pool-1', 'idea-1', 'user-1');
+    await vi.waitFor(() => {
+      expect(queueNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceIdentifier: 'claim-conflict:pool-1:wish-9:claim-2',
+        }),
+      );
+    });
+
+    const conflictSourceIdentifiers = queueNotification.mock.calls
+      .filter(([intent]) => intent.type === NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT)
+      .map(([intent]) => intent.sourceIdentifier);
+    expect(conflictSourceIdentifiers).toEqual([
+      'claim-conflict:pool-1:wish-9:claim-1',
+      'claim-conflict:pool-1:wish-9:claim-2',
+    ]);
+  });
+
+  it('falls back to the username when the wishlist owner has no display name', async () => {
+    giftIdeaFindFirst.mockResolvedValue({
+      estimatedPriceCents: 8000,
+      name: 'Speaker',
+      pool: { title: 'Taylor birthday' },
+    });
+    syncPoolClaimInTx.mockResolvedValueOnce({
+      claimedItemId: null,
+      conflictedItemId: 'wish-9',
+      released: [],
+    });
+    wishlistClaimFindUnique.mockResolvedValueOnce({
+      claimedByUserId: 'holder-1',
+      wishlistItem: {
+        title: 'Noise-cancelling headphones',
+        owner: { name: null, username: 'taylor' },
+      },
+    });
+    poolFindUnique.mockResolvedValueOnce({
+      status: 'DECIDED',
+      chosenIdea: { wishlistItemId: 'wish-9' },
+    });
+
+    await chooseIdea('pool-1', 'idea-1', 'user-1');
+
+    await vi.waitFor(() => {
+      expect(queueNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({ recipientName: 'taylor' }),
+        }),
+      );
+    });
+  });
+
+  it('does not queue a notification when the conflicting claim is held by another pool', async () => {
+    giftIdeaFindFirst.mockResolvedValue({
+      estimatedPriceCents: 8000,
+      name: 'Speaker',
+      pool: { title: 'Taylor birthday' },
+    });
+    syncPoolClaimInTx.mockResolvedValueOnce({
+      claimedItemId: null,
+      conflictedItemId: 'wish-9',
+      released: [],
+    });
+    // A pool-held claim: `claimedByUserId` is null, `poolId` is set — nobody
+    // to ask.
+    wishlistClaimFindUnique.mockResolvedValueOnce({
+      claimedByUserId: null,
+      wishlistItem: {
+        title: 'Noise-cancelling headphones',
+        owner: { name: 'Taylor', username: 'taylor' },
+      },
+    });
+
+    await chooseIdea('pool-1', 'idea-1', 'user-1');
+    // Flush the fire-and-forget notification microtask before asserting a
+    // negative, or this passes trivially before the read even resolves.
+    await vi.waitFor(() => {
+      expect(wishlistClaimFindUnique).toHaveBeenCalled();
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(queueNotification).not.toHaveBeenCalled();
+  });
+
+  it('sends a conflict-notification failure to Sentry without throwing', async () => {
+    giftIdeaFindFirst.mockResolvedValue({
+      estimatedPriceCents: 8000,
+      name: 'Speaker',
+      pool: { title: 'Taylor birthday' },
+    });
+    syncPoolClaimInTx.mockResolvedValueOnce({
+      claimedItemId: null,
+      conflictedItemId: 'wish-9',
+      released: [],
+    });
+    const boom = new Error('read failed');
+    wishlistClaimFindUnique.mockRejectedValueOnce(boom);
+
+    await expect(
+      chooseIdea('pool-1', 'idea-1', 'user-1'),
+    ).resolves.toMatchObject({ conflictedItemId: 'wish-9' });
+
+    await vi.waitFor(() => {
+      expect(captureException).toHaveBeenCalledWith(boom);
+    });
+    expect(queueNotification).not.toHaveBeenCalled();
+  });
+
+  it('stays silent when the pool has already re-decided away by the time the conflict fanout re-reads, and a later genuine re-decision back onto that item still notifies (the ledger key was never burned)', async () => {
+    giftIdeaFindFirst.mockResolvedValue({
+      estimatedPriceCents: 8000,
+      name: 'Speaker',
+      pool: { title: 'Taylor birthday' },
+    });
+    syncPoolClaimInTx.mockResolvedValue({
+      claimedItemId: null,
+      conflictedItemId: 'wish-9',
+      released: [],
+    });
+    // The solo claim on wish-9 is still live and still held by holder-1 —
+    // that alone is not enough to send the conflict notice.
+    wishlistClaimFindUnique.mockResolvedValueOnce({
+      id: 'claim-1',
+      claimedByUserId: 'holder-1',
+      wishlistItem: {
+        title: 'Noise-cancelling headphones',
+        owner: { name: 'Taylor', username: 'taylor' },
+      },
+    });
+    // ...because by the time this fire-and-forget fanout re-reads the pool,
+    // it has already been re-decided onto a different idea. The conflict
+    // this notification was queued for no longer exists.
+    poolFindUnique.mockResolvedValueOnce({
+      status: 'DECIDED',
+      chosenIdea: { wishlistItemId: 'wish-other' },
+    });
+
+    await chooseIdea('pool-1', 'idea-1', 'user-1');
+    await vi.waitFor(() => {
+      expect(poolFindUnique).toHaveBeenCalledWith({
+        where: { id: 'pool-1' },
+        select: expect.anything(),
+      });
+    });
+    // Flush the fire-and-forget microtask before asserting a negative.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(queueNotification).not.toHaveBeenCalled();
+
+    // A later, genuine re-decision back onto wish-9: this time the pool
+    // really is DECIDED with its chosen idea linking wish-9 by the time the
+    // fanout re-reads it, so this is a real conflict and must be reported —
+    // proving the first (suppressed) send never claimed the ledger key.
+    wishlistClaimFindUnique.mockResolvedValueOnce({
+      id: 'claim-1',
+      claimedByUserId: 'holder-1',
+      wishlistItem: {
+        title: 'Noise-cancelling headphones',
+        owner: { name: 'Taylor', username: 'taylor' },
+      },
+    });
+    poolFindUnique.mockResolvedValueOnce({
+      status: 'DECIDED',
+      chosenIdea: { wishlistItemId: 'wish-9' },
+    });
+
+    await chooseIdea('pool-1', 'idea-1', 'user-1');
+    await vi.waitFor(() => {
+      expect(queueNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceIdentifier: 'claim-conflict:pool-1:wish-9:claim-1',
+        }),
+      );
+    });
+  });
+
+  describe('queueWishlistClaimTransferredNotification', () => {
+    it('notifies every contributor of the pool that inherited the claim, scoped to that pool context', async () => {
+      poolFindUnique.mockResolvedValueOnce({
+        title: 'Taylor birthday',
+        contributors: [{ userId: 'contrib-1' }, { userId: 'contrib-2' }],
+      });
+      wishlistClaimFindUnique.mockResolvedValueOnce({
+        id: 'claim-9',
+        poolId: 'pool-2',
+        wishlistItem: {
+          title: 'Noise-cancelling headphones',
+          owner: { name: 'Taylor', username: 'taylor' },
+        },
+      });
+
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
+
+      await vi.waitFor(() => {
+        expect(queueNotification).toHaveBeenCalledTimes(2);
+      });
+      expect(queueNotification).toHaveBeenCalledWith({
+        userId: 'contrib-1',
+        type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+        // Unlike CONFLICT (context: 'NONE'), this reaches only the
+        // inheriting pool's own contributors, so pool-context mute settings
+        // must actually be consulted — see the catalog entry's comment.
+        context: { kind: 'POOL', poolId: 'pool-2' },
+        payload: {
+          wishlistItemId: 'wish-9',
+          itemTitle: 'Noise-cancelling headphones',
+          recipientName: 'Taylor',
+          recipientUsername: 'taylor',
+          poolId: 'pool-2',
+          poolTitle: 'Taylor birthday',
+        },
+        sourceIdentifier: 'claim-transferred:pool-2:wish-9:claim-9',
+      });
+      expect(queueNotification).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'contrib-2' }),
+      );
+    });
+
+    it('varies the key with the settled claim id, so a later genuinely-new settlement is a distinct delivery and a retry of the same one stays deduped', () => {
+      // Two calls for the SAME settlement (a retry: the cleanup loader
+      // re-running, or this call site firing twice for one commit) must
+      // produce the identical key so the NotificationDelivery ledger
+      // dedupes them.
+      poolFindUnique.mockResolvedValue({
+        title: 'Taylor birthday',
+        contributors: [{ userId: 'contrib-1' }],
+      });
+      // Each call's re-read reflects the live claim occurrence at that
+      // moment: the first two calls are a retry of the *same* settlement
+      // (still claim-9 live), the third is a genuinely new settlement that
+      // has since replaced it (claim-10 live) — matching what the fixed
+      // re-read now requires (the live claim's id, not just its poolId).
+      wishlistClaimFindUnique
+        .mockResolvedValueOnce({
+          id: 'claim-9',
+          poolId: 'pool-2',
+          wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+        })
+        .mockResolvedValueOnce({
+          id: 'claim-9',
+          poolId: 'pool-2',
+          wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+        })
+        .mockResolvedValueOnce({
+          id: 'claim-10',
+          poolId: 'pool-2',
+          wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+        });
+
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
+      // A later, genuinely new settlement onto the same pool+item — the
+      // sibling of the recreated-conflict fix — must produce a distinct key
+      // instead of colliding with (and being silently suppressed by) the
+      // first settlement's ledger rows.
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-10');
+
+      return vi.waitFor(() => {
+        const sourceIdentifiers = queueNotification.mock.calls.map(
+          ([intent]) => intent.sourceIdentifier,
+        );
+        expect(sourceIdentifiers).toEqual([
+          'claim-transferred:pool-2:wish-9:claim-9',
+          'claim-transferred:pool-2:wish-9:claim-9',
+          'claim-transferred:pool-2:wish-9:claim-10',
+        ]);
+      });
+    });
+
+    it('stays silent when the pool no longer exists', async () => {
+      poolFindUnique.mockResolvedValueOnce(null);
+      wishlistClaimFindUnique.mockResolvedValueOnce({
+        poolId: 'pool-2',
+        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+      });
+
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
+
+      await vi.waitFor(() => {
+        expect(wishlistClaimFindUnique).toHaveBeenCalled();
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(queueNotification).not.toHaveBeenCalled();
+    });
+
+    it('stays silent when the claim has already moved off this pool by the time it re-reads', async () => {
+      // The re-read (not the caller's snapshot) is the source of truth — see
+      // the function's own docstring. If a second re-decision already moved
+      // the claim elsewhere, this pool must not tell its contributors they
+      // inherited something they no longer hold.
+      poolFindUnique.mockResolvedValueOnce({
+        title: 'Taylor birthday',
+        contributors: [{ userId: 'contrib-1' }],
+      });
+      wishlistClaimFindUnique.mockResolvedValueOnce({
+        poolId: 'pool-3',
+        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+      });
+
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
+
+      await vi.waitFor(() => {
+        expect(wishlistClaimFindUnique).toHaveBeenCalled();
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(queueNotification).not.toHaveBeenCalled();
+    });
+
+    it('drops a stale settlement whose delayed fanout finds the same pool but a different, newer claim occurrence — and the current settlement still sends exactly once', async () => {
+      // Settlement A's fanout is delayed. By the time it re-reads, the pool
+      // decided away and back: a fresh solo claim on the same item was made
+      // and released, so the live row is settlement B's claim, not A's — the
+      // pool id matches, but the claim occurrence doesn't.
+      poolFindUnique.mockResolvedValue({
+        title: 'Taylor birthday',
+        contributors: [{ userId: 'contrib-1' }],
+      });
+      wishlistClaimFindUnique.mockResolvedValueOnce({
+        id: 'claim-B',
+        poolId: 'pool-2',
+        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+      });
+
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-A-stale');
+
+      await vi.waitFor(() => {
+        expect(wishlistClaimFindUnique).toHaveBeenCalledTimes(1);
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(queueNotification).not.toHaveBeenCalled();
+
+      // Settlement B's own fanout arrives separately, sees its own live
+      // claim row, and sends exactly once under its own key — proving A's
+      // suppressed send never burned B's ledger key (and B doesn't double
+      // up either).
+      wishlistClaimFindUnique.mockResolvedValueOnce({
+        id: 'claim-B',
+        poolId: 'pool-2',
+        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+      });
+
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-B');
+
+      await vi.waitFor(() => {
+        expect(queueNotification).toHaveBeenCalledTimes(1);
+      });
+      expect(queueNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceIdentifier: 'claim-transferred:pool-2:wish-9:claim-B',
+        }),
+      );
+    });
+
+    it('sends a read failure to Sentry without throwing — a fanout failure must never turn a committed release into a 500', async () => {
+      const boom = new Error('read failed');
+      poolFindUnique.mockRejectedValueOnce(boom);
+      wishlistClaimFindUnique.mockResolvedValueOnce({
+        poolId: 'pool-2',
+        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+      });
+
+      expect(() =>
+        queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9'),
+      ).not.toThrow();
+
+      await vi.waitFor(() => {
+        expect(captureException).toHaveBeenCalledWith(boom);
+      });
+      expect(queueNotification).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resolveWishlistClaimConflictNotifications', () => {
+    it('deletes only the WISHLIST_CLAIM_CONFLICT notification bound to the released claim', async () => {
+      notificationFindMany.mockResolvedValueOnce([
+        { id: 'notif-match', metadata: JSON.stringify({ wishlistItemId: 'wish-9', claimId: 'claim-9' }) },
+        // A different claim occurrence on the same or another item — must be
+        // left alone. Matching on the claim id (not just wishlistItemId)
+        // is what keeps a still-live conflict notification for a later,
+        // genuinely new claim from being wiped out by an earlier release.
+        { id: 'notif-other', metadata: JSON.stringify({ wishlistItemId: 'wish-9', claimId: 'claim-10' }) },
+      ]);
+
+      await resolveWishlistClaimConflictNotifications('user-1', 'claim-9');
+
+      expect(notificationFindMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', type: NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT },
+        select: { id: true, metadata: true },
+      });
+      expect(notificationDeleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['notif-match'] } },
+      });
+    });
+
+    it('does nothing when no notification matches the released claim', async () => {
+      notificationFindMany.mockResolvedValueOnce([
+        { id: 'notif-other', metadata: JSON.stringify({ wishlistItemId: 'wish-9', claimId: 'claim-10' }) },
+        // Malformed/empty metadata must be skipped, not thrown on.
+        { id: 'notif-empty', metadata: null },
+      ]);
+
+      await resolveWishlistClaimConflictNotifications('user-1', 'claim-9');
+
+      expect(notificationDeleteMany).not.toHaveBeenCalled();
+    });
+
+    it('reports a read failure to Sentry without throwing — cleanup must never fail an already-committed release', async () => {
+      const boom = new Error('read failed');
+      notificationFindMany.mockRejectedValueOnce(boom);
+
+      await expect(
+        resolveWishlistClaimConflictNotifications('user-1', 'claim-9'),
+      ).resolves.toBeUndefined();
+
+      expect(captureException).toHaveBeenCalledWith(boom);
+      expect(notificationDeleteMany).not.toHaveBeenCalled();
+    });
+
+    it('reports a delete failure to Sentry without throwing', async () => {
+      notificationFindMany.mockResolvedValueOnce([
+        { id: 'notif-match', metadata: JSON.stringify({ wishlistItemId: 'wish-9', claimId: 'claim-9' }) },
+      ]);
+      const boom = new Error('delete failed');
+      notificationDeleteMany.mockRejectedValueOnce(boom);
+
+      await expect(
+        resolveWishlistClaimConflictNotifications('user-1', 'claim-9'),
+      ).resolves.toBeUndefined();
+
+      expect(captureException).toHaveBeenCalledWith(boom);
     });
   });
 

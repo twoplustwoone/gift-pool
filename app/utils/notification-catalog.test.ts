@@ -95,16 +95,46 @@ describe('notification catalog', () => {
       NOTIFICATION_TOPICS.POOL_PROGRESS,
       NOTIFICATION_TOPICS.ASSIGNMENTS,
       NOTIFICATION_TOPICS.ORGANIZER_NUDGES,
+      // WISHLIST_CLAIM_TRANSFERRED (context: 'POOL') shares this topic with
+      // WISHLIST_CLAIM_CONFLICT (context: 'NONE'), so the topic as a whole
+      // qualifies for pool/group context controls even though one of its two
+      // events does not.
+      NOTIFICATION_TOPICS.WISHLIST_CLAIM_CONFLICTS,
     ];
 
     expect(getNotificationTopicsForContext('POOL')).toEqual(poolTopics);
     expect(getNotificationTopicsForContext('GROUP')).toEqual(poolTopics);
   });
 
+  it('scopes WISHLIST_CLAIM_TRANSFERRED to pool context so a muted pool suppresses it, but leaves WISHLIST_CLAIM_CONFLICT unscoped', () => {
+    // WISHLIST_CLAIM_CONFLICT's recipient may have no relationship to the
+    // pool's group at all (see the catalog entry's own comment) — it must
+    // stay context: 'NONE'. WISHLIST_CLAIM_TRANSFERRED's audience is always
+    // the inheriting pool's own contributors, so it must be context: 'POOL'
+    // for pool-mute settings to apply.
+    expect(
+      getNotificationEventDefinition(NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT)
+        .context,
+    ).toBe('NONE');
+    expect(
+      getNotificationEventDefinition(
+        NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+      ).context,
+    ).toBe('POOL');
+  });
+
   it('validates persisted type strings through the catalog', () => {
     expect(isNotificationType(NOTIFICATION_TYPES.UPCOMING_BIRTHDAY)).toBe(true);
     expect(isNotificationType('SOMETHING_NEW')).toBe(false);
     expect(isNotificationType(null)).toBe(false);
+  });
+
+  it('maps both wishlist-claim events to one shared topic', () => {
+    const topics = [
+      NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT,
+      NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+    ].map((t) => getNotificationEventDefinition(t).topic);
+    expect(new Set(topics).size).toBe(1);
   });
 
   it('requires the context kind declared by an event', () => {
