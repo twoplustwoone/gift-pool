@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts';
 import { NOTIFICATION_ACTIVITY_LEVELS } from '#app/utils/notification-context.ts';
@@ -56,6 +56,30 @@ async function decidedPoolFor(
     data: { status: 'DECIDED', chosenIdeaId: idea.id, decidedAt },
   });
   return pool;
+}
+
+/**
+ * Drain fire-and-forget notification fanouts before a test ends.
+ *
+ * The claim fanouts are deliberately not awaited by the code under test, so
+ * when a test returns they may still be mid-query. The global `afterEach`
+ * cleanup then truncates the tables underneath them, and on a slow CI runner
+ * under coverage instrumentation that contention starves single-writer SQLite —
+ * "Operations timed out ... the database failed to respond" — which surfaces as
+ * a *different* test in this block failing for no visible reason.
+ *
+ * Waits for the notification count to stop changing rather than sleeping a
+ * fixed amount, and is bounded so a genuinely stuck fanout can't hang the run.
+ */
+async function drainNotificationFanouts() {
+  const deadline = Date.now() + 3_000;
+  let previous = -1;
+  while (Date.now() < deadline) {
+    const count = await prisma.notification.count();
+    if (count === previous) return;
+    previous = count;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 }
 
 describe('claimForUser', () => {
@@ -963,6 +987,8 @@ async function transferNotificationsFor(userId: string) {
 }
 
 describe('wishlist claim conflict notification — occurrence key (real ledger)', () => {
+  afterEach(drainNotificationFanouts);
+
   // These exercise the real `queueNotification` -> `dispatchNotification` ->
   // `NotificationDelivery` ledger path (unmocked, same as the rest of this
   // file), because the bug this regression closes lives entirely in whether
@@ -1104,6 +1130,8 @@ describe('wishlist claim conflict notification — occurrence key (real ledger)'
 });
 
 describe('wishlist claim transfer notification (real DB, via chooseIdea/cancelPool)', () => {
+  afterEach(drainNotificationFanouts);
+
   // `queueWishlistClaimTransferredNotification` fans out to every contributor
   // of the pool that just inherited a claim — the "your duplicate-purchase
   // risk is over" half of the conflict story. Both call sites (`chooseIdea`
