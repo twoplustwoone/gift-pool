@@ -702,6 +702,15 @@ export const NotificationBell = () => {
       const previousUnreadCount = unreadCountRef.current;
       const wasUnread = notification.status === 'UNREAD';
 
+      // Tracks whether the release itself — the one irreversible side
+      // effect here, since it can hand the claim off to the pool — has
+      // already committed server-side. Once true, nothing below may roll
+      // the optimistic UI back to a state that offers Release again: the
+      // claim is gone, and a second Release attempt could only fail
+      // forever. Only a failure of the release call itself (still false at
+      // that point) triggers the rollback.
+      let releaseCompleted = false;
+
       setPendingActionKeys((prev) => new Set(prev).add(actionKey));
       try {
         if (isRelease && wishlistItemId) {
@@ -720,6 +729,7 @@ export const NotificationBell = () => {
           if (!releaseResponse.ok || !releasePayload?.ok) {
             throw new Error('Unable to release wishlist claim');
           }
+          releaseCompleted = true;
         }
 
         // Both actions dismiss the notification once they've done their work.
@@ -729,21 +739,29 @@ export const NotificationBell = () => {
         if (wasUnread) {
           setUnreadCount(Math.max(0, previousUnreadCount - 1));
         }
-        const dismissResponse = await fetch(
-          `${NOTIFICATIONS_ENDPOINT}/${notification.id}/delete`,
-          {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { Accept: 'application/json' },
-          },
-        );
-        if (dismissResponse.ok) {
-          const dismissPayload = (await dismissResponse.json()) as {
-            unreadCount?: number;
-          };
-          if (typeof dismissPayload.unreadCount === 'number') {
-            setUnreadCount(dismissPayload.unreadCount);
+        try {
+          const dismissResponse = await fetch(
+            `${NOTIFICATIONS_ENDPOINT}/${notification.id}/delete`,
+            {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { Accept: 'application/json' },
+            },
+          );
+          if (dismissResponse.ok) {
+            const dismissPayload = (await dismissResponse.json()) as {
+              unreadCount?: number;
+            };
+            if (typeof dismissPayload.unreadCount === 'number') {
+              setUnreadCount(dismissPayload.unreadCount);
+            }
           }
+        } catch (dismissErr) {
+          // The release (if any) already committed server-side by this
+          // point — only log the dismissal failure, never roll back past
+          // it. The notification row will simply resurface as read on the
+          // next list load instead of staying dismissed.
+          console.error(dismissErr);
         }
 
         track('notification_action_completed', {
@@ -757,8 +775,10 @@ export const NotificationBell = () => {
         );
       } catch (err) {
         console.error(err);
-        setNotifications(previousNotifications);
-        setUnreadCount(previousUnreadCount);
+        if (!releaseCompleted) {
+          setNotifications(previousNotifications);
+          setUnreadCount(previousUnreadCount);
+        }
         track('notification_action_completed', {
           kind: action.kind,
           success: false,

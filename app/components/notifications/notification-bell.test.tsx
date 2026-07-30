@@ -5,6 +5,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type * as ReactModule from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { testConsole } from '#tests/setup/setup-test-env.ts';
 import { NotificationBell } from './notification-bell.tsx';
 import { NotificationsProvider } from './notifications-context.tsx';
 
@@ -504,5 +505,91 @@ describe('NotificationBell', () => {
     expect(toastSuccess).toHaveBeenCalledWith(
       "Kept — you're still on gift duty for this one.",
     );
+  });
+
+  it('does not roll back a committed release when the dismissal request fails', async () => {
+    // Regression: a release that succeeds server-side (the claim is gone,
+    // possibly transferred to the pool) must not be undone in the UI just
+    // because the follow-up dismiss call fails. Rolling back would restore
+    // the "Release it" button for a claim the user no longer holds — a
+    // button that can only fail forever if pressed again.
+    testConsole.error.mockImplementation(() => {});
+    fetchMock
+      .mockResolvedValueOnce(wishlistClaimConflictListResponse())
+      .mockResolvedValueOnce(
+        jsonResponse({ ok: true, wishlistItemId: 'wish-9', claim: null }),
+      )
+      .mockRejectedValueOnce(new Error('network down'));
+
+    renderBell(1);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Notifications' }),
+    );
+    await screen.findByText('wishlist.claim.conflict');
+    await userEvent.click(screen.getByRole('button', { name: 'Release it' }));
+
+    // The release call landed...
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/wishlist/purchase',
+        expect.objectContaining({ method: 'POST', credentials: 'same-origin' }),
+      );
+    });
+    // ...and even though the dismiss call rejected, the notification (and
+    // its "Release it" button) must stay gone rather than reappear.
+    await waitFor(() => {
+      expect(
+        screen.queryByText('wishlist.claim.conflict'),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole('button', { name: 'Release it' }),
+    ).not.toBeInTheDocument();
+
+    // The already-committed release is still reported as a success, not
+    // rolled back and surfaced as a generic failure.
+    expect(track).toHaveBeenCalledWith('notification_action_completed', {
+      kind: 'WISHLIST_CLAIM_RELEASE',
+      success: true,
+    });
+    expect(toastSuccess).toHaveBeenCalledWith(
+      "Released — the group's got it from here. Thanks!",
+    );
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('rolls back the optimistic dismissal when the release call itself fails', async () => {
+    // Contrast case for the regression above: when the release never
+    // committed, the existing rollback-on-failure behavior must still hold
+    // — the notification (with its Keep/Release actions) reappears so the
+    // user can retry.
+    testConsole.error.mockImplementation(() => {});
+    fetchMock
+      .mockResolvedValueOnce(wishlistClaimConflictListResponse())
+      .mockResolvedValueOnce(jsonResponse({ ok: false }, { status: 409 }));
+
+    renderBell(1);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Notifications' }),
+    );
+    await screen.findByText('wishlist.claim.conflict');
+    await userEvent.click(screen.getByRole('button', { name: 'Release it' }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith('Something went wrong');
+    });
+    // Rolled back: the notification — and its Release action — is back.
+    expect(await screen.findByText('wishlist.claim.conflict')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Release it' }),
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/notifications/notification-1/delete',
+      expect.anything(),
+    );
+    expect(track).toHaveBeenCalledWith('notification_action_completed', {
+      kind: 'WISHLIST_CLAIM_RELEASE',
+      success: false,
+    });
   });
 });
