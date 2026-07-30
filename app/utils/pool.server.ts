@@ -14,7 +14,10 @@ import {
 import { calculateContributions } from '#app/utils/pool-contributions.ts'
 import { queuePoolActivityNotifications } from '#app/utils/pool-notifications.server.ts'
 import { assertPoolStatus } from '#app/utils/pool-permissions.server.ts'
-import { syncPoolClaimInTx } from '#app/utils/wishlist-claims.server.ts'
+import {
+	POOL_INTENT_STATUSES,
+	syncPoolClaimInTx,
+} from '#app/utils/wishlist-claims.server.ts'
 import type { DecisionMode, OccasionType } from '#app/utils/pool-constants.ts'
 
 // ─── Selects ──────────────────────────────────────────────────────────────────
@@ -727,23 +730,46 @@ function queueWishlistClaimConflictNotification(
 	wishlistItemId: string,
 ): void {
 	void (async () => {
-		const claim = await prisma.wishlistClaim.findUnique({
-			where: { wishlistItemId },
-			select: {
-				id: true,
-				claimedByUserId: true,
-				wishlistItem: {
-					select: {
-						title: true,
-						owner: { select: { name: true, username: true } },
+		const [claim, pool] = await Promise.all([
+			prisma.wishlistClaim.findUnique({
+				where: { wishlistItemId },
+				select: {
+					id: true,
+					claimedByUserId: true,
+					wishlistItem: {
+						select: {
+							title: true,
+							owner: { select: { name: true, username: true } },
+						},
 					},
 				},
-			},
-		})
+			}),
+			// Re-read the pool's *current* intent, not just the claim's current
+			// holder. The claim re-read above only proves someone still holds
+			// the item — it says nothing about whether this pool still wants
+			// it. Between the transaction that queued this fanout committing
+			// and this read running, the pool can have been re-decided onto a
+			// different idea (or cancelled): the solo claim on the original
+			// item is still perfectly live, but there is no longer a conflict
+			// to report. Sending anyway would tell the holder about a fight
+			// that's over, and — because the send claims the ledger key below
+			// — would silently swallow a genuine future conflict if the pool
+			// is later re-decided back onto this exact item.
+			prisma.pool.findUnique({
+				where: { id: poolId },
+				select: { status: true, chosenIdea: { select: { wishlistItemId: true } } },
+			}),
+		])
 		// The other side of a conflict can be another pool, not a person — the
 		// claim holder is only present here when `claimedByUserId` is set.
 		// There is nobody to ask when a pool holds it.
 		if (!claim?.claimedByUserId || !claim.wishlistItem) return
+
+		const poolStillIntendsThisItem =
+			pool !== null &&
+			(POOL_INTENT_STATUSES as readonly string[]).includes(pool.status) &&
+			pool.chosenIdea?.wishlistItemId === wishlistItemId
+		if (!poolStillIntendsThisItem) return
 
 		queueNotification({
 			userId: claim.claimedByUserId,
@@ -835,6 +861,7 @@ export function queueWishlistClaimTransferredNotification(
 			prisma.wishlistClaim.findUnique({
 				where: { wishlistItemId },
 				select: {
+					id: true,
 					poolId: true,
 					wishlistItem: {
 						select: {
@@ -848,9 +875,21 @@ export function queueWishlistClaimTransferredNotification(
 		if (!pool) return
 		// Read fresh rather than trust the caller's snapshot: the claim can have
 		// moved again by the time this runs (e.g. this pool immediately
-		// re-decided away from the item). Only notify while this pool still
-		// actually holds it.
-		if (!claim || claim.poolId !== poolId || !claim.wishlistItem) return
+		// re-decided away from the item). Checking `poolId` alone is not
+		// enough, though: it only proves *some* claim this pool holds is on
+		// this item right now, not that it's *this settlement's* claim. A
+		// delayed fanout for an older settlement (A) can lose a race to a
+		// newer one (B) — the pool decides away, a fresh solo claim on the
+		// same item is made and released, and the pool inherits the item
+		// again as settlement B — by the time A's fanout runs it would see
+		// B's live row, pass a `poolId`-only check, and report B's details
+		// under A's ledger key (B's own fanout then sends again under its own
+		// key: a duplicate). Requiring the live row's id to match the id this
+		// settlement created makes a stale settlement's fanout a no-op
+		// instead.
+		if (!claim || claim.poolId !== poolId || claim.id !== claimId || !claim.wishlistItem) {
+			return
+		}
 
 		for (const contributor of pool.contributors) {
 			queueNotification({
