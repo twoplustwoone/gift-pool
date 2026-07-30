@@ -26,6 +26,29 @@ export const POOL_INTENT_STATUSES = [
 
 type Tx = Prisma.TransactionClient;
 
+// Every `$transaction` in this module (and the two in pool.server.ts that
+// wrap `syncPoolClaimInTx` around a status transition) shares this budget.
+// Prisma's interactive-transaction default is 5000ms/2000ms, sized for a
+// local Postgres/dev SQLite file — not for LiteFS-replicated SQLite on Fly,
+// where a write has to round-trip to the primary and CI's coverage
+// instrumentation adds further per-query overhead on top of that. Production
+// incident: this exact transaction (`chooseIdea` -> `syncPoolClaimInTx`) blew
+// the 5000ms default at 5014ms under CI coverage, despite running its usual
+// small, bounded set of queries (a handful of finds/deletes/creates scoped to
+// one pool/item — never anything proportional to unbounded user input). That
+// boundedness is what makes a larger *fixed* ceiling the right fix instead of
+// splitting the transaction: it will either finish well inside the new
+// budget or something is genuinely stuck (e.g. a real deadlock), and it
+// should still fail loudly rather than hang forever.
+//
+// `timeout` (10s) gives ~2x headroom over the observed 5.014s failure.
+// `maxWait` (5s) covers queueing for a connection before the transaction even
+// starts, which matters under write contention — concurrent `chooseIdea`,
+// `cancelPool`, and claim-release calls all funnel through this module and
+// can pile up on the same LiteFS primary. Raised in step with `timeout` for
+// the same replication-latency reason, not picked independently.
+export const CLAIM_TRANSACTION_OPTIONS = { timeout: 10_000, maxWait: 5_000 } as const;
+
 type IntentCandidate = { id: string; decidedAt: Date | null; createdAt: Date };
 
 // SQLite sorts NULL before every value in `ORDER BY ... ASC` — Prisma's
@@ -196,7 +219,7 @@ export async function releaseUserClaim(
       transferredToPoolId: settlement?.poolId ?? null,
       transferredClaimId: settlement?.claimId ?? null,
     };
-  });
+  }, CLAIM_TRANSACTION_OPTIONS);
 }
 
 /**
@@ -233,7 +256,7 @@ export async function releaseSoloClaimForItem(
       transferredToPoolId: settlement?.poolId ?? null,
       transferredClaimId: settlement?.claimId ?? null,
     };
-  });
+  }, CLAIM_TRANSACTION_OPTIONS);
 }
 
 /**
@@ -313,7 +336,10 @@ export async function syncPoolClaimInTx(tx: Tx, poolId: string): Promise<SyncPoo
 }
 
 export async function syncPoolClaim(poolId: string): Promise<SyncPoolClaimResult> {
-  return prisma.$transaction((tx) => syncPoolClaimInTx(tx, poolId));
+  return prisma.$transaction(
+    (tx) => syncPoolClaimInTx(tx, poolId),
+    CLAIM_TRANSACTION_OPTIONS,
+  );
 }
 
 /**
@@ -378,7 +404,7 @@ export async function releaseSoloClaimsMatching(
         transferredToPoolId: settlement?.poolId ?? null,
         transferredClaimId: settlement?.claimId ?? null,
       };
-    });
+    }, CLAIM_TRANSACTION_OPTIONS);
 
     if (outcome.released) {
       released.push({

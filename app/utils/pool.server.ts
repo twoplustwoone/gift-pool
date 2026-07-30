@@ -15,6 +15,7 @@ import { calculateContributions } from '#app/utils/pool-contributions.ts'
 import { queuePoolActivityNotifications } from '#app/utils/pool-notifications.server.ts'
 import { assertPoolStatus } from '#app/utils/pool-permissions.server.ts'
 import {
+	CLAIM_TRANSACTION_OPTIONS,
 	POOL_INTENT_STATUSES,
 	syncPoolClaimInTx,
 } from '#app/utils/wishlist-claims.server.ts'
@@ -631,7 +632,7 @@ export async function chooseIdea(
 		if (decision.count === 0) return null
 
 		return syncPoolClaimInTx(tx, poolId)
-	})
+	}, CLAIM_TRANSACTION_OPTIONS)
 	if (claimSync === null) return { claimedItemId: null, conflictedItemId: null }
 
 	// logPoolActivity, queueLogEvent, and queuePoolActivityNotifications all
@@ -1080,7 +1081,7 @@ export async function cancelPool(poolId: string, actorId: string) {
 		if (cancellation.count === 0) return null
 
 		return syncPoolClaimInTx(tx, poolId)
-	})
+	}, CLAIM_TRANSACTION_OPTIONS)
 	if (claimSync === null) return
 
 	// logPoolActivity, queueLogEvent, and queuePoolActivityNotifications all
