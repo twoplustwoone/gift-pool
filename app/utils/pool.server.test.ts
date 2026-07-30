@@ -17,6 +17,8 @@ const giftIdeaFindFirst = vi.fn();
 const ideaVoteUpsert = vi.fn();
 const ideaVoteCount = vi.fn();
 const logPoolActivity = vi.fn();
+const notificationFindMany = vi.fn();
+const notificationDeleteMany = vi.fn();
 const poolContributorCreate = vi.fn();
 const poolContributorDelete = vi.fn();
 const poolContributorFindUnique = vi.fn();
@@ -75,6 +77,10 @@ vi.mock('#app/utils/db.server.ts', () => {
     wishlistClaim: {
       findUnique: (...args: Array<unknown>) =>
         wishlistClaimFindUnique(...args),
+    },
+    notification: {
+      findMany: (...args: Array<unknown>) => notificationFindMany(...args),
+      deleteMany: (...args: Array<unknown>) => notificationDeleteMany(...args),
     },
     $transaction: (fn: (tx: unknown) => unknown) => fn(prismaMock),
   };
@@ -138,6 +144,7 @@ import {
   updateFinalPrice,
   updatePool,
   queueWishlistClaimTransferredNotification,
+  resolveWishlistClaimConflictNotifications,
 } from './pool.server.ts';
 
 beforeEach(() => {
@@ -154,6 +161,8 @@ beforeEach(() => {
   ideaVoteUpsert.mockReset().mockResolvedValue(undefined);
   ideaVoteCount.mockReset().mockResolvedValue(0);
   logPoolActivity.mockReset().mockResolvedValue(undefined);
+  notificationFindMany.mockReset().mockResolvedValue([]);
+  notificationDeleteMany.mockReset().mockResolvedValue({ count: 0 });
   poolContributorCreate.mockReset().mockResolvedValue({ id: 'contrib-1' });
   poolContributorDelete.mockReset().mockResolvedValue(undefined);
   poolContributorFindUnique.mockReset();
@@ -1126,6 +1135,67 @@ describe('pool server utilities', () => {
         expect(captureException).toHaveBeenCalledWith(boom);
       });
       expect(queueNotification).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resolveWishlistClaimConflictNotifications', () => {
+    it('deletes only the WISHLIST_CLAIM_CONFLICT notification bound to the released claim', async () => {
+      notificationFindMany.mockResolvedValueOnce([
+        { id: 'notif-match', metadata: JSON.stringify({ wishlistItemId: 'wish-9', claimId: 'claim-9' }) },
+        // A different claim occurrence on the same or another item — must be
+        // left alone. Matching on the claim id (not just wishlistItemId)
+        // is what keeps a still-live conflict notification for a later,
+        // genuinely new claim from being wiped out by an earlier release.
+        { id: 'notif-other', metadata: JSON.stringify({ wishlistItemId: 'wish-9', claimId: 'claim-10' }) },
+      ]);
+
+      await resolveWishlistClaimConflictNotifications('user-1', 'claim-9');
+
+      expect(notificationFindMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', type: NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT },
+        select: { id: true, metadata: true },
+      });
+      expect(notificationDeleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['notif-match'] } },
+      });
+    });
+
+    it('does nothing when no notification matches the released claim', async () => {
+      notificationFindMany.mockResolvedValueOnce([
+        { id: 'notif-other', metadata: JSON.stringify({ wishlistItemId: 'wish-9', claimId: 'claim-10' }) },
+        // Malformed/empty metadata must be skipped, not thrown on.
+        { id: 'notif-empty', metadata: null },
+      ]);
+
+      await resolveWishlistClaimConflictNotifications('user-1', 'claim-9');
+
+      expect(notificationDeleteMany).not.toHaveBeenCalled();
+    });
+
+    it('reports a read failure to Sentry without throwing — cleanup must never fail an already-committed release', async () => {
+      const boom = new Error('read failed');
+      notificationFindMany.mockRejectedValueOnce(boom);
+
+      await expect(
+        resolveWishlistClaimConflictNotifications('user-1', 'claim-9'),
+      ).resolves.toBeUndefined();
+
+      expect(captureException).toHaveBeenCalledWith(boom);
+      expect(notificationDeleteMany).not.toHaveBeenCalled();
+    });
+
+    it('reports a delete failure to Sentry without throwing', async () => {
+      notificationFindMany.mockResolvedValueOnce([
+        { id: 'notif-match', metadata: JSON.stringify({ wishlistItemId: 'wish-9', claimId: 'claim-9' }) },
+      ]);
+      const boom = new Error('delete failed');
+      notificationDeleteMany.mockRejectedValueOnce(boom);
+
+      await expect(
+        resolveWishlistClaimConflictNotifications('user-1', 'claim-9'),
+      ).resolves.toBeUndefined();
+
+      expect(captureException).toHaveBeenCalledWith(boom);
     });
   });
 

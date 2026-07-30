@@ -299,6 +299,7 @@ describe('settlement on release', () => {
 
     expect(result).toEqual({
       ok: true,
+      releasedClaimId: claim.id,
       transferredToPoolId: null,
       transferredClaimId: null,
     });

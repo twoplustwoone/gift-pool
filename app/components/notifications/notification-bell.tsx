@@ -775,8 +775,12 @@ export const NotificationBell = () => {
           if (releaseCompleted) {
             // The release already committed server-side by this point —
             // only log the dismissal failure, never roll back past it. The
-            // notification row will simply resurface as read on the next
-            // list load instead of staying dismissed.
+            // notification row itself is already resolved: the release path
+            // deletes any WISHLIST_CLAIM_CONFLICT notification bound to the
+            // claim it just released (see
+            // resolveWishlistClaimConflictNotifications in pool.server.ts),
+            // so a failure of this separate dismiss request can't resurface
+            // a Release action for a claim that's already gone.
             console.error(dismissErr);
           } else {
             // Keep has no irreversible side effect: dismissal IS the whole

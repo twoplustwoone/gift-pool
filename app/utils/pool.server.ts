@@ -812,6 +812,55 @@ function queueWishlistClaimConflictNotification(
 	})
 }
 
+// Runs after a successfully committed release so a WISHLIST_CLAIM_CONFLICT
+// notification about *that exact claim occurrence* can never resurrect its
+// Release action once the claim is gone. Before this, resolving the
+// notification depended entirely on a second client request (the dismiss
+// call in api.notifications.$id.delete.ts) succeeding — if that request
+// failed, the notification stayed UNREAD, and a refresh re-offered a Release
+// button that would fail every time (the claim it targets no longer exists,
+// and `releaseUserClaim`'s `expectedClaimId` check correctly rejects it as
+// stale). This makes resolution durable: it happens server-side as part of
+// the release itself, with no client follow-up required.
+//
+// Matched by the claim's own id, carried in the notification's
+// `metadata.claimId` (see `queueWishlistClaimConflictNotification` above) —
+// not by `wishlistItemId`, which could also match a different, still-live
+// conflict notification raised later about a fresh claim the same user takes
+// out on the same item.
+//
+// Never throws: cleaning up stale notification chrome is unimportant next to
+// the already-committed release, so any failure here is reported to Sentry
+// and swallowed. Callers can simply `await` this without their own
+// try/catch — matches the "side effects off the action response" rule that a
+// fanout/cleanup failure must never turn a committed mutation into a 500.
+export async function resolveWishlistClaimConflictNotifications(
+	userId: string,
+	releasedClaimId: string,
+): Promise<void> {
+	try {
+		const candidates = await prisma.notification.findMany({
+			where: { userId, type: NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT },
+			select: { id: true, metadata: true },
+		})
+		const staleIds = candidates
+			.filter((notification) => {
+				if (!notification.metadata) return false
+				try {
+					const parsed = JSON.parse(notification.metadata) as { claimId?: unknown }
+					return parsed.claimId === releasedClaimId
+				} catch {
+					return false
+				}
+			})
+			.map((notification) => notification.id)
+		if (staleIds.length === 0) return
+		await prisma.notification.deleteMany({ where: { id: { in: staleIds } } })
+	} catch (error) {
+		captureException(error)
+	}
+}
+
 // The other half of the conflict story `queueWishlistClaimConflictNotification`
 // starts: once a claim settles onto a pool — a person releasing (directly, or
 // indirectly via an archive/status change, an access-loss cleanup, or account

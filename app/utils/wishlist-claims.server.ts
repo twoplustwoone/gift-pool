@@ -165,7 +165,18 @@ export async function claimForUser(
 }
 
 export type ReleaseUserClaimResult =
-  | { ok: true; transferredToPoolId: string | null; transferredClaimId: string | null }
+  | {
+      ok: true;
+      // The id of the WishlistClaim row that was just deleted — the exact
+      // occurrence, not the item. Callers use this to resolve any
+      // WISHLIST_CLAIM_CONFLICT notification raised about this same claim
+      // (its metadata.claimId matches), so a notification's Release action
+      // can't resurface for a claim that no longer exists. Always the claim
+      // that was live, regardless of whether `expectedClaimId` was supplied.
+      releasedClaimId: string;
+      transferredToPoolId: string | null;
+      transferredClaimId: string | null;
+    }
   // 'not-found' covers both "no claim exists" and "the caller doesn't hold
   // it" — the caller-facing distinction has never mattered here, only that
   // nothing was released. 'stale' is new: `expectedClaimId` was supplied and
@@ -216,6 +227,7 @@ export async function releaseUserClaim(
     const settlement = await settleItem(tx, wishlistItemId);
     return {
       ok: true,
+      releasedClaimId: claim.id,
       transferredToPoolId: settlement?.poolId ?? null,
       transferredClaimId: settlement?.claimId ?? null,
     };
