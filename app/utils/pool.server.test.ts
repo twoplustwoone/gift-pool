@@ -127,6 +127,7 @@ import {
   updateContribution,
   updateFinalPrice,
   updatePool,
+  queueWishlistClaimTransferredNotification,
 } from './pool.server.ts';
 
 beforeEach(() => {
@@ -659,6 +660,7 @@ describe('pool server utilities', () => {
       released: [],
     });
     wishlistClaimFindUnique.mockResolvedValueOnce({
+      id: 'claim-1',
       claimedByUserId: 'holder-1',
       wishlistItem: {
         title: 'Noise-cancelling headphones',
@@ -684,9 +686,67 @@ describe('pool server utilities', () => {
           poolId: 'pool-1',
           poolTitle: 'Taylor birthday',
         },
-        sourceIdentifier: 'claim-conflict:pool-1:wish-9',
+        sourceIdentifier: 'claim-conflict:pool-1:wish-9:claim-1',
       });
     });
+  });
+
+  it('varies the conflict-notification key with the claim id, so a recreated conflict is a distinct delivery', async () => {
+    giftIdeaFindFirst.mockResolvedValue({
+      estimatedPriceCents: 8000,
+      name: 'Speaker',
+      pool: { title: 'Taylor birthday' },
+    });
+    syncPoolClaimInTx.mockResolvedValue({
+      claimedItemId: null,
+      conflictedItemId: 'wish-9',
+      released: [],
+    });
+    // First conflict: the original claim.
+    wishlistClaimFindUnique.mockResolvedValueOnce({
+      id: 'claim-1',
+      claimedByUserId: 'holder-1',
+      wishlistItem: {
+        title: 'Noise-cancelling headphones',
+        owner: { name: 'Taylor', username: 'taylor' },
+      },
+    });
+    await chooseIdea('pool-1', 'idea-1', 'user-1');
+    await vi.waitFor(() => {
+      expect(queueNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceIdentifier: 'claim-conflict:pool-1:wish-9:claim-1',
+        }),
+      );
+    });
+
+    // Same pool/item decide again, but the holder released and re-claimed in
+    // between — a fresh WishlistClaim row (different id) backs this
+    // genuinely new conflict, so the key must differ from the first.
+    wishlistClaimFindUnique.mockResolvedValueOnce({
+      id: 'claim-2',
+      claimedByUserId: 'holder-1',
+      wishlistItem: {
+        title: 'Noise-cancelling headphones',
+        owner: { name: 'Taylor', username: 'taylor' },
+      },
+    });
+    await chooseIdea('pool-1', 'idea-1', 'user-1');
+    await vi.waitFor(() => {
+      expect(queueNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceIdentifier: 'claim-conflict:pool-1:wish-9:claim-2',
+        }),
+      );
+    });
+
+    const conflictSourceIdentifiers = queueNotification.mock.calls
+      .filter(([intent]) => intent.type === NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT)
+      .map(([intent]) => intent.sourceIdentifier);
+    expect(conflictSourceIdentifiers).toEqual([
+      'claim-conflict:pool-1:wish-9:claim-1',
+      'claim-conflict:pool-1:wish-9:claim-2',
+    ]);
   });
 
   it('falls back to the username when the wishlist owner has no display name', async () => {
@@ -774,6 +834,103 @@ describe('pool server utilities', () => {
       expect(captureException).toHaveBeenCalledWith(boom);
     });
     expect(queueNotification).not.toHaveBeenCalled();
+  });
+
+  describe('queueWishlistClaimTransferredNotification', () => {
+    it('notifies every contributor of the pool that inherited the claim', async () => {
+      poolFindUnique.mockResolvedValueOnce({
+        title: 'Taylor birthday',
+        contributors: [{ userId: 'contrib-1' }, { userId: 'contrib-2' }],
+      });
+      wishlistClaimFindUnique.mockResolvedValueOnce({
+        poolId: 'pool-2',
+        wishlistItem: {
+          title: 'Noise-cancelling headphones',
+          owner: { name: 'Taylor', username: 'taylor' },
+        },
+      });
+
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9');
+
+      await vi.waitFor(() => {
+        expect(queueNotification).toHaveBeenCalledTimes(2);
+      });
+      expect(queueNotification).toHaveBeenCalledWith({
+        userId: 'contrib-1',
+        type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+        payload: {
+          wishlistItemId: 'wish-9',
+          itemTitle: 'Noise-cancelling headphones',
+          recipientName: 'Taylor',
+          recipientUsername: 'taylor',
+          poolId: 'pool-2',
+          poolTitle: 'Taylor birthday',
+        },
+        sourceIdentifier: 'claim-transferred:pool-2:wish-9',
+      });
+      expect(queueNotification).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'contrib-2' }),
+      );
+    });
+
+    it('stays silent when the pool no longer exists', async () => {
+      poolFindUnique.mockResolvedValueOnce(null);
+      wishlistClaimFindUnique.mockResolvedValueOnce({
+        poolId: 'pool-2',
+        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+      });
+
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9');
+
+      await vi.waitFor(() => {
+        expect(wishlistClaimFindUnique).toHaveBeenCalled();
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(queueNotification).not.toHaveBeenCalled();
+    });
+
+    it('stays silent when the claim has already moved off this pool by the time it re-reads', async () => {
+      // The re-read (not the caller's snapshot) is the source of truth — see
+      // the function's own docstring. If a second re-decision already moved
+      // the claim elsewhere, this pool must not tell its contributors they
+      // inherited something they no longer hold.
+      poolFindUnique.mockResolvedValueOnce({
+        title: 'Taylor birthday',
+        contributors: [{ userId: 'contrib-1' }],
+      });
+      wishlistClaimFindUnique.mockResolvedValueOnce({
+        poolId: 'pool-3',
+        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+      });
+
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9');
+
+      await vi.waitFor(() => {
+        expect(wishlistClaimFindUnique).toHaveBeenCalled();
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(queueNotification).not.toHaveBeenCalled();
+    });
+
+    it('sends a read failure to Sentry without throwing — a fanout failure must never turn a committed release into a 500', async () => {
+      const boom = new Error('read failed');
+      poolFindUnique.mockRejectedValueOnce(boom);
+      wishlistClaimFindUnique.mockResolvedValueOnce({
+        poolId: 'pool-2',
+        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+      });
+
+      expect(() =>
+        queueWishlistClaimTransferredNotification('pool-2', 'wish-9'),
+      ).not.toThrow();
+
+      await vi.waitFor(() => {
+        expect(captureException).toHaveBeenCalledWith(boom);
+      });
+      expect(queueNotification).not.toHaveBeenCalled();
+    });
   });
 
   it('propagates a claim-sync failure and skips every post-decision side effect', async () => {

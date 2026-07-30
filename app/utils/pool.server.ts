@@ -729,6 +729,7 @@ function queueWishlistClaimConflictNotification(
 		const claim = await prisma.wishlistClaim.findUnique({
 			where: { wishlistItemId },
 			select: {
+				id: true,
 				claimedByUserId: true,
 				wishlistItem: {
 					select: {
@@ -755,13 +756,21 @@ function queueWishlistClaimConflictNotification(
 				poolId,
 				poolTitle,
 			},
-			// One notification per conflicted decision: this key is claimed in
-			// the `NotificationDelivery` ledger (per channel) before any channel
-			// delivers, so re-entering this path for the same pool+item — a
-			// retry, or re-deciding back onto an item that's still conflicted —
-			// never asks the claim holder twice. See
-			// notification-dispatcher.server.ts / claimNotificationDelivery.
-			sourceIdentifier: `claim-conflict:${poolId}:${wishlistItemId}`,
+			// One notification per conflicted *claim*, not per conflicted
+			// pool/item pair: the key includes the claim row's own id, which is
+			// freshly minted every time `wishlist-claims.server.ts` creates a
+			// claim. `poolId`/`wishlistItemId` alone would dedupe permanently —
+			// after the first Keep/Release resolves this claim, the holder (or
+			// someone else) can re-claim the same item and this pool can decide
+			// on it again, which is a genuinely new conflict that must ask
+			// again. The claim id is the right variable: it stays fixed for
+			// every re-entry into this path *for the same still-live claim*
+			// (a retry, or re-deciding back onto an item that's still
+			// conflicted), so those correctly stay deduped — unlike, say,
+			// `Pool.decidedAt`, which changes on every re-decision and would
+			// re-notify on each one. See notification-dispatcher.server.ts /
+			// claimNotificationDelivery.
+			sourceIdentifier: `claim-conflict:${poolId}:${wishlistItemId}:${claim.id}`,
 		})
 	})().catch((error: unknown) => {
 		captureException(error)
