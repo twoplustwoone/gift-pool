@@ -24,7 +24,12 @@ async function fixture() {
     prisma.user.create({ data: createUser() }),
   ]);
   const item = await prisma.wishlistItem.create({
-    data: { ownerId: owner.id, title: 'Spa voucher', type: 'item', sortOrder: 0 },
+    data: {
+      ownerId: owner.id,
+      title: 'Spa voucher',
+      type: 'item',
+      sortOrder: 0,
+    },
   });
   return { owner, friend, organizer, item };
 }
@@ -39,7 +44,12 @@ async function decidedPoolFor(
     data: { title: 'Birthday pool', organizerId, recipientUserId: recipientId },
   });
   const idea = await prisma.giftIdea.create({
-    data: { poolId: pool.id, proposedById: organizerId, name: 'Spa voucher', wishlistItemId: itemId },
+    data: {
+      poolId: pool.id,
+      proposedById: organizerId,
+      name: 'Spa voucher',
+      wishlistItemId: itemId,
+    },
   });
   await prisma.pool.update({
     where: { id: pool.id },
@@ -51,16 +61,27 @@ async function decidedPoolFor(
 describe('claimForUser', () => {
   it('grants a claim on a free item', async () => {
     const { friend, item } = await fixture();
-    await expect(claimForUser(item.id, friend.id)).resolves.toEqual({ ok: true });
-    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    await expect(claimForUser(item.id, friend.id)).resolves.toEqual({
+      ok: true,
+    });
+    const claim = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: item.id },
+    });
     expect(claim?.claimedByUserId).toBe(friend.id);
     expect(claim?.poolId).toBeNull();
   });
 
   it('refuses when a pool holds the claim, and says so distinctly', async () => {
     const { owner, friend, organizer, item } = await fixture();
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
-    await prisma.wishlistClaim.create({ data: { wishlistItemId: item.id, poolId: pool.id } });
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
+    await prisma.wishlistClaim.create({
+      data: { wishlistItemId: item.id, poolId: pool.id },
+    });
     await expect(claimForUser(item.id, friend.id)).resolves.toEqual({
       ok: false,
       reason: 'held-by-pool',
@@ -82,7 +103,9 @@ describe('claimForUser', () => {
     expect(failures).toHaveLength(1);
     expect(failures[0]).toMatchObject({ ok: false, reason: 'held-by-user' });
 
-    const claims = await prisma.wishlistClaim.findMany({ where: { wishlistItemId: item.id } });
+    const claims = await prisma.wishlistClaim.findMany({
+      where: { wishlistItemId: item.id },
+    });
     expect(claims).toHaveLength(1);
   });
 });
@@ -91,12 +114,19 @@ describe('settlement on release', () => {
   it('hands a released claim to a pool that has intent — the orphaned-claim fix', async () => {
     const { owner, friend, organizer, item } = await fixture();
     await claimForUser(item.id, friend.id);
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
 
     const result = await releaseUserClaim(item.id, friend.id);
 
     expect(result).toMatchObject({ transferredToPoolId: pool.id });
-    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    const claim = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: item.id },
+    });
     expect(claim?.poolId).toBe(pool.id);
     expect(claim?.claimedByUserId).toBeNull();
   });
@@ -106,14 +136,28 @@ describe('settlement on release', () => {
     await claimForUser(item.id, friend.id);
     const result = await releaseUserClaim(item.id, friend.id);
     expect(result).toMatchObject({ transferredToPoolId: null });
-    expect(await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } })).toBeNull();
+    expect(
+      await prisma.wishlistClaim.findUnique({
+        where: { wishlistItemId: item.id },
+      }),
+    ).toBeNull();
   });
 
   it('gives the claim to the earliest decision when two pools have intent', async () => {
     const { owner, friend, organizer, item } = await fixture();
     await claimForUser(item.id, friend.id);
-    const later = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-20'));
-    const earlier = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-10'));
+    const later = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date('2026-07-20'),
+    );
+    const earlier = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date('2026-07-10'),
+    );
 
     const result = await releaseUserClaim(item.id, friend.id);
 
@@ -131,7 +175,11 @@ describe('settlement on release', () => {
     await claimForUser(item.id, friend.id);
 
     const nullDatedPool = await prisma.pool.create({
-      data: { title: 'Legacy pool', organizerId: organizer.id, recipientUserId: owner.id },
+      data: {
+        title: 'Legacy pool',
+        organizerId: organizer.id,
+        recipientUserId: owner.id,
+      },
     });
     const nullIdea = await prisma.giftIdea.create({
       data: {
@@ -146,7 +194,12 @@ describe('settlement on release', () => {
       data: { status: 'DECIDED', chosenIdeaId: nullIdea.id },
     });
 
-    const datedPool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-20'));
+    const datedPool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date('2026-07-20'),
+    );
 
     const result = await releaseUserClaim(item.id, friend.id);
 
@@ -157,8 +210,16 @@ describe('settlement on release', () => {
   it('ignores a cancelled pool when settling', async () => {
     const { owner, friend, organizer, item } = await fixture();
     await claimForUser(item.id, friend.id);
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
-    await prisma.pool.update({ where: { id: pool.id }, data: { status: 'CANCELLED' } });
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
+    await prisma.pool.update({
+      where: { id: pool.id },
+      data: { status: 'CANCELLED' },
+    });
 
     const result = await releaseUserClaim(item.id, friend.id);
     expect(result).toMatchObject({ transferredToPoolId: null });
@@ -169,7 +230,9 @@ describe('settlement on release', () => {
     await claimForUser(item.id, friend.id);
     const result = await releaseUserClaim(item.id, organizer.id);
     expect(result.ok).toBe(false);
-    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    const claim = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: item.id },
+    });
     expect(claim?.claimedByUserId).toBe(friend.id);
   });
 
@@ -210,9 +273,15 @@ describe('settlement on release', () => {
 
     const result = await releaseUserClaim(item.id, friend.id, claim.id);
 
-    expect(result).toEqual({ ok: true, transferredToPoolId: null, transferredClaimId: null });
+    expect(result).toEqual({
+      ok: true,
+      transferredToPoolId: null,
+      transferredClaimId: null,
+    });
     expect(
-      await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } }),
+      await prisma.wishlistClaim.findUnique({
+        where: { wishlistItemId: item.id },
+      }),
     ).toBeNull();
   });
 });
@@ -220,55 +289,105 @@ describe('settlement on release', () => {
 describe('syncPoolClaim', () => {
   it('claims a free wishlist item when the pool decides', async () => {
     const { owner, organizer, item } = await fixture();
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
     const result = await syncPoolClaim(pool.id);
     expect(result.claimedItemId).toBe(item.id);
     expect(result.conflictedItemId).toBeNull();
-    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    const claim = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: item.id },
+    });
     expect(claim?.poolId).toBe(pool.id);
   });
 
   it('reports a conflict and takes nothing when a person already holds it', async () => {
     const { owner, friend, organizer, item } = await fixture();
     await claimForUser(item.id, friend.id);
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
 
     const result = await syncPoolClaim(pool.id);
 
     expect(result.claimedItemId).toBeNull();
     expect(result.conflictedItemId).toBe(item.id);
-    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    const claim = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: item.id },
+    });
     expect(claim?.claimedByUserId).toBe(friend.id);
   });
 
   it('releases the old item and settles it when the pool re-decides', async () => {
     const { owner, organizer, item } = await fixture();
     const other = await prisma.wishlistItem.create({
-      data: { ownerId: owner.id, title: 'Headphones', type: 'item', sortOrder: 1 },
+      data: {
+        ownerId: owner.id,
+        title: 'Headphones',
+        type: 'item',
+        sortOrder: 1,
+      },
     });
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
     await syncPoolClaim(pool.id);
 
     const newIdea = await prisma.giftIdea.create({
-      data: { poolId: pool.id, proposedById: organizer.id, name: 'Headphones', wishlistItemId: other.id },
+      data: {
+        poolId: pool.id,
+        proposedById: organizer.id,
+        name: 'Headphones',
+        wishlistItemId: other.id,
+      },
     });
     await chooseIdea(pool.id, newIdea.id, organizer.id);
 
-    expect(await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } })).toBeNull();
-    const moved = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: other.id } });
+    expect(
+      await prisma.wishlistClaim.findUnique({
+        where: { wishlistItemId: item.id },
+      }),
+    ).toBeNull();
+    const moved = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: other.id },
+    });
     expect(moved?.poolId).toBe(pool.id);
   });
 
   it('reports a released item as transferred when settlement hands it to a waiting pool', async () => {
     const { owner, organizer, item } = await fixture();
     const other = await prisma.wishlistItem.create({
-      data: { ownerId: owner.id, title: 'Headphones', type: 'item', sortOrder: 1 },
+      data: {
+        ownerId: owner.id,
+        title: 'Headphones',
+        type: 'item',
+        sortOrder: 1,
+      },
     });
-    const holder = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-01'));
+    const holder = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date('2026-07-01'),
+    );
     await syncPoolClaim(holder.id);
 
     // A second pool has intent on the same item and is left waiting behind the holder.
-    const waiter = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-10'));
+    const waiter = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date('2026-07-10'),
+    );
 
     // The holder re-decides onto a different item, freeing `item` for the waiter.
     const newIdea = await prisma.giftIdea.create({
@@ -291,17 +410,28 @@ describe('syncPoolClaim', () => {
       wishlistItemId: item.id,
       transferredToPoolId: waiter.id,
     });
-    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    const claim = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: item.id },
+    });
     expect(claim?.poolId).toBe(waiter.id);
     expect(result.released[0]?.transferredClaimId).toBe(claim?.id);
   });
 
   it('releases the claim when the pool is cancelled', async () => {
     const { owner, organizer, item } = await fixture();
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
     await syncPoolClaim(pool.id);
     await cancelPool(pool.id, organizer.id);
-    expect(await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } })).toBeNull();
+    expect(
+      await prisma.wishlistClaim.findUnique({
+        where: { wishlistItemId: item.id },
+      }),
+    ).toBeNull();
   });
 });
 
@@ -318,22 +448,39 @@ describe('chooseIdea + claim sync atomicity', () => {
     // the sync's outcome is forced to fail.
     const { owner, organizer, item } = await fixture();
     const pool = await prisma.pool.create({
-      data: { title: 'Birthday pool', organizerId: organizer.id, recipientUserId: owner.id },
+      data: {
+        title: 'Birthday pool',
+        organizerId: organizer.id,
+        recipientUserId: owner.id,
+      },
     });
     const idea = await prisma.giftIdea.create({
-      data: { poolId: pool.id, proposedById: organizer.id, name: 'Spa voucher', wishlistItemId: item.id },
+      data: {
+        poolId: pool.id,
+        proposedById: organizer.id,
+        name: 'Spa voucher',
+        wishlistItemId: item.id,
+      },
     });
 
     const spy = vi
       .spyOn(wishlistClaims, 'syncPoolClaimInTx')
       .mockRejectedValueOnce(new Error('claim sync boom'));
 
-    await expect(chooseIdea(pool.id, idea.id, organizer.id)).rejects.toThrow('claim sync boom');
+    await expect(chooseIdea(pool.id, idea.id, organizer.id)).rejects.toThrow(
+      'claim sync boom',
+    );
 
-    const reloaded = await prisma.pool.findUniqueOrThrow({ where: { id: pool.id } });
+    const reloaded = await prisma.pool.findUniqueOrThrow({
+      where: { id: pool.id },
+    });
     expect(reloaded.status).not.toBe('DECIDED');
     expect(reloaded.chosenIdeaId).toBeNull();
-    expect(await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } })).toBeNull();
+    expect(
+      await prisma.wishlistClaim.findUnique({
+        where: { wishlistItemId: item.id },
+      }),
+    ).toBeNull();
 
     spy.mockRestore();
   });
@@ -349,20 +496,31 @@ describe('cancelPool + claim sync atomicity', () => {
     // sync now commit inside one `prisma.$transaction`, so a rejection from
     // the sync must roll back the cancellation too.
     const { owner, organizer, item } = await fixture();
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
     await syncPoolClaim(pool.id);
 
     const spy = vi
       .spyOn(wishlistClaims, 'syncPoolClaimInTx')
       .mockRejectedValueOnce(new Error('claim sync boom'));
 
-    await expect(cancelPool(pool.id, organizer.id)).rejects.toThrow('claim sync boom');
+    await expect(cancelPool(pool.id, organizer.id)).rejects.toThrow(
+      'claim sync boom',
+    );
 
-    const reloaded = await prisma.pool.findUniqueOrThrow({ where: { id: pool.id } });
+    const reloaded = await prisma.pool.findUniqueOrThrow({
+      where: { id: pool.id },
+    });
     expect(reloaded.status).not.toBe('CANCELLED');
     // The pool must still hold its claim — the bug this regression closes is
     // a cancelled pool that lost its claim with no way to get it back.
-    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    const claim = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: item.id },
+    });
     expect(claim?.poolId).toBe(pool.id);
 
     spy.mockRestore();
@@ -377,13 +535,20 @@ describe('releaseSoloClaimForItem', () => {
     // archived (or restored) it.
     const { owner, friend, organizer, item } = await fixture();
     await claimForUser(item.id, friend.id);
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
 
     const result = await wishlistClaims.releaseSoloClaimForItem(item.id);
 
     expect(result.ok).toBe(true);
     expect(result.transferredToPoolId).toBe(pool.id);
-    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    const claim = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: item.id },
+    });
     expect(claim?.poolId).toBe(pool.id);
     expect(claim?.claimedByUserId).toBeNull();
     expect(result.transferredClaimId).toBe(claim?.id);
@@ -391,20 +556,35 @@ describe('releaseSoloClaimForItem', () => {
 
   it('leaves a pool-held claim untouched', async () => {
     const { owner, organizer, item } = await fixture();
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
     await syncPoolClaim(pool.id);
 
     const result = await wishlistClaims.releaseSoloClaimForItem(item.id);
 
-    expect(result).toEqual({ ok: false, transferredToPoolId: null, transferredClaimId: null });
-    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    expect(result).toEqual({
+      ok: false,
+      transferredToPoolId: null,
+      transferredClaimId: null,
+    });
+    const claim = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: item.id },
+    });
     expect(claim?.poolId).toBe(pool.id);
   });
 
   it('is a no-op when the item has no claim', async () => {
     const { item } = await fixture();
     const result = await wishlistClaims.releaseSoloClaimForItem(item.id);
-    expect(result).toEqual({ ok: false, transferredToPoolId: null, transferredClaimId: null });
+    expect(result).toEqual({
+      ok: false,
+      transferredToPoolId: null,
+      transferredClaimId: null,
+    });
   });
 });
 
@@ -453,7 +633,12 @@ describe('claimForUser losing a race', () => {
 
   it('reports a pool-held claim with the null-claimedByUserId sentinel', async () => {
     const { owner, friend, organizer, item } = await fixture();
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
     await syncPoolClaim(pool.id);
 
     const result = await claimForUser(item.id, friend.id);
@@ -470,29 +655,53 @@ describe('loadClaimStates', () => {
   it('returns nothing at all for the wishlist owner', async () => {
     const { owner, friend, item } = await fixture();
     await claimForUser(item.id, friend.id);
-    const states = await loadClaimStates([item.id], { userId: owner.id, isOwner: true });
+    const states = await loadClaimStates([item.id], {
+      userId: owner.id,
+      isOwner: true,
+    });
     expect(states.get(item.id)?.show).toBe(false);
   });
 
   it('names the pool to one of its contributors and not to an outsider', async () => {
     const { owner, friend, organizer, item } = await fixture();
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
-    await prisma.poolContributor.create({ data: { poolId: pool.id, userId: organizer.id } });
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
+    await prisma.poolContributor.create({
+      data: { poolId: pool.id, userId: organizer.id },
+    });
     await syncPoolClaim(pool.id);
 
-    const inside = await loadClaimStates([item.id], { userId: organizer.id, isOwner: false });
+    const inside = await loadClaimStates([item.id], {
+      userId: organizer.id,
+      isOwner: false,
+    });
     expect(inside.get(item.id)?.name).toBe('Birthday pool');
 
-    const outside = await loadClaimStates([item.id], { userId: friend.id, isOwner: false });
+    const outside = await loadClaimStates([item.id], {
+      userId: friend.id,
+      isOwner: false,
+    });
     expect(outside.get(item.id)?.text).toBe('Already claimed');
     expect(JSON.stringify(outside.get(item.id))).not.toContain('Birthday pool');
   });
 
   it('gives an anonymous viewer claim state with zero attribution', async () => {
     const { owner, organizer, item } = await fixture();
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
     await syncPoolClaim(pool.id);
-    const states = await loadClaimStates([item.id], { userId: null, isOwner: false });
+    const states = await loadClaimStates([item.id], {
+      userId: null,
+      isOwner: false,
+    });
     expect(states.get(item.id)?.show).toBe(true);
     expect(states.get(item.id)?.name).toBeNull();
   });
@@ -502,34 +711,65 @@ describe('loadClaimStates', () => {
     const group = await prisma.giftGroup.create({
       data: { name: 'Sunday Roasters', createdById: organizer.id },
     });
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
-    await prisma.pool.update({ where: { id: pool.id }, data: { giftGroupId: group.id } });
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
+    await prisma.pool.update({
+      where: { id: pool.id },
+      data: { giftGroupId: group.id },
+    });
     await syncPoolClaim(pool.id);
     const membership = await prisma.usersInGiftGroups.create({
       data: { userId: friend.id, giftGroupId: group.id },
     });
 
-    const asMember = await loadClaimStates([item.id], { userId: friend.id, isOwner: false });
+    const asMember = await loadClaimStates([item.id], {
+      userId: friend.id,
+      isOwner: false,
+    });
     expect(asMember.get(item.id)?.name).toBe('Sunday Roasters');
 
     // The membership row survives removal — only removedAt makes it non-current.
     await prisma.usersInGiftGroups.update({
-      where: { userId_giftGroupId: { userId: membership.userId, giftGroupId: group.id } },
+      where: {
+        userId_giftGroupId: {
+          userId: membership.userId,
+          giftGroupId: group.id,
+        },
+      },
       data: { removedAt: new Date() },
     });
 
-    const afterRemoval = await loadClaimStates([item.id], { userId: friend.id, isOwner: false });
+    const afterRemoval = await loadClaimStates([item.id], {
+      userId: friend.id,
+      isOwner: false,
+    });
     expect(afterRemoval.get(item.id)?.name).toBeNull();
-    expect(JSON.stringify(afterRemoval.get(item.id))).not.toContain('Sunday Roasters');
+    expect(JSON.stringify(afterRemoval.get(item.id))).not.toContain(
+      'Sunday Roasters',
+    );
   });
 
   it('defaults to the label surface when no surface argument is given', async () => {
     const { owner, organizer, item } = await fixture();
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
-    await prisma.poolContributor.create({ data: { poolId: pool.id, userId: organizer.id } });
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
+    await prisma.poolContributor.create({
+      data: { poolId: pool.id, userId: organizer.id },
+    });
     await syncPoolClaim(pool.id);
 
-    const defaulted = await loadClaimStates([item.id], { userId: organizer.id, isOwner: false });
+    const defaulted = await loadClaimStates([item.id], {
+      userId: organizer.id,
+      isOwner: false,
+    });
     const explicitLabel = await loadClaimStates(
       [item.id],
       { userId: organizer.id, isOwner: false },
@@ -541,15 +781,30 @@ describe('loadClaimStates', () => {
 
   it("the 'row' surface names nobody, even to a viewer the label surface would name", async () => {
     const { owner, organizer, item } = await fixture();
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
-    await prisma.poolContributor.create({ data: { poolId: pool.id, userId: organizer.id } });
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
+    await prisma.poolContributor.create({
+      data: { poolId: pool.id, userId: organizer.id },
+    });
     await syncPoolClaim(pool.id);
 
     // Sanity: the label surface *would* name this pool to its own contributor.
-    const label = await loadClaimStates([item.id], { userId: organizer.id, isOwner: false }, 'label');
+    const label = await loadClaimStates(
+      [item.id],
+      { userId: organizer.id, isOwner: false },
+      'label',
+    );
     expect(label.get(item.id)?.name).toBe('Birthday pool');
 
-    const row = await loadClaimStates([item.id], { userId: organizer.id, isOwner: false }, 'row');
+    const row = await loadClaimStates(
+      [item.id],
+      { userId: organizer.id, isOwner: false },
+      'row',
+    );
     expect(row.get(item.id)?.show).toBe(true);
     expect(row.get(item.id)?.name).toBeNull();
     expect(row.get(item.id)?.poolLink).toBeNull();
@@ -563,12 +818,23 @@ describe('loadIdeaClaimConflicts', () => {
     const { owner, friend, organizer, item } = await fixture();
     await claimForUser(item.id, friend.id);
     const pool = await prisma.pool.create({
-      data: { title: 'Pool', organizerId: organizer.id, recipientUserId: owner.id },
+      data: {
+        title: 'Pool',
+        organizerId: organizer.id,
+        recipientUserId: owner.id,
+      },
     });
     const idea = await prisma.giftIdea.create({
-      data: { poolId: pool.id, proposedById: organizer.id, name: 'Spa', wishlistItemId: item.id },
+      data: {
+        poolId: pool.id,
+        proposedById: organizer.id,
+        name: 'Spa',
+        wishlistItemId: item.id,
+      },
     });
-    await prisma.poolContributor.create({ data: { poolId: pool.id, userId: organizer.id } });
+    await prisma.poolContributor.create({
+      data: { poolId: pool.id, userId: organizer.id },
+    });
 
     const outside = await loadIdeaClaimConflicts(pool.id, organizer.id);
     expect(outside.get(idea.id)?.name).toBeNull();
@@ -577,7 +843,9 @@ describe('loadIdeaClaimConflicts', () => {
     // serialised disclosure even indirectly (e.g. via an unused field).
     expect(JSON.stringify(outside.get(idea.id))).not.toContain(friend.id);
 
-    await prisma.poolContributor.create({ data: { poolId: pool.id, userId: friend.id } });
+    await prisma.poolContributor.create({
+      data: { poolId: pool.id, userId: friend.id },
+    });
     const inside = await loadIdeaClaimConflicts(pool.id, organizer.id);
     expect(inside.get(idea.id)?.name).not.toBeNull();
     expect(inside.get(idea.id)?.tone).toBe('warning');
@@ -585,8 +853,15 @@ describe('loadIdeaClaimConflicts', () => {
 
   it('is absent for an idea whose item this same pool already holds the claim on', async () => {
     const { owner, organizer, item } = await fixture();
-    const pool = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
-    const idea = await prisma.giftIdea.findFirstOrThrow({ where: { poolId: pool.id } });
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
+    const idea = await prisma.giftIdea.findFirstOrThrow({
+      where: { poolId: pool.id },
+    });
     await syncPoolClaim(pool.id);
 
     const conflicts = await loadIdeaClaimConflicts(pool.id, organizer.id);
@@ -596,12 +871,21 @@ describe('loadIdeaClaimConflicts', () => {
 
   it('never names a rival pool, even to a viewer who also contributes there', async () => {
     const { owner, organizer, item } = await fixture();
-    const holder = await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+    const holder = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
     await syncPoolClaim(holder.id);
 
     // A second pool proposes the same (now pool-claimed) item as an idea.
     const viewerPool = await prisma.pool.create({
-      data: { title: 'Rival viewing pool', organizerId: organizer.id, recipientUserId: owner.id },
+      data: {
+        title: 'Rival viewing pool',
+        organizerId: organizer.id,
+        recipientUserId: owner.id,
+      },
     });
     const idea = await prisma.giftIdea.create({
       data: {
@@ -613,8 +897,12 @@ describe('loadIdeaClaimConflicts', () => {
     });
     // The viewer contributes to both pools — must still learn nothing about
     // the holder pool's identity from this surface.
-    await prisma.poolContributor.create({ data: { poolId: holder.id, userId: organizer.id } });
-    await prisma.poolContributor.create({ data: { poolId: viewerPool.id, userId: organizer.id } });
+    await prisma.poolContributor.create({
+      data: { poolId: holder.id, userId: organizer.id },
+    });
+    await prisma.poolContributor.create({
+      data: { poolId: viewerPool.id, userId: organizer.id },
+    });
 
     const conflicts = await loadIdeaClaimConflicts(viewerPool.id, organizer.id);
 
@@ -629,7 +917,11 @@ describe('loadIdeaClaimConflicts', () => {
   it('returns an empty map when the pool has no ideas linked to wishlist items', async () => {
     const { owner, organizer } = await fixture();
     const pool = await prisma.pool.create({
-      data: { title: 'Empty pool', organizerId: organizer.id, recipientUserId: owner.id },
+      data: {
+        title: 'Empty pool',
+        organizerId: organizer.id,
+        recipientUserId: owner.id,
+      },
     });
     const conflicts = await loadIdeaClaimConflicts(pool.id, organizer.id);
     expect(conflicts.size).toBe(0);
@@ -642,6 +934,14 @@ async function conflictNotificationsFor(userId: string) {
     select: { sourceIdentifier: true },
   });
 }
+
+// The notification fanout is deliberately fire-and-forget, so these
+// assertions poll rather than await it. vi.waitFor's default 1s timeout is
+// ample locally but not on a CI runner under coverage instrumentation, where
+// a real-DB fanout can take longer — that flaked PR #542 with "expected [] to
+// have a length of 1". Generous but still bounded: a notification that never
+// arrives still fails the test.
+const FANOUT_WAIT = { timeout: 15_000, interval: 100 } as const;
 
 async function transferNotificationsFor(userId: string) {
   return prisma.notification.findMany({
@@ -662,23 +962,42 @@ describe('wishlist claim conflict notification — occurrence key (real ledger)'
     const { owner, friend, organizer, item } = await fixture();
     await claimForUser(item.id, friend.id);
     const other = await prisma.wishlistItem.create({
-      data: { ownerId: owner.id, title: 'Headphones', type: 'item', sortOrder: 1 },
+      data: {
+        ownerId: owner.id,
+        title: 'Headphones',
+        type: 'item',
+        sortOrder: 1,
+      },
     });
     const pool = await prisma.pool.create({
-      data: { title: 'Birthday pool', organizerId: organizer.id, recipientUserId: owner.id },
+      data: {
+        title: 'Birthday pool',
+        organizerId: organizer.id,
+        recipientUserId: owner.id,
+      },
     });
     const ideaA = await prisma.giftIdea.create({
-      data: { poolId: pool.id, proposedById: organizer.id, name: 'Spa voucher', wishlistItemId: item.id },
+      data: {
+        poolId: pool.id,
+        proposedById: organizer.id,
+        name: 'Spa voucher',
+        wishlistItemId: item.id,
+      },
     });
     const ideaB = await prisma.giftIdea.create({
-      data: { poolId: pool.id, proposedById: organizer.id, name: 'Headphones', wishlistItemId: other.id },
+      data: {
+        poolId: pool.id,
+        proposedById: organizer.id,
+        name: 'Headphones',
+        wishlistItemId: other.id,
+      },
     });
 
     // First decision on the claimed item: a real conflict, one notification.
     await chooseIdea(pool.id, ideaA.id, organizer.id);
     await vi.waitFor(async () => {
       expect(await conflictNotificationsFor(friend.id)).toHaveLength(1);
-    });
+    }, FANOUT_WAIT);
 
     // The organizer changes their mind (item B, unclaimed — no conflict),
     // then re-decides back onto the still-claimed item. `friend` never
@@ -690,9 +1009,11 @@ describe('wishlist claim conflict notification — occurrence key (real ledger)'
     // Give the (unawaited) fanout a beat to run, then assert the count never
     // grew past the original one.
     await vi.waitFor(async () => {
-      const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+      const claim = await prisma.wishlistClaim.findUnique({
+        where: { wishlistItemId: item.id },
+      });
       expect(claim?.claimedByUserId).toBe(friend.id);
-    });
+    }, FANOUT_WAIT);
     expect(await conflictNotificationsFor(friend.id)).toHaveLength(1);
   });
 
@@ -700,22 +1021,41 @@ describe('wishlist claim conflict notification — occurrence key (real ledger)'
     const { owner, friend, organizer, item } = await fixture();
     await claimForUser(item.id, friend.id);
     const other = await prisma.wishlistItem.create({
-      data: { ownerId: owner.id, title: 'Headphones', type: 'item', sortOrder: 1 },
+      data: {
+        ownerId: owner.id,
+        title: 'Headphones',
+        type: 'item',
+        sortOrder: 1,
+      },
     });
     const pool = await prisma.pool.create({
-      data: { title: 'Birthday pool', organizerId: organizer.id, recipientUserId: owner.id },
+      data: {
+        title: 'Birthday pool',
+        organizerId: organizer.id,
+        recipientUserId: owner.id,
+      },
     });
     const ideaA = await prisma.giftIdea.create({
-      data: { poolId: pool.id, proposedById: organizer.id, name: 'Spa voucher', wishlistItemId: item.id },
+      data: {
+        poolId: pool.id,
+        proposedById: organizer.id,
+        name: 'Spa voucher',
+        wishlistItemId: item.id,
+      },
     });
     const ideaB = await prisma.giftIdea.create({
-      data: { poolId: pool.id, proposedById: organizer.id, name: 'Headphones', wishlistItemId: other.id },
+      data: {
+        poolId: pool.id,
+        proposedById: organizer.id,
+        name: 'Headphones',
+        wishlistItemId: other.id,
+      },
     });
 
     await chooseIdea(pool.id, ideaA.id, organizer.id);
     await vi.waitFor(async () => {
       expect(await conflictNotificationsFor(friend.id)).toHaveLength(1);
-    });
+    }, FANOUT_WAIT);
     const firstClaim = await prisma.wishlistClaim.findUniqueOrThrow({
       where: { wishlistItemId: item.id },
     });
@@ -726,7 +1066,11 @@ describe('wishlist claim conflict notification — occurrence key (real ledger)'
     // free — not transferred), then someone re-claims it. This is a brand
     // new WishlistClaim row, not the one the first notification was about.
     await releaseUserClaim(item.id, friend.id);
-    expect(await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } })).toBeNull();
+    expect(
+      await prisma.wishlistClaim.findUnique({
+        where: { wishlistItemId: item.id },
+      }),
+    ).toBeNull();
     await claimForUser(item.id, friend.id);
     const secondClaim = await prisma.wishlistClaim.findUniqueOrThrow({
       where: { wishlistItemId: item.id },
@@ -739,7 +1083,7 @@ describe('wishlist claim conflict notification — occurrence key (real ledger)'
 
     await vi.waitFor(async () => {
       expect(await conflictNotificationsFor(friend.id)).toHaveLength(2);
-    });
+    }, FANOUT_WAIT);
     const sourceIdentifiers = (await conflictNotificationsFor(friend.id)).map(
       (row) => row.sourceIdentifier,
     );
@@ -758,31 +1102,61 @@ describe('wishlist claim transfer notification (real DB, via chooseIdea/cancelPo
   it('notifies every contributor of the waiting pool when chooseIdea re-decides away from a held item', async () => {
     const { owner, organizer, item } = await fixture();
     const other = await prisma.wishlistItem.create({
-      data: { ownerId: owner.id, title: 'Headphones', type: 'item', sortOrder: 1 },
+      data: {
+        ownerId: owner.id,
+        title: 'Headphones',
+        type: 'item',
+        sortOrder: 1,
+      },
     });
-    const holder = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-01'));
+    const holder = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date('2026-07-01'),
+    );
     await syncPoolClaim(holder.id);
-    const waiter = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-10'));
+    const waiter = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date('2026-07-10'),
+    );
     const waiterContributor = await prisma.user.create({ data: createUser() });
-    await prisma.poolContributor.create({ data: { poolId: waiter.id, userId: waiterContributor.id } });
+    await prisma.poolContributor.create({
+      data: { poolId: waiter.id, userId: waiterContributor.id },
+    });
 
     const newIdea = await prisma.giftIdea.create({
-      data: { poolId: holder.id, proposedById: organizer.id, name: 'Headphones', wishlistItemId: other.id },
+      data: {
+        poolId: holder.id,
+        proposedById: organizer.id,
+        name: 'Headphones',
+        wishlistItemId: other.id,
+      },
     });
 
     await chooseIdea(holder.id, newIdea.id, organizer.id);
 
     await vi.waitFor(async () => {
       const rows = await prisma.notification.findMany({
-        where: { userId: waiterContributor.id, type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED },
+        where: {
+          userId: waiterContributor.id,
+          type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+        },
       });
       expect(rows).toHaveLength(1);
-    });
+    }, FANOUT_WAIT);
     const notification = await prisma.notification.findFirstOrThrow({
-      where: { userId: waiterContributor.id, type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED },
+      where: {
+        userId: waiterContributor.id,
+        type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+      },
     });
     // The item really did move to the waiter — the notification isn't lying.
-    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
+    const claim = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: item.id },
+    });
     expect(claim?.poolId).toBe(waiter.id);
     // The persisted row's sourceIdentifier is the per-channel ledger key
     // (`<occurrenceKey>:<channel>`); assert the occurrence key itself,
@@ -803,16 +1177,35 @@ describe('wishlist claim transfer notification (real DB, via chooseIdea/cancelPo
     // this pool's own contributors), so a mute must suppress delivery.
     const { owner, organizer, item } = await fixture();
     const other = await prisma.wishlistItem.create({
-      data: { ownerId: owner.id, title: 'Headphones', type: 'item', sortOrder: 1 },
+      data: {
+        ownerId: owner.id,
+        title: 'Headphones',
+        type: 'item',
+        sortOrder: 1,
+      },
     });
-    const holder = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-01'));
+    const holder = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date('2026-07-01'),
+    );
     await syncPoolClaim(holder.id);
-    const waiter = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-10'));
+    const waiter = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date('2026-07-10'),
+    );
 
     const mutedContributor = await prisma.user.create({ data: createUser() });
     const activeContributor = await prisma.user.create({ data: createUser() });
-    await prisma.poolContributor.create({ data: { poolId: waiter.id, userId: mutedContributor.id } });
-    await prisma.poolContributor.create({ data: { poolId: waiter.id, userId: activeContributor.id } });
+    await prisma.poolContributor.create({
+      data: { poolId: waiter.id, userId: mutedContributor.id },
+    });
+    await prisma.poolContributor.create({
+      data: { poolId: waiter.id, userId: activeContributor.id },
+    });
     await setContextActivityPreference({
       userId: mutedContributor.id,
       context: { kind: 'POOL', poolId: waiter.id },
@@ -821,7 +1214,12 @@ describe('wishlist claim transfer notification (real DB, via chooseIdea/cancelPo
     });
 
     const newIdea = await prisma.giftIdea.create({
-      data: { poolId: holder.id, proposedById: organizer.id, name: 'Headphones', wishlistItemId: other.id },
+      data: {
+        poolId: holder.id,
+        proposedById: organizer.id,
+        name: 'Headphones',
+        wishlistItemId: other.id,
+      },
     });
 
     await chooseIdea(holder.id, newIdea.id, organizer.id);
@@ -831,8 +1229,10 @@ describe('wishlist claim transfer notification (real DB, via chooseIdea/cancelPo
     // negative checked too early would pass trivially before the async
     // fanout even reaches the policy check.
     await vi.waitFor(async () => {
-      expect(await transferNotificationsFor(activeContributor.id)).toHaveLength(1);
-    });
+      expect(await transferNotificationsFor(activeContributor.id)).toHaveLength(
+        1,
+      );
+    }, FANOUT_WAIT);
     expect(await transferNotificationsFor(mutedContributor.id)).toHaveLength(0);
   });
 
@@ -858,28 +1258,63 @@ describe('wishlist claim transfer notification (real DB, via chooseIdea/cancelPo
     // which is what triggers a settlement each time it moves off while
     // `waiter` still has intent.
     const cycler = await prisma.pool.create({
-      data: { title: 'Cycler pool', organizerId: organizer.id, recipientUserId: owner.id },
+      data: {
+        title: 'Cycler pool',
+        organizerId: organizer.id,
+        recipientUserId: owner.id,
+      },
     });
     const cyclerOnItem = await prisma.giftIdea.create({
-      data: { poolId: cycler.id, proposedById: organizer.id, name: 'Item', wishlistItemId: item.id },
+      data: {
+        poolId: cycler.id,
+        proposedById: organizer.id,
+        name: 'Item',
+        wishlistItemId: item.id,
+      },
     });
     const cyclerOnB = await prisma.giftIdea.create({
-      data: { poolId: cycler.id, proposedById: organizer.id, name: 'Item B', wishlistItemId: itemB.id },
+      data: {
+        poolId: cycler.id,
+        proposedById: organizer.id,
+        name: 'Item B',
+        wishlistItemId: itemB.id,
+      },
     });
     const cyclerOnC = await prisma.giftIdea.create({
-      data: { poolId: cycler.id, proposedById: organizer.id, name: 'Item C', wishlistItemId: itemC.id },
+      data: {
+        poolId: cycler.id,
+        proposedById: organizer.id,
+        name: 'Item C',
+        wishlistItemId: itemC.id,
+      },
     });
 
     const waiter = await prisma.pool.create({
-      data: { title: 'Waiting pool', organizerId: organizer.id, recipientUserId: owner.id },
+      data: {
+        title: 'Waiting pool',
+        organizerId: organizer.id,
+        recipientUserId: owner.id,
+      },
     });
     const waiterContributor = await prisma.user.create({ data: createUser() });
-    await prisma.poolContributor.create({ data: { poolId: waiter.id, userId: waiterContributor.id } });
+    await prisma.poolContributor.create({
+      data: { poolId: waiter.id, userId: waiterContributor.id },
+    });
     const waiterOnItem = await prisma.giftIdea.create({
-      data: { poolId: waiter.id, proposedById: organizer.id, name: 'Item', wishlistItemId: item.id },
+      data: {
+        poolId: waiter.id,
+        proposedById: organizer.id,
+        name: 'Item',
+        wishlistItemId: item.id,
+      },
     });
     const waiterOnD = await prisma.giftIdea.create({
-      data: { poolId: waiter.id, proposedById: organizer.id, name: 'Item D', wishlistItemId: itemD.id },
+      data: {
+        poolId: waiter.id,
+        proposedById: organizer.id,
+        name: 'Item D',
+        wishlistItemId: itemD.id,
+      },
     });
 
     // Cycler claims the free item directly (no transfer — nothing was
@@ -892,8 +1327,10 @@ describe('wishlist claim transfer notification (real DB, via chooseIdea/cancelPo
     // Cycler moves off — settlement 1: waiter inherits.
     await chooseIdea(cycler.id, cyclerOnB.id, organizer.id);
     await vi.waitFor(async () => {
-      expect(await transferNotificationsFor(waiterContributor.id)).toHaveLength(1);
-    });
+      expect(await transferNotificationsFor(waiterContributor.id)).toHaveLength(
+        1,
+      );
+    }, FANOUT_WAIT);
     const firstSettledClaim = await prisma.wishlistClaim.findUniqueOrThrow({
       where: { wishlistItemId: item.id },
     });
@@ -903,7 +1340,9 @@ describe('wishlist claim transfer notification (real DB, via chooseIdea/cancelPo
     // item goes fully free (no notification expected from this step).
     await chooseIdea(waiter.id, waiterOnD.id, organizer.id);
     expect(
-      await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } }),
+      await prisma.wishlistClaim.findUnique({
+        where: { wishlistItemId: item.id },
+      }),
     ).toBeNull();
 
     // Cycler claims the now-free item again directly, and waiter decides on
@@ -915,37 +1354,56 @@ describe('wishlist claim transfer notification (real DB, via chooseIdea/cancelPo
     // WishlistClaim row.
     await chooseIdea(cycler.id, cyclerOnC.id, organizer.id);
     await vi.waitFor(async () => {
-      expect(await transferNotificationsFor(waiterContributor.id)).toHaveLength(2);
-    });
+      expect(await transferNotificationsFor(waiterContributor.id)).toHaveLength(
+        2,
+      );
+    }, FANOUT_WAIT);
     const secondSettledClaim = await prisma.wishlistClaim.findUniqueOrThrow({
       where: { wishlistItemId: item.id },
     });
     expect(secondSettledClaim.poolId).toBe(waiter.id);
     expect(secondSettledClaim.id).not.toBe(firstSettledClaim.id);
 
-    const sourceIdentifiers = (await transferNotificationsFor(waiterContributor.id)).map(
-      (row) => row.sourceIdentifier,
-    );
+    const sourceIdentifiers = (
+      await transferNotificationsFor(waiterContributor.id)
+    ).map((row) => row.sourceIdentifier);
     expect(new Set(sourceIdentifiers).size).toBe(2);
   });
 
   it('notifies every contributor of the waiting pool when cancelPool releases a held claim', async () => {
     const { owner, organizer, item } = await fixture();
-    const holder = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-01'));
+    const holder = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date('2026-07-01'),
+    );
     await syncPoolClaim(holder.id);
-    const waiter = await decidedPoolFor(item.id, owner.id, organizer.id, new Date('2026-07-10'));
+    const waiter = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date('2026-07-10'),
+    );
     const waiterContributor = await prisma.user.create({ data: createUser() });
-    await prisma.poolContributor.create({ data: { poolId: waiter.id, userId: waiterContributor.id } });
+    await prisma.poolContributor.create({
+      data: { poolId: waiter.id, userId: waiterContributor.id },
+    });
 
     await cancelPool(holder.id, organizer.id);
 
     await vi.waitFor(async () => {
       const rows = await prisma.notification.findMany({
-        where: { userId: waiterContributor.id, type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED },
+        where: {
+          userId: waiterContributor.id,
+          type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+        },
       });
       expect(rows).toHaveLength(1);
+    }, FANOUT_WAIT);
+    const claim = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: item.id },
     });
-    const claim = await prisma.wishlistClaim.findUnique({ where: { wishlistItemId: item.id } });
     expect(claim?.poolId).toBe(waiter.id);
   });
 });
