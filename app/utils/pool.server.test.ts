@@ -685,6 +685,7 @@ describe('pool server utilities', () => {
           recipientUsername: 'taylor',
           poolId: 'pool-1',
           poolTitle: 'Taylor birthday',
+          claimId: 'claim-1',
         },
         sourceIdentifier: 'claim-conflict:pool-1:wish-9:claim-1',
       });
@@ -837,7 +838,7 @@ describe('pool server utilities', () => {
   });
 
   describe('queueWishlistClaimTransferredNotification', () => {
-    it('notifies every contributor of the pool that inherited the claim', async () => {
+    it('notifies every contributor of the pool that inherited the claim, scoped to that pool context', async () => {
       poolFindUnique.mockResolvedValueOnce({
         title: 'Taylor birthday',
         contributors: [{ userId: 'contrib-1' }, { userId: 'contrib-2' }],
@@ -850,7 +851,7 @@ describe('pool server utilities', () => {
         },
       });
 
-      queueWishlistClaimTransferredNotification('pool-2', 'wish-9');
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
 
       await vi.waitFor(() => {
         expect(queueNotification).toHaveBeenCalledTimes(2);
@@ -858,6 +859,10 @@ describe('pool server utilities', () => {
       expect(queueNotification).toHaveBeenCalledWith({
         userId: 'contrib-1',
         type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+        // Unlike CONFLICT (context: 'NONE'), this reaches only the
+        // inheriting pool's own contributors, so pool-context mute settings
+        // must actually be consulted — see the catalog entry's comment.
+        context: { kind: 'POOL', poolId: 'pool-2' },
         payload: {
           wishlistItemId: 'wish-9',
           itemTitle: 'Noise-cancelling headphones',
@@ -866,11 +871,45 @@ describe('pool server utilities', () => {
           poolId: 'pool-2',
           poolTitle: 'Taylor birthday',
         },
-        sourceIdentifier: 'claim-transferred:pool-2:wish-9',
+        sourceIdentifier: 'claim-transferred:pool-2:wish-9:claim-9',
       });
       expect(queueNotification).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'contrib-2' }),
       );
+    });
+
+    it('varies the key with the settled claim id, so a later genuinely-new settlement is a distinct delivery and a retry of the same one stays deduped', () => {
+      // Two calls for the SAME settlement (a retry: the cleanup loader
+      // re-running, or this call site firing twice for one commit) must
+      // produce the identical key so the NotificationDelivery ledger
+      // dedupes them.
+      poolFindUnique.mockResolvedValue({
+        title: 'Taylor birthday',
+        contributors: [{ userId: 'contrib-1' }],
+      });
+      wishlistClaimFindUnique.mockResolvedValue({
+        poolId: 'pool-2',
+        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+      });
+
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
+      // A later, genuinely new settlement onto the same pool+item — the
+      // sibling of the recreated-conflict fix — must produce a distinct key
+      // instead of colliding with (and being silently suppressed by) the
+      // first settlement's ledger rows.
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-10');
+
+      return vi.waitFor(() => {
+        const sourceIdentifiers = queueNotification.mock.calls.map(
+          ([intent]) => intent.sourceIdentifier,
+        );
+        expect(sourceIdentifiers).toEqual([
+          'claim-transferred:pool-2:wish-9:claim-9',
+          'claim-transferred:pool-2:wish-9:claim-9',
+          'claim-transferred:pool-2:wish-9:claim-10',
+        ]);
+      });
     });
 
     it('stays silent when the pool no longer exists', async () => {
@@ -880,7 +919,7 @@ describe('pool server utilities', () => {
         wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
       });
 
-      queueWishlistClaimTransferredNotification('pool-2', 'wish-9');
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
 
       await vi.waitFor(() => {
         expect(wishlistClaimFindUnique).toHaveBeenCalled();
@@ -904,7 +943,7 @@ describe('pool server utilities', () => {
         wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
       });
 
-      queueWishlistClaimTransferredNotification('pool-2', 'wish-9');
+      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
 
       await vi.waitFor(() => {
         expect(wishlistClaimFindUnique).toHaveBeenCalled();
@@ -923,7 +962,7 @@ describe('pool server utilities', () => {
       });
 
       expect(() =>
-        queueWishlistClaimTransferredNotification('pool-2', 'wish-9'),
+        queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9'),
       ).not.toThrow();
 
       await vi.waitFor(() => {

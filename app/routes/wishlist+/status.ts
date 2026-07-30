@@ -98,10 +98,11 @@ export async function action({ request }: ActionFunctionArgs) {
   // intent, letting someone else claim it out from under the pool on the
   // next request.
   const release = await releaseSoloClaimForItem(wishlistItemId);
-  if (release.transferredToPoolId) {
+  if (release.transferredToPoolId && release.transferredClaimId) {
     queueWishlistClaimTransferredNotification(
       release.transferredToPoolId,
       wishlistItemId,
+      release.transferredClaimId,
     );
   }
   const statusTextMap: Record<

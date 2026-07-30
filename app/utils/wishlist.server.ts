@@ -43,10 +43,11 @@ export async function cleanupWishlistClaimsForOwner(ownerId: string) {
   });
 
   for (const release of released) {
-    if (!release.transferredToPoolId) continue;
+    if (!release.transferredToPoolId || !release.transferredClaimId) continue;
     queueWishlistClaimTransferredNotification(
       release.transferredToPoolId,
       release.wishlistItemId,
+      release.transferredClaimId,
     );
   }
 }

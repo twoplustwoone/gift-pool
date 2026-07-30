@@ -77,6 +77,8 @@ vi.mock('#app/utils/i18n.tsx', () => ({
           "Kept — you're still on gift duty for this one.",
         'notifications.wishlistClaimConflict.releaseSuccess':
           "Released — the group's got it from here. Thanks!",
+        'notifications.wishlistClaimConflict.releaseStale':
+          "That's out of date — your current claim on this item wasn't touched.",
         'toasts.genericError': 'Something went wrong',
       })[key] ?? key,
   }),
@@ -424,7 +426,7 @@ describe('NotificationBell', () => {
           id: 'notification-1',
           messageKey: 'wishlist.claim.conflict',
           messageParams: null,
-          metadata: { wishlistItemId: 'wish-9' },
+          metadata: { wishlistItemId: 'wish-9', claimId: 'claim-9' },
           status: 'UNREAD',
           targetUrl: '/users/taylor/wishlist',
           type: 'WISHLIST_CLAIM_CONFLICT',
@@ -459,6 +461,13 @@ describe('NotificationBell', () => {
       '/wishlist/purchase',
       expect.objectContaining({ method: 'POST', credentials: 'same-origin' }),
     );
+    // The release binds to the specific claim occurrence the notification
+    // was raised about, not just the item id.
+    const [, releaseInit] = fetchMock.mock.calls.find(
+      ([url]) => url === '/wishlist/purchase',
+    )!;
+    const releaseBody = releaseInit?.body as FormData;
+    expect(releaseBody.get('claimId')).toBe('claim-9');
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/notifications/notification-1/delete',
       expect.objectContaining({ method: 'POST' }),
@@ -470,6 +479,46 @@ describe('NotificationBell', () => {
     expect(toastSuccess).toHaveBeenCalledWith(
       "Released — the group's got it from here. Thanks!",
     );
+  });
+
+  it('shows a distinct message and rolls back when the release targets a stale claim occurrence', async () => {
+    // The notification's claimId no longer matches the item's current
+    // claim (e.g. the user released elsewhere and re-claimed the same item)
+    // — the server rejects with reason: 'stale', and the bell must say so
+    // rather than showing the generic error.
+    testConsole.error.mockImplementation(() => {});
+    fetchMock
+      .mockResolvedValueOnce(wishlistClaimConflictListResponse())
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { ok: false, reason: 'stale', claim: { claimedByUserId: 'someone-else' } },
+          { status: 400 },
+        ),
+      );
+
+    renderBell(1);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Notifications' }),
+    );
+    await screen.findByText('wishlist.claim.conflict');
+    await userEvent.click(screen.getByRole('button', { name: 'Release it' }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith(
+        "That's out of date — your current claim on this item wasn't touched.",
+      );
+    });
+    // Rolled back: nothing committed, so the notification (and its Release
+    // action) is still there for the user to reconsider.
+    expect(await screen.findByText('wishlist.claim.conflict')).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/notifications/notification-1/delete',
+      expect.anything(),
+    );
+    expect(track).toHaveBeenCalledWith('notification_action_completed', {
+      kind: 'WISHLIST_CLAIM_RELEASE',
+      success: false,
+    });
   });
 
   it('keeps a wishlist claim by dismissing only — never calls the purchase route', async () => {
@@ -505,6 +554,39 @@ describe('NotificationBell', () => {
     expect(toastSuccess).toHaveBeenCalledWith(
       "Kept — you're still on gift duty for this one.",
     );
+  });
+
+  it('surfaces an error and rolls back — never reports success — when Keep fails to dismiss', async () => {
+    // Regression: Keep has no irreversible side effect — dismissal IS the
+    // whole action. The swallow-dismiss-failures behavior only exists to
+    // protect an already-committed Release; applied to Keep it let a failed
+    // dismissal report success while the notification lived on server-side.
+    testConsole.error.mockImplementation(() => {});
+    fetchMock
+      .mockResolvedValueOnce(wishlistClaimConflictListResponse())
+      .mockRejectedValueOnce(new Error('network down'));
+
+    renderBell(1);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Notifications' }),
+    );
+    await screen.findByText('wishlist.claim.conflict');
+    await userEvent.click(screen.getByRole('button', { name: 'Keep it' }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith('Something went wrong');
+    });
+    // Rolled back: the notification (with its Keep/Release actions) is back
+    // rather than falsely reported as dismissed.
+    expect(await screen.findByText('wishlist.claim.conflict')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Keep it' }),
+    ).toBeInTheDocument();
+    expect(track).toHaveBeenCalledWith('notification_action_completed', {
+      kind: 'WISHLIST_CLAIM_KEEP',
+      success: false,
+    });
+    expect(toastSuccess).not.toHaveBeenCalled();
   });
 
   it('does not roll back a committed release when the dismissal request fails', async () => {

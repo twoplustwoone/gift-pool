@@ -662,7 +662,7 @@ export async function chooseIdea(
 		)
 	}
 	for (const release of claimSync.released) {
-		if (!release.transferredToPoolId) continue
+		if (!release.transferredToPoolId || !release.transferredClaimId) continue
 		queueLogEvent({
 			name: 'wishlist_claim_transferred',
 			userId: actorId,
@@ -675,6 +675,7 @@ export async function chooseIdea(
 		queueWishlistClaimTransferredNotification(
 			release.transferredToPoolId,
 			release.wishlistItemId,
+			release.transferredClaimId,
 		)
 	}
 
@@ -755,6 +756,13 @@ function queueWishlistClaimConflictNotification(
 				recipientUsername: claim.wishlistItem.owner.username,
 				poolId,
 				poolTitle,
+				// The specific claim occurrence this notification is about. The
+				// Release action carries this back so a stale notification (the
+				// claimant released elsewhere, re-claimed, then clicked an old
+				// notification's Release) can't destroy a claim it never asked
+				// about — see releaseUserClaim's expectedClaimId in
+				// wishlist-claims.server.ts.
+				claimId: claim.id,
 			},
 			// One notification per conflicted *claim*, not per conflicted
 			// pool/item pair: the key includes the claim row's own id, which is
@@ -797,10 +805,26 @@ function queueWishlistClaimConflictNotification(
 // PoolContributors"), and any contributor could be the one about to buy the
 // item duplicate. Unlike the conflict notification, `poolId`/`poolTitle` ARE
 // safe to use in this one's rendered copy: the audience is this pool's own
-// contributors, who already know their own pool.
+// contributors, who already know their own pool. For the same reason this
+// notification is context: 'POOL' (unlike CONFLICT's 'NONE' — see the
+// catalog entries in notification-catalog.ts): the audience is exactly this
+// pool's contributors, so a contributor who has muted the pool must not be
+// pinged, and that requires passing `{ kind: 'POOL', poolId }` on the intent
+// below so `resolveNotificationPolicy` actually consults pool-context
+// preferences instead of skipping them.
 export function queueWishlistClaimTransferredNotification(
 	poolId: string,
 	wishlistItemId: string,
+	// The id of the WishlistClaim row this settlement just created (see
+	// `settleItem` in wishlist-claims.server.ts). Required, not derived from
+	// re-reading the claim below: it identifies *this* settlement for the
+	// ledger key, so a later, genuinely new settlement onto the same pool+item
+	// (this pool inherits, later decides away, then inherits again after a
+	// fresh solo claim is created and released) gets a distinct key instead of
+	// matching — and being silently suppressed by — the first transfer's
+	// ledger rows. This is the same fix already applied to the sibling
+	// conflict-notification key; see queueWishlistClaimConflictNotification.
+	claimId: string,
 ): void {
 	void (async () => {
 		const [pool, claim] = await Promise.all([
@@ -832,6 +856,7 @@ export function queueWishlistClaimTransferredNotification(
 			queueNotification({
 				userId: contributor.userId,
 				type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+				context: { kind: 'POOL', poolId },
 				payload: {
 					wishlistItemId,
 					itemTitle: claim.wishlistItem.title,
@@ -845,10 +870,11 @@ export function queueWishlistClaimTransferredNotification(
 				// across every contributor is fine because the NotificationDelivery
 				// ledger dedupes on (userId, sourceIdentifier) — see
 				// claimNotificationDelivery in notification-dispatcher.server.ts.
-				// Re-entering this path for the same pool+item (a retry, or the
+				// Re-entering this path for the same settlement (a retry, or the
 				// cleanup loader re-running on the next page view) never notifies
-				// twice.
-				sourceIdentifier: `claim-transferred:${poolId}:${wishlistItemId}`,
+				// twice. The claim id keeps a *different* settlement distinct — see
+				// the parameter doc above.
+				sourceIdentifier: `claim-transferred:${poolId}:${wishlistItemId}:${claimId}`,
 			})
 		}
 	})().catch((error: unknown) => {
@@ -1026,7 +1052,7 @@ export async function cancelPool(poolId: string, actorId: string) {
 	await logPoolActivity(poolId, POOL_ACTIVITY_TYPE.POOL_CANCELLED, { actorId })
 
 	for (const release of claimSync.released) {
-		if (!release.transferredToPoolId) continue
+		if (!release.transferredToPoolId || !release.transferredClaimId) continue
 		queueLogEvent({
 			name: 'wishlist_claim_transferred',
 			userId: actorId,
@@ -1039,6 +1065,7 @@ export async function cancelPool(poolId: string, actorId: string) {
 		queueWishlistClaimTransferredNotification(
 			release.transferredToPoolId,
 			release.wishlistItemId,
+			release.transferredClaimId,
 		)
 	}
 

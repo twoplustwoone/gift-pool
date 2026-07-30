@@ -358,15 +358,19 @@ export const NOTIFICATION_EVENT_CATALOG = {
     supportedChannels: allChannels,
     deliveryStrategy: 'PER_CHANNEL_LEDGER',
   },
-  // Unlike CONFLICT, this notifies the pool's own contributors (context:
-  // 'NONE' still, because the audience is every contributor of the
-  // inheriting pool, not one context-scoped recipient — see
-  // queueWishlistClaimTransferredNotification in pool.server.ts, which fans
-  // this out to each contributor individually).
+  // Unlike CONFLICT, this notifies the pool's own contributors — context:
+  // 'POOL', because the audience is exactly the inheriting pool's
+  // contributors (see queueWishlistClaimTransferredNotification in
+  // pool.server.ts, which fans this out to each contributor individually and
+  // passes `{ kind: 'POOL', poolId }` on every intent). A contributor who has
+  // muted that pool must not be pinged, so contextual activity settings have
+  // to actually apply here — unlike CONFLICT, where the recipient may have no
+  // relationship to the pool's group at all and there is no pool context to
+  // consult.
   [NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED]: {
     topic: NOTIFICATION_TOPICS.WISHLIST_CLAIM_CONFLICTS,
     importance: 'IMPORTANT',
-    context: 'NONE',
+    context: 'POOL',
     supportedChannels: allChannels,
     deliveryStrategy: 'PER_CHANNEL_LEDGER',
   },
@@ -536,6 +540,18 @@ type WishlistClaimEventPayload = {
   poolTitle: string;
 };
 
+// CONFLICT-only: identifies the specific WishlistClaim occurrence this
+// notification was raised about. Its Release action carries this back
+// through the request so the mutation can be bound to that exact occurrence
+// (see releaseUserClaim's expectedClaimId in wishlist-claims.server.ts) — a
+// stale notification (claimant released elsewhere, re-claimed, then clicked
+// an old notification's Release) fails safely instead of dropping the
+// user's current claim. TRANSFERRED has no equivalent need: it isn't
+// actionable, so there is nothing for a stale click to destroy.
+type WishlistClaimConflictPayload = WishlistClaimEventPayload & {
+  claimId: string;
+};
+
 type PayloadByType = {
   [NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED]: FriendRequestPayload;
   [NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED]: FriendRequestPayload;
@@ -561,7 +577,7 @@ type PayloadByType = {
   [NOTIFICATION_TYPES.POOL_VOTE_REMINDER]: OrganizerNudgePayload;
   [NOTIFICATION_TYPES.POOL_PURCHASE_REMINDER]: OrganizerNudgePayload;
   [NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER]: OrganizerNudgePayload;
-  [NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT]: WishlistClaimEventPayload;
+  [NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT]: WishlistClaimConflictPayload;
   [NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED]: WishlistClaimEventPayload;
 };
 

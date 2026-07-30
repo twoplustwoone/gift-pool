@@ -10,6 +10,14 @@ import { usersShareWishlistAccess } from '#app/utils/wishlist.server.ts';
 const PurchaseFormSchema = z.object({
   wishlistItemId: z.string(),
   intent: z.enum(['purchase', 'unpurchase']),
+  // Present only when this release was triggered from a WISHLIST_CLAIM_CONFLICT
+  // notification's Release action — the WishlistClaim.id that notification
+  // was raised about. Binds the release to that exact claim occurrence so a
+  // stale notification (the claimant released elsewhere, re-claimed, then
+  // clicked an old notification) can't drop the user's current claim. Omitted
+  // by the wishlist page's own release button, which always means "release
+  // whatever I currently hold."
+  claimId: z.string().optional(),
 });
 export async function action({ request }: ActionFunctionArgs) {
   const userId = await requireUserId(request);
@@ -34,7 +42,7 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     );
   }
-  const { wishlistItemId, intent } = submission.value;
+  const { wishlistItemId, intent, claimId } = submission.value;
   const wishlistItem = await prisma.wishlistItem.findUnique({
     where: {
       id: wishlistItemId,
@@ -152,14 +160,22 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     };
   }
-  const release = await releaseUserClaim(wishlistItemId, userId);
+  const release = await releaseUserClaim(wishlistItemId, userId, claimId);
   if (!release.ok) {
     return data(
       {
         ok: false,
         wishlistItemId,
         claim: currentClaim,
-        error: 'You can only unmark items you marked as purchased.',
+        // 'stale' is distinct and legible on purpose: this is the notification
+        // Release action targeting a claim occurrence that is no longer
+        // live — the user's *current* claim was intentionally left untouched,
+        // not "reject, no explanation." See releaseUserClaim's docstring.
+        error:
+          release.reason === 'stale'
+            ? "That notification is out of date — your current claim on this item wasn't touched."
+            : 'You can only unmark items you marked as purchased.',
+        reason: release.reason,
       },
       {
         status: 400,
@@ -174,10 +190,11 @@ export async function action({ request }: ActionFunctionArgs) {
     source: 'server',
     properties: { wishlistItemId, toPoolId: release.transferredToPoolId },
   });
-  if (release.transferredToPoolId) {
+  if (release.transferredToPoolId && release.transferredClaimId) {
     queueWishlistClaimTransferredNotification(
       release.transferredToPoolId,
       wishlistItemId,
+      release.transferredClaimId,
     );
   }
   // A transfer means the item is NOT free — settlement handed the claim

@@ -840,10 +840,11 @@ async function deleteDataAction({ userId }: ProfileActionArgs) {
   // so this never blocks deletion.
   const released = await releaseSoloClaimsMatching({ claimedByUserId: userId });
   for (const release of released) {
-    if (!release.transferredToPoolId) continue;
+    if (!release.transferredToPoolId || !release.transferredClaimId) continue;
     queueWishlistClaimTransferredNotification(
       release.transferredToPoolId,
       release.wishlistItemId,
+      release.transferredClaimId,
     );
   }
   await prisma.user.delete({ where: { id: userId } });

@@ -42,13 +42,21 @@ function waitedLonger(a: IntentCandidate, b: IntentCandidate): boolean {
   return a.createdAt.getTime() <= b.createdAt.getTime();
 }
 
+// The settlement outcome: which pool inherited the item, and — new — the id
+// of the WishlistClaim row that was just created for it. Callers that fan
+// this settlement out as a notification (queueWishlistClaimTransferredNotification)
+// need the claim id, not just the pool id: it is what makes a later,
+// genuinely new settlement onto the same pool+item distinct from a retry of
+// this one in the notification ledger key. See that function's docstring.
+type ClaimSettlement = { poolId: string; claimId: string };
+
 /**
  * The settlement hook. Runs whenever a claim disappears — and MUST run inside
  * the same transaction as the release. Split them and there is a window where
  * the item reads as unclaimed, letting a third party take an item a pool is
  * actively buying: exactly the bug this feature exists to close.
  */
-async function settleItem(tx: Tx, wishlistItemId: string): Promise<string | null> {
+async function settleItem(tx: Tx, wishlistItemId: string): Promise<ClaimSettlement | null> {
   const existing = await tx.wishlistClaim.findUnique({
     where: { wishlistItemId },
     select: { id: true },
@@ -71,8 +79,11 @@ async function settleItem(tx: Tx, wishlistItemId: string): Promise<string | null
     first,
   );
 
-  await tx.wishlistClaim.create({ data: { wishlistItemId, poolId: heir.id } });
-  return heir.id;
+  const created = await tx.wishlistClaim.create({
+    data: { wishlistItemId, poolId: heir.id },
+    select: { id: true },
+  });
+  return { poolId: heir.id, claimId: created.id };
 }
 
 export type ClaimForUserFailure = {
@@ -130,10 +141,34 @@ export async function claimForUser(
   }
 }
 
+export type ReleaseUserClaimResult =
+  | { ok: true; transferredToPoolId: string | null; transferredClaimId: string | null }
+  // 'not-found' covers both "no claim exists" and "the caller doesn't hold
+  // it" — the caller-facing distinction has never mattered here, only that
+  // nothing was released. 'stale' is new: `expectedClaimId` was supplied and
+  // didn't match the claim actually live on the item right now.
+  | { ok: false; reason: 'not-found' | 'stale' };
+
 export async function releaseUserClaim(
   wishlistItemId: string,
   userId: string,
-): Promise<{ ok: boolean; transferredToPoolId: string | null }> {
+  // The specific WishlistClaim occurrence the caller means to release — e.g.
+  // the id a WISHLIST_CLAIM_CONFLICT notification was raised about, carried
+  // back through its Release action. Omitted by callers acting on "whatever
+  // claim is live right now" (the wishlist page's own release button), which
+  // always passes once the ownership check above holds.
+  //
+  // Binding matters because a notification can outlive the claim it was
+  // about: the claimant releases from the wishlist UI directly (notification
+  // row survives), a pool decides away, the same user re-claims the item —
+  // a brand new WishlistClaim row — and only then clicks Release on the
+  // stale notification. Without this check that release would silently drop
+  // the user's *new* claim, which nothing asked about. Rejecting instead
+  // means the stale notification's action fails safely and the current claim
+  // is left untouched; the caller surfaces this as a distinct, legible error
+  // rather than the generic "not yours to release" message.
+  expectedClaimId?: string,
+): Promise<ReleaseUserClaimResult> {
   return prisma.$transaction(async (tx) => {
     const claim = await tx.wishlistClaim.findUnique({
       where: { wishlistItemId },
@@ -142,7 +177,10 @@ export async function releaseUserClaim(
     // Only a claimer releases their own claim. No override exists, by design:
     // an override could erase evidence of a purchase that physically happened.
     if (!claim || claim.claimedByUserId !== userId) {
-      return { ok: false, transferredToPoolId: null };
+      return { ok: false, reason: 'not-found' };
+    }
+    if (expectedClaimId !== undefined && claim.id !== expectedClaimId) {
+      return { ok: false, reason: 'stale' };
     }
 
     await tx.wishlistClaim.delete({ where: { id: claim.id } });
@@ -152,8 +190,12 @@ export async function releaseUserClaim(
     // runs, a concurrent `claimForUser` could win the free item in that gap,
     // and a pool actively buying it would silently lose out with no error —
     // the exact bug this module exists to close. See `settleItem`'s docstring.
-    const transferredToPoolId = await settleItem(tx, wishlistItemId);
-    return { ok: true, transferredToPoolId };
+    const settlement = await settleItem(tx, wishlistItemId);
+    return {
+      ok: true,
+      transferredToPoolId: settlement?.poolId ?? null,
+      transferredClaimId: settlement?.claimId ?? null,
+    };
   });
 }
 
@@ -170,19 +212,27 @@ export async function releaseUserClaim(
  */
 export async function releaseSoloClaimForItem(
   wishlistItemId: string,
-): Promise<{ ok: boolean; transferredToPoolId: string | null }> {
+): Promise<{
+  ok: boolean;
+  transferredToPoolId: string | null;
+  transferredClaimId: string | null;
+}> {
   return prisma.$transaction(async (tx) => {
     const claim = await tx.wishlistClaim.findUnique({
       where: { wishlistItemId },
       select: { id: true, claimedByUserId: true },
     });
     if (!claim || claim.claimedByUserId === null) {
-      return { ok: false, transferredToPoolId: null };
+      return { ok: false, transferredToPoolId: null, transferredClaimId: null };
     }
 
     await tx.wishlistClaim.delete({ where: { id: claim.id } });
-    const transferredToPoolId = await settleItem(tx, wishlistItemId);
-    return { ok: true, transferredToPoolId };
+    const settlement = await settleItem(tx, wishlistItemId);
+    return {
+      ok: true,
+      transferredToPoolId: settlement?.poolId ?? null,
+      transferredClaimId: settlement?.claimId ?? null,
+    };
   });
 }
 
@@ -194,7 +244,11 @@ export async function releaseSoloClaimForItem(
 export type SyncPoolClaimResult = {
   claimedItemId: string | null;
   conflictedItemId: string | null;
-  released: Array<{ wishlistItemId: string; transferredToPoolId: string | null }>;
+  released: Array<{
+    wishlistItemId: string;
+    transferredToPoolId: string | null;
+    transferredClaimId: string | null;
+  }>;
 };
 
 /**
@@ -226,10 +280,18 @@ export async function syncPoolClaimInTx(tx: Tx, poolId: string): Promise<SyncPoo
   }
   // Settle only after every release, so an heir can't take an item this pool
   // is about to release and then re-take.
-  const released: Array<{ wishlistItemId: string; transferredToPoolId: string | null }> = [];
+  const released: Array<{
+    wishlistItemId: string;
+    transferredToPoolId: string | null;
+    transferredClaimId: string | null;
+  }> = [];
   for (const itemId of releasedItemIds) {
-    const transferredToPoolId = await settleItem(tx, itemId);
-    released.push({ wishlistItemId: itemId, transferredToPoolId });
+    const settlement = await settleItem(tx, itemId);
+    released.push({
+      wishlistItemId: itemId,
+      transferredToPoolId: settlement?.poolId ?? null,
+      transferredClaimId: settlement?.claimId ?? null,
+    });
   }
 
   if (!intendedItemId) {
@@ -284,13 +346,23 @@ export async function syncPoolClaim(poolId: string): Promise<SyncPoolClaimResult
  */
 export async function releaseSoloClaimsMatching(
   where: Prisma.WishlistClaimWhereInput,
-): Promise<Array<{ wishlistItemId: string; transferredToPoolId: string | null }>> {
+): Promise<
+  Array<{
+    wishlistItemId: string;
+    transferredToPoolId: string | null;
+    transferredClaimId: string | null;
+  }>
+> {
   const claims = await prisma.wishlistClaim.findMany({
     where,
     select: { id: true, wishlistItemId: true },
   });
 
-  const released: Array<{ wishlistItemId: string; transferredToPoolId: string | null }> = [];
+  const released: Array<{
+    wishlistItemId: string;
+    transferredToPoolId: string | null;
+    transferredClaimId: string | null;
+  }> = [];
   for (const claim of claims) {
     const outcome = await prisma.$transaction(async (tx) => {
       const current = await tx.wishlistClaim.findFirst({
@@ -300,12 +372,20 @@ export async function releaseSoloClaimsMatching(
       if (!current) return { released: false as const };
 
       await tx.wishlistClaim.delete({ where: { id: claim.id } });
-      const transferredToPoolId = await settleItem(tx, claim.wishlistItemId);
-      return { released: true as const, transferredToPoolId };
+      const settlement = await settleItem(tx, claim.wishlistItemId);
+      return {
+        released: true as const,
+        transferredToPoolId: settlement?.poolId ?? null,
+        transferredClaimId: settlement?.claimId ?? null,
+      };
     });
 
     if (outcome.released) {
-      released.push({ wishlistItemId: claim.wishlistItemId, transferredToPoolId: outcome.transferredToPoolId });
+      released.push({
+        wishlistItemId: claim.wishlistItemId,
+        transferredToPoolId: outcome.transferredToPoolId,
+        transferredClaimId: outcome.transferredClaimId,
+      });
     }
   }
   return released;

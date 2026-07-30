@@ -371,7 +371,13 @@ async function renderWishlistClaimConflict<C extends NotificationChannel>(
         messageKey: 'notifications.wishlistClaimConflict.message',
         messageParams: JSON.stringify(messageParams),
         targetUrl: wishlistUrl,
-        metadata: JSON.stringify({ wishlistItemId: payload.wishlistItemId }),
+        metadata: JSON.stringify({
+          wishlistItemId: payload.wishlistItemId,
+          // Carried through to the Release action so it can bind the
+          // mutation to this exact claim occurrence — see
+          // releaseUserClaim's expectedClaimId in wishlist-claims.server.ts.
+          claimId: payload.claimId,
+        }),
         actions: JSON.stringify([
           {
             kind: 'WISHLIST_CLAIM_KEEP',

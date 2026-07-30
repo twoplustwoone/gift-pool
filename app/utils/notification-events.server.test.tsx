@@ -274,6 +274,7 @@ describe('wishlist claim conflict notification rendering', () => {
       recipientUsername: 'taylor',
       poolId: 'pool-1',
       poolTitle: 'Taylor birthday',
+      claimId: 'claim-1',
     },
   };
 
@@ -294,7 +295,10 @@ describe('wishlist claim conflict notification rendering', () => {
         recipient: 'Taylor',
       }),
       targetUrl: '/users/taylor/wishlist',
-      metadata: JSON.stringify({ wishlistItemId: 'wish-9' }),
+      metadata: JSON.stringify({
+        wishlistItemId: 'wish-9',
+        claimId: 'claim-1',
+      }),
       actions: JSON.stringify([
         {
           kind: 'WISHLIST_CLAIM_KEEP',

@@ -695,6 +695,12 @@ export const NotificationBell = () => {
         unknown
       >;
       const wishlistItemId = metadata.wishlistItemId as string | undefined;
+      // Present on WISHLIST_CLAIM_CONFLICT notifications — binds Release to
+      // the exact claim occurrence this notification was raised about, so a
+      // stale notification (the user released elsewhere and re-claimed the
+      // same item) can't drop their new claim. See the payload comment in
+      // notification-catalog.ts and releaseUserClaim's expectedClaimId.
+      const claimId = metadata.claimId as string | undefined;
       const isRelease = action.kind === WISHLIST_CLAIM_RELEASE_EVENT;
       if (isRelease && !wishlistItemId) return;
 
@@ -710,6 +716,12 @@ export const NotificationBell = () => {
       // forever. Only a failure of the release call itself (still false at
       // that point) triggers the rollback.
       let releaseCompleted = false;
+      // Set when the server rejected the release because `claimId` no
+      // longer matches the claim actually live on the item — i.e. this
+      // notification is stale. Surfaced as a distinct, legible toast rather
+      // than the generic failure message, per the fix for a stale Release
+      // silently no-op'ing on the wrong claim.
+      let releaseStale = false;
 
       setPendingActionKeys((prev) => new Set(prev).add(actionKey));
       try {
@@ -717,6 +729,7 @@ export const NotificationBell = () => {
           const releaseFormData = new FormData();
           releaseFormData.set('wishlistItemId', wishlistItemId);
           releaseFormData.set('intent', 'unpurchase');
+          if (claimId) releaseFormData.set('claimId', claimId);
           const releaseResponse = await fetch(WISHLIST_PURCHASE_ENDPOINT, {
             method: 'POST',
             credentials: 'same-origin',
@@ -725,8 +738,9 @@ export const NotificationBell = () => {
           });
           const releasePayload = (await releaseResponse
             .json()
-            .catch(() => null)) as { ok?: boolean } | null;
+            .catch(() => null)) as { ok?: boolean; reason?: string } | null;
           if (!releaseResponse.ok || !releasePayload?.ok) {
+            releaseStale = releasePayload?.reason === 'stale';
             throw new Error('Unable to release wishlist claim');
           }
           releaseCompleted = true;
@@ -748,20 +762,28 @@ export const NotificationBell = () => {
               headers: { Accept: 'application/json' },
             },
           );
-          if (dismissResponse.ok) {
-            const dismissPayload = (await dismissResponse.json()) as {
-              unreadCount?: number;
-            };
-            if (typeof dismissPayload.unreadCount === 'number') {
-              setUnreadCount(dismissPayload.unreadCount);
-            }
+          if (!dismissResponse.ok) {
+            throw new Error('Unable to dismiss notification');
+          }
+          const dismissPayload = (await dismissResponse.json()) as {
+            unreadCount?: number;
+          };
+          if (typeof dismissPayload.unreadCount === 'number') {
+            setUnreadCount(dismissPayload.unreadCount);
           }
         } catch (dismissErr) {
-          // The release (if any) already committed server-side by this
-          // point — only log the dismissal failure, never roll back past
-          // it. The notification row will simply resurface as read on the
-          // next list load instead of staying dismissed.
-          console.error(dismissErr);
+          if (releaseCompleted) {
+            // The release already committed server-side by this point —
+            // only log the dismissal failure, never roll back past it. The
+            // notification row will simply resurface as read on the next
+            // list load instead of staying dismissed.
+            console.error(dismissErr);
+          } else {
+            // Keep has no irreversible side effect: dismissal IS the whole
+            // action. Let the failure reach the outer catch so the rollback
+            // below runs and the UI doesn't lie about Keep having worked.
+            throw dismissErr;
+          }
         }
 
         track('notification_action_completed', {
@@ -783,7 +805,11 @@ export const NotificationBell = () => {
           kind: action.kind,
           success: false,
         });
-        toast.error(t('toasts.genericError'));
+        toast.error(
+          releaseStale
+            ? t('notifications.wishlistClaimConflict.releaseStale')
+            : t('toasts.genericError'),
+        );
       } finally {
         setPendingActionKeys((prev) => {
           const next = new Set(prev);

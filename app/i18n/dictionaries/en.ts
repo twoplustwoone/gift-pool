@@ -93,6 +93,8 @@ export const en = {
       release: 'Release it',
       keepSuccess: "Kept — you're still on gift duty for this one.",
       releaseSuccess: "Released — the group's got it from here. Thanks!",
+      releaseStale:
+        "That's out of date — your current claim on this item wasn't touched.",
     },
     wishlistClaimTransferred: {
       message:
