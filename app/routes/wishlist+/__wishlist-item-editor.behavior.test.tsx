@@ -164,7 +164,9 @@ describe('wishlist item editor behavior', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Title for your item')).toHaveValue('Acme Widget');
+      expect(screen.getByPlaceholderText('Title for your item')).toHaveValue(
+        'Acme Widget',
+      );
       expect(screen.getByLabelText('Price (optional)')).toHaveValue('49.99');
     });
     expect(
@@ -191,7 +193,10 @@ describe('wishlist item editor behavior', () => {
     );
 
     await user.click(screen.getByText('Open'));
-    await user.type(screen.getByPlaceholderText('Title for your item'), 'My own title');
+    await user.type(
+      screen.getByPlaceholderText('Title for your item'),
+      'My own title',
+    );
     const linkField = screen.getByLabelText('Link');
     await user.type(linkField, 'https://shop.example.com/widget');
     fireEvent.blur(linkField);
@@ -216,11 +221,69 @@ describe('wishlist item editor behavior', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Price (optional)')).toHaveValue('10.00');
     });
-    expect(screen.getByPlaceholderText('Title for your item')).toHaveValue('My own title');
+    expect(screen.getByPlaceholderText('Title for your item')).toHaveValue(
+      'My own title',
+    );
     expect(
       document.querySelector<HTMLInputElement>('input[name="enrichedFields"]')
         ?.value,
     ).toBe('price');
+  });
+
+  // Regression for GIFTPOOL-UI-1T. useUrlEnrichment lives in the outer editor,
+  // so its fetcher outlives the <form>, which only exists while the dialog is
+  // open and in edit mode. When the unfurl lands after the form has gone,
+  // readFieldValue reads through a null formRef and returns '' — which looks
+  // exactly like "the field is empty" — so the prefill ran and Conform's
+  // form.update threw out of requestSubmit. Closing after a save is the real
+  // path: useSubmissionImageSync closes the dialog on a successful save, which
+  // can easily beat an in-flight unfurl.
+  it('does not crash when the unfurl lands after the dialog has closed', async () => {
+    const user = userEvent.setup();
+
+    const view = render(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+    const linkField = screen.getByLabelText('Link');
+    await user.type(linkField, 'https://shop.example.com/widget');
+    fireEvent.blur(linkField);
+    expect(fetcherSnapshot.submit).toHaveBeenCalled();
+
+    // Close the dialog while the unfurl is still in flight.
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Link')).not.toBeInTheDocument();
+    });
+
+    // The response arrives with no form mounted to receive it.
+    fetcherSnapshot.data = {
+      result: {
+        title: 'Acme Widget',
+        imageUrl: null,
+        priceCents: 4999,
+        currency: 'USD',
+        source: 'structured',
+      },
+    };
+    expect(() =>
+      view.rerender(
+        <WishlistItemEditor
+          canEdit
+          initialMode="create"
+          trigger={<button type="button">Open</button>}
+        />,
+      ),
+    ).not.toThrow();
+
+    // And the editor still works afterwards.
+    await user.click(screen.getByText('Open'));
+    expect(await screen.findByLabelText('Link')).toBeInTheDocument();
   });
 
   it('shows a validation message when the image URL preview is not http(s)', async () => {
