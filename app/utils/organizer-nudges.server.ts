@@ -216,8 +216,9 @@ export async function sendOrganizerNudge({
       }
 
       // Re-evaluate every mutable domain and rate-limit input immediately before
-      // the audit row is claimed. Preference policy is rechecked by the delivery
-      // dispatcher as well, so a concurrent opt-out still suppresses delivery.
+      // the audit row is claimed. Preference policy is rechecked once more in
+      // the post-commit fan-out, so a concurrent opt-out still suppresses
+      // delivery.
       const current = await evaluateNudge(tx, {
         poolId,
         senderId,
@@ -572,22 +573,39 @@ async function fanoutOrganizerNudgeNotifications(nudgeId: string) {
   });
   if (!nudge) return;
 
+  if (nudge.recipients.length === 0) return;
+
   const type = notificationTypeForKind(nudge.kind as OrganizerNudgeKind);
   const senderDisplayName = nudge.sender.name ?? nudge.sender.username;
+  // Deliberately a second resolution, not a reuse of the pre-commit filter in
+  // filterPreferenceEligibleRecipients: this read happens after the audit row
+  // committed, so a recipient who opted out in between is still suppressed
+  // (see the comment above evaluateNudge). What changed is that it is now one
+  // batched read for the audience instead of one per recipient inside each
+  // un-awaited dispatch, which is what timed out in GIFTPOOL-UI-1M.
+  const policies = await resolveNotificationPoliciesForUsers({
+    userIds: nudge.recipients.map((recipient) => recipient.userId),
+    type,
+    context: { kind: 'POOL', poolId: nudge.pool.id },
+  });
+
   for (const recipient of nudge.recipients) {
-    queueNotification({
-      userId: recipient.userId,
-      type,
-      context: { kind: 'POOL', poolId: nudge.pool.id },
-      sourceIdentifier: `organizer-nudge:${nudge.id}`,
-      payload: {
-        nudgeId: nudge.id,
-        poolId: nudge.pool.id,
-        poolTitle: nudge.pool.title,
-        senderUserId: nudge.sender.id,
-        senderDisplayName,
+    queueNotification(
+      {
+        userId: recipient.userId,
+        type,
+        context: { kind: 'POOL', poolId: nudge.pool.id },
+        sourceIdentifier: `organizer-nudge:${nudge.id}`,
+        payload: {
+          nudgeId: nudge.id,
+          poolId: nudge.pool.id,
+          poolTitle: nudge.pool.title,
+          senderUserId: nudge.sender.id,
+          senderDisplayName,
+        },
       },
-    });
+      { policy: policies.get(recipient.userId) },
+    );
   }
 }
 

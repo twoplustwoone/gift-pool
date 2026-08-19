@@ -5,6 +5,10 @@ import {
   type PoolActivityNotificationType,
 } from '#app/utils/notification-catalog.ts';
 import { queueNotification } from '#app/utils/notification-dispatcher.server.ts';
+import {
+  resolveNotificationPoliciesForUsers,
+  type ResolvedNotificationPolicy,
+} from '#app/utils/notification-policy.server.ts';
 
 type BroadcastPoolActivityEvent = {
   type:
@@ -71,9 +75,26 @@ async function fanoutPoolActivityNotifications(
   if (!pool) return;
 
   const recipientIds = getEligibleRecipientIds(event, pool);
+  if (recipientIds.length === 0) return;
+
+  // One batched read for the whole audience rather than one per recipient
+  // inside each dispatch — see resolveNotificationPoliciesForUsers for why
+  // per-recipient resolution here took production down (GIFTPOOL-UI-1P/-1Q).
+  const policies = await resolveNotificationPoliciesForUsers({
+    userIds: recipientIds,
+    type: event.type,
+    context: { kind: 'POOL', poolId: pool.id },
+  });
+
   const sourceIdentifier = occurrenceKey(event.type, event.occurrenceId);
   for (const userId of recipientIds) {
-    queuePoolNotification({ event, pool, userId, sourceIdentifier });
+    queuePoolNotification({
+      event,
+      pool,
+      userId,
+      sourceIdentifier,
+      policy: policies.get(userId),
+    });
   }
 }
 
@@ -120,11 +141,13 @@ function queuePoolNotification({
   pool,
   userId,
   sourceIdentifier,
+  policy,
 }: {
   event: PoolActivityNotificationEvent;
   pool: PoolAudienceSnapshot;
   userId: string;
   sourceIdentifier: string;
+  policy?: ResolvedNotificationPolicy;
 }) {
   const base = {
     userId,
@@ -142,17 +165,20 @@ function queuePoolNotification({
     case NOTIFICATION_TYPES.POOL_CANCELLED:
     case NOTIFICATION_TYPES.POOL_PURCHASER_ASSIGNED:
     case NOTIFICATION_TYPES.POOL_DELIVERER_ASSIGNED:
-      queueNotification({ ...base, type: event.type, payload });
+      queueNotification({ ...base, type: event.type, payload }, { policy });
       return;
     case NOTIFICATION_TYPES.POOL_GIFT_CHOSEN:
       if (!pool.chosenIdea) {
         throw new Error(`Pool ${pool.id} has no chosen idea after decision.`);
       }
-      queueNotification({
-        ...base,
-        type: event.type,
-        payload: { ...payload, chosenIdeaName: pool.chosenIdea.name },
-      });
+      queueNotification(
+        {
+          ...base,
+          type: event.type,
+          payload: { ...payload, chosenIdeaName: pool.chosenIdea.name },
+        },
+        { policy },
+      );
   }
 }
 

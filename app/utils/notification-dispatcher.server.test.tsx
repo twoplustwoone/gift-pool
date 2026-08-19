@@ -865,3 +865,112 @@ describe('notification dispatcher', () => {
     });
   });
 });
+
+// The fan-out seam: an audience-wide caller resolves every recipient's policy
+// in one batched read and hands each one in, so the dispatcher must actually
+// honour what it is given rather than resolving again.
+describe('dispatchNotification with a pre-resolved policy', () => {
+  beforeEach(async () => {
+    await prisma.notificationDelivery.deleteMany();
+    await prisma.notification.deleteMany();
+    await prisma.user.deleteMany({
+      where: { email: { contains: '@example.com' } },
+    });
+  });
+
+  const policyFor = (
+    userId: string,
+    overrides: Partial<Record<string, unknown>> = {},
+  ) => ({
+    userId,
+    type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+    channels: {
+      [NOTIFICATION_CHANNELS.IN_APP]: {
+        channel: NOTIFICATION_CHANNELS.IN_APP,
+        allowed: true,
+        reason: 'allowed',
+        source: 'catalog_default',
+      },
+      [NOTIFICATION_CHANNELS.EMAIL]: {
+        channel: NOTIFICATION_CHANNELS.EMAIL,
+        allowed: false,
+        reason: 'preference_disabled',
+        source: 'catalog_default',
+      },
+      [NOTIFICATION_CHANNELS.WEB_PUSH]: {
+        channel: NOTIFICATION_CHANNELS.WEB_PUSH,
+        allowed: false,
+        reason: 'preference_disabled',
+        source: 'catalog_default',
+      },
+      ...overrides,
+    },
+  });
+
+  const intentFor = (
+    userId: string,
+    owner: { id: string; username: string; name: string | null },
+  ) => ({
+    userId,
+    type: NOTIFICATION_TYPES.UPCOMING_BIRTHDAY,
+    payload: birthdayPayload(userId, owner, 7),
+  });
+
+  it('honours an injected denial the stored preferences would have allowed', async () => {
+    const [user, owner] = await Promise.all([createUser(), createUser()]);
+
+    // Sanity: without the injected policy this very intent delivers in-app.
+    const resolved = await dispatchNotification(intentFor(user.id, owner));
+    expect(resolved.channels[NOTIFICATION_CHANNELS.IN_APP].status).toBe(
+      'delivered',
+    );
+
+    await prisma.notificationDelivery.deleteMany();
+    await prisma.notification.deleteMany();
+    const denied = await dispatchNotification(intentFor(user.id, owner), {
+      policy: policyFor(user.id, {
+        [NOTIFICATION_CHANNELS.IN_APP]: {
+          channel: NOTIFICATION_CHANNELS.IN_APP,
+          allowed: false,
+          reason: 'context_muted',
+          source: 'pool_override',
+        },
+      }) as never,
+    });
+
+    expect(denied.channels[NOTIFICATION_CHANNELS.IN_APP].status).toBe(
+      'context_muted',
+    );
+    expect(denied.deliveredChannels).toEqual([]);
+    await expect(
+      prisma.notification.count({ where: { userId: user.id } }),
+    ).resolves.toBe(0);
+  });
+
+  it('rejects a policy resolved for a different user', async () => {
+    const [user, other, owner] = await Promise.all([
+      createUser(),
+      createUser(),
+      createUser(),
+    ]);
+
+    await expect(
+      dispatchNotification(intentFor(user.id, owner), {
+        policy: policyFor(other.id) as never,
+      }),
+    ).rejects.toThrow(/does not match intent/);
+  });
+
+  it('rejects a policy resolved for a different notification type', async () => {
+    const [user, owner] = await Promise.all([createUser(), createUser()]);
+
+    await expect(
+      dispatchNotification(intentFor(user.id, owner), {
+        policy: {
+          ...policyFor(user.id),
+          type: NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED,
+        } as never,
+      }),
+    ).rejects.toThrow(/does not match intent/);
+  });
+});

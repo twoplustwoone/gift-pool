@@ -75,8 +75,7 @@ vi.mock('#app/utils/db.server.ts', () => {
     // wishlist-claims.server.ts is permitted to write WishlistClaim — see
     // wishlist-claim-write-guard.test.ts.
     wishlistClaim: {
-      findUnique: (...args: Array<unknown>) =>
-        wishlistClaimFindUnique(...args),
+      findUnique: (...args: Array<unknown>) => wishlistClaimFindUnique(...args),
     },
     notification: {
       findMany: (...args: Array<unknown>) => notificationFindMany(...args),
@@ -107,7 +106,9 @@ vi.mock('#app/utils/wishlist-claims.server.ts', async (importOriginal) => {
   // rather than re-declaring it here, so the two can't drift. Only
   // `syncPoolClaimInTx` (which does hit the DB) is swapped for the spy.
   const actual =
-    await importOriginal<typeof import('#app/utils/wishlist-claims.server.ts')>();
+    await importOriginal<
+      typeof import('#app/utils/wishlist-claims.server.ts')
+    >();
   return {
     ...actual,
     syncPoolClaimInTx: (...args: Array<unknown>) => syncPoolClaimInTx(...args),
@@ -117,6 +118,34 @@ vi.mock('#app/utils/wishlist-claims.server.ts', async (importOriginal) => {
 vi.mock('#app/utils/notification-dispatcher.server.ts', () => ({
   queueNotification: (...args: Array<unknown>) => queueNotification(...args),
 }));
+
+// The transferred-claim fan-out resolves one policy for the whole contributor
+// set and hands each recipient's in. The real resolver would need a fully
+// stubbed preference schema against this mocked client, so stub the seam.
+vi.mock('#app/utils/notification-policy.server.ts', () => ({
+  resolveNotificationPoliciesForUsers: (args: {
+    userIds: string[];
+    type: string;
+    context?: unknown;
+  }) => resolvePolicies(args),
+}));
+
+const resolvePolicies = vi.fn(
+  ({ userIds, type }: { userIds: string[]; type: string }) =>
+    Promise.resolve(
+      new Map(
+        userIds.map((userId) => [userId, { userId, type, channels: {} }]),
+      ),
+    ),
+);
+
+const transferredPolicyFor = (userId: string) => ({
+  policy: {
+    userId,
+    type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+    channels: {},
+  },
+});
 
 import {
   addContributor,
@@ -152,6 +181,7 @@ beforeEach(() => {
   captureMessage.mockReset();
   captureException.mockReset();
   queueNotification.mockReset();
+  resolvePolicies.mockClear();
   wishlistClaimFindUnique.mockReset().mockResolvedValue(null);
   giftIdeaCreate
     .mockReset()
@@ -178,9 +208,11 @@ beforeEach(() => {
   poolUpdateMany.mockReset().mockResolvedValue({ count: 1 });
   queueLogEvent.mockReset().mockReturnValue({ eventId: 'event-123' });
   queuePoolActivityNotifications.mockReset();
-  syncPoolClaimInTx
-    .mockReset()
-    .mockResolvedValue({ claimedItemId: null, conflictedItemId: null, released: [] });
+  syncPoolClaimInTx.mockReset().mockResolvedValue({
+    claimedItemId: null,
+    conflictedItemId: null,
+    released: [],
+  });
 });
 
 describe('pool server utilities', () => {
@@ -772,7 +804,10 @@ describe('pool server utilities', () => {
     });
 
     const conflictSourceIdentifiers = queueNotification.mock.calls
-      .filter(([intent]) => intent.type === NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT)
+      .filter(
+        ([intent]) =>
+          intent.type === NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT,
+      )
       .map(([intent]) => intent.sourceIdentifier);
     expect(conflictSourceIdentifiers).toEqual([
       'claim-conflict:pool-1:wish-9:claim-1',
@@ -959,26 +994,37 @@ describe('pool server utilities', () => {
       await vi.waitFor(() => {
         expect(queueNotification).toHaveBeenCalledTimes(2);
       });
-      expect(queueNotification).toHaveBeenCalledWith({
-        userId: 'contrib-1',
-        type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
-        // Unlike CONFLICT (context: 'NONE'), this reaches only the
-        // inheriting pool's own contributors, so pool-context mute settings
-        // must actually be consulted — see the catalog entry's comment.
-        context: { kind: 'POOL', poolId: 'pool-2' },
-        payload: {
-          wishlistItemId: 'wish-9',
-          itemTitle: 'Noise-cancelling headphones',
-          recipientName: 'Taylor',
-          recipientUsername: 'taylor',
-          poolId: 'pool-2',
-          poolTitle: 'Taylor birthday',
+      expect(queueNotification).toHaveBeenCalledWith(
+        {
+          userId: 'contrib-1',
+          type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+          // Unlike CONFLICT (context: 'NONE'), this reaches only the
+          // inheriting pool's own contributors, so pool-context mute settings
+          // must actually be consulted — see the catalog entry's comment.
+          context: { kind: 'POOL', poolId: 'pool-2' },
+          payload: {
+            wishlistItemId: 'wish-9',
+            itemTitle: 'Noise-cancelling headphones',
+            recipientName: 'Taylor',
+            recipientUsername: 'taylor',
+            poolId: 'pool-2',
+            poolTitle: 'Taylor birthday',
+          },
+          sourceIdentifier: 'claim-transferred:pool-2:wish-9:claim-9',
         },
-        sourceIdentifier: 'claim-transferred:pool-2:wish-9:claim-9',
-      });
+        transferredPolicyFor('contrib-1'),
+      );
       expect(queueNotification).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'contrib-2' }),
+        transferredPolicyFor('contrib-2'),
       );
+      // Both contributors came out of one batched resolution.
+      expect(resolvePolicies).toHaveBeenCalledTimes(1);
+      expect(resolvePolicies).toHaveBeenCalledWith({
+        userIds: ['contrib-1', 'contrib-2'],
+        type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+        context: { kind: 'POOL', poolId: 'pool-2' },
+      });
     });
 
     it('varies the key with the settled claim id, so a later genuinely-new settlement is a distinct delivery and a retry of the same one stays deduped', () => {
@@ -999,17 +1045,26 @@ describe('pool server utilities', () => {
         .mockResolvedValueOnce({
           id: 'claim-9',
           poolId: 'pool-2',
-          wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+          wishlistItem: {
+            title: 'Headphones',
+            owner: { name: 'Taylor', username: 'taylor' },
+          },
         })
         .mockResolvedValueOnce({
           id: 'claim-9',
           poolId: 'pool-2',
-          wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+          wishlistItem: {
+            title: 'Headphones',
+            owner: { name: 'Taylor', username: 'taylor' },
+          },
         })
         .mockResolvedValueOnce({
           id: 'claim-10',
           poolId: 'pool-2',
-          wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+          wishlistItem: {
+            title: 'Headphones',
+            owner: { name: 'Taylor', username: 'taylor' },
+          },
         });
 
       queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
@@ -1036,7 +1091,10 @@ describe('pool server utilities', () => {
       poolFindUnique.mockResolvedValueOnce(null);
       wishlistClaimFindUnique.mockResolvedValueOnce({
         poolId: 'pool-2',
-        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+        wishlistItem: {
+          title: 'Headphones',
+          owner: { name: 'Taylor', username: 'taylor' },
+        },
       });
 
       queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
@@ -1060,7 +1118,10 @@ describe('pool server utilities', () => {
       });
       wishlistClaimFindUnique.mockResolvedValueOnce({
         poolId: 'pool-3',
-        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+        wishlistItem: {
+          title: 'Headphones',
+          owner: { name: 'Taylor', username: 'taylor' },
+        },
       });
 
       queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9');
@@ -1085,10 +1146,17 @@ describe('pool server utilities', () => {
       wishlistClaimFindUnique.mockResolvedValueOnce({
         id: 'claim-B',
         poolId: 'pool-2',
-        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+        wishlistItem: {
+          title: 'Headphones',
+          owner: { name: 'Taylor', username: 'taylor' },
+        },
       });
 
-      queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-A-stale');
+      queueWishlistClaimTransferredNotification(
+        'pool-2',
+        'wish-9',
+        'claim-A-stale',
+      );
 
       await vi.waitFor(() => {
         expect(wishlistClaimFindUnique).toHaveBeenCalledTimes(1);
@@ -1104,7 +1172,10 @@ describe('pool server utilities', () => {
       wishlistClaimFindUnique.mockResolvedValueOnce({
         id: 'claim-B',
         poolId: 'pool-2',
-        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+        wishlistItem: {
+          title: 'Headphones',
+          owner: { name: 'Taylor', username: 'taylor' },
+        },
       });
 
       queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-B');
@@ -1116,6 +1187,7 @@ describe('pool server utilities', () => {
         expect.objectContaining({
           sourceIdentifier: 'claim-transferred:pool-2:wish-9:claim-B',
         }),
+        transferredPolicyFor('contrib-1'),
       );
     });
 
@@ -1124,11 +1196,18 @@ describe('pool server utilities', () => {
       poolFindUnique.mockRejectedValueOnce(boom);
       wishlistClaimFindUnique.mockResolvedValueOnce({
         poolId: 'pool-2',
-        wishlistItem: { title: 'Headphones', owner: { name: 'Taylor', username: 'taylor' } },
+        wishlistItem: {
+          title: 'Headphones',
+          owner: { name: 'Taylor', username: 'taylor' },
+        },
       });
 
       expect(() =>
-        queueWishlistClaimTransferredNotification('pool-2', 'wish-9', 'claim-9'),
+        queueWishlistClaimTransferredNotification(
+          'pool-2',
+          'wish-9',
+          'claim-9',
+        ),
       ).not.toThrow();
 
       await vi.waitFor(() => {
@@ -1141,18 +1220,33 @@ describe('pool server utilities', () => {
   describe('resolveWishlistClaimConflictNotifications', () => {
     it('deletes only the WISHLIST_CLAIM_CONFLICT notification bound to the released claim', async () => {
       notificationFindMany.mockResolvedValueOnce([
-        { id: 'notif-match', metadata: JSON.stringify({ wishlistItemId: 'wish-9', claimId: 'claim-9' }) },
+        {
+          id: 'notif-match',
+          metadata: JSON.stringify({
+            wishlistItemId: 'wish-9',
+            claimId: 'claim-9',
+          }),
+        },
         // A different claim occurrence on the same or another item — must be
         // left alone. Matching on the claim id (not just wishlistItemId)
         // is what keeps a still-live conflict notification for a later,
         // genuinely new claim from being wiped out by an earlier release.
-        { id: 'notif-other', metadata: JSON.stringify({ wishlistItemId: 'wish-9', claimId: 'claim-10' }) },
+        {
+          id: 'notif-other',
+          metadata: JSON.stringify({
+            wishlistItemId: 'wish-9',
+            claimId: 'claim-10',
+          }),
+        },
       ]);
 
       await resolveWishlistClaimConflictNotifications('user-1', 'claim-9');
 
       expect(notificationFindMany).toHaveBeenCalledWith({
-        where: { userId: 'user-1', type: NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT },
+        where: {
+          userId: 'user-1',
+          type: NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT,
+        },
         select: { id: true, metadata: true },
       });
       expect(notificationDeleteMany).toHaveBeenCalledWith({
@@ -1162,7 +1256,13 @@ describe('pool server utilities', () => {
 
     it('does nothing when no notification matches the released claim', async () => {
       notificationFindMany.mockResolvedValueOnce([
-        { id: 'notif-other', metadata: JSON.stringify({ wishlistItemId: 'wish-9', claimId: 'claim-10' }) },
+        {
+          id: 'notif-other',
+          metadata: JSON.stringify({
+            wishlistItemId: 'wish-9',
+            claimId: 'claim-10',
+          }),
+        },
         // Malformed/empty metadata must be skipped, not thrown on.
         { id: 'notif-empty', metadata: null },
       ]);
@@ -1186,7 +1286,13 @@ describe('pool server utilities', () => {
 
     it('reports a delete failure to Sentry without throwing', async () => {
       notificationFindMany.mockResolvedValueOnce([
-        { id: 'notif-match', metadata: JSON.stringify({ wishlistItemId: 'wish-9', claimId: 'claim-9' }) },
+        {
+          id: 'notif-match',
+          metadata: JSON.stringify({
+            wishlistItemId: 'wish-9',
+            claimId: 'claim-9',
+          }),
+        },
       ]);
       const boom = new Error('delete failed');
       notificationDeleteMany.mockRejectedValueOnce(boom);
@@ -1467,7 +1573,9 @@ describe('pool server utilities', () => {
     // transaction rather than this mocked client.
     syncPoolClaimInTx.mockRejectedValueOnce(new Error('claim sync boom'));
 
-    await expect(cancelPool('pool-1', 'user-1')).rejects.toThrow('claim sync boom');
+    await expect(cancelPool('pool-1', 'user-1')).rejects.toThrow(
+      'claim sync boom',
+    );
 
     expect(logPoolActivity).not.toHaveBeenCalled();
     expect(queueLogEvent).not.toHaveBeenCalled();

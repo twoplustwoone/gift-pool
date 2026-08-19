@@ -20,6 +20,7 @@ import {
 import {
   resolveNotificationPolicy,
   type NotificationPolicyReason,
+  type ResolvedNotificationPolicy,
 } from '#app/utils/notification-policy.server.ts';
 
 export type NotificationDispatchStatus =
@@ -34,6 +35,15 @@ export type NotificationChannelDispatchResult = {
   status: NotificationDispatchStatus;
 };
 
+/**
+ * Lets an audience-wide fan-out resolve one policy per recipient in a single
+ * batched read (resolveNotificationPoliciesForUsers) and hand each one in,
+ * instead of every dispatch resolving its own.
+ */
+export type NotificationDispatchOptions = {
+  policy?: ResolvedNotificationPolicy;
+};
+
 export type NotificationDispatchResult = {
   channels: Record<NotificationChannel, NotificationChannelDispatchResult>;
   deliveredChannels: Array<NotificationChannel>;
@@ -46,13 +56,10 @@ export type NotificationDispatchResult = {
  */
 export async function dispatchNotification(
   intent: NotificationIntent,
+  options?: NotificationDispatchOptions,
 ): Promise<NotificationDispatchResult> {
   const [policy, occurrenceKey] = await Promise.all([
-    resolveNotificationPolicy({
-      userId: intent.userId,
-      type: intent.type,
-      context: intent.context,
-    }),
+    resolvePolicyForIntent(intent, options),
     Promise.resolve(getNotificationOccurrenceKey(intent)),
   ]);
   const definition = getNotificationEventDefinition(intent.type);
@@ -94,10 +101,37 @@ export async function dispatchNotification(
 }
 
 /** Fire after the domain transaction commits; unexpected setup failures tail to Sentry. */
-export function queueNotification(intent: NotificationIntent): void {
-  void dispatchNotification(intent).catch((error: unknown) => {
+export function queueNotification(
+  intent: NotificationIntent,
+  options?: NotificationDispatchOptions,
+): void {
+  void dispatchNotification(intent, options).catch((error: unknown) => {
     Sentry.captureException(error);
   });
+}
+
+async function resolvePolicyForIntent(
+  intent: NotificationIntent,
+  options?: NotificationDispatchOptions,
+): Promise<ResolvedNotificationPolicy> {
+  const provided = options?.policy;
+  if (!provided) {
+    return resolveNotificationPolicy({
+      userId: intent.userId,
+      type: intent.type,
+      context: intent.context,
+    });
+  }
+  // A fan-out hands us a policy it looked up by user id in a Map. If it
+  // mis-indexes that Map we would deliver under someone else's preferences —
+  // silently, and specifically to people who muted the context. Cheap to
+  // check, so never trust the caller's indexing.
+  if (provided.userId !== intent.userId || provided.type !== intent.type) {
+    throw new Error(
+      `Pre-resolved policy for ${provided.type}/${provided.userId} does not match intent ${intent.type}/${intent.userId}.`,
+    );
+  }
+  return provided;
 }
 
 async function dispatchChannel<C extends NotificationChannel>({
