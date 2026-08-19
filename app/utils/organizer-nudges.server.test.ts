@@ -148,6 +148,10 @@ describe('organizer nudge module', () => {
           senderDisplayName: organizer.name,
         }),
       }),
+      // The fan-out resolves the audience's policies in one batched read and
+      // hands each recipient theirs, rather than each dispatch resolving its
+      // own (GIFTPOOL-UI-1M).
+      { policy: expect.objectContaining({ userId: contributor.id }) },
     );
 
     const replay = await sendOrganizerNudge(input);
