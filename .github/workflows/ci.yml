@@ -1,7 +1,17 @@
 name: CI
 
 on:
-  push: # every branch
+  # Only main. A branch with an open PR is already covered by the
+  # pull_request trigger below, and running both meant every push to a PR
+  # branch started two full CI runs of the same commit: double the minutes,
+  # and two independent chances to hit an infrastructure flake. They also
+  # could not cancel each other — the concurrency group keys on github.ref,
+  # which differs between refs/heads/<branch> and refs/pull/<n>/merge — so a
+  # hung duplicate ran its full 60-minute timeout alongside the run that
+  # actually gates the PR. Matches the trigger pair build.yml already uses.
+  push:
+    branches:
+      - main
   pull_request: # every PR
 
 concurrency:
