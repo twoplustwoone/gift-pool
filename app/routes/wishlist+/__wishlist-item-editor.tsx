@@ -1042,6 +1042,19 @@ function useUrlEnrichment({
     if (appliedForUrl.current === lastRequestedUrl.current) return;
     appliedForUrl.current = lastRequestedUrl.current;
 
+    // The fetcher lives out here in the editor, but the <form> only exists
+    // while the dialog is open and in edit mode — so an unfurl can land after
+    // the form has gone (the dialog closes itself on a successful save, which
+    // easily beats a slow unfurl). Conform's form.update routes through
+    // requestSubmit, which throws without a form element (GIFTPOOL-UI-1T), and
+    // readFieldValue's guards don't catch it: through a null formRef it
+    // returns '', which reads as "the field is empty" and invites the write.
+    //
+    // Marked consumed above before bailing, deliberately: the enrichment is
+    // dropped rather than held, so it can never be applied later to a
+    // different item's form.
+    if (!formRef.current) return;
+
     const applied: string[] = [];
     applyingPrefill.current = true;
     if (
@@ -1091,6 +1104,7 @@ function useUrlEnrichment({
     fields.price.name,
     fields.title.name,
     form,
+    formRef,
     hasExistingImage,
     hasPendingImageChange,
     imageUrlValue,

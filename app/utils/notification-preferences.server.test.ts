@@ -17,6 +17,7 @@ import {
   getCentralNotificationSettings,
   getContextNotificationAwareness,
   getContextNotificationPreference,
+  getContextNotificationPreferencesForUsers,
   getNotificationPreferenceForChannels,
   getNotificationPreferences,
   NOTIFICATION_ACTIVITY_LEVELS,
@@ -604,5 +605,197 @@ describe('notification preferences', () => {
         where: { userId: outsider.id },
       }),
     ).resolves.toBe(0);
+  });
+});
+
+// The batched resolver is what the dispatch path uses; the single-user one
+// still serves the requireAccess: true loaders. They apply the same precedence
+// rules through the same builders, and these tests exist so the two cannot
+// drift apart silently — every case asserts the batch entry equals what the
+// single-user read returns for that same user.
+describe('getContextNotificationPreferencesForUsers', () => {
+  beforeEach(async () => {
+    await prisma.notificationPreferenceAudit.deleteMany();
+    await prisma.poolNotificationPreference.deleteMany();
+    await prisma.groupNotificationPreference.deleteMany();
+    await prisma.poolContributor.deleteMany();
+    await prisma.pool.deleteMany();
+    await prisma.usersInGiftGroups.deleteMany();
+    await prisma.giftGroup.deleteMany();
+    await prisma.user.deleteMany({
+      where: { email: { contains: '@example.com' } },
+    });
+  });
+
+  async function createCohort(size: number) {
+    const users = await Promise.all(
+      Array.from({ length: size }, () => createUser()),
+    );
+    const group = await prisma.giftGroup.create({
+      data: {
+        name: `Group ${randomUUID()}`,
+        groupMembers: { create: users.map(({ id }) => ({ userId: id })) },
+      },
+      select: { id: true },
+    });
+    const pool = await prisma.pool.create({
+      data: {
+        title: `Pool ${randomUUID()}`,
+        organizerId: users[0]!.id,
+        giftGroupId: group.id,
+        contributors: { create: users.map(({ id }) => ({ userId: id })) },
+      },
+      select: { id: true },
+    });
+    return { users, group, pool };
+  }
+
+  async function expectMatchesSingleUserReads(
+    userIds: string[],
+    context: Parameters<typeof getContextNotificationPreference>[0]['context'],
+  ) {
+    const bulk = await getContextNotificationPreferencesForUsers({
+      userIds,
+      context,
+    });
+    expect(bulk.size).toBe(userIds.length);
+    for (const userId of userIds) {
+      expect(bulk.get(userId)).toEqual(
+        await getContextNotificationPreference({
+          userId,
+          context,
+          requireAccess: false,
+        }),
+      );
+    }
+    return bulk;
+  }
+
+  it('resolves a mixed pool cohort exactly as the single-user read does', async () => {
+    const { users, group, pool } = await createCohort(4);
+    const context = { kind: 'POOL', poolId: pool.id } as const;
+
+    // A pool override, which must win outright.
+    await setContextActivityPreference({
+      userId: users[0]!.id,
+      context,
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.ALL_ACTIVITY,
+      source: 'preferences-test',
+    });
+    // A group mute with no pool row, which must be inherited.
+    await setContextActivityPreference({
+      userId: users[1]!.id,
+      context: { kind: 'GROUP', groupId: group.id },
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.MUTED,
+      source: 'preferences-test',
+    });
+    // A group mute the user has dismissed the notice for on this one pool.
+    // The dismissal lives on the POOL row while the group row is what mutes,
+    // so this is the case that catches a builder reading notice fields off
+    // the wrong row.
+    await setContextActivityPreference({
+      userId: users[2]!.id,
+      context: { kind: 'GROUP', groupId: group.id },
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.MUTED,
+      source: 'preferences-test',
+    });
+    await dismissContextNotificationNotice({
+      userId: users[2]!.id,
+      context,
+      source: 'preferences-test',
+    });
+    // users[3] has no rows at all — the sparse default.
+
+    const bulk = await expectMatchesSingleUserReads(
+      users.map(({ id }) => id),
+      context,
+    );
+
+    // Guard that the cohort really is mixed, so the equality above is not
+    // four copies of the same answer.
+    expect(bulk.get(users[0]!.id)!.source).toBe('pool_override');
+    expect(bulk.get(users[1]!.id)!.source).toBe('group_override');
+    expect(bulk.get(users[1]!.id)!.noticeVisible).toBe(true);
+    expect(bulk.get(users[2]!.id)!.noticeVisible).toBe(false);
+    expect(bulk.get(users[3]!.id)!.source).toBe('application_default');
+    expect(bulk.get(users[3]!.id)!.activityLevel).toBe(
+      NOTIFICATION_ACTIVITY_LEVELS.IMPORTANT_ONLY,
+    );
+  });
+
+  it('resolves a group context cohort exactly as the single-user read does', async () => {
+    const { users, group } = await createCohort(3);
+    const context = { kind: 'GROUP', groupId: group.id } as const;
+
+    await setContextActivityPreference({
+      userId: users[0]!.id,
+      context,
+      activityLevel: NOTIFICATION_ACTIVITY_LEVELS.MUTED,
+      source: 'preferences-test',
+    });
+
+    const bulk = await expectMatchesSingleUserReads(
+      users.map(({ id }) => id),
+      context,
+    );
+    expect(bulk.get(users[0]!.id)!.source).toBe('group_override');
+    expect(bulk.get(users[1]!.id)!.source).toBe('application_default');
+  });
+
+  it('falls back to the application default for a pool with no group', async () => {
+    const users = await Promise.all([createUser(), createUser()]);
+    const pool = await prisma.pool.create({
+      data: {
+        title: `Pool ${randomUUID()}`,
+        organizerId: users[0]!.id,
+        contributors: { create: users.map(({ id }) => ({ userId: id })) },
+      },
+      select: { id: true },
+    });
+    const context = { kind: 'POOL', poolId: pool.id } as const;
+
+    const bulk = await expectMatchesSingleUserReads(
+      users.map(({ id }) => id),
+      context,
+    );
+    for (const { id } of users) {
+      expect(bulk.get(id)!.source).toBe('application_default');
+      expect(bulk.get(id)!.controllingContext).toBeNull();
+    }
+  });
+
+  it('deduplicates repeated user ids', async () => {
+    const { users, pool } = await createCohort(1);
+    const userId = users[0]!.id;
+
+    const bulk = await getContextNotificationPreferencesForUsers({
+      userIds: [userId, userId, userId],
+      context: { kind: 'POOL', poolId: pool.id },
+    });
+
+    expect(bulk.size).toBe(1);
+    expect(bulk.get(userId)).toBeDefined();
+  });
+
+  it('rejects for a pool that does not exist', async () => {
+    const user = await createUser();
+
+    await expect(
+      getContextNotificationPreferencesForUsers({
+        userIds: [user.id],
+        context: { kind: 'POOL', poolId: 'missing-pool' },
+      }),
+    ).rejects.toBeDefined();
+  });
+
+  it('returns an empty map without querying for an empty audience', async () => {
+    const bulk = await getContextNotificationPreferencesForUsers({
+      userIds: [],
+      context: { kind: 'POOL', poolId: 'missing-pool' },
+    });
+
+    // Note the deliberately bogus pool id: an empty audience must short-circuit
+    // before the pool is even read, so this must not throw the 404 above.
+    expect(bulk.size).toBe(0);
   });
 });

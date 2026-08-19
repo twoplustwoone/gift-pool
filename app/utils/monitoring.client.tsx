@@ -8,6 +8,12 @@ export function init() {
   sentryInit({
     dsn: ENV.SENTRY_DSN,
     environment: ENV.MODE,
+    ignoreErrors: [
+      // Injected by Outlook SafeLinks / email link scanners, which run their
+      // own script against the page and report against elements that aren't
+      // ours. Not reachable from any code path we ship (GIFTPOOL-UI-1S).
+      /Object Not Found Matching Id:\d+, MethodName:\w+, ParamCount:\d+/,
+    ],
     beforeSend(event) {
       if (event.request?.url) {
         const url = new URL(event.request.url);

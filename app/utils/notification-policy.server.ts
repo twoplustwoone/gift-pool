@@ -8,8 +8,7 @@ import {
 } from '#app/utils/notification-catalog.ts';
 import {
   allowsContextActivity,
-  getContextNotificationPreference,
-  resolveCentralNotificationPreferences,
+  getContextNotificationPreferencesForUsers,
   resolveCentralNotificationPreferencesForUsers,
   type CentralPreferenceSource,
   type ResolvedCentralNotificationPreferences,
@@ -36,6 +35,10 @@ export type NotificationChannelPolicy = {
 };
 
 export type ResolvedNotificationPolicy = {
+  // Who this policy was resolved for. Carried so a caller that hands a
+  // pre-resolved policy to the dispatcher can be checked against the intent
+  // it is dispatching — see dispatchNotification.
+  userId: string;
   type: NotificationType;
   channels: Record<NotificationChannel, NotificationChannelPolicy>;
 };
@@ -53,36 +56,30 @@ export async function resolveNotificationPolicy({
   type: NotificationType;
   context?: NotificationContext;
 }): Promise<ResolvedNotificationPolicy> {
-  const definition = requireMatchingContextDefinition(type, context);
-  const [central, contextual] = await Promise.all([
-    resolveCentralNotificationPreferences({ userId, type }),
-    definition.context !== 'NONE' && context
-      ? getContextNotificationPreference({
-          userId,
-          context,
-          requireAccess: false,
-        })
-      : null,
-  ]);
-
-  return buildResolvedPolicy(type, definition, central, contextual);
+  const policies = await resolveNotificationPoliciesForUsers({
+    userIds: [userId],
+    type,
+    context,
+  });
+  return policies.get(userId)!;
 }
 
-// Resolving one user at a time (central + contextual, each its own SQLite
-// transaction) scales concurrent DB transactions with recipient count when
-// callers fan out over Promise.all — a large audience (e.g. every
-// contributor in a pool) can burst enough concurrent transactions to time
-// out against SQLite's single-writer connection (see GIFTPOOL-UI-1M). This
-// batches the central half into one query set for every user.
+// Both halves of a policy cost a fixed number of plain statements no matter
+// how many recipients are being resolved: the central half batches into one
+// query set (loadCentralPreferenceStates), and the contextual half into one
+// round trip (getContextNotificationPreferencesForUsers).
 //
-// The contextual half is NOT batched the same way, and deliberately isn't
-// run with any Promise.all concurrency either: getContextNotificationPreference
-// opens an interactive Prisma transaction, and SQLite's BEGIN IMMEDIATE
-// grants only one such transaction at a time — a "concurrent" batch here
-// doesn't parallelize, it just queues N-1 of them behind the lock while
-// each one's own interactive-transaction timeout clock keeps running,
-// trading the original burst-timeout for a queued-timeout of the same
-// shape. Sequential awaiting is what actually removes the contention.
+// Neither opens an interactive Prisma transaction. That matters more than the
+// query count: Prisma opens those with BEGIN IMMEDIATE, which takes SQLite's
+// write lock even for pure reads and admits a single holder. Resolving one
+// user at a time meant a fan-out that queues notifications without awaiting
+// opened one such transaction per recipient in the same tick — they didn't
+// parallelize, they queued behind the lock while each one's own 5s timer ran
+// from creation, and the tail died with "Transaction already closed"
+// (GIFTPOOL-UI-1M/-1P/-1Q/-1R). Serializing the loop only reshapes that into a
+// queued timeout; removing the transaction is what fixes it.
+//
+// So: no interactive transaction and no per-user loop in this path.
 export async function resolveNotificationPoliciesForUsers({
   userIds,
   type,
@@ -92,37 +89,25 @@ export async function resolveNotificationPoliciesForUsers({
   type: NotificationType;
   context?: NotificationContext;
 }): Promise<Map<string, ResolvedNotificationPolicy>> {
+  // Validate before issuing any query, so a mis-typed context still fails
+  // closed rather than after a round trip.
   const definition = requireMatchingContextDefinition(type, context);
-  const centralByUser = await resolveCentralNotificationPreferencesForUsers({
-    userIds,
-    type,
-  });
-
-  const contextualByUser = new Map<
-    string,
-    ResolvedContextNotificationPreference | null
-  >();
-  if (definition.context !== 'NONE' && context) {
-    for (const userId of userIds) {
-      contextualByUser.set(
-        userId,
-        await getContextNotificationPreference({
-          userId,
-          context,
-          requireAccess: false,
-        }),
-      );
-    }
-  }
+  const [centralByUser, contextualByUser] = await Promise.all([
+    resolveCentralNotificationPreferencesForUsers({ userIds, type }),
+    definition.context !== 'NONE' && context
+      ? getContextNotificationPreferencesForUsers({ userIds, context })
+      : null,
+  ]);
 
   return new Map(
     userIds.map((userId) => [
       userId,
       buildResolvedPolicy(
+        userId,
         type,
         definition,
         centralByUser.get(userId)!,
-        contextualByUser.get(userId) ?? null,
+        contextualByUser?.get(userId) ?? null,
       ),
     ]),
   );
@@ -142,6 +127,7 @@ function requireMatchingContextDefinition(
 }
 
 function buildResolvedPolicy(
+  userId: string,
   type: NotificationType,
   definition: ReturnType<typeof getNotificationEventDefinition>,
   central: ResolvedCentralNotificationPreferences,
@@ -203,6 +189,7 @@ function buildResolvedPolicy(
   });
 
   return {
+    userId,
     type,
     channels: Object.fromEntries(entries) as Record<
       NotificationChannel,

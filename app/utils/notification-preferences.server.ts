@@ -546,6 +546,92 @@ export async function getContextNotificationPreference({
   });
 }
 
+/**
+ * Dispatch-path contextual read: a fixed number of plain, non-interactive
+ * statements regardless of audience size.
+ *
+ * The single-user sibling above wraps its reads in an interactive
+ * prisma.$transaction, which Prisma opens with BEGIN IMMEDIATE — SQLite's
+ * write lock, admitting one holder even for pure reads. Fan-outs queue
+ * notifications per recipient without awaiting, so N recipients opened N of
+ * those in one tick: N-1 sat behind the lock while each ran its own 5s
+ * interactive-transaction timer from creation, and the tail timed out
+ * (GIFTPOOL-UI-1M/-1P/-1Q/-1R). Nothing here writes, and the dispatch path
+ * never needs the access check, so the transaction bought only a read
+ * snapshot — one that batching provides more of, not less: every recipient
+ * now resolves from a single result set instead of N snapshots at N instants.
+ *
+ * Do not reintroduce an interactive transaction or a per-user loop here.
+ */
+export async function getContextNotificationPreferencesForUsers({
+  userIds,
+  context,
+}: {
+  userIds: string[];
+  context: NotificationContext;
+}): Promise<Map<string, ResolvedContextNotificationPreference>> {
+  const ids = [...new Set(userIds)];
+  if (ids.length === 0) {
+    return new Map<string, ResolvedContextNotificationPreference>();
+  }
+
+  if (context.kind === 'GROUP') {
+    const rows = await prisma.groupNotificationPreference.findMany({
+      where: { giftGroupId: context.groupId, userId: { in: ids } },
+    });
+    const byUser = new Map(rows.map((row) => [row.userId, row]));
+    return new Map(
+      ids.map((userId) => [
+        userId,
+        buildGroupContextPreference(context, byUser.get(userId) ?? null),
+      ]),
+    );
+  }
+
+  // One round trip: the pool row, this audience's pool preferences, and this
+  // audience's preferences on the owning group. Group rows are fetched even
+  // where a pool override wins — a bounded over-fetch (at most one row per
+  // user) in exchange for not needing a second query to resolve the fallback.
+  const pool = await prisma.pool.findUnique({
+    where: { id: context.poolId },
+    select: {
+      giftGroupId: true,
+      notificationPreferences: { where: { userId: { in: ids } } },
+      giftGroup: {
+        select: {
+          notificationPreferences: { where: { userId: { in: ids } } },
+        },
+      },
+    },
+  });
+  if (!pool) {
+    throw data({ error: 'Notification context not found.' }, { status: 404 });
+  }
+
+  const groupContext = poolGroupContext(pool.giftGroupId);
+  const poolRows = new Map(
+    pool.notificationPreferences.map((row) => [row.userId, row]),
+  );
+  const groupRows = new Map(
+    (pool.giftGroup?.notificationPreferences ?? []).map((row) => [
+      row.userId,
+      row,
+    ]),
+  );
+
+  return new Map(
+    ids.map((userId) => [
+      userId,
+      buildPoolContextPreference({
+        context,
+        poolRow: poolRows.get(userId) ?? null,
+        groupContext,
+        groupRow: groupRows.get(userId) ?? null,
+      }),
+    ]),
+  );
+}
+
 export async function getContextNotificationAwareness({
   userId,
   context,
@@ -759,17 +845,12 @@ async function resolveContextInTransaction(
   context: NotificationContext,
 ): Promise<ResolvedContextNotificationPreference> {
   if (context.kind === 'GROUP') {
-    const row = await tx.groupNotificationPreference.findUnique({
-      where: { userId_giftGroupId: { userId, giftGroupId: context.groupId } },
-    });
-    return resolvedContext({
+    return buildGroupContextPreference(
       context,
-      row,
-      source: row?.activityLevel ? 'group_override' : 'application_default',
-      controllingContext: row?.activityLevel ? context : null,
-      noticeDismissedAt: row?.noticeDismissedAt ?? null,
-      noticeDismissedKey: row?.noticeDismissedKey ?? null,
-    });
+      await tx.groupNotificationPreference.findUnique({
+        where: { userId_giftGroupId: { userId, giftGroupId: context.groupId } },
+      }),
+    );
   }
 
   const [pool, poolRow] = await Promise.all([
@@ -784,36 +865,23 @@ async function resolveContextInTransaction(
   if (!pool) {
     throw data({ error: 'Notification context not found.' }, { status: 404 });
   }
-  if (poolRow?.activityLevel) {
-    return resolvedContext({
-      context,
-      row: poolRow,
-      source: 'pool_override',
-      controllingContext: context,
-      noticeDismissedAt: poolRow.noticeDismissedAt,
-      noticeDismissedKey: poolRow.noticeDismissedKey,
-    });
-  }
-  const groupContext = pool.giftGroupId
-    ? ({ kind: 'GROUP', groupId: pool.giftGroupId } as const)
-    : null;
-  const groupRow = groupContext
-    ? await tx.groupNotificationPreference.findUnique({
-        where: {
-          userId_giftGroupId: {
-            userId,
-            giftGroupId: groupContext.groupId,
+  const groupContext = poolGroupContext(pool.giftGroupId);
+  const groupRow =
+    !poolRow?.activityLevel && groupContext
+      ? await tx.groupNotificationPreference.findUnique({
+          where: {
+            userId_giftGroupId: {
+              userId,
+              giftGroupId: groupContext.groupId,
+            },
           },
-        },
-      })
-    : null;
-  return resolvedContext({
+        })
+      : null;
+  return buildPoolContextPreference({
     context,
-    row: groupRow,
-    source: groupRow?.activityLevel ? 'group_override' : 'application_default',
-    controllingContext: groupRow?.activityLevel ? groupContext : null,
-    noticeDismissedAt: poolRow?.noticeDismissedAt ?? null,
-    noticeDismissedKey: poolRow?.noticeDismissedKey ?? null,
+    poolRow,
+    groupContext,
+    groupRow,
   });
 }
 
@@ -913,6 +981,73 @@ function resolvedContext({
     noticeVisible: Boolean(noticeKey && noticeDismissedKey !== noticeKey),
     controllingContext,
   };
+}
+
+/**
+ * The stored shape both context preference tables share. Kept structural so a
+ * row can come from an interactive-transaction `findUnique` or from a batched
+ * `findMany` without either read owning the precedence rules below.
+ */
+type ContextPreferenceRow = {
+  activityLevel: string | null;
+  customTopics: string | null;
+  mutedAt: Date | null;
+  noticeDismissedAt: Date | null;
+  noticeDismissedKey: string | null;
+};
+
+function poolGroupContext(giftGroupId: string | null) {
+  return giftGroupId
+    ? ({ kind: 'GROUP', groupId: giftGroupId } as const)
+    : null;
+}
+
+function buildGroupContextPreference(
+  context: NotificationContext,
+  row: ContextPreferenceRow | null,
+): ResolvedContextNotificationPreference {
+  return resolvedContext({
+    context,
+    row,
+    source: row?.activityLevel ? 'group_override' : 'application_default',
+    controllingContext: row?.activityLevel ? context : null,
+    noticeDismissedAt: row?.noticeDismissedAt ?? null,
+    noticeDismissedKey: row?.noticeDismissedKey ?? null,
+  });
+}
+
+function buildPoolContextPreference({
+  context,
+  poolRow,
+  groupContext,
+  groupRow,
+}: {
+  context: NotificationContext;
+  poolRow: ContextPreferenceRow | null;
+  groupContext: { kind: 'GROUP'; groupId: string } | null;
+  groupRow: ContextPreferenceRow | null;
+}): ResolvedContextNotificationPreference {
+  if (poolRow?.activityLevel) {
+    return resolvedContext({
+      context,
+      row: poolRow,
+      source: 'pool_override',
+      controllingContext: context,
+      noticeDismissedAt: poolRow.noticeDismissedAt,
+      noticeDismissedKey: poolRow.noticeDismissedKey,
+    });
+  }
+  return resolvedContext({
+    context,
+    row: groupRow,
+    source: groupRow?.activityLevel ? 'group_override' : 'application_default',
+    controllingContext: groupRow?.activityLevel ? groupContext : null,
+    // Notice dismissal is per-pool even when the group row is what's muting:
+    // dismissing an inherited group mute on one pool must not dismiss it on
+    // the siblings, so these two always come from the pool row.
+    noticeDismissedAt: poolRow?.noticeDismissedAt ?? null,
+    noticeDismissedKey: poolRow?.noticeDismissedKey ?? null,
+  });
 }
 
 async function findContextPreference(

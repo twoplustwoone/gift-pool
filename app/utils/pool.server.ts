@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid'
 import { queueLogEvent } from '#app/utils/analytics.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts'
+import { resolveNotificationPoliciesForUsers } from '#app/utils/notification-policy.server.ts'
 import { queueNotification } from '#app/utils/notification-dispatcher.server.ts'
 import { logPoolActivity } from '#app/utils/pool-activity.server.ts'
 import {
@@ -941,6 +942,15 @@ export function queueWishlistClaimTransferredNotification(
 			return
 		}
 
+		// One batched read for the whole contributor set. Resolving per
+		// recipient inside each un-awaited dispatch is what timed out against
+		// SQLite in GIFTPOOL-UI-1P/-1Q.
+		const policies = await resolveNotificationPoliciesForUsers({
+			userIds: pool.contributors.map((contributor) => contributor.userId),
+			type: NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
+			context: { kind: 'POOL', poolId },
+		})
+
 		for (const contributor of pool.contributors) {
 			queueNotification({
 				userId: contributor.userId,
@@ -964,7 +974,7 @@ export function queueWishlistClaimTransferredNotification(
 				// twice. The claim id keeps a *different* settlement distinct — see
 				// the parameter doc above.
 				sourceIdentifier: `claim-transferred:${poolId}:${wishlistItemId}:${claimId}`,
-			})
+			}, { policy: policies.get(contributor.userId) })
 		}
 	})().catch((error: unknown) => {
 		captureException(error)
