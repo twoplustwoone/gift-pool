@@ -759,17 +759,12 @@ async function resolveContextInTransaction(
   context: NotificationContext,
 ): Promise<ResolvedContextNotificationPreference> {
   if (context.kind === 'GROUP') {
-    const row = await tx.groupNotificationPreference.findUnique({
-      where: { userId_giftGroupId: { userId, giftGroupId: context.groupId } },
-    });
-    return resolvedContext({
+    return buildGroupContextPreference(
       context,
-      row,
-      source: row?.activityLevel ? 'group_override' : 'application_default',
-      controllingContext: row?.activityLevel ? context : null,
-      noticeDismissedAt: row?.noticeDismissedAt ?? null,
-      noticeDismissedKey: row?.noticeDismissedKey ?? null,
-    });
+      await tx.groupNotificationPreference.findUnique({
+        where: { userId_giftGroupId: { userId, giftGroupId: context.groupId } },
+      }),
+    );
   }
 
   const [pool, poolRow] = await Promise.all([
@@ -784,36 +779,23 @@ async function resolveContextInTransaction(
   if (!pool) {
     throw data({ error: 'Notification context not found.' }, { status: 404 });
   }
-  if (poolRow?.activityLevel) {
-    return resolvedContext({
-      context,
-      row: poolRow,
-      source: 'pool_override',
-      controllingContext: context,
-      noticeDismissedAt: poolRow.noticeDismissedAt,
-      noticeDismissedKey: poolRow.noticeDismissedKey,
-    });
-  }
-  const groupContext = pool.giftGroupId
-    ? ({ kind: 'GROUP', groupId: pool.giftGroupId } as const)
-    : null;
-  const groupRow = groupContext
-    ? await tx.groupNotificationPreference.findUnique({
-        where: {
-          userId_giftGroupId: {
-            userId,
-            giftGroupId: groupContext.groupId,
+  const groupContext = poolGroupContext(pool.giftGroupId);
+  const groupRow =
+    !poolRow?.activityLevel && groupContext
+      ? await tx.groupNotificationPreference.findUnique({
+          where: {
+            userId_giftGroupId: {
+              userId,
+              giftGroupId: groupContext.groupId,
+            },
           },
-        },
-      })
-    : null;
-  return resolvedContext({
+        })
+      : null;
+  return buildPoolContextPreference({
     context,
-    row: groupRow,
-    source: groupRow?.activityLevel ? 'group_override' : 'application_default',
-    controllingContext: groupRow?.activityLevel ? groupContext : null,
-    noticeDismissedAt: poolRow?.noticeDismissedAt ?? null,
-    noticeDismissedKey: poolRow?.noticeDismissedKey ?? null,
+    poolRow,
+    groupContext,
+    groupRow,
   });
 }
 
@@ -913,6 +895,73 @@ function resolvedContext({
     noticeVisible: Boolean(noticeKey && noticeDismissedKey !== noticeKey),
     controllingContext,
   };
+}
+
+/**
+ * The stored shape both context preference tables share. Kept structural so a
+ * row can come from an interactive-transaction `findUnique` or from a batched
+ * `findMany` without either read owning the precedence rules below.
+ */
+type ContextPreferenceRow = {
+  activityLevel: string | null;
+  customTopics: string | null;
+  mutedAt: Date | null;
+  noticeDismissedAt: Date | null;
+  noticeDismissedKey: string | null;
+};
+
+function poolGroupContext(giftGroupId: string | null) {
+  return giftGroupId
+    ? ({ kind: 'GROUP', groupId: giftGroupId } as const)
+    : null;
+}
+
+function buildGroupContextPreference(
+  context: NotificationContext,
+  row: ContextPreferenceRow | null,
+): ResolvedContextNotificationPreference {
+  return resolvedContext({
+    context,
+    row,
+    source: row?.activityLevel ? 'group_override' : 'application_default',
+    controllingContext: row?.activityLevel ? context : null,
+    noticeDismissedAt: row?.noticeDismissedAt ?? null,
+    noticeDismissedKey: row?.noticeDismissedKey ?? null,
+  });
+}
+
+function buildPoolContextPreference({
+  context,
+  poolRow,
+  groupContext,
+  groupRow,
+}: {
+  context: NotificationContext;
+  poolRow: ContextPreferenceRow | null;
+  groupContext: { kind: 'GROUP'; groupId: string } | null;
+  groupRow: ContextPreferenceRow | null;
+}): ResolvedContextNotificationPreference {
+  if (poolRow?.activityLevel) {
+    return resolvedContext({
+      context,
+      row: poolRow,
+      source: 'pool_override',
+      controllingContext: context,
+      noticeDismissedAt: poolRow.noticeDismissedAt,
+      noticeDismissedKey: poolRow.noticeDismissedKey,
+    });
+  }
+  return resolvedContext({
+    context,
+    row: groupRow,
+    source: groupRow?.activityLevel ? 'group_override' : 'application_default',
+    controllingContext: groupRow?.activityLevel ? groupContext : null,
+    // Notice dismissal is per-pool even when the group row is what's muting:
+    // dismissing an inherited group mute on one pool must not dismiss it on
+    // the siblings, so these two always come from the pool row.
+    noticeDismissedAt: poolRow?.noticeDismissedAt ?? null,
+    noticeDismissedKey: poolRow?.noticeDismissedKey ?? null,
+  });
 }
 
 async function findContextPreference(
