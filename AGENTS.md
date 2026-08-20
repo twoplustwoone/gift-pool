@@ -11,6 +11,7 @@ Gift Pool is a full-stack web application for managing wishlists and coordinatin
 Always ship changes via a dedicated PR branch — never commit directly to main. Follow the atomic-commit PR workflow and monitor CI to green before considering work done.
 
 - Follow the conventional commit style used in project history: `feat(scope): ...`, `fix(scope): ...`, `test(scope): ...`, `refactor(scope): ...`, and `chore(scope): ...`.
+- Name branches with those same conventional prefixes and a short kebab-case slug: `feat/pool-reminder-copy`, `fix/invite-redirect`, `chore/brand-asset-cleanup`. Never prefix a branch with a tool or agent name such as `claude/`, `bot/`, or a ticket-runner id — including when an agent harness assigns one; rename it to the conventional form before committing.
 - Keep commits focused and avoid mixing refactors with behavior changes.
 - PRs should include a summary, test plan, updated checklist items, and screenshots or video for visual changes.
 - Link related issues and explicitly call out migrations and environment changes.
