@@ -131,7 +131,10 @@ describe('parseMetadataFromHtml', () => {
         jsonLd({
           '@type': 'Product',
           name: 'Multi Offer',
-          offers: [{ availability: 'OutOfStock' }, { price: '5.00', priceCurrency: 'GBP' }],
+          offers: [
+            { availability: 'OutOfStock' },
+            { price: '5.00', priceCurrency: 'GBP' },
+          ],
         }),
       ),
       BASE_URL,
@@ -144,7 +147,11 @@ describe('parseMetadataFromHtml', () => {
         jsonLd({
           '@type': 'Product',
           name: 'Aggregate',
-          offers: { '@type': 'AggregateOffer', lowPrice: '9.99', priceCurrency: 'USD' },
+          offers: {
+            '@type': 'AggregateOffer',
+            lowPrice: '9.99',
+            priceCurrency: 'USD',
+          },
         }),
       ),
       BASE_URL,
@@ -205,6 +212,93 @@ describe('parseMetadataFromHtml', () => {
       currency: null,
       source: 'none',
     });
+  });
+
+  it('reads a ProductGroup ("see options") price from its variants', () => {
+    const html = htmlPage(
+      jsonLd({
+        '@context': 'https://schema.org',
+        '@type': 'ProductGroup',
+        name: 'Goalkeeper Gloves',
+        hasVariant: [
+          { '@type': 'Product', name: 'Size 8' },
+          {
+            '@type': 'Product',
+            name: 'Size 9',
+            image: 'https://cdn.example.com/glove.jpg',
+            offers: { '@type': 'Offer', price: '50.49', priceCurrency: 'USD' },
+          },
+        ],
+      }),
+    );
+
+    expect(parseMetadataFromHtml(html, BASE_URL)).toEqual({
+      title: 'Goalkeeper Gloves',
+      imageUrl: 'https://cdn.example.com/glove.jpg',
+      priceCents: 5049,
+      currency: 'USD',
+      source: 'structured',
+    });
+  });
+
+  it('reads a price nested in priceSpecification or an AggregateOffer offer list', () => {
+    const spec = parseMetadataFromHtml(
+      htmlPage(
+        jsonLd({
+          '@type': 'Product',
+          name: 'Spec Widget',
+          offers: {
+            '@type': 'Offer',
+            priceSpecification: { price: '31.50', priceCurrency: 'CAD' },
+          },
+        }),
+      ),
+      BASE_URL,
+    );
+    expect(spec.priceCents).toBe(3150);
+    expect(spec.currency).toBe('CAD');
+
+    const nested = parseMetadataFromHtml(
+      htmlPage(
+        jsonLd({
+          '@type': 'Product',
+          name: 'Nested Widget',
+          offers: {
+            '@type': 'AggregateOffer',
+            priceCurrency: 'USD',
+            offers: [{ '@type': 'Offer', price: '7.25' }],
+          },
+        }),
+      ),
+      BASE_URL,
+    );
+    expect(nested.priceCents).toBe(725);
+    expect(nested.currency).toBe('USD');
+  });
+
+  it('prefers a priced JSON-LD block over an earlier unpriced one', () => {
+    const html = htmlPage(
+      `${jsonLd({ '@type': 'Product', name: 'Unpriced First' })}
+       ${jsonLd({
+         '@type': 'Product',
+         name: 'Priced Second',
+         offers: { price: '8.00', priceCurrency: 'USD' },
+       })}`,
+    );
+    expect(parseMetadataFromHtml(html, BASE_URL).title).toBe('Priced Second');
+  });
+
+  it('keeps trying image sources when the first one is unusable', () => {
+    const result = parseMetadataFromHtml(
+      htmlPage(
+        `<meta name="og:title" content="Name-attribute Widget" />
+         <meta property="og:image" content="data:image/gif;base64,R0lGOD" />
+         <meta name="twitter:image" content="https://cdn.example.com/fallback.jpg" />`,
+      ),
+      BASE_URL,
+    );
+    expect(result.title).toBe('Name-attribute Widget');
+    expect(result.imageUrl).toBe('https://cdn.example.com/fallback.jpg');
   });
 
   it('drops non-http image URLs and never returns currency without a price', () => {
@@ -268,7 +362,9 @@ describe('amazon adapter', () => {
       ),
     );
 
-    const result = await extractUrlMetadata('https://www.amazon.co.uk/dp/B0ABC');
+    const result = await extractUrlMetadata(
+      'https://www.amazon.co.uk/dp/B0ABC',
+    );
     expect(result).toMatchObject({
       ok: true,
       metadata: {
@@ -291,7 +387,9 @@ describe('amazon adapter', () => {
       ),
     );
 
-    const result = await extractUrlMetadata('https://shop.example.com/lookalike');
+    const result = await extractUrlMetadata(
+      'https://shop.example.com/lookalike',
+    );
     expect(result).toMatchObject({
       ok: true,
       metadata: {
@@ -302,7 +400,7 @@ describe('amazon adapter', () => {
     });
   });
 
-  it('degrades to title-only on a bot-wall page with no product markup', async () => {
+  it('degrades to title-only when the page carries no product markup', async () => {
     dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
     fetchMock.mockResolvedValue(
       new Response(amazonHtml('<p>Enter the characters you see below</p>'), {
@@ -318,6 +416,182 @@ describe('amazon adapter', () => {
         title: 'Apple AirPods Pro with MagSafe Case',
         priceCents: null,
         imageUrl: null,
+      },
+    });
+  });
+});
+
+describe('amazon short links and variation pages', () => {
+  const htmlResponse = (body: string) =>
+    new Response(body, {
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+    });
+
+  it('adapts the page a mobile a.co share link redirects to', async () => {
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 301,
+          headers: { location: 'https://www.amazon.com/dp/B0C1234567' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        htmlResponse(
+          htmlPage(
+            '<title>Amazon.com: Renegade GK Goalkeeper Gloves : Sports</title>',
+            `<div id="corePriceDisplay_desktop_feature_div"><span class="a-price"><span class="a-offscreen">$50.49</span></span></div>
+             <img id="landingImage" src="https://m.media-amazon.com/images/I/71glove.jpg" />`,
+          ),
+        ),
+      );
+
+    const result = await extractUrlMetadata('https://a.co/d/05xLJBFR');
+    expect(result).toMatchObject({
+      ok: true,
+      metadata: {
+        title: 'Renegade GK Goalkeeper Gloves',
+        priceCents: 5049,
+        currency: 'USD',
+        imageUrl: 'https://m.media-amazon.com/images/I/71glove.jpg',
+      },
+    });
+  });
+
+  it('reads the range low price and dynamic image on a "see options" page', async () => {
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock.mockResolvedValue(
+      htmlResponse(
+        htmlPage(
+          '<title>Amazon.com: Renegade GK Gloves, 6 sizes : Sports</title>',
+          `<span class="a-price-range"><span class="a-offscreen">$45.99</span><span class="a-offscreen">$59.99</span></span>
+           <img id="landingImage" src="data:image/gif;base64,R0lGOD" data-a-dynamic-image='{"https://m.media-amazon.com/images/I/small.jpg":[500,500],"https://m.media-amazon.com/images/I/big.jpg":[1500,1500]}' />`,
+        ),
+      ),
+    );
+
+    const result = await extractUrlMetadata(
+      'https://www.amazon.com/dp/B0PARENT',
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      metadata: {
+        title: 'Renegade GK Gloves, 6 sizes',
+        priceCents: 4599,
+        currency: 'USD',
+        // The placeholder data: URI must not consume the image slot.
+        imageUrl: 'https://m.media-amazon.com/images/I/big.jpg',
+      },
+    });
+  });
+
+  it('skips screen-reader text that is not a price', async () => {
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock.mockResolvedValue(
+      htmlResponse(
+        htmlPage(
+          '<title>Amazon.com: Widget : Tools</title>',
+          `<span class="a-offscreen">Select the department you want to search in</span>
+           <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">$12.34</span></span></div>`,
+        ),
+      ),
+    );
+
+    const result = await extractUrlMetadata(
+      'https://www.amazon.com/dp/B0WIDGET',
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      metadata: { priceCents: 1234, currency: 'USD' },
+    });
+  });
+
+  it('reports blocked_bot instead of prefilling a captcha page', async () => {
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock.mockResolvedValue(
+      htmlResponse(
+        htmlPage(
+          '<title>Amazon.com</title>',
+          `<form action="/errors/validateCaptcha"><input id="captchacharacters" /></form>`,
+        ),
+      ),
+    );
+
+    const result = await extractUrlMetadata(
+      'https://www.amazon.com/dp/B0BLOCK',
+    );
+    expect(result).toEqual({ ok: false, outcome: 'blocked_bot' });
+    expect(extractMetadataWithLlm).not.toHaveBeenCalled();
+  });
+
+  it('treats a bare marketplace title as a bot wall', async () => {
+    isLlmEnrichmentEnabled.mockReturnValue(true);
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock.mockResolvedValue(
+      htmlResponse(
+        htmlPage('<title>Amazon.com. Spend less. Smile more.</title>'),
+      ),
+    );
+
+    const result = await extractUrlMetadata('https://www.amazon.com/dp/B0WALL');
+    expect(result).toEqual({ ok: false, outcome: 'blocked_bot' });
+    // No point paying for an LLM read of an interstitial.
+    expect(extractMetadataWithLlm).not.toHaveBeenCalled();
+  });
+});
+
+describe('etsy adapter', () => {
+  const ETSY_URL = 'https://www.etsy.com/listing/1234567890/personalised-mug';
+
+  it('strips the marketplace suffix and reads the buy-box price', async () => {
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock.mockResolvedValue(
+      new Response(
+        htmlPage(
+          `<title>Personalised Mug - Etsy</title>
+           <meta property="og:title" content="Personalised Mug | Etsy Canada" />
+           <meta property="og:image" content="https://i.etsystatic.com/1/mug.jpg" />`,
+          `<div data-buy-box-region="price">
+             <span class="currency-symbol">$</span><span class="currency-value">50.49</span>
+           </div>`,
+        ),
+        { status: 200, headers: { 'content-type': 'text/html' } },
+      ),
+    );
+
+    const result = await extractUrlMetadata(ETSY_URL);
+    expect(result).toMatchObject({
+      ok: true,
+      metadata: {
+        title: 'Personalised Mug',
+        priceCents: 5049,
+        currency: 'USD',
+        imageUrl: 'https://i.etsystatic.com/1/mug.jpg',
+      },
+    });
+  });
+
+  it('falls back to the listing carousel when og:image is missing', async () => {
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock.mockResolvedValue(
+      new Response(
+        htmlPage(
+          '<meta property="og:title" content="Hand Knitted Scarf – Etsy UK" />',
+          `<div class="listing-page-image-carousel-component">
+             <img data-src="https://i.etsystatic.com/2/scarf.jpg" />
+           </div>`,
+        ),
+        { status: 200, headers: { 'content-type': 'text/html' } },
+      ),
+    );
+
+    const result = await extractUrlMetadata(ETSY_URL);
+    expect(result).toMatchObject({
+      ok: true,
+      metadata: {
+        title: 'Hand Knitted Scarf',
+        imageUrl: 'https://i.etsystatic.com/2/scarf.jpg',
       },
     });
   });
@@ -468,13 +742,13 @@ describe('extractUrlMetadata', () => {
   it('truncates oversized pages instead of failing, keeping head metadata', async () => {
     dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
     const head = `<meta property="og:title" content="Huge Page Widget" />`;
-    const padding = 'x'.repeat(1024 * 1024 + 1024); // body pushes past the 1MB cap
+    const padding = 'x'.repeat(2 * 1024 * 1024 + 1024); // past the 2MB metadata cap
     fetchMock.mockResolvedValue(
       new Response(htmlPage(head, padding), {
         status: 200,
         headers: {
           'content-type': 'text/html',
-          'content-length': String(1024 * 1024 + 2048),
+          'content-length': String(2 * 1024 * 1024 + 2048),
         },
       }),
     );
