@@ -351,17 +351,14 @@ type EditorMode = 'view' | 'edit' | 'create';
 type DialogComponentSet = {
   DialogRoot: typeof Dialog | typeof MobileBottomSheet;
   DialogTriggerComponent:
-    | typeof DialogTrigger
-    | typeof MobileBottomSheetTrigger;
+    typeof DialogTrigger | typeof MobileBottomSheetTrigger;
   DialogContentComponent:
-    | typeof DialogContent
-    | typeof MobileBottomSheetContent;
+    typeof DialogContent | typeof MobileBottomSheetContent;
   DialogHeaderComponent: typeof DialogHeader | typeof MobileBottomSheetHeader;
   DialogFooterComponent: typeof DialogFooter | typeof MobileBottomSheetFooter;
   DialogTitleComponent: typeof DialogTitle | typeof MobileBottomSheetTitle;
   DialogDescriptionComponent:
-    | typeof DialogDescription
-    | typeof MobileBottomSheetDescription;
+    typeof DialogDescription | typeof MobileBottomSheetDescription;
   DialogCloseComponent: typeof DialogClose | typeof MobileBottomSheetClose;
 };
 type EditorModeController = {
@@ -1057,26 +1054,52 @@ function useUrlEnrichment({
 
     const applied: string[] = [];
     applyingPrefill.current = true;
+
+    // One form.update per tick. Conform's update intent runs through a
+    // synchronous requestSubmit that re-snapshots the live form, so two
+    // updates in the same tick make the second one read the first field
+    // before React has flushed its DOM write — the first field reverts to
+    // empty in Conform's state and re-validates as "Required" while the
+    // input still shows the prefilled text (#562). Draining across ticks
+    // lets each write land before the next intent snapshots the form.
+    const pendingUpdates: Array<() => void> = [];
+    const titleValue = metadata.title;
     if (
-      metadata.title &&
+      titleValue &&
       !readFieldValue(fields.title.name) &&
       !userEdited.current.has('title')
     ) {
-      form.update({ name: fields.title.name, value: metadata.title });
+      pendingUpdates.push(() =>
+        form.update({ name: fields.title.name, value: titleValue }),
+      );
       applied.push('title');
     }
+    const priceCents = metadata.priceCents;
     if (
-      metadata.priceCents != null &&
+      priceCents != null &&
       !readFieldValue(fields.price.name) &&
       !userEdited.current.has('price')
     ) {
-      form.update({
-        name: fields.price.name,
-        value: formatPriceInputValue(metadata.priceCents),
-      });
+      pendingUpdates.push(() =>
+        form.update({
+          name: fields.price.name,
+          value: formatPriceInputValue(priceCents),
+        }),
+      );
       if (metadata.currency) setCurrencyValue(metadata.currency);
       applied.push('price');
     }
+    // Same reason readFieldValue's guards aren't enough above: form.update
+    // throws out of requestSubmit once the form has unmounted, and a queued
+    // update can outlive the dialog.
+    const drain = () => {
+      if (!formRef.current) return;
+      const next = pendingUpdates.shift();
+      if (!next) return;
+      next();
+      if (pendingUpdates.length > 0) setTimeout(drain);
+    };
+    drain();
     if (
       metadata.imageUrl &&
       !hasPendingImageChange &&
@@ -1416,6 +1439,7 @@ function EditorFormSection({
   attachClientMutationId,
   applyUrlPreview,
   enrichment,
+  isDesktop,
 }: Readonly<{
   applyUrlPreview: (rawValue: string) => void;
   attachClientMutationId: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -1438,6 +1462,7 @@ function EditorFormSection({
   imageUrlValue: string;
   imageWarning: string | null;
   isImageLoading: boolean;
+  isDesktop: boolean;
   isPending: boolean;
   isListLinkType: boolean;
   itemType: WishlistItemType;
@@ -1518,7 +1543,10 @@ function EditorFormSection({
         errors={fields.url.errors}
         inputProps={{
           placeholder: fieldConfig.urlPlaceholder,
-          autoFocus: true,
+          // Desktop only: autofocusing the link field invites the paste that
+          // drives enrichment, but on mobile it springs the on-screen keyboard
+          // over the sheet before the user has chosen to type.
+          autoFocus: isDesktop,
           ...getInputProps(fields.url, {
             type: 'url',
             ariaAttributes: true,
@@ -2171,6 +2199,21 @@ export const WishlistItemEditor = React.forwardRef<
         <DialogContentComponent
           className="p-5 sm:max-w-[36rem] sm:p-6"
           {...(!isDesktop ? { showHandle: true } : {})}
+          {...(isDesktop
+            ? {}
+            : {
+                // Mobile: don't hand focus to the first tabbable control on
+                // open. A text field springs the on-screen keyboard over the
+                // sheet before the user has chosen to type, and with the link
+                // field no longer autofocused the first control in edit mode
+                // is "Remove from wishlist". Focus the sheet itself so the
+                // title is announced first and Tab walks forward from there.
+                onOpenAutoFocus: (event: Event) => {
+                  event.preventDefault();
+                  const content = event.currentTarget as HTMLElement | null;
+                  content?.focus({ preventScroll: true });
+                },
+              })}
         >
           <DialogHeaderComponent>
             <div>
@@ -2228,6 +2271,7 @@ export const WishlistItemEditor = React.forwardRef<
                 imageUrlInputProps={imageUrlInputProps}
                 imageUrlValue={imageController.imageUrlValue}
                 imageWarning={imageController.imageWarning}
+                isDesktop={isDesktop}
                 isImageLoading={imageController.isImageLoading}
                 isPending={isPending}
                 isListLinkType={isListLinkType}

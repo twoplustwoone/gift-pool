@@ -368,4 +368,122 @@ describe('wishlist item editor behavior', () => {
 
     expect(track).toHaveBeenCalledTimes(1);
   });
+
+  // Regression for #562. Conform's update intent runs through a synchronous
+  // requestSubmit that re-snapshots the live form, so two form.update calls in
+  // one tick made the second read the first field before React had flushed its
+  // DOM write: Title reverted to empty in Conform's state and re-validated as
+  // "Required" while the input still showed the fetched text. Only reproduces
+  // once Title has been validated (a submit attempt) AND the unfurl returns
+  // both a title and a price — one prefilled field alone was always fine.
+  it('clears the Required error when the unfurl prefills title and price together', async () => {
+    const user = userEvent.setup();
+
+    const view = render(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+    // Submitting the empty form marks Title touched and shows "Required".
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    const title = screen.getByPlaceholderText('Title for your item');
+    await waitFor(() => expect(title).toHaveAttribute('aria-invalid', 'true'));
+
+    const linkField = screen.getByLabelText('Link');
+    await user.type(linkField, 'https://store.example.com/wolverine');
+    fireEvent.blur(linkField);
+
+    fetcherSnapshot.data = {
+      result: {
+        title: 'Marvel Wolverine',
+        imageUrl: null,
+        priceCents: 6999,
+        currency: 'USD',
+        source: 'structured',
+      },
+    };
+    view.rerender(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Title for your item')).toHaveValue(
+        'Marvel Wolverine',
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Price (optional)')).toHaveValue('69.99');
+    });
+    // The prefilled value must count as valid, not sit under a stale error.
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('Title for your item'),
+      ).not.toHaveAttribute('aria-invalid', 'true');
+    });
+    expect(screen.queryByText('Required')).not.toBeInTheDocument();
+  });
+
+  it('autofocuses the link field on desktop', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+    await waitFor(() => expect(screen.getByLabelText('Link')).toHaveFocus());
+  });
+});
+
+describe('wishlist item editor on mobile', () => {
+  const renderAsMobileSheet = () => {
+    vi.stubGlobal('matchMedia', () => ({
+      addEventListener: vi.fn(),
+      addListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      matches: false,
+      media: '(min-width: 640px)',
+      onchange: null,
+      removeEventListener: vi.fn(),
+      removeListener: vi.fn(),
+    }));
+    return render(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+  };
+
+  // The autofocused link field is the paste-first fast path on desktop, but on
+  // a phone it springs the on-screen keyboard over the sheet before the user
+  // has chosen to type. Radix's FocusScope is a separate mechanism, so the
+  // editor also has to stop the fallback from landing on the first tabbable
+  // control ("Remove from wishlist" in edit mode) — see the onOpenAutoFocus
+  // handler on the sheet content.
+  it('does not autofocus the link field', async () => {
+    const user = userEvent.setup();
+
+    renderAsMobileSheet();
+
+    await user.click(screen.getByText('Open'));
+    const link = await screen.findByLabelText('Link');
+    expect(link).not.toHaveFocus();
+    // Nor may focus fall through to the first tabbable control; it stays on
+    // the sheet itself so the title is announced first.
+    expect(document.activeElement).toHaveAttribute('role', 'dialog');
+  });
 });
