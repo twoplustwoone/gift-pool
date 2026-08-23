@@ -1439,6 +1439,7 @@ function EditorFormSection({
   attachClientMutationId,
   applyUrlPreview,
   enrichment,
+  isDesktop,
 }: Readonly<{
   applyUrlPreview: (rawValue: string) => void;
   attachClientMutationId: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -1461,6 +1462,7 @@ function EditorFormSection({
   imageUrlValue: string;
   imageWarning: string | null;
   isImageLoading: boolean;
+  isDesktop: boolean;
   isPending: boolean;
   isListLinkType: boolean;
   itemType: WishlistItemType;
@@ -1541,7 +1543,10 @@ function EditorFormSection({
         errors={fields.url.errors}
         inputProps={{
           placeholder: fieldConfig.urlPlaceholder,
-          autoFocus: true,
+          // Desktop only: autofocusing the link field invites the paste that
+          // drives enrichment, but on mobile it springs the on-screen keyboard
+          // over the sheet before the user has chosen to type.
+          autoFocus: isDesktop,
           ...getInputProps(fields.url, {
             type: 'url',
             ariaAttributes: true,
@@ -2194,6 +2199,21 @@ export const WishlistItemEditor = React.forwardRef<
         <DialogContentComponent
           className="p-5 sm:max-w-[36rem] sm:p-6"
           {...(!isDesktop ? { showHandle: true } : {})}
+          {...(isDesktop
+            ? {}
+            : {
+                // Mobile: don't hand focus to the first tabbable control on
+                // open. A text field springs the on-screen keyboard over the
+                // sheet before the user has chosen to type, and with the link
+                // field no longer autofocused the first control in edit mode
+                // is "Remove from wishlist". Focus the sheet itself so the
+                // title is announced first and Tab walks forward from there.
+                onOpenAutoFocus: (event: Event) => {
+                  event.preventDefault();
+                  const content = event.currentTarget as HTMLElement | null;
+                  content?.focus({ preventScroll: true });
+                },
+              })}
         >
           <DialogHeaderComponent>
             <div>
@@ -2251,6 +2271,7 @@ export const WishlistItemEditor = React.forwardRef<
                 imageUrlInputProps={imageUrlInputProps}
                 imageUrlValue={imageController.imageUrlValue}
                 imageWarning={imageController.imageWarning}
+                isDesktop={isDesktop}
                 isImageLoading={imageController.isImageLoading}
                 isPending={isPending}
                 isListLinkType={isListLinkType}

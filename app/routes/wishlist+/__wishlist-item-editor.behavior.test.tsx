@@ -368,6 +368,7 @@ describe('wishlist item editor behavior', () => {
 
     expect(track).toHaveBeenCalledTimes(1);
   });
+
   // Regression for #562. Conform's update intent runs through a synchronous
   // requestSubmit that re-snapshots the live form, so two form.update calls in
   // one tick made the second read the first field before React had flushed its
@@ -428,5 +429,61 @@ describe('wishlist item editor behavior', () => {
       ).not.toHaveAttribute('aria-invalid', 'true');
     });
     expect(screen.queryByText('Required')).not.toBeInTheDocument();
+  });
+
+  it('autofocuses the link field on desktop', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+    await waitFor(() => expect(screen.getByLabelText('Link')).toHaveFocus());
+  });
+});
+
+describe('wishlist item editor on mobile', () => {
+  const renderAsMobileSheet = () => {
+    vi.stubGlobal('matchMedia', () => ({
+      addEventListener: vi.fn(),
+      addListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      matches: false,
+      media: '(min-width: 640px)',
+      onchange: null,
+      removeEventListener: vi.fn(),
+      removeListener: vi.fn(),
+    }));
+    return render(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+  };
+
+  // The autofocused link field is the paste-first fast path on desktop, but on
+  // a phone it springs the on-screen keyboard over the sheet before the user
+  // has chosen to type. Radix's FocusScope is a separate mechanism, so the
+  // editor also has to stop the fallback from landing on the first tabbable
+  // control ("Remove from wishlist" in edit mode) — see the onOpenAutoFocus
+  // handler on the sheet content.
+  it('does not autofocus the link field', async () => {
+    const user = userEvent.setup();
+
+    renderAsMobileSheet();
+
+    await user.click(screen.getByText('Open'));
+    const link = await screen.findByLabelText('Link');
+    expect(link).not.toHaveFocus();
+    // Nor may focus fall through to the first tabbable control; it stays on
+    // the sheet itself so the title is announced first.
+    expect(document.activeElement).toHaveAttribute('role', 'dialog');
   });
 });
