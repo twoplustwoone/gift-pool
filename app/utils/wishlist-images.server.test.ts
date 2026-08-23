@@ -110,8 +110,11 @@ describe('wishlist-images.server.ts', () => {
         ),
       );
 
-    const html = await fetchHtml('https://example.com/start');
-    expect(html).toContain('og:image');
+    const fetched = await fetchHtml('https://example.com/start');
+    expect(fetched.html).toContain('og:image');
+    // The post-redirect URL is what callers must resolve relative URLs and
+    // per-host adapters against.
+    expect(fetched.finalUrl).toBe('https://example.com/gift');
 
     fetchMock.mockReset();
     fetchMock.mockResolvedValue(
@@ -132,6 +135,30 @@ describe('wishlist-images.server.ts', () => {
     ).resolves.toBe('https://example.com/images/cover.jpg');
   });
 
+  it('resolves relative images against the redirected origin, not the pasted URL', async () => {
+    dnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(null, {
+          headers: { location: 'https://www.shop.example/products/9' },
+          status: 301,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          '<html><head><meta property="og:image" content="/img/hero.jpg" /></head></html>',
+          {
+            headers: { 'content-type': 'text/html; charset=utf-8' },
+            status: 200,
+          },
+        ),
+      );
+
+    await expect(autoDetectImageUrl('https://sho.rt/abc')).resolves.toBe(
+      'https://www.shop.example/img/hero.jpg',
+    );
+  });
+
   it('blocks private addresses and exposes immutable image headers', async () => {
     await expect(
       processImageFromUrl('http://127.0.0.1/private-image.png'),
@@ -150,9 +177,9 @@ describe('wishlist-images.server.ts', () => {
     ).rejects.toThrow('Blocked private address');
 
     // 0.0.0.0/8
-    await expect(
-      processImageFromUrl('http://0.0.0.1/secret'),
-    ).rejects.toThrow('Blocked private address');
+    await expect(processImageFromUrl('http://0.0.0.1/secret')).rejects.toThrow(
+      'Blocked private address',
+    );
 
     // 100.64.0.0/10 — CGNAT (RFC 6598)
     await expect(

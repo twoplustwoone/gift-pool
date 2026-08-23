@@ -9,6 +9,10 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB limit for uploads/downloads
 const MAX_PROCESSED_IMAGE_BYTES = 5 * 1024 * 1024; // compress down to <= 5MB before storage
 const PROCESS_QUALITIES = [82, 70, 60, 50, 40, 30];
 const MAX_HTML_BYTES = 1024 * 1024; // 1MB limit when fetching HTML for auto-detect
+// Metadata extraction reads further into the document than image auto-detect:
+// marketplace pages park the product image block (and sometimes the JSON-LD)
+// well past the first megabyte, so the truncating fetch gets a bigger window.
+const MAX_HTML_METADATA_BYTES = 2 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 7_000;
 const MAX_REDIRECTS = 3;
 const PROCESSED_CONTENT_TYPE = 'image/webp';
@@ -117,9 +121,11 @@ function pinnedDispatcher(addresses: string[]) {
             resolved,
           );
         } else {
-          (
-            callback as (err: null, address: string, family: number) => void
-          )(null, primary.address, primary.family);
+          (callback as (err: null, address: string, family: number) => void)(
+            null,
+            primary.address,
+            primary.family,
+          );
         }
       },
     },
@@ -142,8 +148,7 @@ function buildRequestHeaders(options: FetchWithLimitOptions) {
     Accept:
       options.headers?.Accept ||
       'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Language':
-      options.headers?.['Accept-Language'] || 'en-US,en;q=0.9',
+    'Accept-Language': options.headers?.['Accept-Language'] || 'en-US,en;q=0.9',
     ...(options.headers ?? {}),
   };
 }
@@ -173,10 +178,7 @@ function assertAllowedContentType(
   }
 }
 
-function assertResponseSize(
-  contentLength: string | null,
-  maxBytes: number,
-) {
+function assertResponseSize(contentLength: string | null, maxBytes: number) {
   if (contentLength && Number(contentLength) > maxBytes) {
     throw new Error('Response too large');
   }
@@ -264,6 +266,11 @@ async function fetchWithLimit(
 ): Promise<{
   buffer: Buffer;
   contentType: string | null;
+  // The URL the body actually came from, after following redirects. Callers
+  // that interpret the document (relative URLs, per-site adapters) must use
+  // this, not the URL they asked for — short links like a.co/d/… resolve to a
+  // different host entirely.
+  finalUrl: URL;
 }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -294,7 +301,11 @@ async function fetchWithLimit(
         options.maxBytes,
         options.truncateOnLimit,
       );
-      return { buffer, contentType: result.contentType ?? null };
+      return {
+        buffer,
+        contentType: result.contentType ?? null,
+        finalUrl: currentUrl,
+      };
     }
 
     throw new Error('Too many redirects');
@@ -344,14 +355,14 @@ export async function processImageFromUrl(urlString: string) {
 export async function fetchHtml(
   urlString: string,
   { truncate = false }: { truncate?: boolean } = {},
-) {
+): Promise<{ html: string; finalUrl: string }> {
   const target = new URL(urlString);
-  const { buffer } = await fetchWithLimit(target, {
-    maxBytes: MAX_HTML_BYTES,
+  const { buffer, finalUrl } = await fetchWithLimit(target, {
+    maxBytes: truncate ? MAX_HTML_METADATA_BYTES : MAX_HTML_BYTES,
     allowedContentTypes: ['text/html', 'application/xhtml+xml'],
     truncateOnLimit: truncate,
   });
-  return buffer.toString('utf8');
+  return { html: buffer.toString('utf8'), finalUrl: finalUrl.toString() };
 }
 
 function resolveImageUrl(src: string | null, base: string) {
@@ -364,7 +375,7 @@ function resolveImageUrl(src: string | null, base: string) {
 }
 
 export async function autoDetectImageUrl(itemUrl: string) {
-  const html = await fetchHtml(itemUrl);
+  const { html, finalUrl } = await fetchHtml(itemUrl);
   const root = parse(html);
 
   const ogImage = root
@@ -376,7 +387,9 @@ export async function autoDetectImageUrl(itemUrl: string) {
   const firstImg = root.querySelector('img')?.getAttribute('src');
 
   const candidate = ogImage ?? twitterImage ?? firstImg ?? null;
-  return resolveImageUrl(candidate, itemUrl);
+  // Resolve against the post-redirect URL: a shortened link resolves to a
+  // different origin, and relative image paths belong to that origin.
+  return resolveImageUrl(candidate, finalUrl);
 }
 
 export const WISHLIST_IMAGE_HEADERS = {
