@@ -431,7 +431,7 @@ describe('wishlist item editor behavior', () => {
     expect(screen.queryByText('Required')).not.toBeInTheDocument();
   });
 
-  it('autofocuses the link field on desktop', async () => {
+  it('autofocuses the link field on desktop when adding a new item', async () => {
     const user = userEvent.setup();
 
     render(
@@ -444,6 +444,28 @@ describe('wishlist item editor behavior', () => {
 
     await user.click(screen.getByText('Open'));
     await waitFor(() => expect(screen.getByLabelText('Link')).toHaveFocus());
+  });
+
+  // Autofocus exists to invite the paste that starts a NEW item. Editing an
+  // existing one is a different flow — the fields are already populated — so
+  // focus stays on the dialog rather than being stolen into the link field or
+  // falling through to the first tabbable control ("Remove from wishlist").
+  it('does not autofocus the link field when editing an existing item', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <WishlistItemEditor
+        canEdit
+        initialMode="edit"
+        wishlistItem={baseItem}
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+    const link = await screen.findByLabelText('Link');
+    expect(link).not.toHaveFocus();
+    expect(document.activeElement).toHaveAttribute('role', 'dialog');
   });
 });
 

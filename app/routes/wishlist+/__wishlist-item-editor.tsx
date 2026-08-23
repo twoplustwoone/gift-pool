@@ -1439,8 +1439,9 @@ function EditorFormSection({
   attachClientMutationId,
   applyUrlPreview,
   enrichment,
-  isDesktop,
+  autoFocusUrlField,
 }: Readonly<{
+  autoFocusUrlField: boolean;
   applyUrlPreview: (rawValue: string) => void;
   attachClientMutationId: (event: React.FormEvent<HTMLFormElement>) => void;
   categories: { id: string; name: string }[];
@@ -1462,7 +1463,6 @@ function EditorFormSection({
   imageUrlValue: string;
   imageWarning: string | null;
   isImageLoading: boolean;
-  isDesktop: boolean;
   isPending: boolean;
   isListLinkType: boolean;
   itemType: WishlistItemType;
@@ -1543,10 +1543,7 @@ function EditorFormSection({
         errors={fields.url.errors}
         inputProps={{
           placeholder: fieldConfig.urlPlaceholder,
-          // Desktop only: autofocusing the link field invites the paste that
-          // drives enrichment, but on mobile it springs the on-screen keyboard
-          // over the sheet before the user has chosen to type.
-          autoFocus: isDesktop,
+          autoFocus: autoFocusUrlField,
           ...getInputProps(fields.url, {
             type: 'url',
             ariaAttributes: true,
@@ -2146,6 +2143,14 @@ export const WishlistItemEditor = React.forwardRef<
       DialogCloseComponent,
     } = getEditorDialogComponents(isDesktop);
 
+    // The link field leads because "paste a link, get a complete item" is the
+    // fast path for a NEW item — autofocusing it invites that paste. Opening
+    // an item that already exists is not that flow: the fields are populated,
+    // the user came to change one of them, and stealing focus (plus, on
+    // mobile, the keyboard) helps nobody. So autofocus is create-only, and
+    // desktop-only on top of that.
+    const autoFocusUrlField = isDesktop && mode === 'create';
+
     const imageFileInputProps = getInputProps(fields.imageFile, {
       type: 'file',
       ariaAttributes: true,
@@ -2199,15 +2204,16 @@ export const WishlistItemEditor = React.forwardRef<
         <DialogContentComponent
           className="p-5 sm:max-w-[36rem] sm:p-6"
           {...(!isDesktop ? { showHandle: true } : {})}
-          {...(isDesktop
+          {...(autoFocusUrlField
             ? {}
             : {
-                // Mobile: don't hand focus to the first tabbable control on
-                // open. A text field springs the on-screen keyboard over the
-                // sheet before the user has chosen to type, and with the link
-                // field no longer autofocused the first control in edit mode
-                // is "Remove from wishlist". Focus the sheet itself so the
-                // title is announced first and Tab walks forward from there.
+                // With the link field not autofocused, Radix's FocusScope
+                // would hand focus to the first tabbable control instead —
+                // which in edit mode is "Remove from wishlist". (React's
+                // autoFocus and FocusScope are separate mechanisms, so
+                // dropping the attribute alone does not settle where focus
+                // lands.) Focus the dialog itself so the title is announced
+                // first and Tab walks forward from the top.
                 onOpenAutoFocus: (event: Event) => {
                   event.preventDefault();
                   const content = event.currentTarget as HTMLElement | null;
@@ -2253,6 +2259,7 @@ export const WishlistItemEditor = React.forwardRef<
               <EditorFormSection
                 applyUrlPreview={imageController.applyUrlPreview}
                 attachClientMutationId={attachClientMutationId}
+                autoFocusUrlField={autoFocusUrlField}
                 categories={categories}
                 enrichment={enrichment}
                 DialogCloseComponent={DialogCloseComponent}
@@ -2271,7 +2278,6 @@ export const WishlistItemEditor = React.forwardRef<
                 imageUrlInputProps={imageUrlInputProps}
                 imageUrlValue={imageController.imageUrlValue}
                 imageWarning={imageController.imageWarning}
-                isDesktop={isDesktop}
                 isImageLoading={imageController.isImageLoading}
                 isPending={isPending}
                 isListLinkType={isListLinkType}
