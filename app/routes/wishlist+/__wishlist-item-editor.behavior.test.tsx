@@ -368,4 +368,65 @@ describe('wishlist item editor behavior', () => {
 
     expect(track).toHaveBeenCalledTimes(1);
   });
+  // Regression for #562. Conform's update intent runs through a synchronous
+  // requestSubmit that re-snapshots the live form, so two form.update calls in
+  // one tick made the second read the first field before React had flushed its
+  // DOM write: Title reverted to empty in Conform's state and re-validated as
+  // "Required" while the input still showed the fetched text. Only reproduces
+  // once Title has been validated (a submit attempt) AND the unfurl returns
+  // both a title and a price — one prefilled field alone was always fine.
+  it('clears the Required error when the unfurl prefills title and price together', async () => {
+    const user = userEvent.setup();
+
+    const view = render(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+    // Submitting the empty form marks Title touched and shows "Required".
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    const title = screen.getByPlaceholderText('Title for your item');
+    await waitFor(() => expect(title).toHaveAttribute('aria-invalid', 'true'));
+
+    const linkField = screen.getByLabelText('Link');
+    await user.type(linkField, 'https://store.example.com/wolverine');
+    fireEvent.blur(linkField);
+
+    fetcherSnapshot.data = {
+      result: {
+        title: 'Marvel Wolverine',
+        imageUrl: null,
+        priceCents: 6999,
+        currency: 'USD',
+        source: 'structured',
+      },
+    };
+    view.rerender(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Title for your item')).toHaveValue(
+        'Marvel Wolverine',
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Price (optional)')).toHaveValue('69.99');
+    });
+    // The prefilled value must count as valid, not sit under a stale error.
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('Title for your item'),
+      ).not.toHaveAttribute('aria-invalid', 'true');
+    });
+    expect(screen.queryByText('Required')).not.toBeInTheDocument();
+  });
 });
