@@ -16,16 +16,14 @@ const MobileBottomSheetOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Close asChild>
-    <DialogPrimitive.Overlay
-      ref={ref}
-      className={cn(
-        'fixed inset-0 z-[1000] bg-[hsl(var(--scrim))] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-        className,
-      )}
-      {...props}
-    />
-  </DialogPrimitive.Close>
+  <DialogPrimitive.Overlay
+    ref={ref}
+    className={cn(
+      'fixed inset-0 z-[1000] bg-[hsl(var(--scrim))] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      className,
+    )}
+    {...props}
+  />
 ));
 MobileBottomSheetOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
@@ -44,6 +42,15 @@ const MobileBottomSheetContent = React.forwardRef<
     ref,
   ) => {
     const [snapPoint, setSnapPoint] = React.useState<'peek' | 'full'>('peek');
+    // While the sheet slides up, the overlay still covers the strip the sheet
+    // is heading for, so a tap aimed at a field lands "outside" and Radix
+    // dismisses it (on touch it defers pointerDownOutside to the click, so
+    // the whole tap counts). Guard for exactly the length of the enter
+    // animation — a mount-scoped guard would not do, because Radix keeps
+    // Content mounted across close/reopen and it would then only ever arm on
+    // the first open. Starts false so that with animations off (reduced
+    // motion) the sheet is already in place and the guard never arms.
+    const [isEntering, setIsEntering] = React.useState(false);
     const [dragOffset, setDragOffset] = React.useState(0);
     const dragStartSnapRef = React.useRef<'peek' | 'full'>('peek');
     const closeRef = React.useRef<HTMLButtonElement>(null);
@@ -106,10 +113,31 @@ const MobileBottomSheetContent = React.forwardRef<
         <DialogPrimitive.Content
           ref={ref}
           data-snap={snapPoint}
+          onPointerDownOutside={(event) => {
+            if (isEntering) event.preventDefault();
+            props.onPointerDownOutside?.(event);
+          }}
+          onInteractOutside={(event) => {
+            if (isEntering) event.preventDefault();
+            props.onInteractOutside?.(event);
+          }}
           style={{
             transform: dragOffset
               ? `translateY(${Math.max(dragOffset, -120)}px)`
               : undefined,
+          }}
+          onAnimationStart={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              event.currentTarget.dataset.state === 'open'
+            ) {
+              setIsEntering(true);
+            }
+            props.onAnimationStart?.(event);
+          }}
+          onAnimationEnd={(event) => {
+            if (event.target === event.currentTarget) setIsEntering(false);
+            props.onAnimationEnd?.(event);
           }}
           onOpenAutoFocus={(event) => {
             setSnapPoint('peek');
