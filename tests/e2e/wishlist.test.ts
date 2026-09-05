@@ -34,9 +34,7 @@ async function dragHandleToTarget(
 const startReorderMode = async (page: Page, mode: 'items' | 'categories') => {
   await page.getByRole('button', { name: /^organize$/i }).click();
   if (mode === 'categories') {
-    await page
-      .getByRole('button', { name: /category reorder mode/i })
-      .click();
+    await page.getByRole('button', { name: /category reorder mode/i }).click();
   }
 };
 
@@ -52,7 +50,9 @@ const createCategory = async (page: Page, categoryName: string) => {
 
 const addItemToCategory = async (page: Page, categoryName: string) => {
   await page
-    .getByRole('button', { name: new RegExp(`add item to ${categoryName}`, 'i') })
+    .getByRole('button', {
+      name: new RegExp(`add item to ${categoryName}`, 'i'),
+    })
     .click();
 };
 
@@ -273,7 +273,10 @@ test('users can create, edit, and delete categories; items follow correctly', as
   // custom categories left, the wishlist renders a flat item list — there
   // is no longer a "Default (Uncategorized)" section to nest it inside.
   await page.getByRole('button', { name: /delete category novels/i }).click();
-  await page.getByRole('dialog', { name: /delete category/i }).getByRole('button', { name: /^delete$/i }).click();
+  await page
+    .getByRole('dialog', { name: /delete category/i })
+    .getByRole('button', { name: /^delete$/i })
+    .click();
   await expect(page.getByText('Novels')).toHaveCount(0);
   await finishOrganizing(page);
 
@@ -538,4 +541,52 @@ test('owners can clear a wishlist item description', async ({
   await expect(page.getByRole('textbox', { name: /description/i })).toHaveValue(
     '',
   );
+});
+
+// Regression: `toEditorWishlistItem` built the editor's item without
+// priceCents/currency, so the Price field rendered empty on every edit and the
+// save action's `priceCents: price ?? null` erased the stored price — no user
+// action required beyond opening an item and saving it.
+test('editing an item preserves its stored price', async ({ page, login }) => {
+  const user = await login();
+  const item = await prisma.wishlistItem.create({
+    data: {
+      ownerId: user.id,
+      title: 'Priced Gloves',
+      type: 'link',
+      sortOrder: 0,
+      priceCents: 5049,
+      currency: 'USD',
+      url: 'https://shop.example.com/gloves',
+    },
+    select: { id: true },
+  });
+
+  await page.goto('/wishlist');
+  await dismissInstallPrompt(page);
+
+  await page
+    .getByRole('button', { name: /Item actions for Priced Gloves/i })
+    .click();
+  await page.getByRole('menuitem', { name: /edit item/i }).click();
+  const editor = page.getByRole('dialog');
+  await expect(editor).toBeVisible();
+
+  // The stored price has to reach the form, or an untouched save wipes it.
+  await expect(
+    editor.getByRole('textbox', { name: 'Price (optional)' }),
+  ).toHaveValue('50.49');
+
+  await editor.getByRole('button', { name: /^save$/i }).click();
+  await expect(editor).not.toBeVisible();
+
+  await expect
+    .poll(async () => {
+      const after = await prisma.wishlistItem.findUnique({
+        where: { id: item.id },
+        select: { priceCents: true, currency: true },
+      });
+      return after;
+    })
+    .toEqual({ priceCents: 5049, currency: 'USD' });
 });

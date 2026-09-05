@@ -4,18 +4,13 @@ import { LuArchive } from 'react-icons/lu';
 import { Button } from '#app/components/ui/button';
 import { Card } from '#app/components/ui/card.tsx';
 import { Heading } from '#app/components/ui/heading.tsx';
-import {
-  WishlistItemEditor,
-} from '#app/routes/wishlist+/__wishlist-item-editor';
+import { WishlistItemEditor } from '#app/routes/wishlist+/__wishlist-item-editor';
 import { formatRelativeTime, useTranslation } from '#app/utils/i18n.tsx';
 import { cn, getWishlistItemImgSrc } from '#app/utils/misc.tsx';
 import { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
 
 import { Text } from '../ui-kit';
-import {
-  WishlistItemThumbnail,
-  WishlistItemUrlChip,
-} from './wishlist-item';
+import { WishlistItemThumbnail, WishlistItemUrlChip } from './wishlist-item';
 import { type WishlistItem } from './wishlist-item-state';
 
 type Category = { id: string; name: string; order: number };
@@ -158,6 +153,8 @@ export const PastWishlistItemCard = ({
         categoryId: item.categoryId ?? null,
         hasImage: item.hasImage ?? false,
         imageSource: item.imageSource ?? null,
+        priceCents: item.priceCents ?? null,
+        currency: item.currency ?? null,
         updatedAt: item.updatedAt,
         status: item.status as WishlistItemStatusValue,
       }}
@@ -181,7 +178,7 @@ export const PastWishlistItemCard = ({
           )}
         >
           <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
-            <div className="flex-shrink-0 [&>img]:grayscale [&>div]:opacity-70">
+            <div className="flex-shrink-0 [&>div]:opacity-70 [&>img]:grayscale">
               <WishlistItemThumbnail
                 displayImageSrc={displayImageSrc}
                 hasImage={item.hasImage ?? false}

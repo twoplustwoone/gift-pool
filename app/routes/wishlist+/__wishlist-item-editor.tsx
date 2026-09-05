@@ -63,9 +63,12 @@ import { dollarsToCents } from '#app/utils/price.ts';
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts';
 import { type Toast } from '#app/utils/toast.server.ts';
 import { type WishlistItemImageSource } from '#app/utils/wishlist-images.server.ts';
+import { type UrlMetadata } from '#app/utils/wishlist-metadata.server.ts';
 import { type WishlistItemStatusValue } from '#app/utils/wishlist.ts';
-import { type action as unfurlAction } from '../api.wishlist.unfurl.ts';
 import { type action } from './__wishlist-item-editor.server';
+
+// What `/api/wishlist/unfurl` puts in its `result` field.
+type UrlEnrichmentResult = UrlMetadata;
 
 const valueMinLength = 1;
 const valueMaxLength = 255;
@@ -303,12 +306,16 @@ type EditorProps = {
     | 'categoryId'
     | 'updatedAt'
     | 'status'
-  > & { status: WishlistItemStatusValue }) &
-    Partial<{
+  > & { status: WishlistItemStatusValue }) & {
+    // Required, not optional: the editor seeds the Price field from these and
+    // the save action writes `priceCents: price ?? null`, so a caller that
+    // quietly omits them erases the stored price on the next save. Optional
+    // typing is what let that ship.
+    priceCents: number | null;
+    currency: string | null;
+  } & Partial<{
       hasImage: boolean;
       imageSource: WishlistItemImageSource | null;
-      priceCents: number | null;
-      currency: string | null;
     }>;
   trigger?: React.ReactNode;
   initialMode?: 'auto' | 'view' | 'edit' | 'create';
@@ -976,7 +983,17 @@ function useUrlEnrichment({
   isListLinkType: boolean;
   wishlistItem: EditorProps['wishlistItem'];
 }): EditorEnrichmentController {
-  const fetcher = useFetcher<typeof unfurlAction>();
+  // Deliberately a plain fetch, not useFetcher: a fetcher's non-OK response
+  // propagates to the route error boundary, and the unfurl sits behind the
+  // strictest rate-limit tier (10/min per IP, shared with /login and friends).
+  // A 429 mid-edit therefore replaced the whole page with an error screen and
+  // took the user's unsaved edits with it. Enrichment is a side request — every
+  // failure has to end here, silently, with the editor still standing.
+  const [unfurlResult, setUnfurlResult] = useState<UrlEnrichmentResult | null>(
+    null,
+  );
+  const [isUnfurling, setIsUnfurling] = useState(false);
+  const inFlight = useRef<AbortController | null>(null);
   const lastRequestedUrl = useRef<string | null>(null);
   const appliedForUrl = useRef<string | null>(null);
   const userEdited = useRef(new Set<EnrichableField>());
@@ -1020,21 +1037,51 @@ function useUrlEnrichment({
       }
       if (url === lastRequestedUrl.current) return;
       lastRequestedUrl.current = url;
-      void fetcher.submit(
-        { url },
-        { method: 'POST', action: '/api/wishlist/unfurl' },
-      );
+
+      inFlight.current?.abort();
+      const controller = new AbortController();
+      inFlight.current = controller;
+      setIsUnfurling(true);
+
+      void (async () => {
+        let result: UrlEnrichmentResult | null = null;
+        try {
+          const response = await fetch('/api/wishlist/unfurl', {
+            method: 'POST',
+            body: new URLSearchParams({ url }),
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            signal: controller.signal,
+          });
+          // 401, 429, 500 — all of them mean "the user types the fields
+          // manually", exactly like a page we couldn't parse.
+          if (response.ok) {
+            const payload = (await response.json()) as {
+              result?: UrlEnrichmentResult | null;
+            };
+            result = payload?.result ?? null;
+          }
+        } catch {
+          // Aborted, offline, or a body that wasn't JSON. Same outcome.
+        }
+        if (controller.signal.aborted) return;
+        inFlight.current = null;
+        setUnfurlResult(result);
+        setIsUnfurling(false);
+      })();
     },
-    [fetcher, isListLinkType],
+    [isListLinkType],
   );
+
+  // Abandon an in-flight lookup when the editor unmounts.
+  useEffect(() => () => inFlight.current?.abort(), []);
 
   const { applyUrlPreview, hasPendingImageChange, imageUrlValue } =
     imageController;
   const hasExistingImage = Boolean(wishlistItem?.hasImage);
 
   useEffect(() => {
-    if (fetcher.state !== 'idle') return;
-    const metadata = fetcher.data?.result;
+    if (isUnfurling) return;
+    const metadata = unfurlResult;
     if (!metadata) return;
     if (appliedForUrl.current === lastRequestedUrl.current) return;
     appliedForUrl.current = lastRequestedUrl.current;
@@ -1122,8 +1169,6 @@ function useUrlEnrichment({
     }
   }, [
     applyUrlPreview,
-    fetcher.data,
-    fetcher.state,
     fields.price.name,
     fields.title.name,
     form,
@@ -1131,14 +1176,16 @@ function useUrlEnrichment({
     hasExistingImage,
     hasPendingImageChange,
     imageUrlValue,
+    isUnfurling,
     readFieldValue,
+    unfurlResult,
   ]);
 
   return {
     currencyValue,
     enrichedFieldsValue,
     enrichmentEdited,
-    isUnfurling: fetcher.state !== 'idle',
+    isUnfurling,
     markEdited,
     requestUnfurl,
     showHint,

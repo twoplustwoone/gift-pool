@@ -21,7 +21,8 @@ vi.mock('#app/utils/wishlist-metadata.server.ts', () => ({
 }));
 vi.mock('#app/utils/analytics.server.ts', () => ({ queueLogEvent }));
 
-import { action } from './api.wishlist.unfurl.ts';
+import { lruCache } from '#app/utils/cache.server.ts';
+import { action, unfurlCacheKey } from './api.wishlist.unfurl.ts';
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -58,9 +59,22 @@ async function loginCookie() {
   return { user, cookie: await getSessionCookieHeader(session) };
 }
 
+const CACHED_URLS = [
+  'https://example.com/p',
+  'https://shop.example.com/products/widget',
+  'https://example.com/empty',
+  'https://slow.example.com/p',
+  'https://cache.example.com/widget',
+  'https://ttl.example.com/widget',
+];
+
 beforeEach(() => {
   extractUrlMetadata.mockReset();
   queueLogEvent.mockClear();
+  vi.useRealTimers();
+  // The unfurl cache is process-wide, so a key set by one case would otherwise
+  // answer the next one (same pattern as the admin cache tests).
+  for (const url of CACHED_URLS) lruCache.delete(unfurlCacheKey(url));
 });
 
 describe('/api/wishlist/unfurl action', () => {
@@ -152,7 +166,10 @@ describe('/api/wishlist/unfurl action', () => {
 
     const result = await action(
       toActionArgs({
-        request: createRequest({ url: 'https://example.com/empty' }, { cookie }),
+        request: createRequest(
+          { url: 'https://example.com/empty' },
+          { cookie },
+        ),
         params: {},
         context: {} as any,
       }),
@@ -169,13 +186,91 @@ describe('/api/wishlist/unfurl action', () => {
     );
   });
 
+  it('serves a repeated URL from cache instead of fetching twice', async () => {
+    const { cookie } = await loginCookie();
+    extractUrlMetadata.mockResolvedValue({
+      ok: true,
+      metadata: SUCCESS_METADATA,
+      llmAttempted: false,
+      llmFailed: false,
+    });
+
+    const call = () =>
+      action(
+        toActionArgs({
+          request: createRequest(
+            { url: 'https://cache.example.com/widget' },
+            { cookie },
+          ),
+          params: {},
+          context: {} as any,
+        }),
+      );
+
+    await expect(getRouteResultData(await call())).resolves.toMatchObject({
+      result: SUCCESS_METADATA,
+    });
+    await expect(getRouteResultData(await call())).resolves.toMatchObject({
+      result: SUCCESS_METADATA,
+    });
+
+    // One outbound fetch (and at most one LLM call) for two presses.
+    expect(extractUrlMetadata).toHaveBeenCalledTimes(1);
+    expect(queueLogEvent).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        properties: expect.objectContaining({ cached: false }),
+      }),
+    );
+    expect(queueLogEvent).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        properties: expect.objectContaining({ cached: true }),
+      }),
+    );
+  });
+
+  it('fetches again once the cached result has expired', async () => {
+    const { cookie } = await loginCookie();
+    extractUrlMetadata.mockResolvedValue({
+      ok: true,
+      metadata: SUCCESS_METADATA,
+      llmAttempted: false,
+      llmFailed: false,
+    });
+
+    const call = () =>
+      action(
+        toActionArgs({
+          request: createRequest(
+            { url: 'https://ttl.example.com/widget' },
+            { cookie },
+          ),
+          params: {},
+          context: {} as any,
+        }),
+      );
+
+    await call();
+    expect(extractUrlMetadata).toHaveBeenCalledTimes(1);
+
+    // Past the 5-minute success TTL, the next press pays for a fresh lookup.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(Date.now() + 6 * 60 * 1000));
+    await call();
+    expect(extractUrlMetadata).toHaveBeenCalledTimes(2);
+  });
+
   it('returns 200 with null result on fetch failure and logs the outcome', async () => {
     const { cookie } = await loginCookie();
     extractUrlMetadata.mockResolvedValue({ ok: false, outcome: 'timeout' });
 
     const result = await action(
       toActionArgs({
-        request: createRequest({ url: 'https://slow.example.com/p' }, { cookie }),
+        request: createRequest(
+          { url: 'https://slow.example.com/p' },
+          { cookie },
+        ),
         params: {},
         context: {} as any,
       }),
