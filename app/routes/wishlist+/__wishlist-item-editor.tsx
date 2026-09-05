@@ -303,12 +303,16 @@ type EditorProps = {
     | 'categoryId'
     | 'updatedAt'
     | 'status'
-  > & { status: WishlistItemStatusValue }) &
-    Partial<{
+  > & { status: WishlistItemStatusValue }) & {
+    // Required, not optional: the editor seeds the Price field from these and
+    // the save action writes `priceCents: price ?? null`, so a caller that
+    // quietly omits them erases the stored price on the next save. Optional
+    // typing is what let that ship.
+    priceCents: number | null;
+    currency: string | null;
+  } & Partial<{
       hasImage: boolean;
       imageSource: WishlistItemImageSource | null;
-      priceCents: number | null;
-      currency: string | null;
     }>;
   trigger?: React.ReactNode;
   initialMode?: 'auto' | 'view' | 'edit' | 'create';

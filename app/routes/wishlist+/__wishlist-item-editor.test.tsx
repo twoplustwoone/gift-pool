@@ -64,6 +64,8 @@ const baseItem = {
   categoryId: null as string | null,
   hasImage: false,
   imageSource: null,
+  priceCents: null,
+  currency: null,
   updatedAt: new Date(),
 };
 

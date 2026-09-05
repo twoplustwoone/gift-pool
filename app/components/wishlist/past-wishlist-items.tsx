@@ -158,6 +158,8 @@ export const PastWishlistItemCard = ({
         categoryId: item.categoryId ?? null,
         hasImage: item.hasImage ?? false,
         imageSource: item.imageSource ?? null,
+        priceCents: item.priceCents ?? null,
+        currency: item.currency ?? null,
         updatedAt: item.updatedAt,
         status: item.status as WishlistItemStatusValue,
       }}

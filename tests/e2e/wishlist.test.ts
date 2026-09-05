@@ -539,3 +539,51 @@ test('owners can clear a wishlist item description', async ({
     '',
   );
 });
+
+// Regression: `toEditorWishlistItem` built the editor's item without
+// priceCents/currency, so the Price field rendered empty on every edit and the
+// save action's `priceCents: price ?? null` erased the stored price — no user
+// action required beyond opening an item and saving it.
+test('editing an item preserves its stored price', async ({ page, login }) => {
+  const user = await login();
+  const item = await prisma.wishlistItem.create({
+    data: {
+      ownerId: user.id,
+      title: 'Priced Gloves',
+      type: 'link',
+      sortOrder: 0,
+      priceCents: 5049,
+      currency: 'USD',
+      url: 'https://shop.example.com/gloves',
+    },
+    select: { id: true },
+  });
+
+  await page.goto('/wishlist');
+  await dismissInstallPrompt(page);
+
+  await page
+    .getByRole('button', { name: /Item actions for Priced Gloves/i })
+    .click();
+  await page.getByRole('menuitem', { name: /edit item/i }).click();
+  const editor = page.getByRole('dialog');
+  await expect(editor).toBeVisible();
+
+  // The stored price has to reach the form, or an untouched save wipes it.
+  await expect(
+    editor.getByRole('textbox', { name: 'Price (optional)' }),
+  ).toHaveValue('50.49');
+
+  await editor.getByRole('button', { name: /^save$/i }).click();
+  await expect(editor).not.toBeVisible();
+
+  await expect
+    .poll(async () => {
+      const after = await prisma.wishlistItem.findUnique({
+        where: { id: item.id },
+        select: { priceCents: true, currency: true },
+      });
+      return after;
+    })
+    .toEqual({ priceCents: 5049, currency: 'USD' });
+});

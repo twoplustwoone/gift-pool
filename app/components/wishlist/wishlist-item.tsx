@@ -183,6 +183,13 @@ function toEditorWishlistItem(
     categoryId: wishlistItem.categoryId ?? null,
     hasImage: wishlistItem.hasImage ?? false,
     imageSource: wishlistItem.imageSource ?? null,
+    // Price and currency are load-bearing, not decoration: the editor seeds its
+    // Price field from them, and the save action writes `priceCents: price ??
+    // null`. Omitting them here rendered the field empty on every edit, so an
+    // unrelated save (a rename, a new note) silently erased a stored price —
+    // including every price link enrichment had just filled in.
+    priceCents: wishlistItem.priceCents ?? null,
+    currency: wishlistItem.currency ?? null,
     updatedAt: wishlistItem.updatedAt,
     status: normalizedStatus,
   };

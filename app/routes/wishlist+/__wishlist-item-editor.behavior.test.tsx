@@ -95,10 +95,12 @@ vi.mock('#app/utils/misc.tsx', async () => {
 
 const baseItem = {
   categoryId: null as string | null,
+  currency: null,
   hasImage: false,
   id: 'item-1',
   imageSource: null,
   note: null,
+  priceCents: null,
   status: 'ACTIVE' as const,
   title: 'My Item',
   type: 'text' as const,
