@@ -48,9 +48,9 @@ vi.mock('#app/utils/request-info.ts', () => ({
   useOptionalRequestInfo: () => ({ requestId: 'fallback-request' }),
 }));
 
-// Shared snapshot backing every useFetcher() in the editor. Only the
-// enrichment test populates `data`; the status fetcher tolerates it because
-// it only reads `data.ok`/`data.status`, which stay undefined.
+// Shared snapshot backing every useFetcher() in the editor. Enrichment no
+// longer uses one (it is a plain fetch — see `mockUnfurl`); the status fetcher
+// tolerates the empty snapshot because it only reads `data.ok`/`data.status`.
 const fetcherSnapshot: {
   data: unknown;
   state: 'idle' | 'submitting' | 'loading';
@@ -93,6 +93,31 @@ vi.mock('#app/utils/misc.tsx', async () => {
   };
 });
 
+// The enrichment request is a plain fetch so a rate-limit 429 can't reach the
+// route error boundary. Tests drive it by stubbing that fetch.
+const unfurlFetch = vi.fn();
+
+function mockUnfurl(result: unknown) {
+  unfurlFetch.mockResolvedValue({
+    ok: true,
+    json: async () => ({ result }),
+  });
+}
+
+// Hold a lookup open so a test can land the response at a chosen moment.
+function deferUnfurl() {
+  let settle: (value: unknown) => void = () => {};
+  const response = new Promise((resolve) => {
+    settle = resolve;
+  });
+  unfurlFetch.mockReturnValue(response);
+  return {
+    resolveUnfurl: (result: unknown) =>
+      settle({ ok: true, json: async () => ({ result }) }),
+    pendingUnfurl: response.then(() => undefined),
+  };
+}
+
 const baseItem = {
   categoryId: null as string | null,
   currency: null,
@@ -114,6 +139,12 @@ beforeEach(() => {
   fetcherSnapshot.data = undefined;
   fetcherSnapshot.state = 'idle';
   fetcherSnapshot.submit.mockReset();
+  unfurlFetch.mockReset();
+  unfurlFetch.mockResolvedValue({
+    ok: true,
+    json: async () => ({ result: null }),
+  });
+  vi.stubGlobal('fetch', (...args: Array<unknown>) => unfurlFetch(...args));
   // Keep URL constructible (the enrichment hook calls `new URL(...)`) while
   // stubbing the object-URL statics jsdom doesn't implement.
   vi.stubGlobal(
@@ -137,32 +168,25 @@ describe('wishlist item editor behavior', () => {
       />,
     );
 
+    mockUnfurl({
+      title: 'Acme Widget',
+      imageUrl: null,
+      priceCents: 4999,
+      currency: 'USD',
+      source: 'structured',
+    });
+
     await user.click(screen.getByText('Open'));
     const linkField = screen.getByLabelText('Link');
     await user.type(linkField, 'https://shop.example.com/widget');
     fireEvent.blur(linkField);
 
-    expect(fetcherSnapshot.submit).toHaveBeenCalledWith(
-      { url: 'https://shop.example.com/widget' },
-      { method: 'POST', action: '/api/wishlist/unfurl' },
+    expect(unfurlFetch).toHaveBeenCalledWith(
+      '/api/wishlist/unfurl',
+      expect.objectContaining({ method: 'POST' }),
     );
-
-    // Deliver the unfurl result and re-render so the prefill effect runs.
-    fetcherSnapshot.data = {
-      result: {
-        title: 'Acme Widget',
-        imageUrl: null,
-        priceCents: 4999,
-        currency: 'USD',
-        source: 'structured',
-      },
-    };
-    view.rerender(
-      <WishlistItemEditor
-        canEdit
-        initialMode="create"
-        trigger={<button type="button">Open</button>}
-      />,
+    expect(String(unfurlFetch.mock.calls[0]?.[1]?.body)).toContain(
+      encodeURIComponent('https://shop.example.com/widget'),
     );
 
     await waitFor(() => {
@@ -185,8 +209,15 @@ describe('wishlist item editor behavior', () => {
 
   it('never overwrites a title the user already typed', async () => {
     const user = userEvent.setup();
+    mockUnfurl({
+      title: 'Scraped Title',
+      imageUrl: null,
+      priceCents: 1000,
+      currency: null,
+      source: 'structured',
+    });
 
-    const view = render(
+    render(
       <WishlistItemEditor
         canEdit
         initialMode="create"
@@ -202,23 +233,6 @@ describe('wishlist item editor behavior', () => {
     const linkField = screen.getByLabelText('Link');
     await user.type(linkField, 'https://shop.example.com/widget');
     fireEvent.blur(linkField);
-
-    fetcherSnapshot.data = {
-      result: {
-        title: 'Scraped Title',
-        imageUrl: null,
-        priceCents: 1000,
-        currency: null,
-        source: 'structured',
-      },
-    };
-    view.rerender(
-      <WishlistItemEditor
-        canEdit
-        initialMode="create"
-        trigger={<button type="button">Open</button>}
-      />,
-    );
 
     await waitFor(() => {
       expect(screen.getByLabelText('Price (optional)')).toHaveValue('10.00');
@@ -242,8 +256,9 @@ describe('wishlist item editor behavior', () => {
   // can easily beat an in-flight unfurl.
   it('does not crash when the unfurl lands after the dialog has closed', async () => {
     const user = userEvent.setup();
+    const { resolveUnfurl, pendingUnfurl } = deferUnfurl();
 
-    const view = render(
+    render(
       <WishlistItemEditor
         canEdit
         initialMode="create"
@@ -255,7 +270,7 @@ describe('wishlist item editor behavior', () => {
     const linkField = screen.getByLabelText('Link');
     await user.type(linkField, 'https://shop.example.com/widget');
     fireEvent.blur(linkField);
-    expect(fetcherSnapshot.submit).toHaveBeenCalled();
+    expect(unfurlFetch).toHaveBeenCalled();
 
     // Close the dialog while the unfurl is still in flight.
     await user.keyboard('{Escape}');
@@ -263,29 +278,60 @@ describe('wishlist item editor behavior', () => {
       expect(screen.queryByLabelText('Link')).not.toBeInTheDocument();
     });
 
-    // The response arrives with no form mounted to receive it.
-    fetcherSnapshot.data = {
-      result: {
-        title: 'Acme Widget',
-        imageUrl: null,
-        priceCents: 4999,
-        currency: 'USD',
-        source: 'structured',
-      },
-    };
-    expect(() =>
-      view.rerender(
-        <WishlistItemEditor
-          canEdit
-          initialMode="create"
-          trigger={<button type="button">Open</button>}
-        />,
-      ),
-    ).not.toThrow();
+    // The response lands with no form mounted to receive it.
+    resolveUnfurl({
+      title: 'Acme Widget',
+      imageUrl: null,
+      priceCents: 4999,
+      currency: 'USD',
+      source: 'structured',
+    });
+    await pendingUnfurl;
 
     // And the editor still works afterwards.
     await user.click(screen.getByText('Open'));
     expect(await screen.findByLabelText('Link')).toBeInTheDocument();
+  });
+
+  // The unfurl sits behind the strictest rate-limit tier (10/min per IP, a
+  // bucket it shares with /login and /settings/profile). Through useFetcher the
+  // 429 reached the route error boundary, which closed the editor and replaced
+  // the page — losing whatever the user had typed. Every failure now ends in
+  // the hook.
+  it('survives a rate-limited lookup instead of tearing down the editor', async () => {
+    const user = userEvent.setup();
+    unfurlFetch.mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: async () => {
+        throw new Error('rate limiter returns text, not JSON');
+      },
+    });
+
+    render(
+      <WishlistItemEditor
+        canEdit
+        initialMode="create"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+
+    await user.click(screen.getByText('Open'));
+    const linkField = screen.getByLabelText('Link');
+    await user.type(linkField, 'https://shop.example.com/widget');
+    fireEvent.blur(linkField);
+
+    await waitFor(() => expect(unfurlFetch).toHaveBeenCalled());
+
+    // Editor intact, nothing prefilled, and the pending line stands down.
+    expect(screen.getByLabelText('Link')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Title for your item')).toHaveValue('');
+    await waitFor(() => {
+      expect(screen.queryByText(/looking up link/i)).not.toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText('Filled from link — edit anything that looks off.'),
+    ).not.toBeInTheDocument();
   });
 
   it('shows a validation message when the image URL preview is not http(s)', async () => {
@@ -380,8 +426,15 @@ describe('wishlist item editor behavior', () => {
   // both a title and a price — one prefilled field alone was always fine.
   it('clears the Required error when the unfurl prefills title and price together', async () => {
     const user = userEvent.setup();
+    mockUnfurl({
+      title: 'Marvel Wolverine',
+      imageUrl: null,
+      priceCents: 6999,
+      currency: 'USD',
+      source: 'structured',
+    });
 
-    const view = render(
+    render(
       <WishlistItemEditor
         canEdit
         initialMode="create"
@@ -398,23 +451,6 @@ describe('wishlist item editor behavior', () => {
     const linkField = screen.getByLabelText('Link');
     await user.type(linkField, 'https://store.example.com/wolverine');
     fireEvent.blur(linkField);
-
-    fetcherSnapshot.data = {
-      result: {
-        title: 'Marvel Wolverine',
-        imageUrl: null,
-        priceCents: 6999,
-        currency: 'USD',
-        source: 'structured',
-      },
-    };
-    view.rerender(
-      <WishlistItemEditor
-        canEdit
-        initialMode="create"
-        trigger={<button type="button">Open</button>}
-      />,
-    );
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Title for your item')).toHaveValue(

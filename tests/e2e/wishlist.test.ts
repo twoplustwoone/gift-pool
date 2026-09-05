@@ -34,9 +34,7 @@ async function dragHandleToTarget(
 const startReorderMode = async (page: Page, mode: 'items' | 'categories') => {
   await page.getByRole('button', { name: /^organize$/i }).click();
   if (mode === 'categories') {
-    await page
-      .getByRole('button', { name: /category reorder mode/i })
-      .click();
+    await page.getByRole('button', { name: /category reorder mode/i }).click();
   }
 };
 
@@ -52,7 +50,9 @@ const createCategory = async (page: Page, categoryName: string) => {
 
 const addItemToCategory = async (page: Page, categoryName: string) => {
   await page
-    .getByRole('button', { name: new RegExp(`add item to ${categoryName}`, 'i') })
+    .getByRole('button', {
+      name: new RegExp(`add item to ${categoryName}`, 'i'),
+    })
     .click();
 };
 
@@ -273,7 +273,10 @@ test('users can create, edit, and delete categories; items follow correctly', as
   // custom categories left, the wishlist renders a flat item list — there
   // is no longer a "Default (Uncategorized)" section to nest it inside.
   await page.getByRole('button', { name: /delete category novels/i }).click();
-  await page.getByRole('dialog', { name: /delete category/i }).getByRole('button', { name: /^delete$/i }).click();
+  await page
+    .getByRole('dialog', { name: /delete category/i })
+    .getByRole('button', { name: /^delete$/i })
+    .click();
   await expect(page.getByText('Novels')).toHaveCount(0);
   await finishOrganizing(page);
 
