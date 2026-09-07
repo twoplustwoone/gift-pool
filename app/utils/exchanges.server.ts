@@ -695,6 +695,14 @@ export async function updateExchangeSettings({
       throw validationError('The exchange date needs to be in the future.');
     }
     next.eventDate = patch.eventDate;
+    // The auto-reveal date rides along with the event date (same offset), so a
+    // postponed exchange cannot reveal itself before the new date. An explicit
+    // autoRevealAt in the same patch still wins below.
+    if (exchange.autoRevealAt && patch.autoRevealAt === undefined) {
+      const offset =
+        exchange.autoRevealAt.getTime() - exchange.eventDate.getTime();
+      next.autoRevealAt = new Date(patch.eventDate.getTime() + offset);
+    }
   }
   if (patch.spendingGuideline !== undefined) {
     const guideline = patch.spendingGuideline?.trim() || null;
@@ -742,22 +750,34 @@ export async function setParticipation({
       { status: 400 },
     );
   }
-  const existing = await prisma.exchangeParticipant.findUnique({
-    where: { exchangeId_userId: { exchangeId, userId } },
-    select: { id: true, status: true },
-  });
-  // Standalone exchanges are joined by invite link only; someone with no row
-  // there is not on the roster and cannot opt themselves in.
-  if (!existing && !exchange.giftGroupId) throw notFound();
-  if (existing?.status === status) return;
-
   const timestamps =
     status === PARTICIPANT_STATUS.IN ? { joinedAt: now } : { leftAt: now };
-  await prisma.exchangeParticipant.upsert({
-    where: { exchangeId_userId: { exchangeId, userId } },
-    update: { status, ...timestamps },
-    create: { exchangeId, userId, status, ...timestamps },
+  // The status is re-read inside the write transaction: SQLite serializes
+  // writers, so a draw that commits first flips the status before this runs
+  // and the recheck refuses — no roster change can land on a DRAWN exchange.
+  const changed = await prisma.$transaction(async (tx) => {
+    const current = await tx.exchange.findUnique({
+      where: { id: exchangeId },
+      select: { status: true, giftGroupId: true },
+    });
+    if (!current) throw notFound();
+    assertExchangeStatus(current, [EXCHANGE_STATUS.GATHERING]);
+    const existing = await tx.exchangeParticipant.findUnique({
+      where: { exchangeId_userId: { exchangeId, userId } },
+      select: { id: true, status: true },
+    });
+    // Standalone exchanges are joined by invite link only; someone with no row
+    // there is not on the roster and cannot opt themselves in.
+    if (!existing && !current.giftGroupId) throw notFound();
+    if (existing?.status === status) return false;
+    await tx.exchangeParticipant.upsert({
+      where: { exchangeId_userId: { exchangeId, userId } },
+      update: { status, ...timestamps },
+      create: { exchangeId, userId, status, ...timestamps },
+    });
+    return true;
   });
+  if (!changed) return;
 
   queueLogEvent({
     name:
@@ -795,12 +815,20 @@ export async function addExclusion({
     throw validationError('Exclusions can only name people in the group.');
   }
   const [a, b] = canonicalPair(userAId, userBId);
-  await prisma.exchangeExclusion.upsert({
-    where: {
-      exchangeId_userAId_userBId: { exchangeId, userAId: a, userBId: b },
-    },
-    update: {},
-    create: { exchangeId, userAId: a, userBId: b },
+  await prisma.$transaction(async (tx) => {
+    const current = await tx.exchange.findUnique({
+      where: { id: exchangeId },
+      select: { status: true },
+    });
+    if (!current) throw notFound();
+    assertExchangeStatus(current, [EXCHANGE_STATUS.GATHERING]);
+    await tx.exchangeExclusion.upsert({
+      where: {
+        exchangeId_userAId_userBId: { exchangeId, userAId: a, userBId: b },
+      },
+      update: {},
+      create: { exchangeId, userAId: a, userBId: b },
+    });
   });
 }
 
@@ -816,8 +844,16 @@ export async function removeExclusion({
   const exchange = await requireExchangeVisible(actorId, exchangeId);
   requireExchangeOrganizer(actorId, exchange);
   assertExchangeStatus(exchange, [EXCHANGE_STATUS.GATHERING]);
-  await prisma.exchangeExclusion.deleteMany({
-    where: { id: exclusionId, exchangeId },
+  await prisma.$transaction(async (tx) => {
+    const current = await tx.exchange.findUnique({
+      where: { id: exchangeId },
+      select: { status: true },
+    });
+    if (!current) throw notFound();
+    assertExchangeStatus(current, [EXCHANGE_STATUS.GATHERING]);
+    await tx.exchangeExclusion.deleteMany({
+      where: { id: exclusionId, exchangeId },
+    });
   });
 }
 
@@ -1052,7 +1088,8 @@ export async function markAssignmentViewed({
 
 export type RevealResult =
   | { status: 'REVEALED'; finalStatus: 'REVEALED' | 'FINISHED'; auto: boolean }
-  | { status: 'ALREADY' };
+  | { status: 'ALREADY' }
+  | { status: 'NOT_YET' };
 
 // Manual and automatic reveals are the same operation with the same result, so
 // nobody can tell whether the button was pressed or the date arrived.
@@ -1062,7 +1099,7 @@ export async function reveal({
   now = new Date(),
 }: {
   exchangeId: string;
-  // 'SYSTEM' = the auto-reveal sweep, which has already verified the date.
+  // 'SYSTEM' = the auto-reveal sweep.
   actorId: string | 'SYSTEM';
   now?: Date;
 }): Promise<RevealResult> {
@@ -1074,12 +1111,16 @@ export async function reveal({
   if (actorId !== 'SYSTEM') {
     await requireExchangeVisible(actorId, exchangeId);
     requireExchangeOrganizer(actorId, exchange);
-    if (now < exchange.eventDate) {
-      throw data(
-        { error: 'You can reveal from the exchange date onwards.' },
-        { status: 409 },
-      );
-    }
+  }
+  // Nobody — not even the sweep — reveals before the exchange date. The sweep
+  // selects by autoRevealAt, which is kept on or after eventDate, but a stale
+  // value must fail closed rather than expose pairings early.
+  if (now < exchange.eventDate) {
+    if (actorId === 'SYSTEM') return { status: 'NOT_YET' };
+    throw data(
+      { error: 'You can reveal from the exchange date onwards.' },
+      { status: 409 },
+    );
   }
   if (exchange.status !== EXCHANGE_STATUS.DRAWN) {
     if (

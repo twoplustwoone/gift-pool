@@ -571,6 +571,38 @@ describe('reveal', () => {
 });
 
 describe('settings', () => {
+  it('moves the auto-reveal date along with a postponed exchange date', async () => {
+    const { id } = await createGroupExchange(f);
+    const later = new Date('2027-01-10T00:00:00Z');
+    await updateExchangeSettings({
+      exchangeId: id,
+      actorId: f.organizer.id,
+      patch: { eventDate: later },
+      now: NOW,
+    });
+    const exchange = await prisma.exchange.findUniqueOrThrow({ where: { id } });
+    expect(exchange.autoRevealAt).toEqual(new Date(later.getTime() + 3 * DAY));
+    // The sweep fails closed even if a stale auto-reveal date slipped through.
+    await prisma.exchange.update({
+      where: { id },
+      data: { autoRevealAt: new Date('2026-12-05T00:00:00Z') },
+    });
+    await optInAll(f, id);
+    await drawNames({ exchangeId: id, actorId: f.organizer.id, now: NOW });
+    const summary = await runAutoRevealSweep({
+      now: new Date('2026-12-06T00:00:00Z'),
+    });
+    expect(summary).toEqual({
+      considered: 1,
+      revealed: 0,
+      skipped: 1,
+      failed: 0,
+    });
+    expect(
+      (await prisma.exchange.findUniqueOrThrow({ where: { id } })).status,
+    ).toBe('DRAWN');
+  });
+
   it('locks everything but the auto-reveal date after the draw', async () => {
     const { id } = await createGroupExchange(f);
     await updateExchangeSettings({
