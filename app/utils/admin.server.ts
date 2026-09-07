@@ -1373,12 +1373,14 @@ export async function getDropOffFunnels({
           WHERE name IN ('wishlist_share_viewed', 'wishlist_link_clicked')
             AND createdAt >= ${since}
         `,
-          prisma.$queryRaw<Array<{ name: string; n: bigint }>>`
-          SELECT name, COUNT(DISTINCT json_extract(properties, '$.exchangeId')) AS n
+          // Exchange lifecycles outlast a 30-day window, so later stages are
+          // cohorted to exchanges CREATED in the window: a draw or reveal for an
+          // older exchange never inflates a later step past its denominator.
+          prisma.$queryRaw<Array<{ name: string; exchangeId: string | null }>>`
+          SELECT name, json_extract(properties, '$.exchangeId') AS exchangeId
           FROM AnalyticsEvent
-          WHERE name IN ('exchange_created', 'exchange_drawn', 'exchange_revealed')
-            AND createdAt >= ${since}
-          GROUP BY name
+          WHERE (name = 'exchange_created' AND createdAt >= ${since})
+             OR name IN ('exchange_drawn', 'exchange_revealed')
         `,
         ],
       );
@@ -1442,11 +1444,23 @@ export async function getDropOffFunnels({
         },
       ];
 
-      const exchangeCount = new Map(
-        exchangeRows.map((row) => [row.name, Number(row.n)]),
+      const cohort = new Set(
+        exchangeRows
+          .filter((row) => row.name === 'exchange_created' && row.exchangeId)
+          .map((row) => row.exchangeId as string),
       );
-      const exchangeStep = (name: string) => exchangeCount.get(name) ?? 0;
-      const created = exchangeStep('exchange_created');
+      const exchangeStep = (name: string) =>
+        new Set(
+          exchangeRows
+            .filter(
+              (row) =>
+                row.name === name &&
+                row.exchangeId &&
+                cohort.has(row.exchangeId),
+            )
+            .map((row) => row.exchangeId as string),
+        ).size;
+      const created = cohort.size;
       const pctOfCreated = (n: number) =>
         created > 0 ? Math.round((n / created) * 100) : 0;
       const exchanges: DropOffSignupFunnel = [

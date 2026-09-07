@@ -118,9 +118,15 @@ describe('exchange notification fan-out', () => {
     queueExchangeStarted('x1');
     await flush();
     await flush();
+    // Snapshotted PENDING rows intersected with CURRENT group membership, so a
+    // member who left the group is not told about its exchange.
     expect(participantFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { exchangeId: 'x1', status: 'PENDING' },
+        where: {
+          exchangeId: 'x1',
+          status: 'PENDING',
+          user: { giftGroups: { some: { giftGroupId: 'g1' } } },
+        },
       }),
     );
     expect(resolvePolicies).toHaveBeenCalledWith(
