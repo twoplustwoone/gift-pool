@@ -705,7 +705,11 @@ const DangerZone = ({
 					{canCancel && (
 						<ConfirmDialog
 							title="Cancel this pool?"
-							description="Contributors will no longer be able to act on it. Any claim this pool holds on the wishlist item is released, and may transfer immediately to another pool waiting on the same item. This can't be undone."
+							description="Contributors will no longer be able to act on it."
+							consequences={[
+								'Any claim this pool holds on the wishlist item is released, and may transfer immediately to another pool waiting on the same item.',
+								"This can't be undone.",
+							]}
 							confirmText="Cancel pool"
 							onConfirm={() => submitIntent(cancelFetcher, 'cancel-pool')}
 						>
