@@ -103,7 +103,13 @@ describe('notification catalog', () => {
     ];
 
     expect(getNotificationTopicsForContext('POOL')).toEqual(poolTopics);
-    expect(getNotificationTopicsForContext('GROUP')).toEqual(poolTopics);
+    // EXCHANGE_STARTED is the one exchange event with GROUP context, so its
+    // topic appears under group controls only — a muted group stays quiet
+    // about new exchanges but can never swallow a draw or reveal.
+    expect(getNotificationTopicsForContext('GROUP')).toEqual([
+      ...poolTopics,
+      NOTIFICATION_TOPICS.EXCHANGE_INVITATIONS,
+    ]);
   });
 
   it('scopes WISHLIST_CLAIM_TRANSFERRED to pool context so a muted pool suppresses it, but leaves WISHLIST_CLAIM_CONFLICT unscoped', () => {
@@ -135,6 +141,34 @@ describe('notification catalog', () => {
       NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED,
     ].map((t) => getNotificationEventDefinition(t).topic);
     expect(new Set(topics).size).toBe(1);
+  });
+
+  it('keeps the exchange key moments unscoped so a muted group cannot swallow them', () => {
+    for (const type of [
+      NOTIFICATION_TYPES.EXCHANGE_NAMES_DRAWN,
+      NOTIFICATION_TYPES.EXCHANGE_REVEALED,
+      NOTIFICATION_TYPES.EXCHANGE_CANCELLED,
+    ]) {
+      expect(getNotificationEventDefinition(type)).toMatchObject({
+        topic: NOTIFICATION_TOPICS.EXCHANGE_KEY_MOMENTS,
+        context: 'NONE',
+        importance: 'IMPORTANT',
+        deliveryStrategy: 'PER_CHANNEL_LEDGER',
+      });
+      expect(matchesNotificationContext('NONE', undefined)).toBe(true);
+    }
+    expect(
+      getNotificationEventDefinition(NOTIFICATION_TYPES.EXCHANGE_STARTED),
+    ).toMatchObject({
+      topic: NOTIFICATION_TOPICS.EXCHANGE_INVITATIONS,
+      context: 'GROUP',
+    });
+    expect(getNotificationTopicsForContext('GROUP')).toContain(
+      NOTIFICATION_TOPICS.EXCHANGE_INVITATIONS,
+    );
+    expect(getNotificationTopicsForContext('GROUP')).not.toContain(
+      NOTIFICATION_TOPICS.EXCHANGE_KEY_MOMENTS,
+    );
   });
 
   it('requires the context kind declared by an event', () => {

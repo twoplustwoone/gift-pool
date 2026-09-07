@@ -101,6 +101,30 @@ export const en = {
         'The other claim on {{item}} for {{recipient}} was released — {{pool}} now holds it, so there’s no more duplicate risk from that claim.',
       pushTitle: 'Duplicate risk cleared',
     },
+    // Exchange copy never names a drawn person — the bell and the push preview
+    // are screens someone else can read over a shoulder.
+    exchangeStarted: {
+      message:
+        '{{organizer}} started {{exchange}} — join before the names are drawn',
+      pushTitle: 'A gift exchange is starting',
+    },
+    exchangeNamesDrawn: {
+      message:
+        '{{exchange}} names are drawn. Open Gift Pool to see who you drew.',
+      pushTitle: 'You have someone to shop for',
+    },
+    exchangeRevealed: {
+      message: '{{exchange}} pairings are revealed — see who had you',
+      pushTitle: 'The pairings are revealed',
+    },
+    exchangeFinished: {
+      message: '{{exchange}} is finished — see how the guesses landed',
+      pushTitle: 'The guesses are in',
+    },
+    exchangeCancelled: {
+      message: '{{exchange}} was cancelled',
+      pushTitle: 'Gift exchange cancelled',
+    },
     markAllReadSuccess: 'All notifications marked as read.',
   },
   friends: {
