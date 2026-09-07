@@ -19,6 +19,8 @@ export interface SectionProps {
   as?: ElementType;
   /** Id for the heading, for `aria-labelledby` wiring. */
   titleId?: string;
+  /** Forwarded to the root so consumers can target the section in tests. */
+  'data-testid'?: string;
 }
 
 /**
@@ -34,8 +36,12 @@ export const Section = ({
   className,
   as: Heading = 'h2',
   titleId,
+  'data-testid': testId,
 }: SectionProps) => (
-  <Card className={cn('border-border/60 bg-card p-4 shadow-sm', className)}>
+  <Card
+    className={cn('border-border/60 bg-card p-4 shadow-sm', className)}
+    data-testid={testId}
+  >
     {title || description || action ? (
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
