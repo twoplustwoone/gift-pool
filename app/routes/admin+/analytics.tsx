@@ -552,7 +552,8 @@ const DropOffSection = ({ dropOff }: { dropOff: DropOffFunnels }) => {
     (dropOff.signup[0]?.count ?? 0) > 0 ||
     dropOff.invites.some((row) => row.landed + row.deadLinkLandings > 0) ||
     dropOff.editor.opened > 0 ||
-    dropOff.share.views > 0;
+    dropOff.share.views > 0 ||
+    (dropOff.exchanges[0]?.count ?? 0) > 0;
   if (!hasAnyData) {
     return (
       <EmptyRow>
@@ -567,6 +568,12 @@ const DropOffSection = ({ dropOff }: { dropOff: DropOffFunnels }) => {
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">Signup</h3>
         <FunnelViz steps={dropOff.signup} />
+      </div>
+
+      {/* Exchange lifecycle — per exchange, not per person */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">Gift exchanges</h3>
+        <FunnelViz steps={dropOff.exchanges} />
       </div>
 
       {/* Invite landings → joins */}

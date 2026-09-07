@@ -1316,20 +1316,24 @@ export type DropOffFunnels = {
   invites: DropOffInviteRow[];
   editor: { opened: number; added: number };
   share: { views: number; uniqueVisitors: number; outboundClicks: number };
+  // Gift exchanges: created → drawn → revealed, counted per exchange (distinct
+  // exchangeId), since one organizer creates every event in the chain.
+  exchanges: DropOffSignupFunnel;
 };
 
 export async function getDropOffFunnels({
   days = 30,
 }: { days?: number } = {}): Promise<DropOffFunnels> {
   return cachified({
-    key: `admin:dropoff:v1:${days}`,
+    key: `admin:dropoff:v2:${days}`,
     cache,
     ttl: ONE_HOUR,
     getFreshValue: async () => {
       const since = Date.now() - days * DAY_MS;
 
-      const [stepRows, inviteRows, shareRows] = await Promise.all([
-        prisma.$queryRaw<Array<{ name: string; n: bigint }>>`
+      const [stepRows, inviteRows, shareRows, exchangeRows] = await Promise.all(
+        [
+          prisma.$queryRaw<Array<{ name: string; n: bigint }>>`
           SELECT name, COUNT(DISTINCT COALESCE(visitorId, userId, eventId)) AS n
           FROM AnalyticsEvent
           WHERE name IN (
@@ -1343,9 +1347,13 @@ export async function getDropOffFunnels({
           ) AND createdAt >= ${since}
           GROUP BY name
         `,
-        prisma.$queryRaw<
-          Array<{ inviteType: string | null; valid: number | null; n: bigint }>
-        >`
+          prisma.$queryRaw<
+            Array<{
+              inviteType: string | null;
+              valid: number | null;
+              n: bigint;
+            }>
+          >`
           SELECT
             json_extract(properties, '$.inviteType') AS inviteType,
             json_extract(properties, '$.valid') AS valid,
@@ -1354,9 +1362,9 @@ export async function getDropOffFunnels({
           WHERE name = 'invite_landed' AND createdAt >= ${since}
           GROUP BY 1, 2
         `,
-        prisma.$queryRaw<
-          Array<{ views: bigint; uniqueVisitors: bigint; clicks: bigint }>
-        >`
+          prisma.$queryRaw<
+            Array<{ views: bigint; uniqueVisitors: bigint; clicks: bigint }>
+          >`
           SELECT
             SUM(CASE WHEN name = 'wishlist_share_viewed' THEN 1 ELSE 0 END) AS views,
             COUNT(DISTINCT CASE WHEN name = 'wishlist_share_viewed' THEN COALESCE(visitorId, userId, eventId) END) AS uniqueVisitors,
@@ -1365,7 +1373,15 @@ export async function getDropOffFunnels({
           WHERE name IN ('wishlist_share_viewed', 'wishlist_link_clicked')
             AND createdAt >= ${since}
         `,
-      ]);
+          prisma.$queryRaw<Array<{ name: string; n: bigint }>>`
+          SELECT name, COUNT(DISTINCT json_extract(properties, '$.exchangeId')) AS n
+          FROM AnalyticsEvent
+          WHERE name IN ('exchange_created', 'exchange_drawn', 'exchange_revealed')
+            AND createdAt >= ${since}
+          GROUP BY name
+        `,
+        ],
+      );
 
       const stepCount = new Map(
         stepRows.map((row) => [row.name, Number(row.n)]),
@@ -1426,10 +1442,32 @@ export async function getDropOffFunnels({
         },
       ];
 
+      const exchangeCount = new Map(
+        exchangeRows.map((row) => [row.name, Number(row.n)]),
+      );
+      const exchangeStep = (name: string) => exchangeCount.get(name) ?? 0;
+      const created = exchangeStep('exchange_created');
+      const pctOfCreated = (n: number) =>
+        created > 0 ? Math.round((n / created) * 100) : 0;
+      const exchanges: DropOffSignupFunnel = [
+        { step: 'Exchange created', count: created, percent: 100 },
+        {
+          step: 'Names drawn',
+          count: exchangeStep('exchange_drawn'),
+          percent: pctOfCreated(exchangeStep('exchange_drawn')),
+        },
+        {
+          step: 'Pairings revealed',
+          count: exchangeStep('exchange_revealed'),
+          percent: pctOfCreated(exchangeStep('exchange_revealed')),
+        },
+      ];
+
       const share = shareRows[0];
       return {
         signup,
         invites,
+        exchanges,
         editor: {
           opened: get('wishlist_editor_opened'),
           added: get('wishlist_item_added'),
