@@ -121,6 +121,12 @@ const exchangeSelect = {
 
 type ExchangeRow = Prisma.ExchangeGetPayload<{ select: typeof exchangeSelect }>;
 
+// The shared client or an interactive-transaction handle. Reads that happen
+// INSIDE a write transaction must go through the handle: SQLite has a single
+// writer, so a read on another connection waits on the transaction's own lock
+// until Prisma's 5s timeout (this failed 12 tests on CI before it was caught).
+type Db = Prisma.TransactionClient | typeof prisma;
+
 export type ViewerRole = 'ORGANIZER' | 'PARTICIPANT' | 'MEMBER';
 
 export type RosterEntry = {
@@ -380,9 +386,10 @@ function displayName(p: ExchangePerson): string {
 
 async function loadLookbackPairs(
   exchange: Pick<ExchangeRow, 'id' | 'giftGroupId' | 'avoidRepeatsLookback'>,
+  db: Db = prisma,
 ): Promise<Array<[string, string]>> {
   if (!exchange.giftGroupId || !exchange.avoidRepeatsLookback) return [];
-  const previous = await prisma.exchange.findMany({
+  const previous = await db.exchange.findMany({
     where: {
       giftGroupId: exchange.giftGroupId,
       id: { not: exchange.id },
@@ -400,7 +407,7 @@ async function loadLookbackPairs(
     select: { id: true },
   });
   if (previous.length === 0) return [];
-  const pairs = await prisma.exchangeAssignment.findMany({
+  const pairs = await db.exchangeAssignment.findMany({
     where: {
       exchangeId: { in: previous.map((p) => p.id) },
       supersededAt: null,
@@ -414,10 +421,11 @@ async function computeDraw(
   exchange: ExchangeRow,
   roster: RosterEntry[],
   rng?: () => number,
+  db: Db = prisma,
 ): Promise<{ result: DrawResult; preview: DrawPreview }> {
   const inRoster = roster.filter((r) => r.status === PARTICIPANT_STATUS.IN);
   const participants = inRoster.map((r) => r.user.id);
-  const exclusions = await prisma.exchangeExclusion.findMany({
+  const exclusions = await db.exchangeExclusion.findMany({
     where: { exchangeId: exchange.id },
     select: {
       id: true,
@@ -427,7 +435,7 @@ async function computeDraw(
       userB: { select: personSelect },
     },
   });
-  const avoidPairs = await loadLookbackPairs(exchange);
+  const avoidPairs = await loadLookbackPairs(exchange, db);
   const result = buildDraw({ participants, exclusions, avoidPairs, rng });
   const nameOf = (id: string) => {
     const entry = roster.find((r) => r.user.id === id);
@@ -899,10 +907,9 @@ export async function drawNames({
       status: PARTICIPANT_STATUS.IN,
       isOrganizer: r.userId === exchange.organizerId,
     }));
-    // Read-only helpers below use the shared client; they only read tables
-    // this transaction does not write, so the snapshot is consistent enough
-    // and we avoid holding SQLite's write lock across extra round-trips.
-    const { result, preview } = await computeDraw(exchange, roster, rng);
+    // Every read goes through `tx`: a read on the shared client here would
+    // queue behind this transaction's own write lock.
+    const { result, preview } = await computeDraw(exchange, roster, rng, tx);
     if (result.kind !== 'ok') {
       return { status: 'BLOCKED' as const, preview };
     }
