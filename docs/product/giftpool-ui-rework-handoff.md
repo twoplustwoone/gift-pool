@@ -165,7 +165,7 @@ Primary navigation is identical in concept on mobile and desktop:
 1. Home
 2. Wishlist
 3. Groups
-4. Pools
+4. Gifting — one tab owning two sibling surfaces, Pools (`/pools`) and Exchanges (`/exchanges`), switched by a segmented control at the top of each index. (Amended Sept 2026 when Exchanges shipped: a sixth top-level tab was rejected as too tight at 390px, and burying Pools under a renamed parent kept every pool deep link intact.)
 5. Friends
 
 Person pages are contextual destinations reached from Home, Friends, Groups, and Pool
