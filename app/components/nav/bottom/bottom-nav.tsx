@@ -7,11 +7,20 @@ const links: {
   icon: LucideIcon;
   label: string;
   needsAuth: boolean;
+  // Extra path prefixes that keep this tab active (the Gifting tab owns both
+  // /pools and /exchanges).
+  alsoMatches?: string[];
 }[] = [
   { to: '/', icon: Home, label: 'Home', needsAuth: false },
   { to: '/wishlist', icon: Heart, label: 'Wishlist', needsAuth: true },
   { to: '/groups', icon: Users, label: 'Groups', needsAuth: true },
-  { to: '/pools', icon: Gift, label: 'Pools', needsAuth: true },
+  {
+    to: '/pools',
+    icon: Gift,
+    label: 'Gifting',
+    needsAuth: true,
+    alsoMatches: ['/exchanges'],
+  },
   { to: '/friends', icon: User, label: 'Friends', needsAuth: true },
 ];
 
@@ -28,7 +37,12 @@ export const BottomNav = () => {
           .filter((l) => !l.needsAuth || user)
           .map((link) => (
             <li className="flex-1" key={link.to}>
-              <BottomNavLink to={link.to} icon={link.icon} label={link.label} />
+              <BottomNavLink
+                to={link.to}
+                icon={link.icon}
+                label={link.label}
+                alsoMatches={link.alsoMatches}
+              />
             </li>
           ))}
       </ul>

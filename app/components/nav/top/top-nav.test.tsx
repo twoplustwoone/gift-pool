@@ -28,7 +28,13 @@ vi.mock('#app/components/ui/button', () => ({
     children,
     ...props
   }: React.HTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) =>
-    asChild ? <>{children}</> : <button type="button" {...props}>{children}</button>,
+    asChild ? (
+      <>{children}</>
+    ) : (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
 }));
 
 vi.mock('#app/components/ui/topNavItem', () => ({
@@ -83,14 +89,18 @@ describe('<TopNav />', () => {
   test('renders all primary links for authenticated users', () => {
     renderTopNav({ id: 'user-1' });
 
-    for (const name of ['Home', 'Wishlist', 'Groups', 'Pools', 'Friends']) {
+    for (const name of ['Home', 'Wishlist', 'Groups', 'Gifting', 'Friends']) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument();
     }
     expect(screen.getByText('Notifications')).toBeInTheDocument();
     expect(screen.getByText('Theme light')).toBeInTheDocument();
     expect(screen.getByText('User menu')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Log in' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Sign up' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Log in' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Sign up' }),
+    ).not.toBeInTheDocument();
   });
 
   test('renders logged-out navigation with signup and login links', () => {
@@ -105,7 +115,9 @@ describe('<TopNav />', () => {
       'href',
       '/signup',
     );
-    expect(screen.queryByRole('link', { name: 'Pools' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Gifting' }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText('Notifications')).not.toBeInTheDocument();
     expect(screen.queryByText('User menu')).not.toBeInTheDocument();
   });

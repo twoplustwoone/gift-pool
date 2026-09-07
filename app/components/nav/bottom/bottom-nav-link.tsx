@@ -32,22 +32,28 @@ function BottomNavLinkContent({
 
 // Determine whether `to` matches `pathname` the way NavLink's isActive would:
 // exact match for "/" and prefix match (with a "/" boundary) for everything else.
-const matchesPath = (to: string, pathname: string) => {
+export const matchesPath = (to: string, pathname: string) => {
   if (to === '/') return pathname === '/';
   return pathname === to || pathname.startsWith(`${to}/`);
 };
+
+export const matchesAny = (paths: string[], pathname: string) =>
+  paths.some((p) => matchesPath(p, pathname));
 
 export const BottomNavLink = ({
   to,
   icon,
   label,
+  alsoMatches = [],
 }: {
   to: string;
   icon: LucideIcon;
   label: string;
+  alsoMatches?: string[];
 }) => {
   const navigation = useNavigation();
   const location = useLocation();
+  const matchTargets = [to, ...alsoMatches];
 
   // Only treat a nav as "in flight" if it's targeting a different route.
   // Form submissions / same-route revalidations should not re-skin the tabs.
@@ -59,7 +65,8 @@ export const BottomNavLink = ({
       : null;
 
   const isPendingTarget =
-    pendingTargetPath !== null && matchesPath(to, pendingTargetPath);
+    pendingTargetPath !== null && matchesAny(matchTargets, pendingTargetPath);
+  const alsoActive = matchesAny(alsoMatches, location.pathname);
   const pendingToDifferentRoute = pendingTargetPath !== null;
 
   return (
@@ -74,7 +81,7 @@ export const BottomNavLink = ({
         // selected" illusion while the loader is running.
         const effectiveActive = pendingToDifferentRoute
           ? isPendingTarget
-          : isActive;
+          : isActive || alsoActive;
         return cn(
           baseClassName,
           effectiveActive ? activeClassName : inactiveClassName,
@@ -84,7 +91,7 @@ export const BottomNavLink = ({
       {({ isActive }) => {
         const effectiveActive = pendingToDifferentRoute
           ? isPendingTarget
-          : isActive;
+          : isActive || alsoActive;
         return (
           <BottomNavLinkContent
             icon={icon}

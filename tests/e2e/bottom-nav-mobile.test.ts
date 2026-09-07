@@ -38,7 +38,7 @@ test.describe('bottom nav mobile behavior', () => {
       await expect(nav).toBeVisible();
       await expect(nav.getByRole('link')).toHaveCount(5);
 
-      for (const name of ['Home', 'Wishlist', 'Groups', 'Pools', 'Friends']) {
+      for (const name of ['Home', 'Wishlist', 'Groups', 'Gifting', 'Friends']) {
         await expect(nav.getByRole('link', { name })).toBeVisible();
       }
 
@@ -65,10 +65,10 @@ test.describe('bottom nav mobile behavior', () => {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto('/pools');
 
-      const poolsLink = page
+      const giftingLink = page
         .getByTestId('bottom-nav')
-        .getByRole('link', { name: 'Pools' });
-      await expect(poolsLink).toHaveAttribute('aria-current', 'page');
+        .getByRole('link', { name: 'Gifting' });
+      await expect(giftingLink).toHaveAttribute('aria-current', 'page');
     } finally {
       await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
     }

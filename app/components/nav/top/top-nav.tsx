@@ -24,11 +24,20 @@ const links: {
   icon: LucideIcon;
   label: string;
   needsAuth: boolean;
+  // Extra path prefixes that keep this tab active (the Gifting tab owns both
+  // /pools and /exchanges).
+  alsoMatches?: string[];
 }[] = [
   { to: '/', icon: Home, label: 'Home', needsAuth: false },
   { to: '/wishlist', icon: Heart, label: 'Wishlist', needsAuth: true },
   { to: '/groups', icon: Users, label: 'Groups', needsAuth: true },
-  { to: '/pools', icon: Gift, label: 'Pools', needsAuth: true },
+  {
+    to: '/pools',
+    icon: Gift,
+    label: 'Gifting',
+    needsAuth: true,
+    alsoMatches: ['/exchanges'],
+  },
   { to: '/friends', icon: UserCheck, label: 'Friends', needsAuth: true },
 ];
 
@@ -49,7 +58,12 @@ export const TopNav = () => {
               .filter((l) => !l.needsAuth || user)
               .map((l) => (
                 <li key={l.to}>
-                  <TopNavItem to={l.to} icon={l.icon} label={l.label} />
+                  <TopNavItem
+                    to={l.to}
+                    icon={l.icon}
+                    label={l.label}
+                    alsoMatches={l.alsoMatches}
+                  />
                 </li>
               ))}
           </ul>
