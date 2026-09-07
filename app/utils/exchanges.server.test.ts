@@ -1,9 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
-import { createPassword, createUser } from '#tests/db-utils.ts';
+import { createUser } from '#tests/db-utils.ts';
 import {
   EXCHANGE_STATUS,
   GIFT_OUTCOME,
@@ -57,13 +57,15 @@ async function expectThrows(promise: Promise<unknown>, status: number) {
   return caught;
 }
 
+// Every test seeds six users and a group; under coverage instrumentation on CI
+// that plus the transactional draw takes longer than vitest's 5s default.
+vi.setConfig({ testTimeout: 20_000 });
+
+// No password row: the module never authenticates, and bcrypt hashing six
+// users per test was most of each test's wall-clock.
 async function makeUser(name: string) {
   return prisma.user.create({
-    data: {
-      ...createUser(),
-      name,
-      password: { create: createPassword() },
-    },
+    data: { ...createUser(), name },
     select: { id: true, name: true, username: true },
   });
 }
