@@ -97,6 +97,43 @@ describe('ConfirmDialog', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
+  it('stays open after confirm when the caller owns closing (closeOnConfirm=false)', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <ConfirmDialog
+        title="Draw names?"
+        confirmText="Draw names"
+        closeOnConfirm={false}
+        open
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Draw names' }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeVisible();
+  });
+
+  it('keeps the description associated with the dialog', async () => {
+    const user = userEvent.setup();
+    render(
+      <ConfirmDialog
+        title="Cancel this pool?"
+        description="Contributors will no longer be able to act on it."
+        onConfirm={vi.fn()}
+      >
+        <Button type="button">Open</Button>
+      </ConfirmDialog>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    expect(await screen.findByRole('dialog')).toHaveAccessibleDescription(
+      'Contributors will no longer be able to act on it.',
+    );
+  });
+
   it('closes itself after a non-pending confirm', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();

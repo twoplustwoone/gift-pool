@@ -45,6 +45,7 @@ export function ConfirmDialog({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
   confirmVariant = 'default',
+  closeOnConfirm = true,
 }: {
   title?: string;
   description?: ReactNode;
@@ -69,6 +70,11 @@ export function ConfirmDialog({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   confirmVariant?: 'default' | 'destructive';
+  // Fire-and-forget callers (the default) close on confirm. Callers that
+  // submit and then derive `pending` from a fetcher pass `false` and close the
+  // dialog themselves when the action settles — `pending` is necessarily still
+  // false in the render where the button is clicked, so it cannot decide this.
+  closeOnConfirm?: boolean;
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
@@ -92,7 +98,7 @@ export function ConfirmDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {children ? <DialogTrigger asChild>{children}</DialogTrigger> : null}
-      <DialogContent aria-describedby={pending ? statusId : undefined}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -147,9 +153,7 @@ export function ConfirmDialog({
             disabled={!canConfirm}
             onClick={() => {
               onConfirm();
-              // Fire-and-forget callers close immediately; pending callers keep
-              // the dialog open until the action settles.
-              if (!pending) setOpen(false);
+              if (closeOnConfirm) setOpen(false);
             }}
           >
             {pending ? (pendingLabel ?? confirmText) : confirmText}
