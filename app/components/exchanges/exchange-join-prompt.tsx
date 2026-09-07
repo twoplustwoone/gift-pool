@@ -93,18 +93,26 @@ export function ExchangeJoinPrompt({
 // by a stray tap.
 export function ExchangeQuietLine({
   exchange,
+  canJoin = true,
   className,
-}: Readonly<{ exchange: { id: string; title: string }; className?: string }>) {
+}: Readonly<{
+  exchange: { id: string; title: string };
+  // False once names are drawn: the line stays (the exchange exists and the
+  // record will appear after the reveal) but joining is over.
+  canJoin?: boolean;
+  className?: string;
+}>) {
   return (
     <p className={className} data-testid="exchange-quiet-line">
       <span className="text-sm text-muted-foreground">
-        {exchange.title} exchange · you're not in it
+        {exchange.title} exchange ·{' '}
+        {canJoin ? "you're not in it" : "names are drawn · you're not in it"}
       </span>{' '}
       <Link
         to={`/exchanges/${exchange.id}`}
         className="text-sm font-semibold text-primary"
       >
-        Join
+        {canJoin ? 'Join' : 'View'}
       </Link>
     </p>
   );
