@@ -46,6 +46,24 @@ async function participantIds(exchangeId: string, status: string) {
   return rows.map((r) => r.userId);
 }
 
+// The PENDING rows were snapshotted at create time; a member who has since
+// left the group must not be told about its exchanges. Intersect with current
+// membership at send time.
+async function pendingCurrentMemberIds(
+  exchangeId: string,
+  giftGroupId: string,
+) {
+  const rows = await prisma.exchangeParticipant.findMany({
+    where: {
+      exchangeId,
+      status: PARTICIPANT_STATUS.PENDING,
+      user: { giftGroups: { some: { giftGroupId } } },
+    },
+    select: { userId: true },
+  });
+  return rows.map((r) => r.userId);
+}
+
 type ExchangeMoment<T extends ExchangeNotificationType> = {
   type: T;
   userIds: string[];
@@ -99,7 +117,7 @@ export function queueExchangeStarted(exchangeId: string): void {
       const giftGroupId = exchange.giftGroupId;
       return fanOut(exchangeId, {
         type: NOTIFICATION_TYPES.EXCHANGE_STARTED,
-        userIds: await participantIds(exchangeId, PARTICIPANT_STATUS.PENDING),
+        userIds: await pendingCurrentMemberIds(exchangeId, giftGroupId),
         context: { kind: 'GROUP', groupId: giftGroupId },
         buildPayload: (e) => ({
           exchangeId: e.id,

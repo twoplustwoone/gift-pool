@@ -184,7 +184,7 @@ describe('getDropOffFunnels', () => {
     });
   });
 
-  it('counts the exchange lifecycle per exchange, not per event', async () => {
+  it('counts the exchange lifecycle per exchange, cohorted to exchanges created in the window', async () => {
     const user = await seedUser();
     const ev = (
       name: 'exchange_created' | 'exchange_drawn' | 'exchange_revealed',
@@ -196,7 +196,15 @@ describe('getDropOffFunnels', () => {
         userId: user.id,
         properties: { exchangeId },
       });
+    // An exchange created before the window but drawn inside it must not
+    // count towards "Names drawn" — it is not in the denominator.
+    await ev('exchange_created', 'old');
+    await prisma.analyticsEvent.updateMany({
+      where: { name: 'exchange_created', properties: { contains: '"old"' } },
+      data: { createdAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000) },
+    });
     await Promise.all([
+      ev('exchange_drawn', 'old'),
       ev('exchange_created', 'x1'),
       ev('exchange_created', 'x2'),
       ev('exchange_created', 'x3'),
