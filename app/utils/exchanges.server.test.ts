@@ -4,6 +4,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '#app/utils/db.server.ts';
 import { createUser } from '#tests/db-utils.ts';
+
+// Delivery has its own unit test (exchange-notifications.server.test.ts). Here
+// the fan-out is stubbed so its background writes don't contend with the next
+// test's transaction on SQLite's single writer.
+const fanOut = vi.hoisted(() => ({
+  started: vi.fn(),
+  drawn: vi.fn(),
+  revealed: vi.fn(),
+  cancelled: vi.fn(),
+}));
+vi.mock('#app/utils/exchange-notifications.server.ts', () => ({
+  queueExchangeStarted: (...args: Array<unknown>) => fanOut.started(...args),
+  queueExchangeNamesDrawn: (...args: Array<unknown>) => fanOut.drawn(...args),
+  queueExchangeRevealed: (...args: Array<unknown>) => fanOut.revealed(...args),
+  queueExchangeCancelled: (...args: Array<unknown>) =>
+    fanOut.cancelled(...args),
+}));
 import {
   EXCHANGE_STATUS,
   GIFT_OUTCOME,
@@ -319,6 +336,7 @@ describe('the draw', () => {
       participantCount: 5,
       repeats: 'NOT_APPLICABLE',
     });
+    expect(fanOut.drawn).toHaveBeenCalledWith(id);
     const assignments = await prisma.exchangeAssignment.findMany({
       where: { exchangeId: id },
     });
@@ -503,6 +521,7 @@ describe('reveal', () => {
       finalStatus: 'REVEALED',
       auto: false,
     });
+    expect(fanOut.revealed).toHaveBeenCalledWith(id, 'REVEALED');
     const again = await reveal({
       exchangeId: id,
       actorId: f.organizer.id,
