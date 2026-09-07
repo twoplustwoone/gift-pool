@@ -71,6 +71,14 @@ model User {
   organizerNudgeRecipients     OrganizerNudgeRecipient[]
   poolInvitationsSent          PoolInvitation[]                @relation("PoolInvitation_Inviter")
   poolInvitationsReceived      PoolInvitation[]                @relation("PoolInvitation_Invitee")
+  // Exchange relations
+  exchangesOrganized           Exchange[]                    @relation("Exchange_Organizer")
+  exchangeParticipations       ExchangeParticipant[]         @relation("ExchangeParticipant_User")
+  exchangeExclusionsA          ExchangeExclusion[]           @relation("ExchangeExclusion_UserA")
+  exchangeExclusionsB          ExchangeExclusion[]           @relation("ExchangeExclusion_UserB")
+  exchangeAssignmentsAsGifter  ExchangeAssignment[]          @relation("ExchangeAssignment_Gifter")
+  exchangeAssignmentsAsGiftee  ExchangeAssignment[]          @relation("ExchangeAssignment_Giftee")
+  exchangeJoinPromptDismissals ExchangeJoinPromptDismissal[] @relation("ExchangeJoinPromptDismissal_User")
   feedback                     Feedback[]
   consents                     Consent[]
   // Person-surface memory relations
@@ -254,6 +262,7 @@ model GiftGroup {
   createdById      String?
   createdBy        User?               @relation("GiftGroup_CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   pools            Pool[]
+  exchanges        Exchange[]
   activities       GroupActivity[]
   groupInvitations GroupInvitation[]
   reminders        GroupReminder[]
@@ -509,6 +518,162 @@ model PoolInvitation {
 // A proposed gift within a pool.
 // Can be free-form or a smart link to a WishlistItem on the platform.
 // When wishlistItemId is set, the UI renders the item's name/image/url/price.
+// -----------------------------------------------------------------------------
+// Exchanges — closed-loop gift draw ("Secret Santa for any occasion").
+//
+// A distinct product from Pool that shares only the secrecy discipline: an
+// exchange is a single Hamiltonian cycle of gifter → giftee assignments that
+// nobody but each gifter may see until the reveal.
+//
+// Flow: GATHERING → DRAWN → REVEALED   (revealMode ORGANIZER)
+//                         → FINISHED   (revealMode SECRET_FOREVER: guesses
+//                                       scored, pairings never shown)
+//                 ↘ CANCELLED (from GATHERING or DRAWN)
+//
+// "Today" and "Ready to reveal" are derived stage labels of DRAWN (see
+// `getExchangeStageLabel`), not statuses.
+//
+// SECRECY INVARIANT: `ExchangeAssignment` rows leave the database only through
+// `getOwnAssignment` (the viewer's own live row) and `getRevealedLoop` (only
+// when status = REVEALED). No loader projection, count, or notification may be
+// scoped to a single participant — a per-person figure can be inverted into a
+// pairing. See `app/utils/exchanges.server.ts`.
+// -----------------------------------------------------------------------------
+model Exchange {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  title             String
+  // Valid values: see OCCASION_TYPE in `app/utils/pool-constants.ts`
+  occasionType      String    @default("HOLIDAY")
+  eventDate         DateTime
+  // Free text ("Around $50"). Never parsed, never totalled — Gift Pool holds no money.
+  spendingGuideline String?
+
+  // Valid values: GATHERING | DRAWN | REVEALED | FINISHED | CANCELLED
+  status     String @default("GATHERING")
+  // Valid values: ORGANIZER | SECRET_FOREVER
+  revealMode String @default("ORGANIZER")
+  // When Gift Pool reveals on the organizer's behalf. null = auto-reveal off;
+  // the exchange then waits indefinitely for the organizer.
+  autoRevealAt DateTime?
+  // "Give everyone someone new": how many previous draws in the same group to
+  // avoid repeating. null = off. Always null for standalone exchanges.
+  avoidRepeatsLookback Int?
+
+  // Group context — null means a standalone exchange joined by invite link.
+  giftGroupId String?
+  organizerId String
+  // Invite code — standalone exchanges only; stops working after the draw.
+  inviteCode  String? @unique
+
+  drawnAt      DateTime?
+  revealedAt   DateTime?
+  cancelledAt  DateTime?
+  // Valid values: ORGANIZER | TOO_FEW_AFTER_LEAVE
+  cancelReason String?
+
+  giftGroup            GiftGroup?                    @relation(fields: [giftGroupId], references: [id], onDelete: SetNull)
+  organizer            User                          @relation("Exchange_Organizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  participants         ExchangeParticipant[]
+  exclusions           ExchangeExclusion[]
+  assignments          ExchangeAssignment[]
+  joinPromptDismissals ExchangeJoinPromptDismissal[]
+
+  @@index([giftGroupId])
+  @@index([organizerId])
+  @@index([status, autoRevealAt])
+}
+
+// Opt-in state per person. Group-linked exchanges seed a PENDING row for every
+// current member at create time; the organizer starts IN. Standalone exchanges
+// only ever hold IN rows (created by the invite link) and OUT rows (left).
+model ExchangeParticipant {
+  id         String    @id @default(cuid())
+  exchangeId String
+  userId     String
+  // Valid values: IN | OUT | PENDING
+  status     String    @default("PENDING")
+  joinedAt   DateTime?
+  leftAt     DateTime?
+  // When the participant first opened their covered "you drew…" card. null =
+  // still covered ("Later"). Set once, never cleared.
+  assignmentViewedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  exchange Exchange @relation(fields: [exchangeId], references: [id], onDelete: Cascade)
+  user     User     @relation("ExchangeParticipant_User", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([exchangeId, userId])
+  @@index([exchangeId, status])
+  @@index([userId])
+}
+
+// "Don't pair these people" — symmetric. The module canonicalises the pair so
+// userAId < userBId, which makes the unique index cover both orderings.
+model ExchangeExclusion {
+  id         String   @id @default(cuid())
+  exchangeId String
+  userAId    String
+  userBId    String
+  createdAt  DateTime @default(now())
+
+  exchange Exchange @relation(fields: [exchangeId], references: [id], onDelete: Cascade)
+  userA    User     @relation("ExchangeExclusion_UserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB    User     @relation("ExchangeExclusion_UserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([exchangeId, userAId, userBId])
+}
+
+// THE SECRET. One live row per gifter and one per giftee (partial unique
+// indexes on (exchangeId, gifterId) / (exchangeId, gifteeId) WHERE
+// supersededAt IS NULL — raw SQL in the migration, guarded by
+// `exchange-schema.test.ts`). Splices after a dropout retire rows via
+// supersededAt and insert new ones; history is never rewritten, so notes stay
+// attached to the thread they were sent in.
+model ExchangeAssignment {
+  id           String    @id @default(cuid())
+  exchangeId   String
+  gifterId     String
+  gifteeId     String
+  createdAt    DateTime  @default(now())
+  supersededAt DateTime?
+
+  // Gifter-owned progress. Valid values: NONE | GOT_IT | WRAPPED | GIVEN
+  giftStage   String    @default("NONE")
+  giftStageAt DateTime?
+  // "Add what you gave" — shown to everyone only after the reveal.
+  giftLabel   String?
+
+  // Giftee-owned: confirmed on their side, shown to the gifter after the reveal.
+  receivedAt DateTime?
+  // Valid values: LOVED | OKAY (null = unanswered; never nagged)
+  outcome    String?
+
+  exchange Exchange @relation(fields: [exchangeId], references: [id], onDelete: Cascade)
+  gifter   User     @relation("ExchangeAssignment_Gifter", fields: [gifterId], references: [id], onDelete: Cascade)
+  giftee   User     @relation("ExchangeAssignment_Giftee", fields: [gifteeId], references: [id], onDelete: Cascade)
+
+  @@index([exchangeId, gifterId])
+  @@index([exchangeId, gifteeId])
+}
+
+// A non-participating group member dismissed the "join before the draw"
+// prompt on the group overview. Per exchange, permanent, cross-device — the
+// prompt degrades to a quiet one-line Join link rather than vanishing.
+model ExchangeJoinPromptDismissal {
+  exchangeId  String
+  userId      String
+  dismissedAt DateTime @default(now())
+
+  exchange Exchange @relation(fields: [exchangeId], references: [id], onDelete: Cascade)
+  user     User     @relation("ExchangeJoinPromptDismissal_User", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([exchangeId, userId])
+}
+
 model GiftIdea {
   id                   String        @id @default(cuid())
   createdAt            DateTime      @default(now())

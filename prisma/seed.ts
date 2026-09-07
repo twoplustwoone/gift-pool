@@ -1119,6 +1119,36 @@ async function seed() {
 
 	console.timeEnd('🎁 Created pool: Marco\'s birthday (OPEN)...')
 
+	// ── Exchange: The Crew's Christmas draw — GATHERING ─────────────────────────
+	// Wade organizes; np and alvaro are in, sofia is still deciding. Enough to
+	// exercise the organizer roster, the draw confirmation and the join prompt
+	// without the seed having to know who drew whom.
+	console.time('🎄 Created exchange: The Crew 2026 (GATHERING)...')
+
+	await prisma.exchange.create({
+		data: {
+			title: 'The Crew 2026',
+			occasionType: OCCASION_TYPE.HOLIDAY,
+			eventDate: daysFromNow(45),
+			spendingGuideline: 'Around $50',
+			revealMode: 'ORGANIZER',
+			autoRevealAt: daysFromNow(48),
+			avoidRepeatsLookback: 2,
+			giftGroupId: friendGroup.id,
+			organizerId: wade.id,
+			participants: {
+				create: [
+					{ userId: wade.id, status: 'IN', joinedAt: daysAgo(3) },
+					{ userId: np.id, status: 'IN', joinedAt: daysAgo(2) },
+					{ userId: alvaro.id, status: 'IN', joinedAt: daysAgo(1) },
+					{ userId: sofia.id, status: 'PENDING' },
+				],
+			},
+		},
+	})
+
+	console.timeEnd('🎄 Created exchange: The Crew 2026 (GATHERING)...')
+
 	// ── Pool 2: Ana's farewell — VOTING ─────────────────────────────────────────
 	console.time('🗳️  Created pool: Ana\'s farewell (VOTING)...')
 
