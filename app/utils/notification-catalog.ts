@@ -14,6 +14,10 @@ export const NOTIFICATION_TYPES = {
   POOL_DELIVERY_REMINDER: 'POOL_DELIVERY_REMINDER',
   WISHLIST_CLAIM_CONFLICT: 'WISHLIST_CLAIM_CONFLICT',
   WISHLIST_CLAIM_TRANSFERRED: 'WISHLIST_CLAIM_TRANSFERRED',
+  EXCHANGE_STARTED: 'EXCHANGE_STARTED',
+  EXCHANGE_NAMES_DRAWN: 'EXCHANGE_NAMES_DRAWN',
+  EXCHANGE_REVEALED: 'EXCHANGE_REVEALED',
+  EXCHANGE_CANCELLED: 'EXCHANGE_CANCELLED',
 } as const;
 
 export type NotificationType =
@@ -72,6 +76,22 @@ export function isWishlistClaimNotificationType(
   );
 }
 
+export const EXCHANGE_NOTIFICATION_TYPES = [
+  NOTIFICATION_TYPES.EXCHANGE_STARTED,
+  NOTIFICATION_TYPES.EXCHANGE_NAMES_DRAWN,
+  NOTIFICATION_TYPES.EXCHANGE_REVEALED,
+  NOTIFICATION_TYPES.EXCHANGE_CANCELLED,
+] as const;
+
+export type ExchangeNotificationType =
+  (typeof EXCHANGE_NOTIFICATION_TYPES)[number];
+
+export function isExchangeNotificationType(
+  type: NotificationType,
+): type is ExchangeNotificationType {
+  return EXCHANGE_NOTIFICATION_TYPES.includes(type as ExchangeNotificationType);
+}
+
 export const NOTIFICATION_CHANNELS = {
   IN_APP: 'IN_APP',
   EMAIL: 'EMAIL',
@@ -87,6 +107,7 @@ export const NOTIFICATION_CATEGORIES = {
   SOCIAL: 'SOCIAL',
   OCCASIONS: 'OCCASIONS',
   POOL_COORDINATION: 'POOL_COORDINATION',
+  EXCHANGES: 'EXCHANGES',
 } as const;
 
 export type NotificationCategory =
@@ -114,6 +135,10 @@ export const NOTIFICATION_CATEGORY_CATALOG = {
     label: 'Pool coordination',
     description: 'Important decisions and assignments in your gift pools.',
   },
+  [NOTIFICATION_CATEGORIES.EXCHANGES]: {
+    label: 'Gift exchanges',
+    description: "Draws, reveals and joins in gift exchanges you're part of.",
+  },
 } as const satisfies Record<
   NotificationCategory,
   NotificationCategoryDefinition
@@ -128,6 +153,8 @@ export const NOTIFICATION_TOPICS = {
   ASSIGNMENTS: 'ASSIGNMENTS',
   ORGANIZER_NUDGES: 'ORGANIZER_NUDGES',
   WISHLIST_CLAIM_CONFLICTS: 'WISHLIST_CLAIM_CONFLICTS',
+  EXCHANGE_KEY_MOMENTS: 'EXCHANGE_KEY_MOMENTS',
+  EXCHANGE_INVITATIONS: 'EXCHANGE_INVITATIONS',
 } as const;
 
 export type NotificationTopic =
@@ -140,8 +167,7 @@ export type NotificationContextKind = 'NONE' | 'GROUP' | 'POOL';
 export type NotificationDeliveryStrategy = 'ONE_SHOT' | 'PER_CHANNEL_LEDGER';
 
 export type NotificationContext =
-  | { kind: 'GROUP'; groupId: string }
-  | { kind: 'POOL'; poolId: string };
+  { kind: 'GROUP'; groupId: string } | { kind: 'POOL'; poolId: string };
 
 export type NotificationPreferenceDefaults = {
   inAppEnabled: boolean;
@@ -243,6 +269,31 @@ export const NOTIFICATION_TOPIC_CATALOG = {
     label: 'Wishlist claim conflicts',
     description:
       'When a pool decides on a gift you already claimed, and when that conflict resolves.',
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: false,
+      pushEnabled: false,
+    },
+  },
+  // Defaults follow the house rule (in-app on, email/push opt-in). What makes
+  // "names are drawn" the notification nobody may miss is not its defaults but
+  // its scope: every channel the user has enabled fires, and it is never
+  // filtered by a group's activity level (see the event catalog).
+  [NOTIFICATION_TOPICS.EXCHANGE_KEY_MOMENTS]: {
+    category: NOTIFICATION_CATEGORIES.EXCHANGES,
+    label: 'Draws and reveals',
+    description:
+      'When names are drawn, the pairings are revealed, or an exchange is cancelled.',
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: false,
+      pushEnabled: false,
+    },
+  },
+  [NOTIFICATION_TOPICS.EXCHANGE_INVITATIONS]: {
+    category: NOTIFICATION_CATEGORIES.EXCHANGES,
+    label: 'Exchange invitations',
+    description: "When a group you're in starts a gift exchange.",
     defaults: {
       inAppEnabled: true,
       emailEnabled: false,
@@ -374,6 +425,42 @@ export const NOTIFICATION_EVENT_CATALOG = {
     supportedChannels: allChannels,
     deliveryStrategy: 'PER_CHANNEL_LEDGER',
   },
+  // A group starting an exchange is group activity: a member who muted the
+  // group has asked not to hear about it, so this one carries GROUP context.
+  [NOTIFICATION_TYPES.EXCHANGE_STARTED]: {
+    topic: NOTIFICATION_TOPICS.EXCHANGE_INVITATIONS,
+    importance: 'IMPORTANT',
+    context: 'GROUP',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  // The three key moments are deliberately context: 'NONE'. A participant
+  // opted INTO this exchange; a group's IMPORTANT_ONLY or muted activity level
+  // must not swallow the one message that tells them they have someone to
+  // shop for (design board §3a note 4). Standalone exchanges have no group at
+  // all, so a group context would not even exist for them. Central channel
+  // gates still apply. Bodies never name the drawn person.
+  [NOTIFICATION_TYPES.EXCHANGE_NAMES_DRAWN]: {
+    topic: NOTIFICATION_TOPICS.EXCHANGE_KEY_MOMENTS,
+    importance: 'IMPORTANT',
+    context: 'NONE',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.EXCHANGE_REVEALED]: {
+    topic: NOTIFICATION_TOPICS.EXCHANGE_KEY_MOMENTS,
+    importance: 'IMPORTANT',
+    context: 'NONE',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.EXCHANGE_CANCELLED]: {
+    topic: NOTIFICATION_TOPICS.EXCHANGE_KEY_MOMENTS,
+    importance: 'IMPORTANT',
+    context: 'NONE',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
 } as const satisfies Record<NotificationType, NotificationEventDefinition>;
 
 export const NOTIFICATION_TYPE_VALUES = Object.values(NOTIFICATION_TYPES);
@@ -468,9 +555,7 @@ export function isNotificationChannel(
 }
 
 export type NotificationPreferenceColumn =
-  | 'inAppEnabled'
-  | 'emailEnabled'
-  | 'pushEnabled';
+  'inAppEnabled' | 'emailEnabled' | 'pushEnabled';
 
 export function channelToColumn(
   channel: NotificationChannel,
@@ -552,6 +637,16 @@ type WishlistClaimConflictPayload = WishlistClaimEventPayload & {
   claimId: string;
 };
 
+// Exchange events name the exchange and its organizer, nothing else. There is
+// no giftee/gifter field on purpose: nothing in a notification body, push
+// preview, or metadata may identify a pairing.
+type ExchangeEventPayload = {
+  exchangeId: string;
+  exchangeTitle: string;
+  organizerUserId: string;
+  organizerDisplayName: string;
+};
+
 type PayloadByType = {
   [NOTIFICATION_TYPES.FRIEND_REQUEST_RECEIVED]: FriendRequestPayload;
   [NOTIFICATION_TYPES.FRIEND_REQUEST_ACCEPTED]: FriendRequestPayload;
@@ -579,6 +674,15 @@ type PayloadByType = {
   [NOTIFICATION_TYPES.POOL_DELIVERY_REMINDER]: OrganizerNudgePayload;
   [NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT]: WishlistClaimConflictPayload;
   [NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED]: WishlistClaimEventPayload;
+  [NOTIFICATION_TYPES.EXCHANGE_STARTED]: ExchangeEventPayload & {
+    giftGroupId: string;
+    eventDate: Date;
+  };
+  [NOTIFICATION_TYPES.EXCHANGE_NAMES_DRAWN]: ExchangeEventPayload;
+  [NOTIFICATION_TYPES.EXCHANGE_REVEALED]: ExchangeEventPayload & {
+    finalStatus: 'REVEALED' | 'FINISHED';
+  };
+  [NOTIFICATION_TYPES.EXCHANGE_CANCELLED]: ExchangeEventPayload;
 };
 
 export type NotificationPayload<T extends NotificationType> = PayloadByType[T];

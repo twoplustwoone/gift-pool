@@ -1,4 +1,5 @@
 import { type ReactElement } from 'react';
+import { ExchangeActivityEmail } from '#app/emails/exchange-activity.tsx';
 import { FriendRequestAcceptedEmail } from '#app/emails/friend-request-accepted.tsx';
 import { FriendRequestReceivedEmail } from '#app/emails/friend-request-received.tsx';
 import { PoolActivityEmail } from '#app/emails/pool-activity.tsx';
@@ -16,6 +17,7 @@ import {
   isOrganizerNudgeNotificationType,
   isPoolActivityNotificationType,
   type NotificationChannel,
+  type ExchangeNotificationType,
   type NotificationIntent,
   type OrganizerNudgeNotificationType,
   type PoolActivityNotificationType,
@@ -86,7 +88,19 @@ export function getNotificationOccurrenceKey(
     // switch stays exhaustive.
     case NOTIFICATION_TYPES.WISHLIST_CLAIM_CONFLICT:
     case NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED:
-      throw new Error(`Notification ${intent.type} requires a sourceIdentifier.`);
+      throw new Error(
+        `Notification ${intent.type} requires a sourceIdentifier.`,
+      );
+    // One occurrence per exchange per moment. The same key is used whether the
+    // reveal was pressed or timed out, so nobody can tell which it was.
+    case NOTIFICATION_TYPES.EXCHANGE_STARTED:
+      return `exchange:${intent.payload.exchangeId}:started`;
+    case NOTIFICATION_TYPES.EXCHANGE_NAMES_DRAWN:
+      return `exchange:${intent.payload.exchangeId}:drawn`;
+    case NOTIFICATION_TYPES.EXCHANGE_REVEALED:
+      return `exchange:${intent.payload.exchangeId}:revealed`;
+    case NOTIFICATION_TYPES.EXCHANGE_CANCELLED:
+      return `exchange:${intent.payload.exchangeId}:cancelled`;
   }
 }
 
@@ -117,6 +131,134 @@ export async function renderNotificationChannel<C extends NotificationChannel>(
       return renderWishlistClaimConflict(intent, channel);
     case NOTIFICATION_TYPES.WISHLIST_CLAIM_TRANSFERRED:
       return renderWishlistClaimTransferred(intent, channel);
+    case NOTIFICATION_TYPES.EXCHANGE_STARTED:
+    case NOTIFICATION_TYPES.EXCHANGE_NAMES_DRAWN:
+    case NOTIFICATION_TYPES.EXCHANGE_REVEALED:
+    case NOTIFICATION_TYPES.EXCHANGE_CANCELLED:
+      return renderExchangeEvent(intent, channel);
+  }
+}
+
+type ExchangeIntent = NotificationIntent<ExchangeNotificationType>;
+
+type ExchangeCopy = {
+  messageKey:
+    | 'notifications.exchangeStarted.message'
+    | 'notifications.exchangeNamesDrawn.message'
+    | 'notifications.exchangeRevealed.message'
+    | 'notifications.exchangeFinished.message'
+    | 'notifications.exchangeCancelled.message';
+  pushTitleKey:
+    | 'notifications.exchangeStarted.pushTitle'
+    | 'notifications.exchangeNamesDrawn.pushTitle'
+    | 'notifications.exchangeRevealed.pushTitle'
+    | 'notifications.exchangeFinished.pushTitle'
+    | 'notifications.exchangeCancelled.pushTitle';
+  messageParams: Record<string, string>;
+  emailBody: string;
+  buttonLabel: string;
+};
+
+function getExchangeCopy(intent: ExchangeIntent): ExchangeCopy {
+  const exchange = intent.payload.exchangeTitle;
+  switch (intent.type) {
+    case NOTIFICATION_TYPES.EXCHANGE_STARTED:
+      return {
+        messageKey: 'notifications.exchangeStarted.message',
+        pushTitleKey: 'notifications.exchangeStarted.pushTitle',
+        messageParams: {
+          organizer: intent.payload.organizerDisplayName,
+          exchange,
+        },
+        emailBody:
+          'Everyone draws one person and gives to them in secret. Join before the names are drawn — after that nobody can be added.',
+        buttonLabel: 'See the exchange',
+      };
+    case NOTIFICATION_TYPES.EXCHANGE_NAMES_DRAWN:
+      return {
+        messageKey: 'notifications.exchangeNamesDrawn.message',
+        pushTitleKey: 'notifications.exchangeNamesDrawn.pushTitle',
+        messageParams: { exchange },
+        emailBody:
+          "Your person is waiting behind a card only you can open. Pick a moment when nobody's reading over your shoulder.",
+        buttonLabel: 'See who you drew',
+      };
+    case NOTIFICATION_TYPES.EXCHANGE_REVEALED:
+      return intent.payload.finalStatus === 'FINISHED'
+        ? {
+            messageKey: 'notifications.exchangeFinished.message',
+            pushTitleKey: 'notifications.exchangeFinished.pushTitle',
+            messageParams: { exchange },
+            emailBody:
+              'This exchange was set to stay secret forever, so the pairings are never shown — but the guesses are scored.',
+            buttonLabel: 'See the guesses',
+          }
+        : {
+            messageKey: 'notifications.exchangeRevealed.message',
+            pushTitleKey: 'notifications.exchangeRevealed.pushTitle',
+            messageParams: { exchange },
+            emailBody:
+              'The whole loop is out: who had you, who you had, and what everyone gave.',
+            buttonLabel: 'See the loop',
+          };
+    case NOTIFICATION_TYPES.EXCHANGE_CANCELLED:
+      return {
+        messageKey: 'notifications.exchangeCancelled.message',
+        pushTitleKey: 'notifications.exchangeCancelled.pushTitle',
+        messageParams: { exchange },
+        emailBody: `${intent.payload.organizerDisplayName} cancelled the exchange. Nothing more is expected of you.`,
+        buttonLabel: 'Open Gift Pool',
+      };
+  }
+}
+
+// One renderer for all four exchange moments. The body and push preview are
+// the same string, and that string never carries a person's name other than
+// the organizer's (who is public to the whole roster anyway).
+async function renderExchangeEvent<C extends NotificationChannel>(
+  intent: ExchangeIntent,
+  channel: C,
+): Promise<NotificationChannelMessageMap[C]> {
+  const copy = getExchangeCopy(intent);
+  const message = translate('en', copy.messageKey, copy.messageParams);
+  const exchangeUrl =
+    intent.type === NOTIFICATION_TYPES.EXCHANGE_CANCELLED
+      ? '/exchanges'
+      : `/exchanges/${intent.payload.exchangeId}`;
+
+  switch (channel) {
+    case NOTIFICATION_CHANNELS.IN_APP:
+      return {
+        status: 'UNREAD',
+        messageKey: copy.messageKey,
+        messageParams: JSON.stringify(copy.messageParams),
+        targetUrl: exchangeUrl,
+        metadata: JSON.stringify({ exchangeId: intent.payload.exchangeId }),
+        friendRequestId: null,
+      } as NotificationChannelMessageMap[C];
+    case NOTIFICATION_CHANNELS.EMAIL: {
+      const managePreferencesUrl = await buildManagePreferencesUrl(intent);
+      return {
+        subject: `${message} on ${appName}`,
+        react: (
+          <ExchangeActivityEmail
+            appName={appName}
+            heading={message}
+            message={copy.emailBody}
+            exchangeUrl={buildAppUrl(exchangeUrl)}
+            buttonLabel={copy.buttonLabel}
+            managePreferencesUrl={managePreferencesUrl}
+          />
+        ),
+      } as NotificationChannelMessageMap[C];
+    }
+    case NOTIFICATION_CHANNELS.WEB_PUSH:
+      return {
+        title: translate('en', copy.pushTitleKey),
+        body: message,
+        url: exchangeUrl,
+        tag: getNotificationOccurrenceKey(intent),
+      } as NotificationChannelMessageMap[C];
   }
 }
 
