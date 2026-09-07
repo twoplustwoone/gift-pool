@@ -62,6 +62,36 @@ _Avoid:_ Group-visible participation status, permanent opt-out, or a general not
 
 _Avoid:_ Social photo album, shallow activity log, or unverified claims about how the recipient felt.
 
+**Exchange**
+: A closed-loop gift draw in which every participant is assigned exactly one other participant to give to, in secret, for one occasion. "Gift exchange" on first mention in a surface; "Exchange" once the page has established itself.
+
+_Avoid:_ "Secret Santa" outside setup and empty states; treating an Exchange as a kind of Pool (a Pool is many-to-one, an Exchange is a closed loop of one-to-one); "raffle" or "swap".
+
+**Draw**
+: The organizer's irreversible act that turns the roster into one closed loop of assignments. "The draw" for the event, "drew" for an assignment ("you drew Sam").
+
+_Avoid:_ "Drawing" as a noun; "re-draw" (an Exchange is cancelled and started again instead).
+
+**Exclusion**
+: A symmetric "don't pair these people" rule an organizer sets before the Draw.
+
+_Avoid:_ "Block", or any wording that implies one direction.
+
+**Gifter / Giftee**
+: The two roles in one assignment. "Your person" is the section label for your giftee on the exchange page only; elsewhere use the name or "who you drew". "Who has you" is the question form; "your gifter" is the post-reveal name for the role.
+
+_Avoid:_ "Santa", "target", "your person's wishlist".
+
+**Reveal**
+: The moment the whole loop becomes visible to every participant at once, pressed by the organizer or performed by Gift Pool at the auto-reveal time. A "secret forever" Exchange never reveals; it finishes.
+
+_Avoid:_ "Unmask"; letting an organizer see any pairing before the Reveal.
+
+**Exchange Note**
+: A preset, two-way message between a gifter and their giftee, delivered in a morning batch. Not yet built (Phase B).
+
+_Avoid:_ Confusing it with a Person Note, which is author-private and never delivered.
+
 ## Notifications
 
 **Notification Event**
