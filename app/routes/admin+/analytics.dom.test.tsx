@@ -45,6 +45,11 @@ const loaderDataSnapshot = {
     ],
     editor: { opened: 20, added: 14 },
     share: { views: 30, uniqueVisitors: 18, outboundClicks: 9 },
+    exchanges: [
+      { step: 'Exchange created', count: 4, percent: 100 },
+      { step: 'Names drawn', count: 3, percent: 75 },
+      { step: 'Pairings revealed', count: 1, percent: 25 },
+    ],
   },
   retention: [
     {
@@ -278,6 +283,10 @@ describe('admin analytics page', () => {
     expect(screen.getByText('Signup submitted')).toBeInTheDocument();
     expect(screen.getByText(/18 \(72%\)/)).toBeInTheDocument();
     expect(screen.getByText(/15 \(60%\)/)).toBeInTheDocument();
+    // Exchange lifecycle funnel, counted per exchange.
+    expect(screen.getByText('Gift exchanges')).toBeInTheDocument();
+    expect(screen.getByText('Names drawn')).toBeInTheDocument();
+    expect(screen.getByText('Pairings revealed')).toBeInTheDocument();
     // Invite table: per-type landings, joins, conversion, dead links.
     expect(screen.getByText('Invite links')).toBeInTheDocument();
     expect(screen.getByText('Dead-link landings')).toBeInTheDocument();
