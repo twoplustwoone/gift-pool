@@ -1,5 +1,7 @@
-import { cn } from '#app/utils/misc.tsx';
+import { Switch } from '#app/components/ui/switch.tsx';
 
+// Kept for the notification-settings call sites; the primitive now lives in
+// `ui/switch.tsx` so other surfaces stop drawing their own toggle.
 export function PreferenceSwitch({
   checked,
   disabled,
@@ -12,31 +14,11 @@ export function PreferenceSwitch({
   onCheckedChange: (checked: boolean) => void;
 }>) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
+    <Switch
+      checked={checked}
       disabled={disabled}
-      onClick={() => onCheckedChange(!checked)}
-      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full outline-none ring-ring focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'relative h-6 w-10 rounded-full border transition-colors',
-          checked
-            ? 'border-primary bg-primary'
-            : 'border-input bg-muted-foreground/20',
-        )}
-      >
-        <span
-          className={cn(
-            'absolute left-0.5 top-0.5 h-[18px] w-[18px] rounded-full bg-background shadow-sm transition-transform',
-            checked ? 'translate-x-4' : 'translate-x-0',
-          )}
-        />
-      </span>
-    </button>
+      label={label}
+      onCheckedChange={onCheckedChange}
+    />
   );
 }
