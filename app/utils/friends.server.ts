@@ -1,6 +1,7 @@
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { canViewBirthday } from '#app/utils/birthday-visibility.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import { isActiveExchangeGifterOf } from '#app/utils/exchange-wishlist-access.server.ts';
 import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts';
 import { queueNotification } from '#app/utils/notification-dispatcher.server.ts';
 import { gateBirthday } from '#app/utils/public-user.server.ts';
@@ -566,7 +567,9 @@ export async function canViewWishlistOf(
   if (relationship.state === 'FRIENDS') return true;
 
   if (owner.wishlistVisibility === 'FRIENDS_OF_FRIENDS') {
-    return isFriendOfFriend(viewerId, ownerId);
+    if (await isFriendOfFriend(viewerId, ownerId)) return true;
   }
-  return false;
+  // Drawing someone in a gift exchange grants wishlist access for the
+  // exchange's lifetime, regardless of friendship. Revoked when it archives.
+  return isActiveExchangeGifterOf(viewerId, ownerId);
 }

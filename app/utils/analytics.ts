@@ -126,6 +126,21 @@ export const ANALYTIC_EVENT_NAMES = [
   'solo_gift_committed',
   'gift_outcome_recorded',
   'saved_idea_promoted',
+  // Exchanges (closed-loop gift draw). Funnel:
+  //   exchange_created → exchange_drawn → exchange_revealed
+  // Properties carry the exchange id and aggregate counts only — never a
+  // participant name, a giftee id, or anything scoped to one person, because
+  // a per-person figure can be inverted into a pairing.
+  'exchange_created',
+  'exchange_participant_opted_in',
+  'exchange_participant_opted_out',
+  'exchange_drawn',
+  'exchange_assignment_viewed',
+  'exchange_gift_stage_set',
+  'exchange_received_set',
+  'exchange_revealed',
+  'exchange_cancelled',
+  'exchange_join_prompt_dismissed',
   // Browser/device/PWA environment snapshot. Anonymous-capable and deduped
   // daily by visitor id in analytics.server.ts.
   CLIENT_ENVIRONMENT_EVENT_NAME,
@@ -221,6 +236,18 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   'wishlist_claim_conflict_shown',
   'wishlist_claim_released',
   'wishlist_claim_transferred',
+  // Exchanges: every write path has an authenticated actor (the sweep-driven
+  // auto-reveal logs under the organizer, with `auto: true`).
+  'exchange_created',
+  'exchange_participant_opted_in',
+  'exchange_participant_opted_out',
+  'exchange_drawn',
+  'exchange_assignment_viewed',
+  'exchange_gift_stage_set',
+  'exchange_received_set',
+  'exchange_revealed',
+  'exchange_cancelled',
+  'exchange_join_prompt_dismissed',
   'organizer_reminder_sent',
   'organizer_reminder_skipped',
   'friend_request_sent',
