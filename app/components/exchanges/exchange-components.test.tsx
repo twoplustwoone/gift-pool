@@ -31,6 +31,8 @@ import { YouDrewCard } from './you-drew-card.tsx';
 const captured = vi.hoisted(() => ({
   submissions: [] as Array<Record<string, string>>,
   fetcherState: 'idle' as 'idle' | 'submitting',
+  fetcherData: undefined as
+    { ok?: boolean; error?: string; drawn?: boolean } | undefined,
 }));
 
 function formDataToRecord(fd: FormData) {
@@ -75,7 +77,7 @@ vi.mock('react-router', async (importOriginal) => {
         captured.submissions.push(formDataToRecord(body));
       },
       state: captured.fetcherState,
-      data: undefined,
+      data: captured.fetcherData,
       formData: undefined,
     }),
   };
@@ -137,6 +139,7 @@ const wrap = (ui: React.ReactElement) =>
 beforeEach(() => {
   captured.submissions = [];
   captured.fetcherState = 'idle';
+  captured.fetcherData = undefined;
 });
 
 describe('ExchangeStatusBadge', () => {
@@ -293,6 +296,7 @@ describe('YouDrewCard', () => {
 describe('GiftProgressStepper', () => {
   it('uses shape as well as colour and posts the next stage', async () => {
     const user = userEvent.setup();
+    captured.fetcherData = { ok: true };
     wrap(
       <GiftProgressStepper
         exchangeId="x1"
@@ -318,6 +322,48 @@ describe('GiftProgressStepper', () => {
       { intent: 'set-gift-stage', exchangeId: 'x1', stage: 'WRAPPED' },
     ]);
     expect(screen.getByRole('status')).toHaveTextContent('Marked wrapped.');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('announces a refusal instead of a false success, and shows it inline', async () => {
+    const user = userEvent.setup();
+    captured.fetcherData = {
+      error: "This action isn't available while the exchange is revealed.",
+    };
+    wrap(
+      <GiftProgressStepper
+        exchangeId="x1"
+        stage="GOT_IT"
+        gifteeFirstName="Agustin"
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Mark it wrapped' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "That didn't save. This action isn't available while the exchange is revealed.",
+    );
+    expect(screen.getByRole('status')).not.toHaveTextContent('Marked wrapped.');
+    // The stepper falls back to the authoritative stage, not the tapped one.
+    expect(screen.getByTestId('stage-wrapped')).toHaveAttribute(
+      'data-state',
+      'next',
+    );
+  });
+
+  it('locks every stage control while the write is in flight', () => {
+    captured.fetcherState = 'submitting';
+    wrap(
+      <GiftProgressStepper
+        exchangeId="x1"
+        stage="GOT_IT"
+        gifteeFirstName="Agustin"
+      />,
+    );
+    for (const id of ['stage-got_it', 'stage-wrapped', 'stage-given']) {
+      expect(screen.getByTestId(id)).toBeDisabled();
+    }
+    expect(
+      screen.getByRole('button', { name: 'Mark it wrapped' }),
+    ).toBeDisabled();
   });
 
   it('steps back when a done stage is tapped (reversible)', async () => {

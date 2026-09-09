@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { LuCheck } from 'react-icons/lu';
 import { useFetcher } from 'react-router';
 import { Button } from '#app/components/ui/button.tsx';
@@ -44,19 +44,31 @@ export function GiftProgressStepper({
   // On the exchange day this card leads the page; same component, reordered.
   lead?: boolean;
 }>) {
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<{ ok?: boolean; error?: string }>();
+  const pending = fetcher.state !== 'idle';
   const [optimistic, setOptimistic] = useState<GiftStage | null>(null);
-  const current = fetcher.state === 'idle' ? stage : (optimistic ?? stage);
+  // Optimistic only while the write is in flight. Once it settles the
+  // authoritative `stage` prop wins, so a refusal rolls back visibly rather
+  // than leaving the stepper showing a stage the server never accepted.
+  const current = pending ? (optimistic ?? stage) : stage;
   const currentIndex = stageIndex(current);
-  const [announcement, setAnnouncement] = useState('');
+  const lastTarget = useRef<GiftStage | null>(null);
+  const error = !pending ? fetcher.data?.error : undefined;
+
+  // Announced only once the server has answered: an optimistic "Marked
+  // wrapped." would be a false success whenever the action is refused.
+  const announcement = (() => {
+    if (pending || !lastTarget.current) return '';
+    if (error) return `That didn't save. ${error}`;
+    if (!fetcher.data?.ok) return '';
+    return lastTarget.current === GIFT_STAGE.NONE
+      ? 'Gift progress reset.'
+      : `Marked ${GIFT_STAGE_LABELS[lastTarget.current].toLowerCase()}.`;
+  })();
 
   const submit = (next: GiftStage) => {
     setOptimistic(next);
-    setAnnouncement(
-      next === GIFT_STAGE.NONE
-        ? 'Gift progress reset.'
-        : `Marked ${GIFT_STAGE_LABELS[next].toLowerCase()}.`,
-    );
+    lastTarget.current = next;
     const body = new FormData();
     body.set('intent', EXCHANGE_INTENT.SetGiftStage);
     body.set('exchangeId', exchangeId);
@@ -77,6 +89,11 @@ export function GiftProgressStepper({
       <p role="status" aria-live="polite" className="sr-only">
         {announcement}
       </p>
+      {error ? (
+        <p role="alert" className="mb-2 text-sm text-foreground-destructive">
+          That didn&apos;t save. {error}
+        </p>
+      ) : null}
       <ol className="flex items-center gap-2" aria-label="Gift progress">
         {VISIBLE_STAGES.map((s, i) => {
           const idx = stageIndex(s);
@@ -87,8 +104,10 @@ export function GiftProgressStepper({
               <button
                 type="button"
                 // Done stages step back to the previous stage; the next stage
-                // advances; later stages are not skippable.
-                disabled={!done && !isCurrentNext}
+                // advances; later stages are not skippable. All of them lock
+                // while a write is in flight, so a double tap cannot submit a
+                // second stage against the optimistic re-render and race.
+                disabled={pending || (!done && !isCurrentNext)}
                 onClick={() =>
                   submit(
                     done ? (GIFT_STAGE_ORDER[idx - 1] ?? GIFT_STAGE.NONE) : s,
@@ -138,7 +157,7 @@ export function GiftProgressStepper({
           className="mt-4 w-full sm:w-auto"
           variant={lead ? 'default' : 'outline'}
           onClick={() => submit(nextStage)}
-          disabled={fetcher.state !== 'idle'}
+          disabled={pending}
         >
           {nextLabel}
         </Button>
