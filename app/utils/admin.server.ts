@@ -1374,13 +1374,17 @@ export async function getDropOffFunnels({
             AND createdAt >= ${since}
         `,
           // Exchange lifecycles outlast a 30-day window, so later stages are
-          // cohorted to exchanges CREATED in the window: a draw or reveal for an
-          // older exchange never inflates a later step past its denominator.
+          // cohorted in JS to exchanges CREATED in the window: a draw or
+          // reveal for an older exchange never inflates a later step past its
+          // denominator. The window still bounds every row, because a draw or
+          // reveal always follows its own creation — nothing that belongs to
+          // the cohort can fall outside it, and the scan stays indexed as
+          // history accumulates.
           prisma.$queryRaw<Array<{ name: string; exchangeId: string | null }>>`
           SELECT name, json_extract(properties, '$.exchangeId') AS exchangeId
           FROM AnalyticsEvent
-          WHERE (name = 'exchange_created' AND createdAt >= ${since})
-             OR name IN ('exchange_drawn', 'exchange_revealed')
+          WHERE name IN ('exchange_created', 'exchange_drawn', 'exchange_revealed')
+            AND createdAt >= ${since}
         `,
         ],
       );
