@@ -17,9 +17,13 @@ export function ReceivedCard({
   exchangeId: string;
   received: { receivedAt: Date | string; outcome: GiftOutcome | null } | null;
 }>) {
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<{ ok?: boolean; error?: string }>();
+  const pending = fetcher.state !== 'idle';
   const submitted =
     fetcher.formData?.get('outcome')?.toString() ?? received?.outcome ?? null;
+  // Settled refusals surface here; without this the selection would roll back
+  // to the stored outcome with no explanation.
+  const error = pending ? undefined : fetcher.data?.error;
 
   return (
     <Section
@@ -31,6 +35,11 @@ export function ReceivedCard({
       }
       data-testid="received-card"
     >
+      {error ? (
+        <p role="alert" className="mb-2 text-sm text-foreground-destructive">
+          That didn&apos;t save. {error}
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         {(Object.keys(GIFT_OUTCOME) as GiftOutcome[]).map((outcome) => {
           const selected = submitted === outcome;
@@ -47,7 +56,7 @@ export function ReceivedCard({
                 type="submit"
                 variant={selected ? 'default' : 'outline'}
                 aria-pressed={selected}
-                disabled={fetcher.state !== 'idle'}
+                disabled={pending}
               >
                 {GIFT_OUTCOME_LABELS[outcome]}
               </Button>

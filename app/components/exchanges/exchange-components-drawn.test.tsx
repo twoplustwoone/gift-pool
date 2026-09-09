@@ -34,6 +34,7 @@ import { YourPersonCard } from './your-person-card.tsx';
 
 const captured = vi.hoisted(() => ({
   submissions: [] as Array<Record<string, string>>,
+  fetcherData: undefined as { ok?: boolean; error?: string } | undefined,
 }));
 
 function formDataToRecord(fd: FormData) {
@@ -78,7 +79,7 @@ vi.mock('react-router', async (importOriginal) => {
         captured.submissions.push(formDataToRecord(body));
       },
       state: 'idle' as const,
-      data: undefined,
+      data: captured.fetcherData,
       formData: undefined,
     }),
   };
@@ -158,6 +159,7 @@ const wrap = (ui: React.ReactElement) =>
 
 beforeEach(() => {
   captured.submissions = [];
+  captured.fetcherData = undefined;
 });
 
 describe('YourPersonCard', () => {
@@ -182,7 +184,7 @@ describe('YourPersonCard', () => {
     expect(card).toHaveTextContent("Agustin won't know it was you");
   });
 
-  it('hides the wishlist link when access is not granted', () => {
+  it('never promises wishlist access the projection denies', () => {
     wrap(
       <YourPersonCard
         assignment={{ ...assignment, canViewWishlist: false }}
@@ -190,8 +192,14 @@ describe('YourPersonCard', () => {
         eventDate={EVENT}
       />,
     );
+    const card = screen.getByTestId('your-person');
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
-    expect(screen.getByTestId('your-person')).toHaveTextContent('by 24 Dec');
+    expect(card).toHaveTextContent('by 24 Dec');
+    expect(card).toHaveTextContent(
+      "Agustin's wishlist is private to you, so this one is on your own judgement",
+    );
+    expect(card).not.toHaveTextContent('You can see');
+    expect(card).not.toHaveTextContent("won't know it was you");
   });
 });
 
@@ -210,6 +218,22 @@ describe('ReceivedCard', () => {
     expect(captured.submissions).toEqual([
       { intent: 'set-received', exchangeId: 'x1', outcome: 'LOVED' },
     ]);
+  });
+
+  it('says so when the outcome is refused instead of rolling back in silence', async () => {
+    const user = userEvent.setup();
+    captured.fetcherData = {
+      error: "This action isn't available while the exchange is revealed.",
+    };
+    wrap(<ReceivedCard exchangeId="x1" received={null} />);
+    await user.click(screen.getByRole('button', { name: 'Loved it' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "That didn't save. This action isn't available while the exchange is revealed.",
+    );
+    expect(screen.getByRole('button', { name: 'Loved it' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 
   it('shows the recorded outcome as selected', () => {

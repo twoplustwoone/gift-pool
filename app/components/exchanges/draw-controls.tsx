@@ -25,7 +25,10 @@ export function drawDisabledReason(preview: DrawPreview): string | null {
         : `Needs ${countWord(missing)} more people.`;
     }
     case 'INFEASIBLE':
-      return `These exclusions leave nobody for ${preview.blockedName}.`;
+      // Deliberately not "leaves nobody for X": the blocked person is the most
+      // constrained one, and may still have a candidate — what fails is the
+      // loop closing, not that person having anyone at all.
+      return `These exclusions don't leave a full loop.`;
     default:
       return null;
   }
@@ -132,14 +135,15 @@ export function DrawControls({
           <ResponsiveDialogContent>
             <ResponsiveDialogHeader>
               <ResponsiveDialogTitle>
-                These exclusions leave nobody for {preview.blockedName}
+                These exclusions don&apos;t leave a full loop
               </ResponsiveDialogTitle>
             </ResponsiveDialogHeader>
             <ResponsiveDialogDescription>
               {preview.exclusions
                 .map((e) => `"${e.aName} and ${e.bName}"`)
                 .join(' plus ')}{' '}
-              rule out everyone {preview.blockedName} could give to.
+              leave {preview.blockedName} too few people to give to for the loop
+              to close.
             </ResponsiveDialogDescription>
             <ul className="space-y-2">
               {preview.exclusions.map((e) => (

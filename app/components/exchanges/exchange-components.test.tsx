@@ -228,13 +228,19 @@ describe('DrawControls', () => {
       />,
     );
     expect(screen.getByTestId('draw-consequence')).toHaveTextContent(
-      'These exclusions leave nobody for Nicolas Burroni.',
+      "These exclusions don't leave a full loop.",
     );
     // The button stays live and opens the explanation, which names the
     // person and the exact exclusions and never says "try again".
     await user.click(screen.getByTestId('draw-names'));
     const dialog = screen.getByRole('dialog');
     expect(dialog).not.toHaveTextContent(/try again/i);
+    // `diagnose` names the most constrained person, who may still have one
+    // candidate — the copy must not claim nobody is left for them.
+    expect(dialog).not.toHaveTextContent(/nobody|rule out everyone/i);
+    expect(dialog).toHaveTextContent(
+      'leave Nicolas Burroni too few people to give to for the loop to close',
+    );
     const removes = within(dialog).getAllByRole('button', { name: 'Remove' });
     expect(removes).toHaveLength(2);
     await user.click(removes[1]!);

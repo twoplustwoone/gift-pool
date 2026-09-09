@@ -51,11 +51,20 @@ export function YourPersonCard({
           </Button>
         ) : null}
         <p className="text-sm text-muted-foreground">
-          You can see {first}'s wishlist while the exchange runs
-          {viewerIsFriendOfGiftee === false
-            ? ", even though you're not friends on Gift Pool"
-            : ''}
-          . If you claim something, {first} won't know it was you.
+          {assignment.canViewWishlist ? (
+            <>
+              You can see {first}&apos;s wishlist while the exchange runs
+              {viewerIsFriendOfGiftee === false
+                ? ", even though you're not friends on Gift Pool"
+                : ''}
+              . If you claim something, {first} won&apos;t know it was you.
+            </>
+          ) : (
+            <>
+              {first}&apos;s wishlist is private to you, so this one is on your
+              own judgement. The spending guideline is the only steer.
+            </>
+          )}
         </p>
       </div>
     </Section>
