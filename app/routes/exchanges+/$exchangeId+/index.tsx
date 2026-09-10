@@ -18,6 +18,7 @@ import {
   CluePicker,
   NoteComposer,
 } from '#app/components/exchanges/note-composer.tsx';
+import { InviteLinkCard } from '#app/components/exchanges/invite-link-card.tsx';
 import { NotesThreads } from '#app/components/exchanges/notes-threads.tsx';
 import { ExchangeReminderAction } from '#app/components/exchanges/reminder-action.tsx';
 import {
@@ -70,7 +71,7 @@ const ExchangePage = () => {
     enabled: status === 'GATHERING' || status === 'DRAWN',
   });
   if (!data) return null;
-  const { view, viewerWishlistItemCount, reminder } = data;
+  const { view, viewerWishlistItemCount, reminder, origin } = data;
   const now = new Date(data.now);
   const timeZone = data.timeZone;
 
@@ -81,6 +82,7 @@ const ExchangePage = () => {
           view={view}
           viewerWishlistItemCount={viewerWishlistItemCount}
           reminder={reminder}
+          origin={origin}
         />
       );
     case 'DRAWN':
@@ -102,16 +104,19 @@ function Gathering({
   view,
   viewerWishlistItemCount,
   reminder,
+  origin,
 }: {
   view: ExchangeView;
   viewerWishlistItemCount: number | null;
   reminder: ExchangeReminderAvailability | null;
+  origin: string;
 }) {
   const { exchange, viewer, roster, counts } = view;
   const organizerFirst = firstName(exchange.organizer);
   const participationFetcher = useFetcher();
   const removeExclusionFetcher = useFetcher();
   const reminderFetcher = useFetcher();
+  const inviteFetcher = useFetcher();
 
   const submit = (
     fetcher: ReturnType<typeof useFetcher>,
@@ -135,6 +140,32 @@ function Gathering({
             }
           >
             <ExchangeRoster roster={roster} viewerId={viewer.id} />
+            {/* A standalone exchange has no group to chase, so there is
+                nobody to remind — the link is how people get in. */}
+            {!exchange.giftGroup && viewer.role === 'ORGANIZER' ? (
+              <div className="mt-4">
+                <InviteLinkCard
+                  inviteUrl={
+                    exchange.inviteCode
+                      ? `${origin}/exchanges/join/${exchange.inviteCode}`
+                      : null
+                  }
+                  pending={inviteFetcher.state !== 'idle'}
+                  onGenerate={() =>
+                    submit(inviteFetcher, {
+                      intent: EXCHANGE_INTENT.CreateInviteLink,
+                      exchangeId: exchange.id,
+                    })
+                  }
+                  onReplace={() =>
+                    submit(inviteFetcher, {
+                      intent: EXCHANGE_INTENT.ReplaceInviteLink,
+                      exchangeId: exchange.id,
+                    })
+                  }
+                />
+              </div>
+            ) : null}
             {reminder ? (
               <div className="mt-4">
                 <ExchangeReminderAction

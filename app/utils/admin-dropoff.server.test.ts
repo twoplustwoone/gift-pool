@@ -102,7 +102,51 @@ describe('getDropOffFunnels', () => {
       { inviteType: 'group', landed: 1, deadLinkLandings: 1, completed: 1 },
       { inviteType: 'pool', landed: 1, deadLinkLandings: 0, completed: 1 },
       { inviteType: 'friend', landed: 0, deadLinkLandings: 0, completed: 0 },
+      // Standalone exchange links land here. Its completion is
+      // exchange_participant_opted_in with via=invite_link, so opting in
+      // from a group roster — which saw no landing page — never counts.
+      { inviteType: 'exchange', landed: 0, deadLinkLandings: 0, completed: 0 },
     ]);
+  });
+
+  it('pairs a standalone exchange landing with the join it led to', async () => {
+    const user = await seedUser();
+    await Promise.all([
+      logEvent({
+        name: 'invite_landed',
+        source: 'server',
+        properties: { inviteType: 'exchange', valid: true },
+      }),
+      logEvent({
+        name: 'invite_landed',
+        source: 'server',
+        properties: { inviteType: 'exchange', valid: false },
+      }),
+      logEvent({
+        name: 'exchange_participant_opted_in',
+        source: 'server',
+        userId: user.id,
+        properties: { exchangeId: 'x1', via: 'invite_link' },
+      }),
+      // Opting in from a group roster saw no landing page, so it must not
+      // count as an invite conversion.
+      logEvent({
+        name: 'exchange_participant_opted_in',
+        source: 'server',
+        userId: user.id,
+        properties: { exchangeId: 'x2' },
+      }),
+    ]);
+
+    const result = await getDropOffFunnels({ days: 9 });
+    expect(result.invites.find((row) => row.inviteType === 'exchange')).toEqual(
+      {
+        inviteType: 'exchange',
+        landed: 1,
+        deadLinkLandings: 1,
+        completed: 1,
+      },
+    );
   });
 
   it('counts invite-link friend accepts via the via property', async () => {

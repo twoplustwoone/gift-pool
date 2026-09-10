@@ -6,6 +6,7 @@ import {
 import { z } from 'zod';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { getHints } from '#app/utils/client-hints.tsx';
+import { getDomainUrl } from '#app/utils/misc.tsx';
 import { prisma } from '#app/utils/db.server.ts';
 import {
   GIFT_OUTCOME,
@@ -26,6 +27,7 @@ import {
   drawNames,
   getViewerProjection,
   markAssignmentViewed,
+  generateExchangeInviteCode,
   previewExchangeReminder,
   removeExclusion,
   reveal,
@@ -80,6 +82,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     timeZone,
     viewerWishlistItemCount,
     reminder,
+    // Built here rather than from `window.location` so the server and the
+    // browser render the same string — a mismatch makes React throw the
+    // markup away and re-render on hydration.
+    origin: getDomainUrl(request),
   };
 }
 
@@ -145,6 +151,8 @@ const ActionSchema = z.discriminatedUnion('intent', [
     intent: z.literal(EXCHANGE_INTENT.SendReminder),
     idempotencyKey: z.string().min(1).max(64),
   }),
+  Base.extend({ intent: z.literal(EXCHANGE_INTENT.CreateInviteLink) }),
+  Base.extend({ intent: z.literal(EXCHANGE_INTENT.ReplaceInviteLink) }),
   Base.extend({
     intent: z.literal(EXCHANGE_INTENT.UpdateSettings),
     title: z.string().trim().max(100).optional(),
@@ -268,6 +276,16 @@ export async function action({ request, params }: ActionFunctionArgs) {
           presetKey: v.presetKey,
         });
         return data({ ok: true });
+      case EXCHANGE_INTENT.CreateInviteLink:
+      case EXCHANGE_INTENT.ReplaceInviteLink: {
+        // "New link" is a fresh code, not a revoke-then-create: the old one
+        // stops working the moment the new one exists.
+        const code = await generateExchangeInviteCode({
+          exchangeId,
+          actorId: userId,
+        });
+        return data({ ok: true, inviteCode: code });
+      }
       case EXCHANGE_INTENT.SendReminder: {
         const result = await sendExchangeReminder({
           exchangeId,

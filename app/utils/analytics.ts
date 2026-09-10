@@ -93,9 +93,11 @@ export const ANALYTIC_EVENT_NAMES = [
   // admin drop-off view can compute started → completed conversion. All are
   // anonymous-capable (joined via `visitorId`), so NOT user-required:
   // - signup_submitted / signup_email_verified → user_registered
-  // - invite_landed (`inviteType: group|pool|friend`) → group_joined /
+  // - invite_landed (`inviteType: group|pool|friend|exchange`) → group_joined /
   //   pool_contributor_joined / friend_request_accepted
   // - wishlist_share_viewed → wishlist_link_clicked
+  //   exchange_participant_opted_in (`via: 'invite_link'`) for a standalone
+  //   exchange link.
   'signup_submitted',
   'signup_email_verified',
   'invite_landed',

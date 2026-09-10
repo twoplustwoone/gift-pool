@@ -18,6 +18,7 @@ import { type Prisma } from '@prisma/client';
 import * as Sentry from '@sentry/react-router';
 import { data } from 'react-router';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
+import { nanoid } from 'nanoid';
 import { prisma } from '#app/utils/db.server.ts';
 import {
   exchangeSelect,
@@ -1470,6 +1471,175 @@ async function spliceOutParticipant({
     },
   });
   return 'SPLICED';
+}
+
+// ─── Standalone invite links ──────────────────────────────────────────────────
+
+// A standalone exchange has no group roster to draw from, so the link IS the
+// roster. It works only while gathering: after the draw the loop is closed and
+// nobody can be added without breaking it.
+export async function generateExchangeInviteCode({
+  exchangeId,
+  actorId,
+}: {
+  exchangeId: string;
+  actorId: string;
+}): Promise<string> {
+  const exchange = await requireExchangeVisible(actorId, exchangeId);
+  requireExchangeOrganizer(actorId, exchange);
+  assertExchangeStatus(exchange, [EXCHANGE_STATUS.GATHERING]);
+  // A group exchange's roster is the group. Minting a public link for one
+  // would let anybody with the URL into a group's exchange without ever
+  // joining the group — a way around membership, not an invitation.
+  if (exchange.giftGroupId) {
+    throw data(
+      { error: 'A group exchange invites the group, not a link.' },
+      { status: 409 },
+    );
+  }
+  const code = nanoid(10);
+  await prisma.exchange.update({
+    where: { id: exchangeId },
+    data: { inviteCode: code },
+  });
+  return code;
+}
+
+// "New link" in the invite card. The old code stops working immediately,
+// which is the point — it is how you undo sharing it with the wrong person.
+export async function revokeExchangeInviteCode({
+  exchangeId,
+  actorId,
+}: {
+  exchangeId: string;
+  actorId: string;
+}): Promise<void> {
+  const exchange = await requireExchangeVisible(actorId, exchangeId);
+  requireExchangeOrganizer(actorId, exchange);
+  await prisma.exchange.update({
+    where: { id: exchangeId },
+    data: { inviteCode: null },
+  });
+}
+
+export type ExchangeInviteView = {
+  exchangeId: string;
+  title: string;
+  occasionType: OccasionType;
+  eventDate: Date;
+  organizer: ExchangePerson;
+  participantCount: number;
+};
+
+// Every dead-link cause returns null, and the route renders one state for all
+// of them: expired, revoked, already drawn, never existed. A distinct
+// "already drawn" message would confirm the exchange exists (board §12).
+export async function getExchangeInvite(
+  code: string,
+): Promise<ExchangeInviteView | null> {
+  if (!code) return null;
+  const exchange = await prisma.exchange.findUnique({
+    where: { inviteCode: code },
+    select: {
+      id: true,
+      title: true,
+      occasionType: true,
+      eventDate: true,
+      status: true,
+      giftGroupId: true,
+      organizer: { select: personSelect },
+      // Only the people actually in it: somebody who joined and then sat it
+      // out is not "in so far", and counting them would overstate the
+      // exchange to whoever is deciding whether to join.
+      _count: {
+        select: { participants: { where: { status: PARTICIPANT_STATUS.IN } } },
+      },
+    },
+  });
+  // A link on a group exchange should not exist; if one ever does, it does
+  // not work.
+  if (
+    !exchange ||
+    exchange.giftGroupId ||
+    exchange.status !== EXCHANGE_STATUS.GATHERING
+  ) {
+    return null;
+  }
+  return {
+    exchangeId: exchange.id,
+    title: exchange.title,
+    occasionType: exchange.occasionType as OccasionType,
+    eventDate: exchange.eventDate,
+    organizer: exchange.organizer,
+    participantCount: exchange._count.participants,
+  };
+}
+
+export type JoinByCodeResult =
+  | { status: 'JOINED'; exchangeId: string }
+  | { status: 'ALREADY_IN'; exchangeId: string }
+  | { status: 'INVALID' };
+
+export async function joinExchangeByCode({
+  code,
+  userId,
+  now = new Date(),
+}: {
+  code: string;
+  userId: string;
+  now?: Date;
+}): Promise<JoinByCodeResult> {
+  const result = await prisma.$transaction(async (tx) => {
+    // Re-read inside the transaction: the organizer may have drawn names or
+    // replaced the link between the page loading and this POST.
+    const exchange = await tx.exchange.findUnique({
+      where: { inviteCode: code },
+      select: { id: true, status: true, giftGroupId: true },
+    });
+    if (
+      !exchange ||
+      exchange.giftGroupId ||
+      exchange.status !== EXCHANGE_STATUS.GATHERING
+    ) {
+      return { status: 'INVALID' as const };
+    }
+    const existing = await tx.exchangeParticipant.findUnique({
+      where: {
+        exchangeId_userId: { exchangeId: exchange.id, userId },
+      },
+      select: { status: true },
+    });
+    if (existing?.status === PARTICIPANT_STATUS.IN) {
+      return { status: 'ALREADY_IN' as const, exchangeId: exchange.id };
+    }
+    // Someone who opted out and then followed the link again is opting back
+    // in — the link is an invitation, not a one-shot token.
+    await tx.exchangeParticipant.upsert({
+      where: { exchangeId_userId: { exchangeId: exchange.id, userId } },
+      update: { status: PARTICIPANT_STATUS.IN, joinedAt: now, leftAt: null },
+      create: {
+        exchangeId: exchange.id,
+        userId,
+        status: PARTICIPANT_STATUS.IN,
+        joinedAt: now,
+      },
+    });
+    return { status: 'JOINED' as const, exchangeId: exchange.id };
+  });
+
+  // Completes the invite funnel that `invite_landed` opens — an entry event
+  // without a paired completion is a funnel that can only ever read 0%
+  // (the pairing convention lives in analytics.ts). After the transaction,
+  // like every other event in this module.
+  if (result.status === 'JOINED') {
+    queueLogEvent({
+      name: 'exchange_participant_opted_in',
+      userId,
+      source: 'server',
+      properties: { exchangeId: result.exchangeId, via: 'invite_link' },
+    });
+  }
+  return result;
 }
 
 // ─── Join prompt ──────────────────────────────────────────────────────────────
