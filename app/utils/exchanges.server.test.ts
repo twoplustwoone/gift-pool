@@ -48,6 +48,7 @@ import {
   addExclusion,
   markAssignmentViewed,
   dismissJoinPrompt,
+  prepareExchangesForAccountDeletion,
   type ExchangeView,
 } from './exchanges.server.ts';
 
@@ -975,5 +976,174 @@ describe('lists and group summary', () => {
         now: NOW,
       }),
     ).toBeNull();
+  });
+});
+
+describe('prepareExchangesForAccountDeletion', () => {
+  // Every exchange FK to User cascades, so anything this misses is destroyed
+  // silently by `prisma.user.delete`. Each test therefore performs the real
+  // deletion and asserts on what survives it.
+  // `prisma.user.delete` is blocked outright today by unrelated RESTRICT
+  // foreign keys (UsersInGiftGroups, Pool, PoolContributor, GiftIdea,
+  // IdeaVote, PoolMessage) — account deletion cannot currently succeed for
+  // anyone who is in a group, which is a separate bug. Clear the membership
+  // rows here so these tests exercise the cascade the exchange tables really
+  // do have, rather than stopping at the first unrelated constraint.
+  async function deleteAccount(userId: string) {
+    await prisma.usersInGiftGroups.deleteMany({ where: { userId } });
+    await prisma.user.delete({ where: { id: userId } });
+  }
+
+  const liveAssignments = (exchangeId: string) =>
+    prisma.exchangeAssignment.findMany({
+      where: { exchangeId, supersededAt: null },
+      select: { gifterId: true, gifteeId: true },
+    });
+
+  it("joins the leaver's gifter to their giftee, keeping one whole loop", async () => {
+    const { id } = await createGroupExchange(f);
+    await optInAll(f, id);
+    await drawNames({
+      exchangeId: id,
+      actorId: f.organizer.id,
+      now: NOW,
+      rng: seededRng(7),
+    });
+    const before = await liveAssignments(id);
+    const leaver = f.a;
+    const gifterOfLeaver = before.find((p) => p.gifteeId === leaver.id)!;
+    const gifteeOfLeaver = before.find((p) => p.gifterId === leaver.id)!;
+
+    const summary = await prepareExchangesForAccountDeletion({
+      userId: leaver.id,
+      now: NOW,
+    });
+    expect(summary.spliced).toEqual([id]);
+    await deleteAccount(leaver.id);
+
+    const after = await liveAssignments(id);
+    // Five people became four, and the leaver's two rows became one.
+    expect(before).toHaveLength(5);
+    expect(after).toHaveLength(4);
+    expect(
+      after.some((p) => p.gifterId === leaver.id || p.gifteeId === leaver.id),
+    ).toBe(false);
+    expect(
+      after.find((p) => p.gifterId === gifterOfLeaver.gifterId)?.gifteeId,
+    ).toBe(gifteeOfLeaver.gifteeId);
+
+    // Still a single cycle: every gifter appears once, every giftee once, and
+    // walking from anyone visits all four.
+    expect(new Set(after.map((p) => p.gifterId)).size).toBe(4);
+    expect(new Set(after.map((p) => p.gifteeId)).size).toBe(4);
+    const next = new Map(after.map((p) => [p.gifterId, p.gifteeId]));
+    let cursor = after[0]!.gifterId;
+    const visited = new Set<string>();
+    while (!visited.has(cursor)) {
+      visited.add(cursor);
+      cursor = next.get(cursor)!;
+    }
+    expect(visited.size).toBe(4);
+
+    const exchange = await prisma.exchange.findUniqueOrThrow({ where: { id } });
+    expect(exchange.status).toBe(EXCHANGE_STATUS.DRAWN);
+  });
+
+  it('cancels instead when too few people would be left for a loop', async () => {
+    const { id } = await createGroupExchange(f);
+    await optInAll(f, id, [f.a, f.b]); // organizer + 2 = the 3-person minimum
+    await drawNames({
+      exchangeId: id,
+      actorId: f.organizer.id,
+      now: NOW,
+      rng: seededRng(3),
+    });
+
+    const summary = await prepareExchangesForAccountDeletion({
+      userId: f.a.id,
+      now: NOW,
+    });
+    expect(summary.cancelled).toEqual([id]);
+    expect(summary.spliced).toEqual([]);
+    expect(fanOut.cancelled).toHaveBeenCalledWith(id, {
+      includePending: false,
+    });
+    await deleteAccount(f.a.id);
+
+    const exchange = await prisma.exchange.findUniqueOrThrow({ where: { id } });
+    expect(exchange.status).toBe(EXCHANGE_STATUS.CANCELLED);
+    expect(exchange.cancelReason).toBe('TOO_FEW_AFTER_LEAVE');
+  });
+
+  it('hands an organized exchange to someone else instead of destroying it', async () => {
+    const { id } = await createGroupExchange(f);
+    await optInAll(f, id);
+
+    const summary = await prepareExchangesForAccountDeletion({
+      userId: f.organizer.id,
+      now: NOW,
+    });
+    expect(summary.reassigned).toEqual([id]);
+    await deleteAccount(f.organizer.id);
+
+    // Without the hand-over the cascade on organizerId takes the whole row.
+    const exchange = await prisma.exchange.findUnique({ where: { id } });
+    expect(exchange).not.toBeNull();
+    expect(exchange!.organizerId).not.toBe(f.organizer.id);
+    expect(f.members.map((m) => m.id)).toContain(exchange!.organizerId);
+    expect(exchange!.status).toBe(EXCHANGE_STATUS.GATHERING);
+  });
+
+  it('keeps a revealed exchange in the group record when its organizer leaves', async () => {
+    const { id } = await createGroupExchange(f);
+    await optInAll(f, id);
+    await drawNames({
+      exchangeId: id,
+      actorId: f.organizer.id,
+      now: NOW,
+      rng: seededRng(11),
+    });
+    await reveal({
+      exchangeId: id,
+      actorId: f.organizer.id,
+      now: AFTER_EVENT,
+    });
+
+    await prepareExchangesForAccountDeletion({
+      userId: f.organizer.id,
+      now: AFTER_EVENT,
+    });
+    await deleteAccount(f.organizer.id);
+
+    const exchange = await prisma.exchange.findUnique({ where: { id } });
+    expect(exchange?.status).toBe(EXCHANGE_STATUS.REVEALED);
+    // The departed person's two pairings go with them; the rest of the record
+    // stays readable rather than the whole year disappearing.
+    const pairs = await getRevealedLoop(id);
+    expect(pairs).toHaveLength(3);
+    expect(
+      pairs.some(
+        (p) => p.gifterId === f.organizer.id || p.gifteeId === f.organizer.id,
+      ),
+    ).toBe(false);
+  });
+
+  it('leaves a gathering exchange alone beyond the hand-over', async () => {
+    const { id } = await createGroupExchange(f);
+    await optInAll(f, id);
+
+    const summary = await prepareExchangesForAccountDeletion({
+      userId: f.a.id,
+      now: NOW,
+    });
+    expect(summary).toEqual({ spliced: [], cancelled: [], reassigned: [] });
+    await deleteAccount(f.a.id);
+
+    const exchange = await prisma.exchange.findUniqueOrThrow({ where: { id } });
+    expect(exchange.status).toBe(EXCHANGE_STATUS.GATHERING);
+    const rows = await prisma.exchangeParticipant.findMany({
+      where: { exchangeId: id },
+    });
+    expect(rows.map((r) => r.userId)).not.toContain(f.a.id);
   });
 });

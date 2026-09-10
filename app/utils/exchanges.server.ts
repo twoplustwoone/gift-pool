@@ -1254,6 +1254,162 @@ export async function cancelExchange({
   });
 }
 
+// ─── Account deletion ─────────────────────────────────────────────────────────
+
+export type ExchangeAccountDeletionSummary = {
+  spliced: string[];
+  cancelled: string[];
+  reassigned: string[];
+};
+
+// Every exchange foreign key to User cascades, so a bare `prisma.user.delete`
+// takes the leaver's assignment rows with it and leaves a broken loop: their
+// gifter has no one to give to, and the person who was gifting to them has no
+// record at all. Worse, `Exchange.organizerId` cascades too — an organizer
+// deleting their account would delete the whole exchange out from under the
+// group, finished ones included. Call this FIRST, while the rows still exist.
+//
+// Deliberately not handled: REVEALED and FINISHED exchanges keep the gap. The
+// pairing genuinely involved someone who no longer exists, and inventing a
+// replacement would put a gift in someone's history they never gave. The loop
+// walker in `getViewerProjection` already tolerates a missing link.
+//
+// No notification is sent to the two people whose person changes: the types
+// for that (`EXCHANGE_YOUR_PERSON_CHANGED` / `EXCHANGE_NEW_GIFTER`) arrive
+// with Phase C's `leaveAfterDraw`, which should reuse `spliceOutParticipant`
+// below and add the fan-out in one place.
+export async function prepareExchangesForAccountDeletion({
+  userId,
+  now = new Date(),
+}: {
+  userId: string;
+  now?: Date;
+}): Promise<ExchangeAccountDeletionSummary> {
+  const summary: ExchangeAccountDeletionSummary = {
+    spliced: [],
+    cancelled: [],
+    reassigned: [],
+  };
+
+  // 1. Live loops the user is part of.
+  const live = await prisma.exchangeAssignment.findMany({
+    where: {
+      supersededAt: null,
+      exchange: { status: EXCHANGE_STATUS.DRAWN },
+      OR: [{ gifterId: userId }, { gifteeId: userId }],
+    },
+    select: { exchangeId: true },
+  });
+  for (const exchangeId of new Set(live.map((l) => l.exchangeId))) {
+    const outcome = await spliceOutParticipant({ exchangeId, userId, now });
+    if (outcome === 'SPLICED') summary.spliced.push(exchangeId);
+    if (outcome === 'CANCELLED') {
+      summary.cancelled.push(exchangeId);
+      queueExchangeCancelled(exchangeId, { includePending: false });
+    }
+  }
+
+  // 2. Exchanges they organize, at any status — including terminal ones, whose
+  // record belongs to the group rather than to the departing account.
+  const organized = await prisma.exchange.findMany({
+    where: { organizerId: userId },
+    select: { id: true },
+  });
+  for (const { id } of organized) {
+    const heir = await prisma.exchangeParticipant.findFirst({
+      where: {
+        exchangeId: id,
+        userId: { not: userId },
+        status: { in: [PARTICIPANT_STATUS.IN, PARTICIPANT_STATUS.PENDING] },
+      },
+      // IN before PENDING, then longest-standing first.
+      orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+      select: { userId: true },
+    });
+    // Nobody left to hand it to: let the cascade take it, there is no record
+    // worth keeping and no one to show it to.
+    if (!heir) continue;
+    await prisma.exchange.update({
+      where: { id },
+      data: { organizerId: heir.userId },
+    });
+    summary.reassigned.push(id);
+  }
+
+  return summary;
+}
+
+// Removes one participant from a DRAWN loop by joining their gifter straight
+// to their giftee (A→X→B becomes A→B), retiring the two rows rather than
+// rewriting them so the record of the original draw survives. Cancels instead
+// when too few people would be left to make a loop worth running.
+async function spliceOutParticipant({
+  exchangeId,
+  userId,
+  now,
+}: {
+  exchangeId: string;
+  userId: string;
+  now: Date;
+}): Promise<'SPLICED' | 'CANCELLED' | 'SKIPPED'> {
+  return prisma.$transaction(async (tx) => {
+    // Every read goes through `tx` — a read on the shared client here would
+    // queue behind this transaction's own write lock until Prisma times out.
+    const exchange = await tx.exchange.findUnique({
+      where: { id: exchangeId },
+      select: { id: true, status: true },
+    });
+    if (exchange?.status !== EXCHANGE_STATUS.DRAWN) return 'SKIPPED';
+
+    const remaining = await tx.exchangeParticipant.count({
+      where: {
+        exchangeId,
+        userId: { not: userId },
+        status: PARTICIPANT_STATUS.IN,
+      },
+    });
+    if (remaining < EXCHANGE_MIN_PARTICIPANTS) {
+      await tx.exchange.updateMany({
+        where: { id: exchangeId, status: EXCHANGE_STATUS.DRAWN },
+        data: {
+          status: EXCHANGE_STATUS.CANCELLED,
+          cancelledAt: now,
+          cancelReason: CANCEL_REASON.TOO_FEW_AFTER_LEAVE,
+        },
+      });
+      return 'CANCELLED';
+    }
+
+    const [outgoing, incoming] = await Promise.all([
+      tx.exchangeAssignment.findFirst({
+        where: { exchangeId, gifterId: userId, supersededAt: null },
+        select: { id: true, gifteeId: true },
+      }),
+      tx.exchangeAssignment.findFirst({
+        where: { exchangeId, gifteeId: userId, supersededAt: null },
+        select: { id: true, gifterId: true },
+      }),
+    ]);
+    if (!outgoing || !incoming) return 'SKIPPED';
+    // A two-person cycle can't be spliced into anything; the count above
+    // should have cancelled first, so this is belt and braces.
+    if (incoming.gifterId === outgoing.gifteeId) return 'SKIPPED';
+
+    await tx.exchangeAssignment.updateMany({
+      where: { id: { in: [outgoing.id, incoming.id] } },
+      data: { supersededAt: now },
+    });
+    await tx.exchangeAssignment.create({
+      data: {
+        exchangeId,
+        gifterId: incoming.gifterId,
+        gifteeId: outgoing.gifteeId,
+      },
+    });
+    return 'SPLICED';
+  });
+}
+
 // ─── Join prompt ──────────────────────────────────────────────────────────────
 
 export async function dismissJoinPrompt({
