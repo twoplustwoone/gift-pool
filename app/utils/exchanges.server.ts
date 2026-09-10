@@ -2158,6 +2158,318 @@ export async function getViewerProjection({
   };
 }
 
+// ─── Archive (the compounding part) ───────────────────────────────────────────
+
+export type ArchiveYear = {
+  exchangeId: string;
+  title: string;
+  year: number;
+  occasionType: OccasionType;
+  eventDate: Date;
+  participantCount: number;
+  secretForever: boolean;
+  /** REVEALED years only: who had the viewer, and who the viewer drew. */
+  yourGifter: ExchangePerson | null;
+  yourGiftee: ExchangePerson | null;
+  youGuessedRight: boolean | null;
+};
+
+export type ArchiveMemory = {
+  key: string;
+  person: ExchangePerson;
+  /** A sentence about a person, second person when it is about the viewer. */
+  line: string;
+};
+
+export type GroupExchangeArchive = {
+  years: ArchiveYear[];
+  memory: ArchiveMemory[];
+  /** "Four Christmases, 2023 to 2026" */
+  summary: string | null;
+};
+
+// One exchange is an event; four of them are the group's gift memory. This is
+// the page that should make someone say "wait, I had you in 2024 as well".
+//
+// Built ONLY from exchanges the viewer was in, so two people in the same group
+// see two different archives — that is correct, not a bug (board §3). A
+// secret-forever year contributes its guesses and never its pairings, which
+// is the same promise its own page makes.
+// Cheap enough for the group overview, which only needs to know whether the
+// link is worth offering.
+export async function hasGroupExchangeArchive({
+  giftGroupId,
+  viewerId,
+}: {
+  giftGroupId: string;
+  viewerId: string;
+}): Promise<boolean> {
+  const one = await prisma.exchange.findFirst({
+    where: {
+      giftGroupId,
+      status: { in: [EXCHANGE_STATUS.REVEALED, EXCHANGE_STATUS.FINISHED] },
+      participants: {
+        some: { userId: viewerId, status: PARTICIPANT_STATUS.IN },
+      },
+    },
+    select: { id: true },
+  });
+  return one !== null;
+}
+
+export async function getGroupExchangeArchive({
+  giftGroupId,
+  viewerId,
+}: {
+  giftGroupId: string;
+  viewerId: string;
+}): Promise<GroupExchangeArchive> {
+  const exchanges = await prisma.exchange.findMany({
+    where: {
+      giftGroupId,
+      status: {
+        in: [EXCHANGE_STATUS.REVEALED, EXCHANGE_STATUS.FINISHED],
+      },
+      // The viewer's own history, not the group's.
+      participants: {
+        some: { userId: viewerId, status: PARTICIPANT_STATUS.IN },
+      },
+    },
+    select: {
+      id: true,
+      title: true,
+      occasionType: true,
+      eventDate: true,
+      status: true,
+      organizer: { select: personSelect },
+      _count: {
+        select: { participants: { where: { status: PARTICIPANT_STATUS.IN } } },
+      },
+    },
+    orderBy: { eventDate: 'desc' },
+  });
+  if (exchanges.length === 0) {
+    return { years: [], memory: [], summary: null };
+  }
+
+  const ids = exchanges.map((e) => e.id);
+  const revealedIds = exchanges
+    .filter((e) => e.status === EXCHANGE_STATUS.REVEALED)
+    .map((e) => e.id);
+
+  const [assignmentsByYear, guesses] = await Promise.all([
+    // Pairings leave the database through `getRevealedLoop` and nowhere else
+    // (AGENTS.md). It throws unless the exchange is REVEALED, so the archive
+    // cannot read a secret year's loop even if this filter were ever widened
+    // — which is exactly the guard worth having on a third projection.
+    Promise.all(
+      revealedIds.map(async (exchangeId) => ({
+        exchangeId,
+        pairs: await getRevealedLoop(exchangeId),
+      })),
+    ),
+    // Guesses come from every year, including the secret ones.
+    prisma.exchangeGuess.findMany({
+      where: { exchangeId: { in: ids } },
+      select: {
+        exchangeId: true,
+        guesserId: true,
+        guessedUserId: true,
+        guesser: { select: personSelect },
+        guessedUser: { select: personSelect },
+      },
+    }),
+  ]);
+
+  const assignments = assignmentsByYear.flatMap(({ exchangeId, pairs }) =>
+    pairs.map((p) => ({
+      exchangeId,
+      gifterId: p.gifterId,
+      gifteeId: p.gifteeId,
+      gifter: p.gifter,
+      giftee: p.giftee,
+    })),
+  );
+
+  const years: ArchiveYear[] = exchanges.map((e) => {
+    const secretForever = e.status === EXCHANGE_STATUS.FINISHED;
+    const mine = assignments.find(
+      (a) => a.exchangeId === e.id && a.gifterId === viewerId,
+    );
+    const theirs = assignments.find(
+      (a) => a.exchangeId === e.id && a.gifteeId === viewerId,
+    );
+    const guess = guesses.find(
+      (g) => g.exchangeId === e.id && g.guesserId === viewerId,
+    );
+    return {
+      exchangeId: e.id,
+      title: e.title,
+      year: e.eventDate.getUTCFullYear(),
+      occasionType: e.occasionType as OccasionType,
+      eventDate: e.eventDate,
+      participantCount: e._count.participants,
+      secretForever,
+      yourGifter: secretForever ? null : (theirs?.gifter ?? null),
+      yourGiftee: secretForever ? null : (mine?.giftee ?? null),
+      // Whether you called it is a pairing fact, so a secret year keeps it.
+      youGuessedRight:
+        secretForever || !guess || !theirs
+          ? null
+          : guess.guessedUserId === theirs.gifterId,
+    };
+  });
+
+  return {
+    years,
+    memory: buildArchiveMemory({
+      years,
+      exchanges,
+      assignments,
+      guesses,
+      viewerId,
+    }),
+    summary: buildArchiveSummary(years),
+  };
+}
+
+function buildArchiveSummary(years: ArchiveYear[]): string | null {
+  if (years.length === 0) return null;
+  const oldest = years[years.length - 1]!.year;
+  const newest = years[0]!.year;
+  const count = numberWordOrDigits(years.length);
+  if (oldest === newest) return `One exchange, ${newest}.`;
+  return `${capitaliseFirst(count)} exchanges, ${oldest} to ${newest}.`;
+}
+
+function capitaliseFirst(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function numberWordOrDigits(n: number): string {
+  return (
+    ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'][
+      n
+    ] ?? String(n)
+  );
+}
+
+function timesPhrase(n: number, of: number): string {
+  const word = numberWordOrDigits(n);
+  return `${word} time${n === 1 ? '' : 's'} out of ${numberWordOrDigits(of)}`;
+}
+
+// Sentences about people, in second person when they are about the viewer.
+// Cross-year memory leads the page because it is the only thing here you
+// cannot get from any other Secret Santa product.
+function buildArchiveMemory({
+  years,
+  exchanges,
+  assignments,
+  guesses,
+  viewerId,
+}: {
+  years: ArchiveYear[];
+  exchanges: Array<{ id: string; organizer: ExchangePerson }>;
+  assignments: Array<{
+    exchangeId: string;
+    gifterId: string;
+    gifteeId: string;
+    gifter: ExchangePerson;
+    giftee: ExchangePerson;
+  }>;
+  guesses: Array<{
+    exchangeId: string;
+    guesserId: string;
+    guessedUserId: string;
+    guesser: ExchangePerson;
+    guessedUser: ExchangePerson;
+  }>;
+  viewerId: string;
+}): ArchiveMemory[] {
+  const memory: ArchiveMemory[] = [];
+  const revealedYears = years.filter((y) => !y.secretForever);
+
+  // "You've drawn Agustin three times out of four."
+  const drawn = new Map<string, { person: ExchangePerson; n: number }>();
+  for (const a of assignments) {
+    if (a.gifterId !== viewerId) continue;
+    const entry = drawn.get(a.gifteeId) ?? { person: a.giftee, n: 0 };
+    entry.n += 1;
+    drawn.set(a.gifteeId, entry);
+  }
+  const repeated = [...drawn.values()].sort((a, b) => b.n - a.n)[0];
+  if (repeated && repeated.n > 1) {
+    memory.push({
+      key: 'repeat-draw',
+      person: repeated.person,
+      line: `You've drawn ${displayNameOf(repeated.person)} ${timesPhrase(
+        repeated.n,
+        revealedYears.length,
+      )}.`,
+    });
+  }
+
+  // "Nobody has ever guessed Agustin. Four years unbeaten."
+  const guessedIds = new Set(guesses.map((g) => g.guessedUserId));
+  const everyone = new Map<string, ExchangePerson>();
+  for (const a of assignments) {
+    everyone.set(a.gifterId, a.gifter);
+    everyone.set(a.gifteeId, a.giftee);
+  }
+  for (const g of guesses) {
+    everyone.set(g.guesserId, g.guesser);
+    everyone.set(g.guessedUserId, g.guessedUser);
+  }
+  if (guesses.length > 0 && years.length > 1) {
+    const unguessed = [...everyone.values()].find(
+      (p) => p.id !== viewerId && !guessedIds.has(p.id),
+    );
+    if (unguessed) {
+      // Their years, not the viewer's: a roster changes, and somebody who
+      // joined only last year has not been unbeaten for four of them.
+      const theirYears = new Set<string>();
+      for (const a of assignments) {
+        if (a.gifterId === unguessed.id || a.gifteeId === unguessed.id) {
+          theirYears.add(a.exchangeId);
+        }
+      }
+      for (const g of guesses) {
+        if (g.guesserId === unguessed.id) theirYears.add(g.exchangeId);
+      }
+      if (theirYears.size > 1) {
+        memory.push({
+          key: 'unguessed',
+          person: unguessed,
+          line: `Nobody has ever guessed ${displayNameOf(unguessed)}. ${capitaliseFirst(
+            numberWordOrDigits(theirYears.size),
+          )} years unbeaten.`,
+        });
+      }
+    }
+  }
+
+  // "Francisco has organized every one of them."
+  const organizerIds = new Set(exchanges.map((e) => e.organizer.id));
+  if (organizerIds.size === 1 && years.length > 1) {
+    const organizer = exchanges[0]!.organizer;
+    memory.push({
+      key: 'organizer',
+      person: organizer,
+      line:
+        organizer.id === viewerId
+          ? `You've organized every one of them.`
+          : `${displayNameOf(organizer)} has organized every one of them.`,
+    });
+  }
+
+  return memory;
+}
+
+function displayNameOf(person: ExchangePerson): string {
+  return person.name ?? person.username;
+}
+
 // ─── Lists ────────────────────────────────────────────────────────────────────
 
 export type ExchangeListItem = {

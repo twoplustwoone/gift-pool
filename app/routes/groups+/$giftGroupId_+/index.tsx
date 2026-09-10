@@ -66,16 +66,19 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const { requireUserIdInGroup } = await import('#app/utils/groups.server.ts');
   const { getGroupOverviewData } =
     await import('#app/utils/group-overview.server.ts');
-  const { getGroupExchangeSummary } =
+  const { getGroupExchangeSummary, hasGroupExchangeArchive } =
     await import('#app/utils/exchanges.server.ts');
   const { getHints } = await import('#app/utils/client-hints.tsx');
   const viewerId = await requireUserIdInGroup(request, groupId);
   const { timeZone } = getHints(request);
-  const [overview, exchange] = await Promise.all([
+  const [overview, exchange, hasArchive] = await Promise.all([
     getGroupOverviewData(groupId, viewerId),
     getGroupExchangeSummary({ giftGroupId: groupId, viewerId, timeZone }),
+    // Just whether there is one: the archive itself is a page, and building
+    // it for a link nobody may click is work for nothing.
+    hasGroupExchangeArchive({ giftGroupId: groupId, viewerId }),
   ]);
-  return { ...overview, exchange };
+  return { ...overview, exchange, hasArchive };
 }
 
 // ─── Action queue icon map ───────────────────────────────────────────────────
@@ -152,6 +155,7 @@ const GiftGroupOverview = () => {
           <ExchangeSection
             exchange={data.exchange}
             giftGroupId={giftGroup.id}
+            hasArchive={data.hasArchive}
           />
           <UpcomingOccasionsSection occasions={data.upcomingOccasions} />
           <PastGiftsSection gifts={data.pastGifts} />
@@ -445,12 +449,35 @@ const PoolRow = ({ pool }: { pool: PoolSummary }) => {
 // non-participant actually is (design board §2b). Dismissing it degrades to a
 // quiet one-line Join link rather than vanishing.
 
+// The only way into the archive. It has to be reachable while an exchange is
+// running too — a group with a live exchange is exactly the group with years
+// behind it.
+const ArchiveLink = ({
+  giftGroupId,
+  hasArchive,
+}: {
+  giftGroupId: string;
+  hasArchive: boolean;
+}) =>
+  hasArchive ? (
+    <Link
+      to={`/groups/${giftGroupId}/exchanges`}
+      className="mt-2 inline-block text-sm underline"
+      data-testid="archive-link"
+    >
+      See past exchanges
+    </Link>
+  ) : null;
+
 const ExchangeSection = ({
   exchange,
   giftGroupId,
+  hasArchive,
 }: {
   exchange: GroupExchangeSummary;
   giftGroupId: string;
+  /** Whether this viewer has any past exchange in this group to look back on. */
+  hasArchive: boolean;
 }) => {
   if (!exchange) {
     return (
@@ -469,6 +496,7 @@ const ExchangeSection = ({
           Everyone draws one person and gives to them in secret — and the group
           keeps the record afterwards.
         </Text>
+        <ArchiveLink giftGroupId={giftGroupId} hasArchive={hasArchive} />
       </section>
     );
   }
@@ -507,6 +535,7 @@ const ExchangeSection = ({
             </Flex>
           </Card>
         </Link>
+        <ArchiveLink giftGroupId={giftGroupId} hasArchive={hasArchive} />
       </section>
     );
   }
@@ -519,12 +548,14 @@ const ExchangeSection = ({
           exchange={exchange.exchange}
           participantCount={exchange.exchange.participantCount}
         />
+        <ArchiveLink giftGroupId={giftGroupId} hasArchive={hasArchive} />
       </section>
     );
   }
   return (
     <section data-testid="exchange-section">
       <ExchangeQuietLine exchange={exchange.exchange} canJoin={gathering} />
+      <ArchiveLink giftGroupId={giftGroupId} hasArchive={hasArchive} />
     </section>
   );
 };
