@@ -76,7 +76,7 @@ describe('<BottomNav />', () => {
   test('all five items have accessible labels', () => {
     renderBottomNav({ id: 'user1' });
 
-    for (const name of ['Home', 'Wishlist', 'Groups', 'Pools', 'Friends']) {
+    for (const name of ['Home', 'Wishlist', 'Groups', 'Gifting', 'Friends']) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument();
     }
   });
