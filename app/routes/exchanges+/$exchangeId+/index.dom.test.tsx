@@ -6,6 +6,7 @@
 // projection — the same shape `getViewerProjection` returns — and assert what
 // each viewer may and may not see.
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import * as ReactRouter from 'react-router';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -140,6 +141,10 @@ function baseView(overrides: Partial<ExchangeView> = {}): ExchangeView {
     progress: null,
     loop: null,
     yourGifter: null,
+    scoreboard: null,
+    youGuessedRight: null,
+    thanksSent: false,
+    thanksReceived: null,
     ...overrides,
   };
 }
@@ -474,6 +479,21 @@ describe('drawn', () => {
   });
 });
 
+const scoreboardFixture = {
+  awards: [
+    {
+      kind: 'BEST_GUESSER' as const,
+      title: 'Best guesser',
+      line: 'Got it first try',
+      person: { id: 'fc', name: 'Francisco Ceriani', username: 'fc' },
+    },
+  ],
+  correctCount: 2 as number | null,
+  guesserCount: 4,
+  participantCount: 5,
+  summary: '2 of 5 guessed right this year.',
+};
+
 describe('revealed, finished and cancelled', () => {
   it('leads the revealed page with who had you, then the loop', () => {
     renderPage(
@@ -509,6 +529,61 @@ describe('revealed, finished and cancelled', () => {
     );
   });
 
+  it('tells the viewer whether they called it, and offers the thank-you', async () => {
+    const user = userEvent.setup();
+    renderPage(
+      baseView({
+        exchange: {
+          ...baseView().exchange,
+          status: 'REVEALED',
+          stage: 'REVEALED',
+        },
+        yourGifter: organizer,
+        youGuessedRight: true,
+        scoreboard: scoreboardFixture,
+        loop: [
+          { gifter: organizer, giftee: np, giftLabel: null, outcome: null },
+        ],
+      }),
+    );
+    expect(screen.getByTestId('your-gifter')).toHaveTextContent(
+      'You guessed right',
+    );
+    const guesses = screen.getByRole('region', { name: 'Guesses' });
+    expect(guesses).toHaveTextContent('Got it first try');
+    expect(guesses).toHaveTextContent('2 of 5 guessed right this year.');
+
+    await user.click(
+      screen.getByRole('button', { name: /Say thanks to Francisco/ }),
+    );
+    expect(
+      screen.getByText(/there's nothing left to give away/),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the thank-you their person sent back', () => {
+    renderPage(
+      baseView({
+        exchange: {
+          ...baseView().exchange,
+          status: 'REVEALED',
+          stage: 'REVEALED',
+        },
+        yourGifter: organizer,
+        thanksReceived: {
+          text: 'Thank you — I loved it.',
+          from: al,
+        },
+        loop: [
+          { gifter: organizer, giftee: np, giftLabel: null, outcome: null },
+        ],
+      }),
+    );
+    const card = screen.getByTestId('thanks-received');
+    expect(card).toHaveTextContent('Agustin said thanks');
+    expect(card).toHaveTextContent('Thank you — I loved it.');
+  });
+
   it('says nobody will ever know on a secret-forever exchange, and shows no loop', () => {
     renderPage(
       baseView({
@@ -518,13 +593,22 @@ describe('revealed, finished and cancelled', () => {
           stage: 'FINISHED',
           revealMode: 'SECRET_FOREVER',
         },
+        scoreboard: scoreboardFixture,
       }),
     );
     expect(screen.getByText('Nobody will ever know')).toBeInTheDocument();
     expect(screen.queryByTestId('revealed-loop')).not.toBeInTheDocument();
     expect(
       screen.getByRole('complementary', { name: 'What stays private' }),
-    ).toHaveTextContent('Who had who is not shown');
+    ).toHaveTextContent('Who had who is not');
+    // Right and wrong are the half of the record this mode keeps.
+    expect(screen.getByRole('region', { name: 'Guesses' })).toHaveTextContent(
+      'Got it first try',
+    );
+    // And no thank-you: there is no gifter to name.
+    expect(
+      screen.queryByRole('button', { name: /Say thanks/ }),
+    ).not.toBeInTheDocument();
   });
 
   it('explains a cancelled exchange and offers the way back', () => {

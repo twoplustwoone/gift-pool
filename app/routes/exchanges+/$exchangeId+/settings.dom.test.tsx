@@ -117,6 +117,10 @@ function view(overrides: Partial<ExchangeView> = {}): ExchangeView {
     progress: null,
     loop: null,
     yourGifter: null,
+    scoreboard: null,
+    youGuessedRight: null,
+    thanksSent: false,
+    thanksReceived: null,
     ...overrides,
   };
 }

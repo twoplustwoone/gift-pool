@@ -17,6 +17,9 @@ import { EXCHANGE_STATUS } from './exchange-constants.ts';
 import { NOTE_DIRECTION, NOTE_KIND } from './exchange-notes.ts';
 import {
   computeClueCandidates,
+  computeScoreboard,
+  didGuessRight,
+  getThanksReceived,
   getNoteThreads,
   getOwnGuess,
   runNoteDeliverySweep,
@@ -649,5 +652,201 @@ describe('runNoteDeliverySweep', () => {
     expect(
       await runNoteDeliverySweep({ now: new Date('2026-12-13T15:00:00Z') }),
     ).toEqual({ delivered: 0, failed: 0 });
+  });
+});
+
+describe('computeScoreboard', () => {
+  // The drawn cycle is random, and which awards are even possible depends on
+  // it — so this suite pins the loop to organizer → a → b → c → organizer and
+  // plays a known game on top of it. Everyone accuses the organizer: a is
+  // right (the organizer really does have them), b and c are wrong, and c
+  // changes their mind twice on the way there.
+  async function playOut() {
+    const order = [f.organizer, f.a, f.b, f.c];
+    await prisma.exchangeAssignment.deleteMany({ where: { exchangeId: f.id } });
+    await prisma.exchangeAssignment.createMany({
+      data: order.map((gifter, i) => ({
+        exchangeId: f.id,
+        gifterId: gifter.id,
+        gifteeId: order[(i + 1) % order.length]!.id,
+      })),
+    });
+
+    await setGuess({
+      exchangeId: f.id,
+      guesserId: f.a.id,
+      guessedUserId: f.organizer.id, // right: the organizer has a
+      now: NOW,
+    });
+    await setGuess({
+      exchangeId: f.id,
+      guesserId: f.b.id,
+      guessedUserId: f.organizer.id, // wrong: a has b
+      now: NOW,
+    });
+    // c dithers before landing on the same wrong answer.
+    await setGuess({
+      exchangeId: f.id,
+      guesserId: f.c.id,
+      guessedUserId: f.a.id,
+      now: NOW,
+    });
+    await setGuess({
+      exchangeId: f.id,
+      guesserId: f.c.id,
+      guessedUserId: f.b.id,
+      now: NOW,
+    });
+    await setGuess({
+      exchangeId: f.id,
+      guesserId: f.c.id,
+      guessedUserId: f.organizer.id, // wrong: b has c
+      now: NOW,
+    });
+  }
+
+  it('reads as sentences about people, and counts who called it', async () => {
+    await playOut();
+    const board = await computeScoreboard({ exchangeId: f.id });
+
+    const best = board.awards.find((a) => a.kind === 'BEST_GUESSER');
+    expect(best?.person.id).toBe(f.a.id);
+    expect(best?.line).toBe('Got it first try');
+    expect(board.correctCount).toBe(1);
+    expect(board.summary).toBe('1 of 4 guessed right this year.');
+    // All three put the organizer's name down; one of them was right.
+    const accused = board.awards.find((a) => a.kind === 'MOST_ACCUSED');
+    expect(accused?.person.id).toBe(f.organizer.id);
+    expect(accused?.line).toBe('Three people accused them. One was right');
+
+    const wavered = board.awards.find((a) => a.kind === 'WAVERED');
+    expect(wavered?.person.id).toBe(f.c.id);
+    expect(wavered?.line).toBe('Changed their mind twice');
+  });
+
+  it('names someone nobody guessed', async () => {
+    // Only one guess, so three people go unguessed.
+    await setGuess({
+      exchangeId: f.id,
+      guesserId: f.a.id,
+      guessedUserId: f.b.id,
+      now: NOW,
+    });
+    const board = await computeScoreboard({ exchangeId: f.id });
+    const unguessable = board.awards.find((a) => a.kind === 'UNGUESSABLE');
+    expect(unguessable?.line).toBe('Nobody guessed them');
+    expect(unguessable?.person.id).not.toBe(f.b.id);
+  });
+
+  it('names no correct guesser when the pairings stay secret forever', async () => {
+    await playOut();
+    const secret = await computeScoreboard({
+      exchangeId: f.id,
+      secretForever: true,
+    });
+    // The best guesser remembers who they put down, so naming them as right
+    // hands them their own gifter — the fact this mode exists to withhold.
+    expect(secret.awards.map((a) => a.kind)).not.toContain('BEST_GUESSER');
+    expect(secret.correctCount).toBeNull();
+    // And the summary counts who played, not who was right: "4 of 4 guessed
+    // right" would tell all four.
+    expect(secret.summary).toBe('3 of 4 put a name down this year.');
+    // Nothing in the awards states a correct guess.
+    expect(JSON.stringify(secret.awards)).not.toContain('right');
+  });
+
+  it('drops the accusation award when the pairings stay secret forever', async () => {
+    await playOut();
+    const open = await computeScoreboard({ exchangeId: f.id });
+    const secret = await computeScoreboard({
+      exchangeId: f.id,
+      secretForever: true,
+    });
+
+    // "Three accused them, one was right" tells three people that one of them
+    // is holding the answer — which is the thing this mode never shows.
+    expect(open.awards.map((a) => a.kind)).toContain('MOST_ACCUSED');
+    expect(secret.awards.map((a) => a.kind)).not.toContain('MOST_ACCUSED');
+    // What survives are the awards that imply no pairing at all: nobody
+    // guessed them, and somebody kept changing their mind.
+    expect(secret.awards.map((a) => a.kind).sort()).toEqual([
+      'UNGUESSABLE',
+      'WAVERED',
+    ]);
+  });
+
+  it('says so plainly when nobody put a name down', async () => {
+    const board = await computeScoreboard({ exchangeId: f.id });
+    expect(board.awards).toEqual([]);
+    expect(board.summary).toBe('Nobody put a name down this year.');
+  });
+});
+
+describe('didGuessRight', () => {
+  it('tells the viewer whether they called it, and nothing about anyone else', async () => {
+    await setGuess({
+      exchangeId: f.id,
+      guesserId: f.a.id,
+      guessedUserId: gifterOf(f, f.a.id),
+      now: NOW,
+    });
+    await setGuess({
+      exchangeId: f.id,
+      guesserId: f.b.id,
+      guessedUserId: f.a.id === gifterOf(f, f.b.id) ? f.c.id : f.a.id,
+      now: NOW,
+    });
+
+    expect(await didGuessRight({ exchangeId: f.id, viewerId: f.a.id })).toBe(
+      true,
+    );
+    expect(await didGuessRight({ exchangeId: f.id, viewerId: f.b.id })).toBe(
+      false,
+    );
+    // Someone who never guessed gets nothing, not a false.
+    expect(
+      await didGuessRight({ exchangeId: f.id, viewerId: f.organizer.id }),
+    ).toBeNull();
+  });
+});
+
+describe('getThanksReceived', () => {
+  it('gives a gifter the thank-you their person sent, with the name on it', async () => {
+    await prisma.exchange.update({
+      where: { id: f.id },
+      data: { status: EXCHANGE_STATUS.REVEALED },
+    });
+    const giftee = f.a;
+    const gifter = gifterOf(f, giftee.id);
+
+    expect(
+      await getThanksReceived({ exchangeId: f.id, viewerId: gifter }),
+    ).toBeNull();
+
+    await sendNote({
+      exchangeId: f.id,
+      senderId: giftee.id,
+      direction: NOTE_DIRECTION.TO_GIFTER,
+      kind: NOTE_KIND.THANKS,
+      presetKey: 'loved-it',
+      now: NOW,
+    });
+
+    // It reaches the gifter without waiting for a delivery sweep: a thank-you
+    // is attributed and expected, so there is nothing to anonymise.
+    const received = await getThanksReceived({
+      exchangeId: f.id,
+      viewerId: gifter,
+    });
+    expect(received?.text).toBe('Thank you — I loved it.');
+    expect(received?.from.id).toBe(giftee.id);
+
+    // And nobody else sees it.
+    const bystander = [f.organizer, f.a, f.b, f.c].find(
+      (u) => u.id !== gifter && u.id !== giftee.id,
+    )!;
+    expect(
+      await getThanksReceived({ exchangeId: f.id, viewerId: bystander.id }),
+    ).toBeNull();
   });
 });

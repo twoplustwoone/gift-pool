@@ -791,6 +791,20 @@ describe('projection secrecy (property over role × status)', () => {
           expect(view.clues).toBeNull();
           expect(view.guess).toBeNull();
         }
+        // A secret-forever exchange keeps the scoreboard and drops the loop,
+        // so the awards must state right and wrong without implying who had
+        // who — "three accused them, one was right" would tell three people
+        // that one of them is holding the answer.
+        if (status === 'FINISHED') {
+          expect(view.loop).toBeNull();
+          expect(view.youGuessedRight).toBeNull();
+          expect(
+            view.scoreboard?.awards.map((a) => a.kind) ?? [],
+          ).not.toContain('MOST_ACCUSED');
+        }
+        if (status !== 'REVEALED' && status !== 'FINISHED') {
+          expect(view.scoreboard).toBeNull();
+        }
         // Notes and guesses only exist between the draw and the reveal, and a
         // note never carries its sender — the projection is the last place
         // that could leak one.

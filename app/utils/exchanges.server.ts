@@ -201,6 +201,14 @@ export type ExchangeView = {
   // REVEALED only.
   loop: RevealedPair[] | null;
   yourGifter: ExchangePerson | null;
+  // REVEALED and FINISHED: right and wrong, never who had who.
+  scoreboard: Scoreboard | null;
+  // REVEALED only — on a secret-forever exchange this would hand someone
+  // their own pairing, which is the one thing that page never shows.
+  youGuessedRight: boolean | null;
+  thanksSent: boolean;
+  /** What the person you had said back, once the pairings are out. */
+  thanksReceived: { text: string; from: ExchangePerson } | null;
 };
 
 // ─── Visibility ───────────────────────────────────────────────────────────────
@@ -1196,16 +1204,25 @@ export {
 // here rather than imported directly. Implementation: exchange-notes.server.ts.
 import {
   computeClueCandidates,
+  computeScoreboard,
+  didGuessRight,
   getNoteThreads,
+  getThanksReceived,
+  hasSentThanks,
   getOwnGuess,
   type ClueCandidate,
   type GuessView,
   type NoteThreads,
+  type Scoreboard,
 } from './exchange-notes.server.ts';
 
 export {
   computeClueCandidates,
+  computeScoreboard,
+  didGuessRight,
   getNoteThreads,
+  getThanksReceived,
+  hasSentThanks,
   getOwnGuess,
   runNoteDeliverySweep,
   sendNote,
@@ -1215,6 +1232,8 @@ export {
   type NoteThreads,
   type NoteView,
   type NoteDeliverySweepSummary,
+  type Scoreboard,
+  type ScoreboardAward,
 } from './exchange-notes.server.ts';
 
 // ─── Account deletion ─────────────────────────────────────────────────────────
@@ -1608,6 +1627,39 @@ export async function getViewerProjection({
     progress = { total, haveGift, wrapped, given, received };
   }
 
+  let scoreboard: Scoreboard | null = null;
+  let youGuessedRight: boolean | null = null;
+  let thanksSent = false;
+  let thanksReceived: ExchangeView['thanksReceived'] = null;
+  // The scoreboard is the half of the record a secret-forever exchange keeps.
+  if (
+    status === EXCHANGE_STATUS.REVEALED ||
+    status === EXCHANGE_STATUS.FINISHED
+  ) {
+    scoreboard = await computeScoreboard({
+      exchangeId,
+      secretForever: status === EXCHANGE_STATUS.FINISHED,
+    });
+    if (isLive && status === EXCHANGE_STATUS.REVEALED) {
+      const [right, sent, received] = await Promise.all([
+        didGuessRight({ exchangeId, viewerId }),
+        hasSentThanks({ exchangeId, viewerId }),
+        getThanksReceived({ exchangeId, viewerId }),
+      ]);
+      youGuessedRight = right;
+      thanksSent = sent;
+      thanksReceived = received
+        ? {
+            text: received.text,
+            from: {
+              ...received.from,
+              image: null,
+            },
+          }
+        : null;
+    }
+  }
+
   let loop: RevealedPair[] | null = null;
   let yourGifter: ExchangePerson | null = null;
   if (status === EXCHANGE_STATUS.REVEALED) {
@@ -1685,6 +1737,10 @@ export async function getViewerProjection({
     progress,
     loop,
     yourGifter,
+    scoreboard,
+    youGuessedRight,
+    thanksSent,
+    thanksReceived,
   };
 }
 
