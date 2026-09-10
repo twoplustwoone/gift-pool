@@ -29,6 +29,7 @@ const threads = (overrides: Partial<NoteThreads> = {}): NoteThreads => ({
   fromYourGifter: [],
   toYourPerson: [],
   remainingToday: 3,
+  nextDeliveryLabel: 'tomorrow morning',
   ...overrides,
 });
 
@@ -124,6 +125,7 @@ describe('<NoteComposer />', () => {
         direction="TO_GIFTEE"
         personFirstName="Agustin"
         remainingToday={3}
+        deliveryLabel="tomorrow morning"
         pending={false}
         onSend={onSend}
       />,
@@ -140,12 +142,34 @@ describe('<NoteComposer />', () => {
     expect(onSend).toHaveBeenCalledWith('got-it');
   });
 
+  it('promises the morning the server actually scheduled', async () => {
+    const user = userEvent.setup();
+    render(
+      <NoteComposer
+        direction="TO_GIFTEE"
+        personFirstName="Agustin"
+        remainingToday={3}
+        deliveryLabel="this morning"
+        pending={false}
+        onSend={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Send a note' }));
+    // Written overnight: it lands in a few hours, not tomorrow.
+    expect(screen.getByText(/will get it this morning/)).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: /got your gift/i }));
+    expect(
+      screen.getByRole('button', { name: 'Send this morning' }),
+    ).toBeInTheDocument();
+  });
+
   it('closes the door once the allowance is gone, and says why', () => {
     render(
       <NoteComposer
         direction="TO_GIFTEE"
         personFirstName="Agustin"
         remainingToday={0}
+        deliveryLabel="tomorrow morning"
         pending={false}
         onSend={vi.fn()}
       />,
@@ -179,6 +203,7 @@ describe('<CluePicker />', () => {
           },
         ]}
         remainingToday={2}
+        deliveryLabel="tomorrow morning"
         pending={false}
         onSend={onSend}
       />,
@@ -206,6 +231,7 @@ describe('<CluePicker />', () => {
         personFirstName="Agustin"
         clues={[]}
         remainingToday={3}
+        deliveryLabel="tomorrow morning"
         pending={false}
         onSend={vi.fn()}
       />,

@@ -359,6 +359,18 @@ function Drawn({
   const { exchange, viewer, you, progress, roster, notes, clues, guess } = view;
   const noteFetcher = useFetcher();
   const guessFetcher = useFetcher();
+  // Domain refusals come back as data, so they have to be shown: an exchange
+  // revealed in another tab, an allowance that went stale, a clue that
+  // stopped being true. Silently swallowing them leaves someone believing
+  // they sent something they didn't.
+  const sendError =
+    noteFetcher.state === 'idle'
+      ? ((noteFetcher.data as { error?: string } | undefined)?.error ?? null)
+      : null;
+  const guessError =
+    guessFetcher.state === 'idle'
+      ? ((guessFetcher.data as { error?: string } | undefined)?.error ?? null)
+      : null;
   const post = (
     fetcher: ReturnType<typeof useFetcher>,
     fields: Record<string, string>,
@@ -498,6 +510,15 @@ function Drawn({
               page they wait until the cover card has been opened. */}
           {notes && !stillCovered ? (
             <>
+              {sendError || guessError ? (
+                <p
+                  role="alert"
+                  data-testid="notes-error"
+                  className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm"
+                >
+                  {sendError ?? guessError}
+                </p>
+              ) : null}
               <NotesThreads
                 threads={notes}
                 personFirstName={gifteeFirst}
@@ -506,6 +527,7 @@ function Drawn({
                     direction="TO_GIFTER"
                     personFirstName={gifteeFirst}
                     remainingToday={notes.remainingToday}
+                    deliveryLabel={notes.nextDeliveryLabel}
                     pending={noteFetcher.state !== 'idle'}
                     onSend={(presetKey) =>
                       post(noteFetcher, {
@@ -523,6 +545,7 @@ function Drawn({
                       direction="TO_GIFTEE"
                       personFirstName={gifteeFirst}
                       remainingToday={notes.remainingToday}
+                      deliveryLabel={notes.nextDeliveryLabel}
                       pending={noteFetcher.state !== 'idle'}
                       onSend={(presetKey) =>
                         post(noteFetcher, {
@@ -537,6 +560,7 @@ function Drawn({
                       personFirstName={gifteeFirst}
                       clues={clues ?? []}
                       remainingToday={notes.remainingToday}
+                      deliveryLabel={notes.nextDeliveryLabel}
                       pending={noteFetcher.state !== 'idle'}
                       onSend={(clueKey) =>
                         post(noteFetcher, {

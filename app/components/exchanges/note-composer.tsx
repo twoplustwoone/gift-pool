@@ -17,6 +17,7 @@ export function NoteComposer({
   direction,
   personFirstName,
   remainingToday,
+  deliveryLabel,
   pending,
   onSend,
   triggerLabel,
@@ -24,6 +25,10 @@ export function NoteComposer({
   direction: NoteSendDirection;
   personFirstName: string;
   remainingToday: number;
+  /** Which morning this would land on — "tomorrow morning", or "this
+   * morning" for one written overnight. Computed in the recipient's zone,
+   * because promising the wrong morning is a promise people plan around. */
+  deliveryLabel: string;
   pending: boolean;
   onSend: (presetKey: string) => void;
   triggerLabel?: string;
@@ -58,11 +63,11 @@ export function NoteComposer({
         }
         description={
           toGiftee
-            ? `Pick one. ${personFirstName} will get it tomorrow morning with everyone else's — a 2am note would tell them more than you meant to.`
-            : "Pick one. They'll get it tomorrow morning with everyone else's, so it won't say when you were awake."
+            ? `Pick one. ${personFirstName} will get it ${deliveryLabel} with everyone else's — a 2am note would tell them more than you meant to.`
+            : `Pick one. They'll get it ${deliveryLabel} with everyone else's, so it won't say when you were awake.`
         }
         options={presets.map((p) => ({ key: p.key, label: p.text }))}
-        sendLabel={() => 'Send tomorrow morning'}
+        sendLabel={() => `Send ${deliveryLabel}`}
         onSend={(key) => {
           onSend(key);
           setOpen(false);
@@ -86,12 +91,14 @@ export function CluePicker({
   personFirstName,
   clues,
   remainingToday,
+  deliveryLabel,
   pending,
   onSend,
 }: {
   personFirstName: string;
   clues: ClueCandidate[];
   remainingToday: number;
+  deliveryLabel: string;
   pending: boolean;
   onSend: (clueKey: string) => void;
 }) {
@@ -113,7 +120,7 @@ export function CluePicker({
         open={open}
         onOpenChange={setOpen}
         title={`Send ${personFirstName} a clue`}
-        description={`These are true things about you. You choose which ones ${personFirstName} gets — and you can see exactly what they'll read.`}
+        description={`These are true things about you. You choose which ones ${personFirstName} gets — and you can see exactly what they'll read. It arrives ${deliveryLabel}.`}
         options={clues.map((clue) => ({
           key: clue.key,
           label: clue.text,

@@ -15,6 +15,7 @@
 import { data } from 'react-router';
 import { type Prisma } from '@prisma/client';
 import { prisma } from '#app/utils/db.server.ts';
+import { canViewBirthday } from './birthday-visibility.server.ts';
 import { EXCHANGE_STATUS, PARTICIPANT_STATUS } from './exchange-constants.ts';
 import {
   coarsenToSlot,
@@ -62,6 +63,12 @@ export type NoteThreads = {
   toYourPerson: NoteView[];
   /** Shared between notes and clues, per exchange, per day. */
   remainingToday: number;
+  /**
+   * Which morning a note sent right now would land on, in the recipient's
+   * zone — "tomorrow morning" usually, "this morning" for one written
+   * overnight. The composer promises this, so it cannot be a guess.
+   */
+  nextDeliveryLabel: string;
 };
 
 export type ClueCandidate = {
@@ -223,10 +230,29 @@ export async function getNoteThreads({
   const view = (rows: typeof gifterThread) =>
     rows.map((r) => toNoteView(r, viewerId, now, viewerZone));
 
+  // The slot belongs to whoever receives it, so the label is computed against
+  // their zone and then described to the sender.
+  const recipientId = mine
+    ? (
+        await prisma.exchangeAssignment.findUnique({
+          where: { id: mine.id },
+          select: { gifteeId: true },
+        })
+      )?.gifteeId
+    : null;
+  const recipientZone = recipientId
+    ? await zoneOf(prisma, recipientId)
+    : viewerZone;
+
   return {
     fromYourGifter: view(gifterThread),
     toYourPerson: view(personThread),
     remainingToday: Math.max(0, NOTE_DAILY_ALLOWANCE - used),
+    nextDeliveryLabel: pendingSlotLabel(
+      nextMorningSlot(now, recipientZone),
+      now,
+      recipientZone,
+    ).replace('arrives ', ''),
   };
 }
 
@@ -416,7 +442,7 @@ export async function computeClueCandidates({
     }),
     db.user.findMany({
       where: { id: { in: [...candidateIds, recipientId] } },
-      select: { id: true, birthday: true },
+      select: { id: true, birthday: true, birthdayVisibility: true },
     }),
   ]);
 
@@ -453,6 +479,9 @@ export async function computeClueCandidates({
       b.birthday ? (b.birthday.getUTCMonth() < 6 ? 1 : 2) : null,
     );
   }
+  const birthdayVisibility = new Map(
+    birthdays.map((b) => [b.id, b.birthdayVisibility]),
+  );
 
   const candidates: ClueCandidate[] = [];
   const add = (
@@ -490,17 +519,96 @@ export async function computeClueCandidates({
     );
   }
 
+  // A birthday clue is only truthful if the sender can actually see the
+  // recipient's birthday — and offering it at all would otherwise leak that
+  // birthday, since the clue appears only when the two halves match. Someone
+  // who set their birthday to NOBODY must not be readable through the
+  // presence of a clue. Same rule as every other birthday surface.
   const myHalf = birthdayHalf.get(viewerId) ?? null;
   const theirHalf = birthdayHalf.get(recipientId) ?? null;
-  if (myHalf && theirHalf && myHalf === theirHalf) {
+  const canSeeRecipientBirthday = await canViewBirthdayOf({
+    db,
+    viewerId,
+    targetId: recipientId,
+    visibility: birthdayVisibility.get(recipientId) ?? 'FRIENDS',
+  });
+  if (myHalf && theirHalf && myHalf === theirHalf && canSeeRecipientBirthday) {
+    // The narrowing figure is exactly what the RECIPIENT could work out for
+    // themselves, so it counts only the candidates whose birthday they can
+    // see. A count built from birthdays hidden from them would hand the
+    // sender something nobody in the exchange is allowed to know.
+    const visibleToRecipient = new Set<string>();
+    await Promise.all(
+      candidateIds.map(async (id) => {
+        if (
+          await canViewBirthdayOf({
+            db,
+            viewerId: recipientId,
+            targetId: id,
+            visibility: birthdayVisibility.get(id) ?? 'FRIENDS',
+          })
+        ) {
+          visibleToRecipient.add(id);
+        }
+      }),
+    );
     add(
       'birthday-half',
       'My birthday is in the same half of the year as yours.',
-      (id) => birthdayHalf.get(id) === theirHalf,
+      (id) => visibleToRecipient.has(id) && birthdayHalf.get(id) === theirHalf,
     );
   }
 
   return candidates;
+}
+
+// The repo's one birthday rule, applied to a pair. `canViewBirthday` is pure,
+// so the facts are gathered here.
+async function canViewBirthdayOf({
+  db,
+  viewerId,
+  targetId,
+  visibility,
+}: {
+  db: Db;
+  viewerId: string;
+  targetId: string;
+  visibility: string;
+}): Promise<boolean> {
+  if (viewerId === targetId) return true;
+  if (visibility === 'NOBODY') return false;
+  const [pair] = await Promise.all([
+    db.friendship.findFirst({
+      where: {
+        OR: [
+          { userAId: viewerId, userBId: targetId },
+          { userAId: targetId, userBId: viewerId },
+        ],
+      },
+      select: { id: true },
+    }),
+  ]);
+  const sharedGroup = await db.usersInGiftGroups.findFirst({
+    where: {
+      userId: targetId,
+      shareBirthday: true,
+      removedAt: null,
+      giftGroup: {
+        groupMembers: { some: { userId: viewerId, removedAt: null } },
+      },
+    },
+    select: { userId: true },
+  });
+  return canViewBirthday(
+    { birthdayVisibility: visibility },
+    {
+      isDirectFriend: pair !== null,
+      // Friend-of-friend is not computed here: a clue is a stronger signal
+      // than a profile view, so this errs towards not offering one.
+      isMutualFriend: false,
+      sharesActiveBirthdayGroup: sharedGroup !== null,
+    },
+  );
 }
 
 function numberWord(n: number): string {
@@ -524,6 +632,10 @@ export async function setGuess({
   guessedUserId: string;
   now?: Date;
 }): Promise<GuessView> {
+  // Same seam as `sendNote`: an outsider must not be able to tell a live
+  // drawn exchange from a missing one by the shape of the refusal.
+  await requireExchangeVisible(guesserId, exchangeId);
+
   return prisma.$transaction(async (tx) => {
     const exchange = await tx.exchange.findUnique({
       where: { id: exchangeId },
@@ -625,7 +737,16 @@ export async function runNoteDeliverySweep({
   now = new Date(),
 }: { now?: Date } = {}): Promise<NoteDeliverySweepSummary> {
   const due = await prisma.exchangeNote.findMany({
-    where: { deliveredAt: null, scheduledFor: { lte: now } },
+    // A note is only worth delivering while there is a thread to read it in.
+    // If the exchange revealed or was cancelled first — the auto-reveal sweep
+    // runs in the same hour — or the recipient was spliced out, telling them
+    // about a note they cannot open is worse than silence.
+    where: {
+      deliveredAt: null,
+      scheduledFor: { lte: now },
+      exchange: { status: EXCHANGE_STATUS.DRAWN },
+      thread: { supersededAt: null },
+    },
     select: {
       id: true,
       exchangeId: true,

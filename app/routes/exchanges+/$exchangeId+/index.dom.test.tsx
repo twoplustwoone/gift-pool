@@ -26,6 +26,9 @@ const snapshot: {
   viewerWishlistItemCount: 3,
 };
 
+// Lets a test put a server refusal in front of the page.
+const fetcherData: { data: unknown } = { data: undefined };
+
 vi.mock('react-router', async () => {
   const actual = await vi.importActual<typeof ReactRouter>('react-router');
   return {
@@ -37,7 +40,7 @@ vi.mock('react-router', async () => {
       ),
       submit: () => {},
       state: 'idle' as const,
-      data: undefined,
+      data: fetcherData.data,
       formData: undefined,
     }),
   };
@@ -331,6 +334,7 @@ describe('drawn', () => {
           ],
           toYourPerson: [],
           remainingToday: 2,
+          nextDeliveryLabel: 'tomorrow morning',
         },
         clues: [
           {
@@ -356,6 +360,29 @@ describe('drawn', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows a refusal from the server instead of swallowing it', () => {
+    // The exchange can be revealed in another tab, or the allowance can go
+    // stale between opening the picker and sending. Silence would leave
+    // someone believing they sent something they didn't.
+    fetcherData.data = { error: "That's your 3 notes for today." };
+    renderPage(
+      drawnView({
+        notes: {
+          fromYourGifter: [],
+          toYourPerson: [],
+          remainingToday: 0,
+          nextDeliveryLabel: 'tomorrow morning',
+        },
+        clues: [],
+        guess: null,
+      }),
+    );
+    expect(screen.getByTestId('notes-error')).toHaveTextContent(
+      "That's your 3 notes for today.",
+    );
+    fetcherData.data = undefined;
+  });
+
   it('keeps the notes behind the cover, since the thread names your person', () => {
     renderPage(
       drawnView({
@@ -364,6 +391,7 @@ describe('drawn', () => {
           fromYourGifter: [],
           toYourPerson: [],
           remainingToday: 3,
+          nextDeliveryLabel: 'tomorrow morning',
         },
         clues: [],
         guess: null,
