@@ -90,6 +90,32 @@ export function localTimeToUtc(
   return new Date(guess);
 }
 
+// An instant rendered as a date input value in a given zone. `toDateInput`
+// reads UTC parts, which is right for the date-only exchange date but wrong
+// for the auto-reveal instant: 09:00 in Sydney is stored as 22:00Z the day
+// before, and reading UTC parts would move it a day earlier every time the
+// settings form round-trips.
+export function toDateInputInZone(date: Date, timeZone: string): string {
+  const zone = isValidTimeZone(timeZone) ? timeZone : 'UTC';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: zone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+// Has the date-only `eventDate` (stored at UTC midnight) arrived where the
+// viewer is? Comparing instants would open the reveal at 16:00 the previous
+// afternoon in Los Angeles and hold it until late morning in Sydney.
+export function hasCalendarDayArrived(
+  eventDate: Date,
+  now: Date,
+  timeZone: string,
+): boolean {
+  return toDateInputInZone(now, timeZone) >= toDateInput(eventDate);
+}
+
 export const AUTO_REVEAL_LOCAL_HOUR = 9;
 
 // The auto-reveal moment for a given calendar date in the organizer's zone.

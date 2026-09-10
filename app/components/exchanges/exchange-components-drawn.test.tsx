@@ -357,12 +357,37 @@ describe('RevealControls', () => {
         autoRevealAt="2026-12-27T09:00:00Z"
         eventDate={EVENT}
         now={now}
-        canToggleAutoReveal={false}
+        revealMode="SECRET_FOREVER"
       />,
     );
     expect(screen.getByTestId('reveal-controls')).toHaveTextContent(
       'two people still have a gift to give',
     );
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+  });
+
+  it('never promises a loop for a secret-forever exchange', () => {
+    wrap(
+      <RevealControls
+        exchangeId="x1"
+        progress={progress}
+        autoRevealAt={null}
+        eventDate={EVENT}
+        now={now}
+        revealMode="SECRET_FOREVER"
+      />,
+    );
+    const controls = screen.getByTestId('reveal-controls');
+    expect(controls).toHaveTextContent('Ready to close it');
+    expect(controls).toHaveTextContent('The pairings are never shown.');
+    expect(controls).not.toHaveTextContent('whole loop');
+    expect(
+      screen.getByRole('button', { name: 'Finish the exchange' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Reveal the pairings' }),
+    ).not.toBeInTheDocument();
+    // The auto-reveal switch has no meaning for an exchange that never reveals.
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 });

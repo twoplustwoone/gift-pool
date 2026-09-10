@@ -169,7 +169,10 @@ export async function action({ request }: ActionFunctionArgs) {
           { status: 400 },
         );
       }
-      if (autoRevealAt < eventDate) {
+      // Both are calendar days the organizer picked; comparing the stored
+      // instants would reject the exchange date itself east of UTC+9, where
+      // 09:00 local is the previous day in UTC.
+      if (v.autoRevealDate < v.eventDate) {
         return data(
           {
             errors: {

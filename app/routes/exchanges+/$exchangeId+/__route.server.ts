@@ -177,7 +177,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
         await setGiftStage({ exchangeId, userId, stage: v.stage });
         return data({ ok: true });
       case EXCHANGE_INTENT.SetReceived:
-        await setReceived({ exchangeId, userId, outcome: v.outcome });
+        await setReceived({ exchangeId, userId, outcome: v.outcome, timeZone });
         return data({ ok: true });
       case EXCHANGE_INTENT.SetGiftLabel:
         await setGiftLabel({ exchangeId, userId, label: v.label ?? null });
@@ -186,7 +186,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
         await markAssignmentViewed({ exchangeId, userId });
         return data({ ok: true });
       case EXCHANGE_INTENT.Reveal: {
-        const result = await reveal({ exchangeId, actorId: userId });
+        const result = await reveal({ exchangeId, actorId: userId, timeZone });
         if (result.status === 'NOT_YET') {
           return data(
             { error: 'You can reveal from the exchange date onwards.' },

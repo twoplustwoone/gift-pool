@@ -3,9 +3,11 @@ import {
   autoRevealInstant,
   dateInputToUtcMidnight,
   defaultAutoRevealInstant,
+  hasCalendarDayArrived,
   localTimeToUtc,
   parseDateInput,
   toDateInput,
+  toDateInputInZone,
 } from './exchange-dates.ts';
 
 describe('exchange dates', () => {
@@ -55,6 +57,42 @@ describe('exchange dates', () => {
         'Mars/Olympus',
       ).toISOString(),
     ).toBe('2026-12-27T09:00:00.000Z');
+  });
+
+  it('reads an instant back as a calendar day in the right zone', () => {
+    // 27 Dec 09:00 in Sydney is 26 Dec 22:00Z: reading UTC parts would walk
+    // the auto-reveal date a day earlier every time the form round-trips.
+    const sydneyNine = new Date('2026-12-26T22:00:00Z');
+    expect(toDateInputInZone(sydneyNine, 'Australia/Sydney')).toBe(
+      '2026-12-27',
+    );
+    expect(toDateInput(sydneyNine)).toBe('2026-12-26');
+    expect(toDateInputInZone(sydneyNine, 'Mars/Olympus')).toBe('2026-12-26');
+  });
+
+  it('asks whether the exchange day has arrived where the viewer is', () => {
+    const eventDate = new Date('2026-12-24T00:00:00Z');
+    // 23 Dec, 16:00 in Los Angeles — still the 23rd there, though it is
+    // already the 24th in UTC.
+    const laAfternoonBefore = new Date('2026-12-24T00:30:00Z');
+    expect(
+      hasCalendarDayArrived(
+        eventDate,
+        laAfternoonBefore,
+        'America/Los_Angeles',
+      ),
+    ).toBe(false);
+    expect(hasCalendarDayArrived(eventDate, laAfternoonBefore, 'UTC')).toBe(
+      true,
+    );
+    // Sydney is already on the 24th while UTC is still on the 23rd.
+    const sydneyMorningOf = new Date('2026-12-23T22:00:00Z');
+    expect(
+      hasCalendarDayArrived(eventDate, sydneyMorningOf, 'Australia/Sydney'),
+    ).toBe(true);
+    expect(hasCalendarDayArrived(eventDate, sydneyMorningOf, 'UTC')).toBe(
+      false,
+    );
   });
 
   it('derives the auto-reveal instant: chosen date or three days after, 09:00 local', () => {

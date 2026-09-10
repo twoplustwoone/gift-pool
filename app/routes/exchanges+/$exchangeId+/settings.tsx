@@ -13,7 +13,7 @@ import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
 import { Section } from '#app/components/ui/section.tsx';
-import { toDateInput } from '#app/utils/exchange-dates.ts';
+import { toDateInput, toDateInputInZone } from '#app/utils/exchange-dates.ts';
 import { EXCHANGE_INTENT } from '#app/utils/exchange-intents.ts';
 import { type loader as routeLoader } from './__route.server';
 
@@ -29,7 +29,7 @@ const ExchangeSettings = () => {
   const cancelFetcher = useFetcher();
   const navigation = useNavigation();
   if (!data) return null;
-  const { view } = data;
+  const { view, timeZone } = data;
   const { exchange, viewer } = view;
 
   if (viewer.role !== 'ORGANIZER') {
@@ -89,8 +89,10 @@ const ExchangeSettings = () => {
               spendingGuideline: exchange.spendingGuideline ?? undefined,
               revealMode: exchange.revealMode,
               autoReveal: exchange.autoRevealAt !== null,
+              // An instant, not a calendar day: read it back in the
+              // organizer's zone or saving would walk it a day earlier.
               autoRevealDate: exchange.autoRevealAt
-                ? toDateInput(new Date(exchange.autoRevealAt))
+                ? toDateInputInZone(new Date(exchange.autoRevealAt), timeZone)
                 : undefined,
               avoidRepeats: exchange.avoidRepeatsLookback !== null,
             }}

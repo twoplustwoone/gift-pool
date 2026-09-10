@@ -39,6 +39,7 @@ import {
   type ParticipantStatus,
   type RevealMode,
 } from '#app/utils/exchange-constants.ts';
+import { hasCalendarDayArrived } from '#app/utils/exchange-dates.ts';
 import {
   buildDraw,
   type DrawRepeats,
@@ -1034,16 +1035,18 @@ export async function setReceived({
   userId,
   outcome,
   now = new Date(),
+  timeZone = 'UTC',
 }: {
   exchangeId: string;
   userId: string;
   outcome: GiftOutcome;
   now?: Date;
+  timeZone?: string;
 }): Promise<void> {
   const exchange = await requireExchangeVisible(userId, exchangeId);
   assertExchangeStatus(exchange, [EXCHANGE_STATUS.DRAWN]);
   if (!(outcome in GIFT_OUTCOME)) throw validationError('Unknown outcome.');
-  if (now < exchange.eventDate) {
+  if (!hasCalendarDayArrived(exchange.eventDate, now, timeZone)) {
     throw data(
       { error: 'You can say how it landed from the exchange day onwards.' },
       { status: 409 },
@@ -1112,11 +1115,17 @@ export async function reveal({
   exchangeId,
   actorId,
   now = new Date(),
+  timeZone = 'UTC',
 }: {
   exchangeId: string;
   // 'SYSTEM' = the auto-reveal sweep.
   actorId: string | 'SYSTEM';
   now?: Date;
+  // The acting organizer's zone. The exchange date is a calendar day, so
+  // "has it arrived" has to be asked where the organizer is: comparing
+  // instants against UTC midnight opens the reveal on the previous afternoon
+  // west of UTC and holds it until late morning east of it.
+  timeZone?: string;
 }): Promise<RevealResult> {
   const exchange = await prisma.exchange.findUnique({
     where: { id: exchangeId },
@@ -1129,8 +1138,9 @@ export async function reveal({
   }
   // Nobody — not even the sweep — reveals before the exchange date. The sweep
   // selects by autoRevealAt, which is kept on or after eventDate, but a stale
-  // value must fail closed rather than expose pairings early.
-  if (now < exchange.eventDate) {
+  // value must fail closed rather than expose pairings early. The sweep uses
+  // UTC, which is the strictest reading: it never fires early anywhere.
+  if (!hasCalendarDayArrived(exchange.eventDate, now, timeZone)) {
     if (actorId === 'SYSTEM') return { status: 'NOT_YET' };
     throw data(
       { error: 'You can reveal from the exchange date onwards.' },

@@ -35,6 +35,7 @@ import {
 import { SecrecyNote } from '#app/components/ui/secrecy-note.tsx';
 import { Section } from '#app/components/ui/section.tsx';
 import { useVisibilityRevalidation } from '#app/hooks/use-visibility-revalidation.ts';
+import { hasCalendarDayArrived } from '#app/utils/exchange-dates.ts';
 import { EXCHANGE_INTENT } from '#app/utils/exchange-intents.ts';
 import { type ExchangeView } from '#app/utils/exchanges.server.ts';
 import { type loader as routeLoader } from './__route.server';
@@ -58,6 +59,7 @@ const ExchangePage = () => {
   if (!data) return null;
   const { view, viewerWishlistItemCount } = data;
   const now = new Date(data.now);
+  const timeZone = data.timeZone;
 
   switch (view.exchange.status) {
     case 'GATHERING':
@@ -68,7 +70,7 @@ const ExchangePage = () => {
         />
       );
     case 'DRAWN':
-      return <Drawn view={view} now={now} />;
+      return <Drawn view={view} now={now} timeZone={timeZone} />;
     case 'REVEALED':
       return <Revealed view={view} />;
     case 'FINISHED':
@@ -339,9 +341,24 @@ function Gathering({
 
 // ─── Drawn ────────────────────────────────────────────────────────────────────
 
-function Drawn({ view, now }: { view: ExchangeView; now: Date }) {
+function Drawn({
+  view,
+  now,
+  timeZone,
+}: {
+  view: ExchangeView;
+  now: Date;
+  timeZone: string;
+}) {
   const { exchange, viewer, you, progress, roster } = view;
-  const afterEvent = now >= new Date(exchange.eventDate);
+  // The exchange date is a calendar day, so "has it arrived" is a calendar
+  // question in the viewer's zone — comparing instants would open the reveal
+  // the previous afternoon west of UTC.
+  const afterEvent = hasCalendarDayArrived(
+    new Date(exchange.eventDate),
+    now,
+    timeZone,
+  );
   const [coverOpen, setCoverOpen] = useState(you?.covered ?? false);
 
   if (!you) {
@@ -455,7 +472,7 @@ function Drawn({ view, now }: { view: ExchangeView; now: Date }) {
                     autoRevealAt={exchange.autoRevealAt}
                     eventDate={exchange.eventDate}
                     now={now}
-                    canToggleAutoReveal={exchange.revealMode === 'ORGANIZER'}
+                    revealMode={exchange.revealMode}
                   />
                 ) : null
               }
