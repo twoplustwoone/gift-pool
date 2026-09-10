@@ -165,6 +165,7 @@ type ExchangeCopy = {
     | 'notifications.exchangeNoteReceived.message'
     | 'notifications.exchangeAnswerReminder.message'
     | 'notifications.exchangePersonChanged.message'
+    | 'notifications.exchangePersonChangedCovered.message'
     | 'notifications.exchangeNewGifter.message';
   pushTitleKey:
     | 'notifications.exchangeStarted.pushTitle'
@@ -254,13 +255,27 @@ function getExchangeCopy(intent: ExchangeIntent): ExchangeCopy {
     // email. The in-app line for the gifter is the only place a name appears,
     // and the push for BOTH is deliberately nameless: a lock screen is read
     // by whoever is standing next to them.
-    case NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED:
+    case NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED: {
+      const giftee = intent.payload.gifteeDisplayName;
+      if (!giftee) {
+        // Their card is still covered, so this says only that it changed —
+        // the same as the displaced person's message, and for the same
+        // reason: they get to choose the moment they see a name.
+        return {
+          messageKey: 'notifications.exchangePersonChangedCovered.message',
+          pushTitleKey: 'notifications.exchangePersonChanged.pushTitle',
+          messageParams: { exchange },
+          emailBody:
+            'Someone left the exchange, so the loop closed up and you have a different person now. Open the exchange when you are ready to see who.',
+          buttonLabel: 'See who you have',
+        };
+      }
       return {
         messageKey: 'notifications.exchangePersonChanged.message',
         pushTitleKey: 'notifications.exchangePersonChanged.pushTitle',
         messageParams: {
           exchange,
-          giftee: intent.payload.gifteeDisplayName,
+          giftee,
         },
         // The in-app line names them, because that is the point of the
         // message. A push preview is read by whoever is standing next to
@@ -270,6 +285,7 @@ function getExchangeCopy(intent: ExchangeIntent): ExchangeCopy {
           'Someone left the exchange, so the loop closed up and you have a different person now. Open the exchange to see who.',
         buttonLabel: 'See who you have',
       };
+    }
     case NOTIFICATION_TYPES.EXCHANGE_NEW_GIFTER:
       return {
         messageKey: 'notifications.exchangeNewGifter.message',

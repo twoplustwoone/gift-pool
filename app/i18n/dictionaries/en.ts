@@ -125,6 +125,9 @@ export const en = {
       message: '{{exchange}} was cancelled',
       pushTitle: 'Gift exchange cancelled',
     },
+    exchangePersonChangedCovered: {
+      message: 'Your person changed in {{exchange}}',
+    },
     exchangePersonChanged: {
       message: 'You have {{giftee}} now in {{exchange}}',
       // No name: a push preview is read by whoever is nearby.

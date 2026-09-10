@@ -1596,6 +1596,63 @@ export async function leaveAfterDraw({
   return { status: 'NOTHING_TO_DO' };
 }
 
+// An organizer who leaves keeps organizer-only powers — reveal, cancel,
+// settings — over a group they are no longer in. The exchange goes to someone
+// who is still in it, by the same rule account deletion uses: longest-standing
+// participant who actually joined. If nobody has, there is nothing to run and
+// it is cancelled.
+async function handOverOrganizer({
+  exchangeId,
+  leavingUserId,
+  now,
+}: {
+  exchangeId: string;
+  leavingUserId: string;
+  now: Date;
+}): Promise<'HANDED_OVER' | 'CANCELLED' | 'NOT_ORGANIZER'> {
+  const exchange = await prisma.exchange.findUnique({
+    where: { id: exchangeId },
+    select: { organizerId: true, status: true },
+  });
+  if (!exchange || exchange.organizerId !== leavingUserId) {
+    return 'NOT_ORGANIZER';
+  }
+  const heir = await prisma.exchangeParticipant.findFirst({
+    where: {
+      exchangeId,
+      userId: { not: leavingUserId },
+      status: PARTICIPANT_STATUS.IN,
+    },
+    orderBy: { createdAt: 'asc' },
+    select: { userId: true },
+  });
+  if (heir) {
+    await prisma.exchange.update({
+      where: { id: exchangeId },
+      data: { organizerId: heir.userId },
+    });
+    return 'HANDED_OVER';
+  }
+  if (
+    exchange.status === EXCHANGE_STATUS.GATHERING ||
+    exchange.status === EXCHANGE_STATUS.DRAWN
+  ) {
+    await prisma.exchange.updateMany({
+      where: { id: exchangeId, status: exchange.status },
+      data: {
+        status: EXCHANGE_STATUS.CANCELLED,
+        cancelledAt: now,
+        cancelReason: CANCEL_REASON.ORGANIZER,
+      },
+    });
+    queueExchangeCancelled(exchangeId, {
+      includePending: exchange.status === EXCHANGE_STATUS.GATHERING,
+    });
+    return 'CANCELLED';
+  }
+  return 'NOT_ORGANIZER';
+}
+
 // Leaving a group — or being removed from one — takes you out of that group's
 // running exchanges too. Staying in the loop of a group you are no longer part
 // of means being shopped for by people you have left, and shopping for them.
@@ -1618,18 +1675,26 @@ export async function leaveGroupExchanges({
   });
   for (const { id } of drawn) {
     await leaveAfterDraw({ exchangeId: id, userId, now });
+    await handOverOrganizer({ exchangeId: id, leavingUserId: userId, now });
   }
 
   // A gathering exchange needs no splice — nothing has been drawn — but they
   // should not still be counted as in it.
+  const gathering = await prisma.exchange.findMany({
+    where: { giftGroupId, status: EXCHANGE_STATUS.GATHERING },
+    select: { id: true },
+  });
   await prisma.exchangeParticipant.updateMany({
     where: {
       userId,
       status: PARTICIPANT_STATUS.IN,
-      exchange: { giftGroupId, status: EXCHANGE_STATUS.GATHERING },
+      exchangeId: { in: gathering.map((e) => e.id) },
     },
     data: { status: PARTICIPANT_STATUS.OUT, leftAt: now },
   });
+  for (const { id } of gathering) {
+    await handOverOrganizer({ exchangeId: id, leavingUserId: userId, now });
+  }
 }
 
 // ─── Standalone invite links ──────────────────────────────────────────────────

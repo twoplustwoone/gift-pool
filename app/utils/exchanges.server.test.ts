@@ -1565,6 +1565,35 @@ describe('leaving after the draw', () => {
     expect(fanOut.splice).not.toHaveBeenCalled();
   });
 
+  it('hands the exchange over when its organizer leaves the group', async () => {
+    // Otherwise a former member keeps reveal, cancel and settings over a
+    // group they are no longer in.
+    const { id } = await drawnWith(f.members);
+    await leaveGroupExchanges({
+      userId: f.organizer.id,
+      giftGroupId: f.group.id,
+      now: NOW,
+    });
+    const after = await prisma.exchange.findUniqueOrThrow({ where: { id } });
+    expect(after.organizerId).not.toBe(f.organizer.id);
+    expect(f.members.map((m) => m.id)).toContain(after.organizerId);
+    expect(after.status).toBe('DRAWN');
+  });
+
+  it('cancels an exchange whose organizer leaves with nobody else in it', async () => {
+    const { id } = await createGroupExchange(f);
+    await leaveGroupExchanges({
+      userId: f.organizer.id,
+      giftGroupId: f.group.id,
+      now: NOW,
+    });
+    const after = await prisma.exchange.findUniqueOrThrow({ where: { id } });
+    expect(after.status).toBe('CANCELLED');
+    expect(fanOut.cancelled).toHaveBeenCalledWith(id, {
+      includePending: true,
+    });
+  });
+
   it('does nothing to an exchange that has not drawn', async () => {
     const { id } = await createGroupExchange(f);
     await optInAll(f, id);

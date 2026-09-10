@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const exchangeFindUnique = vi.fn();
 const participantFindMany = vi.fn();
+const participantFindUnique = vi.fn();
+const assignmentFindFirst = vi.fn();
 const queueNotification = vi.fn();
 const resolvePolicies = vi.fn();
 const captureException = vi.fn();
@@ -16,6 +18,10 @@ vi.mock('#app/utils/db.server.ts', () => ({
     },
     exchangeParticipant: {
       findMany: (...args: Array<unknown>) => participantFindMany(...args),
+      findUnique: (...args: Array<unknown>) => participantFindUnique(...args),
+    },
+    exchangeAssignment: {
+      findFirst: (...args: Array<unknown>) => assignmentFindFirst(...args),
     },
   },
 }));
@@ -32,6 +38,7 @@ vi.mock('@sentry/react-router', () => ({
 
 import {
   queueExchangeCancelled,
+  queueExchangeSpliceNotices,
   queueExchangeNamesDrawn,
   queueExchangeRevealed,
   queueExchangeStarted,
@@ -51,6 +58,12 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 beforeEach(() => {
   exchangeFindUnique.mockReset().mockResolvedValue(exchange);
   participantFindMany.mockReset();
+  participantFindUnique
+    .mockReset()
+    .mockResolvedValue({ assignmentViewedAt: new Date() });
+  assignmentFindFirst
+    .mockReset()
+    .mockResolvedValue({ giftee: { name: 'Agustin Luque', username: 'al' } });
   queueNotification.mockReset();
   captureException.mockReset();
   resolvePolicies
@@ -199,6 +212,61 @@ describe('exchange notification fan-out', () => {
     await flush();
     await flush();
     expect(captureException).toHaveBeenCalledTimes(1);
+    expect(queueNotification).not.toHaveBeenCalled();
+  });
+
+  it('tells the gifter who they inherited, and the displaced person nothing', async () => {
+    queueExchangeSpliceNotices({
+      exchangeId: 'x1',
+      gifterId: 'fd',
+      displacedGifteeId: 'al',
+    });
+    await flush();
+    await flush();
+
+    expect(queueNotification).toHaveBeenCalledTimes(2);
+    const [inherited] = queueNotification.mock.calls.find(
+      ([i]) => i.userId === 'fd',
+    )!;
+    const [displaced] = queueNotification.mock.calls.find(
+      ([i]) => i.userId === 'al',
+    )!;
+
+    expect(inherited.type).toBe('EXCHANGE_YOUR_PERSON_CHANGED');
+    expect(inherited.payload.gifteeDisplayName).toBe('Agustin Luque');
+    // The displaced person's payload carries no name at all — there is
+    // nothing for a renderer to accidentally print.
+    expect(displaced.type).toBe('EXCHANGE_NEW_GIFTER');
+    expect(JSON.stringify(displaced.payload)).not.toContain('Agustin');
+  });
+
+  it('withholds the name while their card is still covered', async () => {
+    participantFindUnique.mockResolvedValue({ assignmentViewedAt: null });
+    queueExchangeSpliceNotices({
+      exchangeId: 'x1',
+      gifterId: 'fd',
+      displacedGifteeId: 'al',
+    });
+    await flush();
+    await flush();
+
+    const [inherited] = queueNotification.mock.calls.find(
+      ([i]) => i.userId === 'fd',
+    )!;
+    // The page hides the name until they open the card; the bell must not be
+    // the thing that tells them first.
+    expect(inherited.payload.gifteeDisplayName).toBeNull();
+  });
+
+  it('says nothing when the gifter has no live assignment', async () => {
+    assignmentFindFirst.mockResolvedValue(null);
+    queueExchangeSpliceNotices({
+      exchangeId: 'x1',
+      gifterId: 'fd',
+      displacedGifteeId: 'al',
+    });
+    await flush();
+    await flush();
     expect(queueNotification).not.toHaveBeenCalled();
   });
 });

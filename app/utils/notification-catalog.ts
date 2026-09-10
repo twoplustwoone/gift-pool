@@ -767,7 +767,9 @@ type PayloadByType = {
   // The gifter who inherited someone: this one carries a name, because they
   // have to know who to shop for.
   [NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED]: ExchangeEventPayload & {
-    gifteeDisplayName: string;
+    // Null while their "you drew" card is still covered: the page hides the
+    // name until they open it, and the bell must not walk past that.
+    gifteeDisplayName: string | null;
     changedAt: Date;
   };
   // The person whose gifter changed: no name anywhere, in any channel. Who

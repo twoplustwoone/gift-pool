@@ -344,6 +344,15 @@ export function queueExchangeSpliceNotices({
       });
       if (!assignment) return 0;
 
+      // If they have not opened their covered card yet, the bell must not be
+      // the thing that tells them. The page hides the name until they choose
+      // their moment; a notification naming it walks straight past that.
+      const participant = await prisma.exchangeParticipant.findUnique({
+        where: { exchangeId_userId: { exchangeId, userId: gifterId } },
+        select: { assignmentViewedAt: true },
+      });
+      const stillCovered = participant?.assignmentViewedAt == null;
+
       const [gifterPolicy, gifteePolicy] = await Promise.all([
         resolveNotificationPoliciesForUsers({
           userIds: [gifterId],
@@ -369,8 +378,9 @@ export function queueExchangeSpliceNotices({
           type: NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED,
           payload: {
             ...base,
-            gifteeDisplayName:
-              assignment.giftee.name ?? assignment.giftee.username,
+            gifteeDisplayName: stillCovered
+              ? null
+              : (assignment.giftee.name ?? assignment.giftee.username),
           },
         },
         gifterPolicy.get(gifterId)
