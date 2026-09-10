@@ -23,9 +23,11 @@ import {
   NOTE_DAILY_ALLOWANCE,
   NOTE_DIRECTION,
   NOTE_KIND,
+  pendingSlotLabel,
   type NoteDirection,
   type NoteKind,
 } from './exchange-notes.ts';
+import { requireExchangeVisible } from './exchange-access.server.ts';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -74,6 +76,9 @@ export type GuessView = {
 
 const noteSenderVisible = (kind: string) => kind === NOTE_KIND.THANKS;
 
+const capitalise = (value: string) =>
+  value.charAt(0).toUpperCase() + value.slice(1);
+
 function toNoteView(
   row: {
     id: string;
@@ -94,7 +99,9 @@ function toNoteView(
     kind: row.kind as NoteKind,
     when: row.deliveredAt
       ? coarsenToSlot(row.deliveredAt, now, timeZone)
-      : 'Arrives tomorrow morning',
+      : // An overnight note lands the same morning, so it must not claim
+        // otherwise: the composer's promise is the thing people plan around.
+        capitalise(pendingSlotLabel(row.scheduledFor, now, timeZone)),
     pending: row.deliveredAt === null,
     mine: row.senderId === viewerId,
     from: noteSenderVisible(row.kind) ? row.sender : null,
@@ -125,7 +132,10 @@ async function usedToday(
   now: Date,
   senderZone: string,
 ): Promise<number> {
-  const dayStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  // 48 hours, not 24: a local day is 25 hours long when the clocks go back,
+  // so a 24-hour prefilter can drop notes sent earlier on the same date. The
+  // date label below is what actually decides; this only bounds the scan.
+  const dayStart = new Date(now.getTime() - 48 * 60 * 60 * 1000);
   const recent = await db.exchangeNote.findMany({
     where: {
       exchangeId,
@@ -222,8 +232,6 @@ export type SendNoteInput = {
   direction: NoteDirection;
   kind: NoteKind;
   presetKey: string;
-  /** Only for clues, whose text is built from real data. */
-  renderedText?: string;
   now?: Date;
 };
 
@@ -233,9 +241,12 @@ export async function sendNote({
   direction,
   kind,
   presetKey,
-  renderedText,
   now = new Date(),
 }: SendNoteInput): Promise<NoteView> {
+  // The visibility seam first, so someone who can't see this exchange learns
+  // nothing from the shape of the refusal — one 404 for every reason.
+  await requireExchangeVisible(senderId, exchangeId);
+
   const created = await prisma.$transaction(async (tx) => {
     // Every read goes through `tx`: a read on the shared client here would
     // queue behind this transaction's own write lock.
@@ -273,8 +284,22 @@ export async function sendNote({
       throw data({ error: "You're not in this exchange." }, { status: 403 });
     }
 
-    const preset = findPreset(direction, kind, presetKey);
-    const text = kind === NOTE_KIND.CLUE ? renderedText : preset?.text;
+    // Clue text is DERIVED here, never accepted from the caller: it is built
+    // from real data about the sender, so a crafted request must not be able
+    // to put an arbitrary sentence — or someone else's true fact — in front
+    // of the recipient. Re-deriving inside the transaction also means a clue
+    // that stopped being true between opening the picker and sending is gone.
+    const text =
+      kind === NOTE_KIND.CLUE
+        ? (
+            await computeClueCandidates({
+              exchangeId,
+              viewerId: senderId,
+              db: tx,
+              now,
+            })
+          ).find((c) => c.key === presetKey)?.text
+        : findPreset(direction, kind, presetKey)?.text;
     if (!text) {
       throw data({ error: 'Pick something to send.' }, { status: 400 });
     }
@@ -346,19 +371,21 @@ export async function sendNote({
 export async function computeClueCandidates({
   exchangeId,
   viewerId,
+  db = prisma,
   now = new Date(),
 }: {
   exchangeId: string;
   viewerId: string;
+  db?: Db;
   now?: Date;
 }): Promise<ClueCandidate[]> {
-  const assignment = await liveAssignment(prisma, exchangeId, viewerId);
+  const assignment = await liveAssignment(db, exchangeId, viewerId);
   if (!assignment) return [];
   const recipientId = assignment.gifteeId;
 
   // The field the recipient is choosing between: everyone still in, minus
   // themselves. The narrowing number is only honest against this list.
-  const participants = await prisma.exchangeParticipant.findMany({
+  const participants = await db.exchangeParticipant.findMany({
     where: {
       exchangeId,
       status: PARTICIPANT_STATUS.IN,
@@ -370,11 +397,11 @@ export async function computeClueCandidates({
   if (candidateIds.length === 0) return [];
 
   const [groupsOfRecipient, friendships, birthdays] = await Promise.all([
-    prisma.usersInGiftGroups.findMany({
+    db.usersInGiftGroups.findMany({
       where: { userId: recipientId },
       select: { giftGroupId: true },
     }),
-    prisma.friendship.findMany({
+    db.friendship.findMany({
       where: {
         OR: [
           { userAId: recipientId, userBId: { in: candidateIds } },
@@ -383,7 +410,7 @@ export async function computeClueCandidates({
       },
       select: { userAId: true, userBId: true, createdAt: true },
     }),
-    prisma.user.findMany({
+    db.user.findMany({
       where: { id: { in: [...candidateIds, recipientId] } },
       select: { id: true, birthday: true },
     }),
@@ -394,7 +421,7 @@ export async function computeClueCandidates({
   );
   const sharedGroupCounts = new Map<string, number>();
   if (recipientGroupIds.size > 0) {
-    const rows = await prisma.usersInGiftGroups.findMany({
+    const rows = await db.usersInGiftGroups.findMany({
       where: {
         userId: { in: candidateIds },
         giftGroupId: { in: [...recipientGroupIds] },

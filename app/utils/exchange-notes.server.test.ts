@@ -200,7 +200,6 @@ describe('sendNote', () => {
         direction: NOTE_DIRECTION.TO_GIFTEE,
         kind: NOTE_KIND.CLUE,
         presetKey: 'shared-groups',
-        renderedText: "We're in one of the same groups.",
         now: NOW,
       });
     } catch (err) {
@@ -292,6 +291,92 @@ describe('sendNote', () => {
     expect(thanks?.from?.id).toBe(giftee.id);
     expect(thanks?.mine).toBe(false);
   });
+});
+
+it('will not send a clue the sender cannot actually claim', async () => {
+  // The picker's text is derived from real data. A crafted request naming a
+  // clue that isn't true of this sender must not put a sentence — or
+  // somebody else's true fact — in front of the recipient.
+  let caught: unknown;
+  try {
+    await sendNote({
+      exchangeId: f.id,
+      senderId: f.a.id,
+      direction: NOTE_DIRECTION.TO_GIFTEE,
+      kind: NOTE_KIND.CLUE,
+      presetKey: 'friends-since', // no friendship exists in this fixture
+      now: NOW,
+    });
+  } catch (err) {
+    caught = err;
+  }
+  expect(statusOf(caught)).toBe(400);
+  expect(await prisma.exchangeNote.count({ where: { exchangeId: f.id } })).toBe(
+    0,
+  );
+});
+
+it('stores the clue text the server derived, not anything sent to it', async () => {
+  await sendNote({
+    exchangeId: f.id,
+    senderId: f.a.id,
+    direction: NOTE_DIRECTION.TO_GIFTEE,
+    kind: NOTE_KIND.CLUE,
+    presetKey: 'shared-groups',
+    now: NOW,
+  });
+  const row = await prisma.exchangeNote.findFirstOrThrow({
+    where: { exchangeId: f.id },
+  });
+  expect(row.renderedText).toBe("We're in one of the same groups.");
+});
+
+it('gives an outsider the same 404 as a missing exchange, whatever the status', async () => {
+  // The refusal must not describe the exchange to someone who cannot see
+  // it: a status-shaped error would confirm it exists.
+  const outsider = await makeUser('Outsider');
+  const attempt = (exchangeId: string) =>
+    sendNote({
+      exchangeId,
+      senderId: outsider.id,
+      direction: NOTE_DIRECTION.TO_GIFTEE,
+      kind: NOTE_KIND.NOTE,
+      presetKey: 'got-it',
+      now: NOW,
+    }).catch((err: unknown) => err);
+
+  const real = await attempt(f.id);
+  const imaginary = await attempt('does-not-exist');
+  expect(statusOf(real)).toBe(404);
+  expect(statusOf(imaginary)).toBe(404);
+  expect((real as { data: unknown }).data).toEqual(
+    (imaginary as { data: unknown }).data,
+  );
+});
+
+it('promises the morning it will actually arrive', async () => {
+  // Written at 02:04 in New York: it lands seven hours later, this morning,
+  // so telling the sender "tomorrow" would be a lie they plan around.
+  const overnight = new Date('2026-12-13T07:04:00Z');
+  const note = await sendNote({
+    exchangeId: f.id,
+    senderId: f.a.id,
+    direction: NOTE_DIRECTION.TO_GIFTEE,
+    kind: NOTE_KIND.NOTE,
+    presetKey: 'got-it',
+    now: overnight,
+  });
+  expect(note.when).toBe('Arrives this morning');
+
+  const evening = await sendNote({
+    exchangeId: f.id,
+    senderId: f.b.id,
+    direction: NOTE_DIRECTION.TO_GIFTEE,
+    kind: NOTE_KIND.NOTE,
+    presetKey: 'got-it',
+    now: new Date('2026-12-13T19:00:00Z'),
+  });
+  expect(evening.when).toBe('Arrives tomorrow morning');
 });
 
 describe('computeClueCandidates', () => {

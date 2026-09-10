@@ -44,6 +44,7 @@ import { WishlistRouteSkeleton } from './components/wishlist/wishlist-route-skel
 import fontsStyleSheet from './styles/fonts.css?url';
 import tailwindStyleSheetUrl from './styles/tailwind.css?url';
 import { getUserId, logout } from './utils/auth.server.ts';
+import { queueTimeZoneUpdate } from './utils/user-time-zone.server.ts';
 import {
   isChunkLoadError,
   reloadOnceForChunkError,
@@ -143,6 +144,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
     desc: 'getUserId in root',
   });
   const locale = getLocaleFromRequest(request);
+  // Remembered so a note can be scheduled for this person's morning on a
+  // request that isn't theirs — the delivery sweep has no client hints.
+  queueTimeZoneUpdate(userId, getHints(request).timeZone);
 
   // Four independent I/O operations — the user lookup, the session toast
   // read, the unread notification count, and the honeypot props. Previously
