@@ -125,7 +125,12 @@ describe('exchange notification fan-out', () => {
         where: {
           exchangeId: 'x1',
           status: 'PENDING',
-          user: { giftGroups: { some: { giftGroupId: 'g1' } } },
+          // `removedAt: null` matters: membership is soft-removed, so
+          // without it somebody who left the group still hears about its
+          // exchange.
+          user: {
+            giftGroups: { some: { giftGroupId: 'g1', removedAt: null } },
+          },
         },
       }),
     );
@@ -160,7 +165,12 @@ describe('exchange notification fan-out', () => {
         where: {
           exchangeId: 'x1',
           status: 'PENDING',
-          user: { giftGroups: { some: { giftGroupId: 'g1' } } },
+          // `removedAt: null` matters: membership is soft-removed, so
+          // without it somebody who left the group still hears about its
+          // exchange.
+          user: {
+            giftGroups: { some: { giftGroupId: 'g1', removedAt: null } },
+          },
         },
       }),
     );

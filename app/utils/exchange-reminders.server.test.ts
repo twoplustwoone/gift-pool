@@ -101,6 +101,29 @@ describe('previewExchangeReminder', () => {
     ).toEqual({ status: 'NO_ELIGIBLE', kind: 'ANSWER' });
   });
 
+  it('does not count someone who has turned exchange reminders off', async () => {
+    // Sending to an audience that would receive nothing would still burn the
+    // day's reminder and tell the organizer it reached people.
+    await prisma.notificationTopicPreference.createMany({
+      data: ['IN_APP', 'EMAIL', 'WEB_PUSH'].map((channel) => ({
+        userId: f.a.id,
+        topic: 'EXCHANGE_REMINDERS',
+        channel,
+        enabled: false,
+      })),
+    });
+    const preview = await previewExchangeReminder({
+      exchangeId: f.id,
+      actorId: f.organizer.id,
+      now: NOW,
+    });
+    expect(preview).toEqual({
+      status: 'AVAILABLE',
+      kind: 'ANSWER',
+      eligibleCount: 2,
+    });
+  });
+
   it('stops applying once the names are drawn', async () => {
     await prisma.exchange.update({
       where: { id: f.id },

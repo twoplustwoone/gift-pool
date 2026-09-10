@@ -57,7 +57,9 @@ async function pendingCurrentMemberIds(
     where: {
       exchangeId,
       status: PARTICIPANT_STATUS.PENDING,
-      user: { giftGroups: { some: { giftGroupId } } },
+      // `removedAt` matters: membership is soft-removed, so without it
+      // somebody who left the group still gets told about its exchange.
+      user: { giftGroups: { some: { giftGroupId, removedAt: null } } },
     },
     select: { userId: true },
   });
@@ -290,6 +292,14 @@ export function queueExchangeReminder(
       return fanOut(exchangeId, {
         type: NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER,
         userIds: pending.filter((id) => id !== senderId),
+        // GROUP-scoped, like EXCHANGE_STARTED and for the same reason: the
+        // recipient has NOT opted into this exchange, so a group they muted
+        // is exactly the preference that should govern whether they hear
+        // about it. The key moments are context: 'NONE' because those go to
+        // people who did opt in.
+        ...(giftGroupId
+          ? { context: { kind: 'GROUP' as const, groupId: giftGroupId } }
+          : {}),
         buildPayload: (e) => ({
           exchangeId: e.id,
           exchangeTitle: e.title,

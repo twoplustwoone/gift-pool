@@ -503,13 +503,18 @@ export const NOTIFICATION_EVENT_CATALOG = {
     supportedChannels: allChannels,
     deliveryStrategy: 'PER_CHANNEL_LEDGER',
   },
-  // context: 'NONE' like the other exchange moments — a reminder is about an
-  // exchange someone was invited to, and a muted group must not swallow the
-  // one message asking them to answer before the draw closes.
+  // GROUP-scoped, unlike the key moments. Those go to people who opted into
+  // the exchange, so a muted group must not swallow them. A reminder goes to
+  // someone who has NOT opted in — for them this is still group activity, and
+  // muting the group is exactly how they said they did not want it.
+  // IMPORTANT for the same reason EXCHANGE_STARTED is: a group's default
+  // activity level is IMPORTANT_ONLY, so a ROUTINE event here would be
+  // suppressed for everybody by default and the feature would never deliver
+  // anything. A muted group still swallows it, which is the point.
   [NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER]: {
     topic: NOTIFICATION_TOPICS.EXCHANGE_REMINDERS,
-    importance: 'ROUTINE',
-    context: 'NONE',
+    importance: 'IMPORTANT',
+    context: 'GROUP',
     supportedChannels: allChannels,
     deliveryStrategy: 'PER_CHANNEL_LEDGER',
   },

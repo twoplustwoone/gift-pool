@@ -18,10 +18,7 @@ import {
   defaultAutoRevealInstant,
 } from '#app/utils/exchange-dates.ts';
 import { EXCHANGE_INTENT } from '#app/utils/exchange-intents.ts';
-import {
-  previewExchangeReminder,
-  sendExchangeReminder,
-} from '#app/utils/exchange-reminders.server.ts';
+
 import {
   addExclusion,
   cancelExchange,
@@ -29,8 +26,10 @@ import {
   drawNames,
   getViewerProjection,
   markAssignmentViewed,
+  previewExchangeReminder,
   removeExclusion,
   reveal,
+  sendExchangeReminder,
   sendNote,
   setGiftLabel,
   setGiftStage,

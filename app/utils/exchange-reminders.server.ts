@@ -14,6 +14,8 @@ import {
   PARTICIPANT_STATUS,
 } from '#app/utils/exchange-constants.ts';
 import { queueExchangeReminder } from '#app/utils/exchange-notifications.server.ts';
+import { NOTIFICATION_TYPES } from '#app/utils/notification-catalog.ts';
+import { resolveNotificationPoliciesForUsers } from '#app/utils/notification-policy.server.ts';
 import { requireExchangeOrganizer } from '#app/utils/exchanges.server.ts';
 
 import { requireExchangeVisible } from './exchange-access.server.ts';
@@ -56,16 +58,34 @@ async function eligibleRecipientIds(
     },
     select: { userId: true },
   });
-  if (!giftGroupId) return pending.map((p) => p.userId);
-  const stillMembers = await prisma.usersInGiftGroups.findMany({
-    where: {
-      giftGroupId,
-      removedAt: null,
-      userId: { in: pending.map((p) => p.userId) },
-    },
-    select: { userId: true },
+  let candidateIds = pending.map((p) => p.userId);
+  if (giftGroupId) {
+    const stillMembers = await prisma.usersInGiftGroups.findMany({
+      where: {
+        giftGroupId,
+        removedAt: null,
+        userId: { in: candidateIds },
+      },
+      select: { userId: true },
+    });
+    candidateIds = stillMembers.map((m) => m.userId);
+  }
+  if (candidateIds.length === 0) return [];
+
+  // Somebody who has turned this off entirely is not a recipient, and must
+  // not be counted as one: a send to an audience that would receive nothing
+  // would still burn the day's reminder and tell the organizer it reached
+  // people. Resolved once for the whole audience, never per user.
+  const policies = await resolveNotificationPoliciesForUsers({
+    userIds: candidateIds,
+    type: NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER,
+    ...(giftGroupId
+      ? { context: { kind: 'GROUP' as const, groupId: giftGroupId } }
+      : {}),
   });
-  return stillMembers.map((m) => m.userId);
+  return candidateIds.filter((id) =>
+    Object.values(policies.get(id)?.channels ?? {}).some((c) => c.allowed),
+  );
 }
 
 export async function previewExchangeReminder({
