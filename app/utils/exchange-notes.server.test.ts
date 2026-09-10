@@ -11,6 +11,7 @@ vi.mock('#app/utils/exchange-notifications.server.ts', () => ({
   queueExchangeRevealed: vi.fn(),
   queueExchangeCancelled: vi.fn(),
   queueExchangeNotesDelivered: vi.fn(),
+  queueExchangeSpliceNotices: vi.fn(),
 }));
 
 import { EXCHANGE_STATUS } from './exchange-constants.ts';

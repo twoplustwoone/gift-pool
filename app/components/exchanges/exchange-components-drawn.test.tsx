@@ -140,6 +140,7 @@ const assignment: OwnAssignmentView = {
   giftStage: 'GOT_IT',
   giftStageAt: null,
   giftLabel: null,
+  personChangedAt: null,
   wishlistItemCount: 1,
   canViewWishlist: true,
 };

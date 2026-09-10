@@ -456,6 +456,56 @@ describe('exchange notifications', () => {
     });
   });
 
+  it('names the giftee for the gifter, and nobody for the displaced person', async () => {
+    createPreferenceToken.mockResolvedValue('token-1');
+    const changedAt = new Date('2026-12-13T09:00:00Z');
+
+    const inherited = {
+      userId: 'np',
+      type: NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED,
+      payload: {
+        ...payload,
+        gifteeDisplayName: 'Agustin Luque',
+        changedAt,
+      },
+    } as const;
+    const inAppInherited = await renderNotificationChannel(
+      inherited,
+      NOTIFICATION_CHANNELS.IN_APP,
+    );
+    // The gifter has to know who to shop for.
+    expect(inAppInherited).toMatchObject({
+      messageKey: 'notifications.exchangePersonChanged.message',
+    });
+    const pushInherited = await renderNotificationChannel(
+      inherited,
+      NOTIFICATION_CHANNELS.WEB_PUSH,
+    );
+    // But not on a lock screen someone else can read.
+    expect(pushInherited.title).not.toContain('Agustin');
+    expect(pushInherited.body).not.toContain('Agustin');
+
+    const displaced = {
+      userId: 'al',
+      type: NOTIFICATION_TYPES.EXCHANGE_NEW_GIFTER,
+      payload: { ...payload, changedAt },
+    } as const;
+    const push = await renderNotificationChannel(
+      displaced,
+      NOTIFICATION_CHANNELS.WEB_PUSH,
+    );
+    const email = await renderNotificationChannel(
+      displaced,
+      NOTIFICATION_CHANNELS.EMAIL,
+    );
+    const html = renderToStaticMarkup(email.react);
+    // Who has you is the one thing the exchange exists to keep, so no
+    // channel carries a name.
+    for (const text of [push.title, push.body, html, email.subject]) {
+      expect(text).not.toMatch(/Agustin|Nicolas Burroni/);
+    }
+  });
+
   it('keys a note batch so a re-sweep is silent', () => {
     expect(
       getNotificationOccurrenceKey({

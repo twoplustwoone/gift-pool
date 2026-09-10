@@ -189,6 +189,7 @@ export const YouDrew: Story = {
             giftStage: 'NONE',
             giftStageAt: null,
             giftLabel: null,
+            personChangedAt: null,
             wishlistItemCount: 4,
             canViewWishlist: true,
           }}
@@ -215,6 +216,7 @@ export const ParticipantDrawn: Story = {
           giftStage: 'GOT_IT',
           giftStageAt: null,
           giftLabel: null,
+          personChangedAt: null,
           wishlistItemCount: 4,
           canViewWishlist: true,
         }}

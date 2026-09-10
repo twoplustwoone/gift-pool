@@ -2,6 +2,7 @@ import { data, redirect } from 'react-router';
 import { queueLogEvent } from './analytics.server';
 import { requireUserId } from './auth.server';
 import { prisma } from './db.server';
+import { leaveGroupExchanges } from './exchanges.server';
 import { logGroupActivity } from './group-activity.server';
 import {
   requireUserWithGroupPermission,
@@ -97,6 +98,10 @@ export async function leaveGroup(request: Request, giftGroupId: string) {
   await removeUserFromGroup(userId, giftGroupId);
 }
 export async function removeUserFromGroup(userId: string, groupId: string) {
+  // Out of the group means out of its running exchanges: staying in the loop
+  // of a group you have left means being shopped for by people you left, and
+  // shopping for them. A drawn loop closes up around them; see leaveAfterDraw.
+  await leaveGroupExchanges({ userId, giftGroupId: groupId });
   await prisma.usersInGiftGroups.delete({
     where: {
       userId_giftGroupId: {
@@ -238,6 +243,11 @@ export async function removeMember(
       },
     );
   }
+  // Being removed from a group takes them out of its running exchanges too —
+  // same reasoning as leaving voluntarily. This path deletes the membership
+  // row itself rather than going through removeUserFromGroup, so it needs the
+  // call of its own.
+  await leaveGroupExchanges({ userId: memberUserId, giftGroupId });
   await prisma.usersInGiftGroups.updateMany({
     where: {
       userId: memberUserId,

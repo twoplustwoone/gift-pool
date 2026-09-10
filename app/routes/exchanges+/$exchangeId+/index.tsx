@@ -474,6 +474,11 @@ function Drawn({
   }
 
   const assignment = you.assignment;
+  // Somebody left and the loop closed up. Two different messages, and the
+  // difference is the whole point: the person who inherited someone is told
+  // who; the person who was inherited is told only that it happened.
+  const personChanged = assignment?.personChangedAt != null;
+  const gifterChanged = you.gifterChangedAt != null;
   const gifteeFirst = assignment ? firstName(assignment.giftee) : 'them';
   // Until the cover card is opened the page must not name the giftee anywhere
   // — otherwise "Later" would hand the user the very screen the cover exists
@@ -527,6 +532,21 @@ function Drawn({
           <Button type="button" size="sm" onClick={() => setCoverOpen(true)}>
             See who you drew
           </Button>
+        </Card>
+      ) : null}
+      {(personChanged || gifterChanged) && !stillCovered ? (
+        <Card
+          className="mb-4 border-pool/40 bg-pool/5"
+          data-testid="person-changed"
+        >
+          <p className="text-sm font-medium">
+            {personChanged ? 'Your person changed' : 'Someone new has you now'}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {personChanged
+              ? `Someone left the exchange, so the loop closed up. You have ${gifteeFirst} now — anything you sent the person you had before stays with them.`
+              : "Someone left the exchange, so the loop closed up. Somebody new is giving to you — and no, we're not telling you who."}
+          </p>
         </Card>
       ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
