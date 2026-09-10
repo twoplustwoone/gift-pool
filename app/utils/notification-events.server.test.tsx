@@ -352,3 +352,105 @@ describe('wishlist claim conflict notification rendering', () => {
     );
   });
 });
+
+describe('exchange notifications', () => {
+  const payload = {
+    exchangeId: 'x1',
+    exchangeTitle: 'The Painted 2026',
+    organizerUserId: 'fd',
+    organizerDisplayName: 'Francisco Di Giandomenico',
+  };
+
+  it('derives one occurrence key per exchange per moment', () => {
+    expect(
+      getNotificationOccurrenceKey({
+        userId: 'np',
+        type: NOTIFICATION_TYPES.EXCHANGE_NAMES_DRAWN,
+        payload,
+      }),
+    ).toBe('exchange:x1:drawn');
+    expect(
+      getNotificationOccurrenceKey({
+        userId: 'np',
+        type: NOTIFICATION_TYPES.EXCHANGE_REVEALED,
+        payload: { ...payload, finalStatus: 'REVEALED' },
+      }),
+    ).toBe('exchange:x1:revealed');
+  });
+
+  it('renders "names drawn" without naming anyone but the exchange', async () => {
+    createPreferenceToken.mockResolvedValue('token-1');
+    const intent = {
+      userId: 'np',
+      type: NOTIFICATION_TYPES.EXCHANGE_NAMES_DRAWN,
+      payload,
+    } as const;
+    const inApp = await renderNotificationChannel(
+      intent,
+      NOTIFICATION_CHANNELS.IN_APP,
+    );
+    expect(inApp).toMatchObject({
+      messageKey: 'notifications.exchangeNamesDrawn.message',
+      targetUrl: '/exchanges/x1',
+    });
+    const push = await renderNotificationChannel(
+      intent,
+      NOTIFICATION_CHANNELS.WEB_PUSH,
+    );
+    expect(push).toEqual({
+      title: 'You have someone to shop for',
+      body: 'The Painted 2026 names are drawn. Open Gift Pool to see who you drew.',
+      url: '/exchanges/x1',
+      tag: 'exchange:x1:drawn',
+    });
+    const email = await renderNotificationChannel(
+      intent,
+      NOTIFICATION_CHANNELS.EMAIL,
+    );
+    const html = renderToStaticMarkup(email.react);
+    expect(email.subject).toContain('names are drawn');
+    expect(html).toContain('See who you drew');
+    expect(html).toContain('https://giftpool.example/exchanges/x1');
+    expect(html).not.toMatch(/Agustin|Nicolas/);
+  });
+
+  it('renders the secret-forever finish differently from a reveal', async () => {
+    const revealed = await renderNotificationChannel(
+      {
+        userId: 'np',
+        type: NOTIFICATION_TYPES.EXCHANGE_REVEALED,
+        payload: { ...payload, finalStatus: 'REVEALED' },
+      },
+      NOTIFICATION_CHANNELS.WEB_PUSH,
+    );
+    const finished = await renderNotificationChannel(
+      {
+        userId: 'np',
+        type: NOTIFICATION_TYPES.EXCHANGE_REVEALED,
+        payload: { ...payload, finalStatus: 'FINISHED' },
+      },
+      NOTIFICATION_CHANNELS.WEB_PUSH,
+    );
+    expect(revealed.body).toBe(
+      'The Painted 2026 pairings are revealed — see who had you',
+    );
+    expect(finished.body).toBe(
+      'The Painted 2026 is finished — see how the guesses landed',
+    );
+  });
+
+  it('sends a cancelled exchange to the page that explains it', async () => {
+    const inApp = await renderNotificationChannel(
+      {
+        userId: 'np',
+        type: NOTIFICATION_TYPES.EXCHANGE_CANCELLED,
+        payload,
+      },
+      NOTIFICATION_CHANNELS.IN_APP,
+    );
+    // The exchange page renders a "this was cancelled" card, so it is more
+    // use than the bare list — and it matches where the "started"
+    // notification the same people already have points.
+    expect(inApp.targetUrl).toBe('/exchanges/x1');
+  });
+});

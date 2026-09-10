@@ -44,6 +44,12 @@ import {
   type DrawRepeats,
   type DrawResult,
 } from '#app/utils/exchange-draw.ts';
+import {
+  queueExchangeCancelled,
+  queueExchangeNamesDrawn,
+  queueExchangeRevealed,
+  queueExchangeStarted,
+} from '#app/utils/exchange-notifications.server.ts';
 import { canViewWishlistOf } from '#app/utils/friends.server.ts';
 import { OCCASION_TYPE, type OccasionType } from '#app/utils/pool-constants.ts';
 
@@ -631,6 +637,8 @@ export async function createExchange(
     return created;
   });
 
+  if (giftGroupId) queueExchangeStarted(exchange.id);
+
   queueLogEvent({
     name: 'exchange_created',
     userId: input.organizerId,
@@ -873,8 +881,7 @@ export type DrawNamesResult =
 
 // The point of no return. Everything is re-checked inside one transaction:
 // status, roster, exclusions, lookback — then the loop is written and the
-// status flips in the same commit. Notifications are queued by the caller
-// (see exchange-notifications) only after this returns.
+// status flips in the same commit. Notifications fan out only after commit.
 export async function drawNames({
   exchangeId,
   actorId,
@@ -935,6 +942,7 @@ export async function drawNames({
   });
 
   if (outcome.status === 'DRAWN') {
+    queueExchangeNamesDrawn(exchangeId);
     queueLogEvent({
       name: 'exchange_drawn',
       userId: actorId,
@@ -1149,6 +1157,7 @@ export async function reveal({
   if (updated.count === 0) return { status: 'ALREADY' };
 
   const auto = actorId === 'SYSTEM';
+  queueExchangeRevealed(exchangeId, finalStatus);
   queueLogEvent({
     name: 'exchange_revealed',
     userId: exchange.organizerId,
@@ -1224,6 +1233,9 @@ export async function cancelExchange({
       EXCHANGE_STATUS_PREDECESSORS.CANCELLED,
     );
   }
+  queueExchangeCancelled(exchangeId, {
+    includePending: exchange.status === EXCHANGE_STATUS.GATHERING,
+  });
   queueLogEvent({
     name: 'exchange_cancelled',
     userId: actorId,

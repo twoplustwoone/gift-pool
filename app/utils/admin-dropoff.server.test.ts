@@ -183,4 +183,44 @@ describe('getDropOffFunnels', () => {
       outboundClicks: 1,
     });
   });
+
+  it('counts the exchange lifecycle per exchange, cohorted to exchanges created in the window', async () => {
+    const user = await seedUser();
+    const ev = (
+      name: 'exchange_created' | 'exchange_drawn' | 'exchange_revealed',
+      exchangeId: string,
+    ) =>
+      logEvent({
+        name,
+        source: 'server',
+        userId: user.id,
+        properties: { exchangeId },
+      });
+    // An exchange created before the window but drawn inside it must not
+    // count towards "Names drawn" — it is not in the denominator.
+    await ev('exchange_created', 'old');
+    await prisma.analyticsEvent.updateMany({
+      where: { name: 'exchange_created', properties: { contains: '"old"' } },
+      data: { createdAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000) },
+    });
+    await Promise.all([
+      ev('exchange_drawn', 'old'),
+      ev('exchange_created', 'x1'),
+      ev('exchange_created', 'x2'),
+      ev('exchange_created', 'x3'),
+      ev('exchange_drawn', 'x1'),
+      ev('exchange_drawn', 'x2'),
+      // A second drawn row for x1 (e.g. a retried log) must not double count.
+      ev('exchange_drawn', 'x1'),
+      ev('exchange_revealed', 'x1'),
+    ]);
+
+    const result = await getDropOffFunnels({ days: 17 });
+
+    expect(result.exchanges).toEqual([
+      { step: 'Exchange created', count: 3, percent: 100 },
+      { step: 'Names drawn', count: 2, percent: 67 },
+      { step: 'Pairings revealed', count: 1, percent: 33 },
+    ]);
+  });
 });
