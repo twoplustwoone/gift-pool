@@ -20,6 +20,8 @@ export const NOTIFICATION_TYPES = {
   EXCHANGE_CANCELLED: 'EXCHANGE_CANCELLED',
   EXCHANGE_NOTE_RECEIVED: 'EXCHANGE_NOTE_RECEIVED',
   EXCHANGE_ANSWER_REMINDER: 'EXCHANGE_ANSWER_REMINDER',
+  EXCHANGE_YOUR_PERSON_CHANGED: 'EXCHANGE_YOUR_PERSON_CHANGED',
+  EXCHANGE_NEW_GIFTER: 'EXCHANGE_NEW_GIFTER',
 } as const;
 
 export type NotificationType =
@@ -85,6 +87,8 @@ export const EXCHANGE_NOTIFICATION_TYPES = [
   NOTIFICATION_TYPES.EXCHANGE_CANCELLED,
   NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED,
   NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER,
+  NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED,
+  NOTIFICATION_TYPES.EXCHANGE_NEW_GIFTER,
 ] as const;
 
 export type ExchangeNotificationType =
@@ -518,6 +522,23 @@ export const NOTIFICATION_EVENT_CATALOG = {
     supportedChannels: allChannels,
     deliveryStrategy: 'PER_CHANNEL_LEDGER',
   },
+  // Both context: 'NONE'. These go to people who opted into the exchange and
+  // whose loop just changed under them — a muted group must not swallow the
+  // message telling someone they are now shopping for a different person.
+  [NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED]: {
+    topic: NOTIFICATION_TOPICS.EXCHANGE_KEY_MOMENTS,
+    importance: 'IMPORTANT',
+    context: 'NONE',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  [NOTIFICATION_TYPES.EXCHANGE_NEW_GIFTER]: {
+    topic: NOTIFICATION_TOPICS.EXCHANGE_KEY_MOMENTS,
+    importance: 'IMPORTANT',
+    context: 'NONE',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
 } as const satisfies Record<NotificationType, NotificationEventDefinition>;
 
 export const NOTIFICATION_TYPE_VALUES = Object.values(NOTIFICATION_TYPES);
@@ -743,6 +764,17 @@ type PayloadByType = {
   // No sender, no text: the notification says a note arrived and where to
   // read it. Anything more would either name the person or let the body be
   // read from a lock screen by whoever is standing next to them.
+  // The gifter who inherited someone: this one carries a name, because they
+  // have to know who to shop for.
+  [NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED]: ExchangeEventPayload & {
+    gifteeDisplayName: string;
+    changedAt: Date;
+  };
+  // The person whose gifter changed: no name anywhere, in any channel. Who
+  // has them is the one thing the exchange exists to keep.
+  [NOTIFICATION_TYPES.EXCHANGE_NEW_GIFTER]: ExchangeEventPayload & {
+    changedAt: Date;
+  };
   [NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER]: ExchangeEventPayload & {
     /** Distinguishes one send from the next in the ledger. */
     reminderAt: Date;

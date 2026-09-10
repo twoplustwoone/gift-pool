@@ -107,6 +107,10 @@ export function getNotificationOccurrenceKey(
       return `exchange-note:${intent.payload.noteId}`;
     case NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER:
       return `exchange-reminder:${intent.payload.exchangeId}:${intent.payload.reminderAt.toISOString()}`;
+    case NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED:
+      return `exchange-person-changed:${intent.payload.exchangeId}:${intent.payload.changedAt.toISOString()}`;
+    case NOTIFICATION_TYPES.EXCHANGE_NEW_GIFTER:
+      return `exchange-new-gifter:${intent.payload.exchangeId}:${intent.payload.changedAt.toISOString()}`;
   }
 }
 
@@ -143,6 +147,8 @@ export async function renderNotificationChannel<C extends NotificationChannel>(
     case NOTIFICATION_TYPES.EXCHANGE_CANCELLED:
     case NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED:
     case NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER:
+    case NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED:
+    case NOTIFICATION_TYPES.EXCHANGE_NEW_GIFTER:
       return renderExchangeEvent(intent, channel);
   }
 }
@@ -157,7 +163,9 @@ type ExchangeCopy = {
     | 'notifications.exchangeFinished.message'
     | 'notifications.exchangeCancelled.message'
     | 'notifications.exchangeNoteReceived.message'
-    | 'notifications.exchangeAnswerReminder.message';
+    | 'notifications.exchangeAnswerReminder.message'
+    | 'notifications.exchangePersonChanged.message'
+    | 'notifications.exchangeNewGifter.message';
   pushTitleKey:
     | 'notifications.exchangeStarted.pushTitle'
     | 'notifications.exchangeNamesDrawn.pushTitle'
@@ -165,10 +173,17 @@ type ExchangeCopy = {
     | 'notifications.exchangeFinished.pushTitle'
     | 'notifications.exchangeCancelled.pushTitle'
     | 'notifications.exchangeNoteReceived.pushTitle'
-    | 'notifications.exchangeAnswerReminder.pushTitle';
+    | 'notifications.exchangeAnswerReminder.pushTitle'
+    | 'notifications.exchangePersonChanged.pushTitle'
+    | 'notifications.exchangeNewGifter.pushTitle';
   messageParams: Record<string, string>;
   emailBody: string;
   buttonLabel: string;
+  /**
+   * Overrides the push body when the in-app line carries something a lock
+   * screen must not. Defaults to the in-app message.
+   */
+  pushBody?: string;
 };
 
 function getExchangeCopy(intent: ExchangeIntent): ExchangeCopy {
@@ -233,6 +248,37 @@ function getExchangeCopy(intent: ExchangeIntent): ExchangeCopy {
         buttonLabel: 'Read it',
       };
     }
+    // Asymmetric on purpose (board §18). The gifter needs the name to shop;
+    // the displaced person must not learn who has them, so their message
+    // carries none — not in the body, not in the push preview, not in the
+    // email. The in-app line for the gifter is the only place a name appears,
+    // and the push for BOTH is deliberately nameless: a lock screen is read
+    // by whoever is standing next to them.
+    case NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED:
+      return {
+        messageKey: 'notifications.exchangePersonChanged.message',
+        pushTitleKey: 'notifications.exchangePersonChanged.pushTitle',
+        messageParams: {
+          exchange,
+          giftee: intent.payload.gifteeDisplayName,
+        },
+        // The in-app line names them, because that is the point of the
+        // message. A push preview is read by whoever is standing next to
+        // them, so that one says only that it changed.
+        pushBody: `Someone left ${exchange}, so you have a different person now.`,
+        emailBody:
+          'Someone left the exchange, so the loop closed up and you have a different person now. Open the exchange to see who.',
+        buttonLabel: 'See who you have',
+      };
+    case NOTIFICATION_TYPES.EXCHANGE_NEW_GIFTER:
+      return {
+        messageKey: 'notifications.exchangeNewGifter.message',
+        pushTitleKey: 'notifications.exchangeNewGifter.pushTitle',
+        messageParams: { exchange },
+        emailBody:
+          "Someone left the exchange, so the loop closed up. Somebody new has you now — and no, we're not telling you who.",
+        buttonLabel: 'See the exchange',
+      };
     // Never says who else was reminded, or how many: the organizer sees a
     // count and the recipient sees only their own invitation.
     case NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER:
@@ -301,7 +347,7 @@ async function renderExchangeEvent<C extends NotificationChannel>(
     case NOTIFICATION_CHANNELS.WEB_PUSH:
       return {
         title: translate('en', copy.pushTitleKey),
-        body: message,
+        body: copy.pushBody ?? message,
         url: exchangeUrl,
         tag: getNotificationOccurrenceKey(intent),
       } as NotificationChannelMessageMap[C];

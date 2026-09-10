@@ -13,6 +13,7 @@ const fanOut = vi.hoisted(() => ({
   drawn: vi.fn(),
   revealed: vi.fn(),
   cancelled: vi.fn(),
+  splice: vi.fn(),
 }));
 vi.mock('#app/utils/exchange-notifications.server.ts', () => ({
   queueExchangeStarted: (...args: Array<unknown>) => fanOut.started(...args),
@@ -21,6 +22,8 @@ vi.mock('#app/utils/exchange-notifications.server.ts', () => ({
   queueExchangeCancelled: (...args: Array<unknown>) =>
     fanOut.cancelled(...args),
   queueExchangeNotesDelivered: vi.fn(),
+  queueExchangeSpliceNotices: (...args: Array<unknown>) =>
+    fanOut.splice(...args),
 }));
 import {
   EXCHANGE_STATUS,
@@ -49,6 +52,8 @@ import {
   addExclusion,
   markAssignmentViewed,
   dismissJoinPrompt,
+  leaveAfterDraw,
+  leaveGroupExchanges,
   generateExchangeInviteCode,
   getExchangeInvite,
   joinExchangeByCode,
@@ -1226,7 +1231,12 @@ describe('prepareExchangesForAccountDeletion', () => {
     const { id } = await createGroupExchange(f);
 
     const summary = await deleteAccount(f.organizer.id);
-    expect(summary).toEqual({ spliced: [], cancelled: [], reassigned: [] });
+    expect(summary).toEqual({
+      spliced: [],
+      cancelled: [],
+      reassigned: [],
+      personChanged: [],
+    });
     expect(fanOut.cancelled).not.toHaveBeenCalled();
     expect(await prisma.exchange.findUnique({ where: { id } })).toBeNull();
   });
@@ -1267,7 +1277,12 @@ describe('prepareExchangesForAccountDeletion', () => {
     await optInAll(f, id);
 
     const summary = await deleteAccount(f.a.id);
-    expect(summary).toEqual({ spliced: [], cancelled: [], reassigned: [] });
+    expect(summary).toEqual({
+      spliced: [],
+      cancelled: [],
+      reassigned: [],
+      personChanged: [],
+    });
 
     const exchange = await prisma.exchange.findUniqueOrThrow({ where: { id } });
     expect(exchange.status).toBe(EXCHANGE_STATUS.GATHERING);
@@ -1433,5 +1448,153 @@ describe('standalone invite links', () => {
       generateExchangeInviteCode({ exchangeId: id, actorId: f.a.id }),
       404,
     );
+  });
+});
+
+describe('leaving after the draw', () => {
+  async function drawnWith(users: Array<{ id: string }>) {
+    const { id } = await createGroupExchange(f);
+    await optInAll(f, id, users as typeof f.members);
+    await drawNames({
+      exchangeId: id,
+      actorId: f.organizer.id,
+      now: NOW,
+      rng: seededRng(5),
+    });
+    const pairs = await prisma.exchangeAssignment.findMany({
+      where: { exchangeId: id, supersededAt: null },
+      select: { gifterId: true, gifteeId: true },
+    });
+    return { id, pairs };
+  }
+
+  it('closes the loop up and tells exactly the two people it affects', async () => {
+    const { id, pairs } = await drawnWith(f.members);
+    const leaver = f.a;
+    const theirGifter = pairs.find((p) => p.gifteeId === leaver.id)!.gifterId;
+    const theirGiftee = pairs.find((p) => p.gifterId === leaver.id)!.gifteeId;
+
+    expect(
+      await leaveAfterDraw({ exchangeId: id, userId: leaver.id, now: NOW }),
+    ).toEqual({ status: 'SPLICED' });
+
+    // The leaver's gifter inherits the leaver's person.
+    const after = await prisma.exchangeAssignment.findMany({
+      where: { exchangeId: id, supersededAt: null },
+      select: { gifterId: true, gifteeId: true },
+    });
+    expect(after.find((p) => p.gifterId === theirGifter)?.gifteeId).toBe(
+      theirGiftee,
+    );
+    expect(
+      after.some((p) => p.gifterId === leaver.id || p.gifteeId === leaver.id),
+    ).toBe(false);
+
+    // Exactly two, and the module says which is which: the gifter (who gets
+    // a name) and the displaced giftee (who does not).
+    expect(fanOut.splice).toHaveBeenCalledTimes(1);
+    expect(fanOut.splice).toHaveBeenCalledWith({
+      exchangeId: id,
+      gifterId: theirGifter,
+      displacedGifteeId: theirGiftee,
+    });
+
+    // They are out of the roster, not erased from it.
+    const row = await prisma.exchangeParticipant.findFirstOrThrow({
+      where: { exchangeId: id, userId: leaver.id },
+    });
+    expect(row.status).toBe('OUT');
+    expect(row.leftAt).not.toBeNull();
+  });
+
+  it('never tells the leaver who had them', async () => {
+    const { id } = await drawnWith(f.members);
+    await leaveAfterDraw({ exchangeId: id, userId: f.a.id, now: NOW });
+    const view = await getViewerProjection({
+      exchangeId: id,
+      viewerId: f.a.id,
+      now: NOW,
+    });
+    // They walked away from a loop still running for everyone else; their own
+    // gifter stays secret.
+    expect(view.yourGifter).toBeNull();
+    expect(view.you?.assignment ?? null).toBeNull();
+  });
+
+  it('retires the old thread rather than handing its notes to the new gifter', async () => {
+    const { id, pairs } = await drawnWith(f.members);
+    const leaver = f.a;
+    const theirGiftee = pairs.find((p) => p.gifterId === leaver.id)!.gifteeId;
+    const oldThread = await prisma.exchangeAssignment.findFirstOrThrow({
+      where: { exchangeId: id, gifterId: leaver.id, supersededAt: null },
+      select: { id: true },
+    });
+
+    await leaveAfterDraw({ exchangeId: id, userId: leaver.id, now: NOW });
+
+    // The displaced person's new thread is a different row, so notes written
+    // by the leaver can never be re-attributed to whoever inherited them.
+    const newThread = await prisma.exchangeAssignment.findFirstOrThrow({
+      where: { exchangeId: id, gifteeId: theirGiftee, supersededAt: null },
+      select: { id: true },
+    });
+    expect(newThread.id).not.toBe(oldThread.id);
+    expect(
+      (
+        await prisma.exchangeAssignment.findUniqueOrThrow({
+          where: { id: oldThread.id },
+        })
+      ).supersededAt,
+    ).not.toBeNull();
+  });
+
+  it('cancels rather than splicing when too few would be left', async () => {
+    const { id } = await drawnWith([f.a, f.b]);
+    const result = await leaveAfterDraw({
+      exchangeId: id,
+      userId: f.a.id,
+      now: NOW,
+    });
+    expect(result).toEqual({
+      status: 'CANCELLED',
+      reason: 'TOO_FEW_AFTER_LEAVE',
+    });
+    expect(fanOut.cancelled).toHaveBeenCalledWith(id, {
+      includePending: false,
+    });
+    expect(fanOut.splice).not.toHaveBeenCalled();
+  });
+
+  it('does nothing to an exchange that has not drawn', async () => {
+    const { id } = await createGroupExchange(f);
+    await optInAll(f, id);
+    expect(
+      await leaveAfterDraw({ exchangeId: id, userId: f.a.id, now: NOW }),
+    ).toEqual({ status: 'NOTHING_TO_DO' });
+  });
+
+  it("takes someone out of a group's exchanges when they leave the group", async () => {
+    const drawn = await drawnWith(f.members);
+    const gathering = await createGroupExchange(f, { title: 'Next year' });
+    await optInAll(f, gathering.id);
+
+    await leaveGroupExchanges({
+      userId: f.a.id,
+      giftGroupId: f.group.id,
+      now: NOW,
+    });
+
+    // Spliced out of the drawn one...
+    const after = await prisma.exchangeAssignment.findMany({
+      where: { exchangeId: drawn.id, supersededAt: null },
+    });
+    expect(
+      after.some((p) => p.gifterId === f.a.id || p.gifteeId === f.a.id),
+    ).toBe(false);
+    // ...and simply out of the one that has not drawn.
+    const row = await prisma.exchangeParticipant.findFirstOrThrow({
+      where: { exchangeId: gathering.id, userId: f.a.id },
+    });
+    expect(row.status).toBe('OUT');
   });
 });

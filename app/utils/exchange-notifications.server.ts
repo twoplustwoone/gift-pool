@@ -312,3 +312,83 @@ export function queueExchangeReminder(
     { exchangeId, moment: 'reminder' },
   );
 }
+
+// The two people a splice affects, told asymmetrically (board §18): the
+// gifter who inherited someone gets their NAME, because they have to shop for
+// them; the person whose gifter changed gets no name anywhere, because who
+// has them is the thing the exchange exists to keep.
+export function queueExchangeSpliceNotices({
+  exchangeId,
+  gifterId,
+  displacedGifteeId,
+  now = new Date(),
+}: {
+  exchangeId: string;
+  gifterId: string;
+  displacedGifteeId: string;
+  now?: Date;
+}): void {
+  background(
+    (async () => {
+      const exchange = await loadExchangeForNotification(exchangeId);
+      if (!exchange) return 0;
+
+      // Read from the gifter's own live assignment rather than taking a name
+      // from the caller: the notification must say what the loop actually
+      // says, even if something changed between the splice and this fan-out.
+      const assignment = await prisma.exchangeAssignment.findFirst({
+        where: { exchangeId, gifterId, supersededAt: null },
+        select: {
+          giftee: { select: { name: true, username: true } },
+        },
+      });
+      if (!assignment) return 0;
+
+      const [gifterPolicy, gifteePolicy] = await Promise.all([
+        resolveNotificationPoliciesForUsers({
+          userIds: [gifterId],
+          type: NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED,
+        }),
+        resolveNotificationPoliciesForUsers({
+          userIds: [displacedGifteeId],
+          type: NOTIFICATION_TYPES.EXCHANGE_NEW_GIFTER,
+        }),
+      ]);
+
+      const base = {
+        exchangeId: exchange.id,
+        exchangeTitle: exchange.title,
+        organizerUserId: exchange.organizerId,
+        organizerDisplayName: exchange.organizerDisplayName,
+        changedAt: now,
+      };
+
+      queueNotification(
+        {
+          userId: gifterId,
+          type: NOTIFICATION_TYPES.EXCHANGE_YOUR_PERSON_CHANGED,
+          payload: {
+            ...base,
+            gifteeDisplayName:
+              assignment.giftee.name ?? assignment.giftee.username,
+          },
+        },
+        gifterPolicy.get(gifterId)
+          ? { policy: gifterPolicy.get(gifterId)! }
+          : undefined,
+      );
+      queueNotification(
+        {
+          userId: displacedGifteeId,
+          type: NOTIFICATION_TYPES.EXCHANGE_NEW_GIFTER,
+          payload: base,
+        },
+        gifteePolicy.get(displacedGifteeId)
+          ? { policy: gifteePolicy.get(displacedGifteeId)! }
+          : undefined,
+      );
+      return 2;
+    })(),
+    { exchangeId, moment: 'splice' },
+  );
+}

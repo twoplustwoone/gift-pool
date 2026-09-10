@@ -258,6 +258,7 @@ describe('YouDrewCard', () => {
     giftStage: 'NONE',
     giftStageAt: null,
     giftLabel: null,
+    personChangedAt: null,
     wishlistItemCount: 4,
     canViewWishlist: true,
   };

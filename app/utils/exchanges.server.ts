@@ -57,6 +57,7 @@ import {
 } from '#app/utils/exchange-draw.ts';
 import {
   queueExchangeCancelled,
+  queueExchangeSpliceNotices,
   queueExchangeNamesDrawn,
   queueExchangeRevealed,
   queueExchangeStarted,
@@ -136,6 +137,12 @@ export type ExchangeOrganizerProgress = {
 };
 
 export type OwnAssignmentView = {
+  /**
+   * Set when this pairing came from a splice rather than the original draw —
+   * somebody left and the loop closed up. Derived from the row being newer
+   * than the draw, so no extra column is needed.
+   */
+  personChangedAt: Date | null;
   id: string;
   giftee: ExchangePerson;
   giftStage: GiftStage;
@@ -190,6 +197,11 @@ export type ExchangeView = {
     assignment: OwnAssignmentView | null;
     covered: boolean;
     received: { receivedAt: Date; outcome: GiftOutcome | null } | null;
+    /**
+     * Somebody new is giving to them, because the person who had them left.
+     * Never says who — that is the point of the asymmetry (board §18).
+     */
+    gifterChangedAt: Date | null;
   } | null;
   // Live participants only, while DRAWN. The two conversations, the clues
   // this viewer can truthfully claim, and their own guess — never anyone
@@ -248,6 +260,7 @@ async function requireLiveParticipant(
 
 const assignmentSelect = {
   id: true,
+  createdAt: true,
   gifterId: true,
   gifteeId: true,
   giftStage: true,
@@ -1252,6 +1265,12 @@ export {
 
 export type ExchangeAccountDeletionSummary = {
   spliced: string[];
+  /** Who to tell, once the deletion has actually committed. */
+  personChanged: Array<{
+    exchangeId: string;
+    gifterId: string;
+    displacedGifteeId: string;
+  }>;
   cancelled: Array<{ exchangeId: string; includePending: boolean }>;
   reassigned: string[];
 };
@@ -1291,6 +1310,7 @@ export async function prepareExchangesForAccountDeletion({
 }): Promise<ExchangeAccountDeletionSummary> {
   const summary: ExchangeAccountDeletionSummary = {
     spliced: [],
+    personChanged: [],
     cancelled: [],
     reassigned: [],
   };
@@ -1311,8 +1331,15 @@ export async function prepareExchangesForAccountDeletion({
       now,
       db,
     });
-    if (outcome === 'SPLICED') summary.spliced.push(exchangeId);
-    if (outcome !== 'SPLICED' && outcome !== 'SKIPPED') {
+    if (outcome.kind === 'SPLICED') {
+      summary.spliced.push(exchangeId);
+      summary.personChanged.push({
+        exchangeId,
+        gifterId: outcome.gifterId,
+        displacedGifteeId: outcome.displacedGifteeId,
+      });
+    }
+    if (outcome.kind !== 'SPLICED' && outcome.kind !== 'SKIPPED') {
       summary.cancelled.push({ exchangeId, includePending: false });
     }
   }
@@ -1381,13 +1408,34 @@ export function announceExchangeAccountDeletion(
   for (const { exchangeId, includePending } of summary.cancelled) {
     queueExchangeCancelled(exchangeId, { includePending });
   }
+  // The two people a splice actually affects. Previously nobody was told —
+  // their person simply changed under them.
+  for (const change of summary.personChanged) {
+    queueExchangeSpliceNotices(change);
+  }
 }
+
+// Exactly two people are affected by a splice, and they are told different
+// things: the leaver's gifter inherits the leaver's person and gets a NAME;
+// the leaver's giftee has someone new giving to them and gets no name at all
+// (board §18). This carries both out so the caller can fan out after commit.
+export type SpliceOutcome =
+  | {
+      kind: 'SPLICED';
+      /** Inherits the leaver's person. Told who. */
+      gifterId: string;
+      /** Has a new secret gifter. Told only that. */
+      displacedGifteeId: string;
+    }
+  | { kind: 'CANCELLED_TOO_FEW' | 'CANCELLED_EXCLUSIONS' }
+  | { kind: 'SKIPPED' };
 
 // Removes one participant from a DRAWN loop by joining their gifter straight
 // to their giftee (A→X→B becomes A→B), retiring the two rows rather than
-// rewriting them so the record of the original draw survives. Cancels instead
-// when too few people would be left, or when the join would pair two people
-// who are excluded from each other.
+// rewriting them so the record of the original draw survives — and so the
+// retired thread's notes are never re-attributed to whoever inherited the
+// person. Cancels instead when too few people would be left, or when the join
+// would pair two people who are excluded from each other.
 async function spliceOutParticipant({
   exchangeId,
   userId,
@@ -1398,14 +1446,12 @@ async function spliceOutParticipant({
   userId: string;
   now: Date;
   db: Db;
-}): Promise<
-  'SPLICED' | 'CANCELLED_TOO_FEW' | 'CANCELLED_EXCLUSIONS' | 'SKIPPED'
-> {
+}): Promise<SpliceOutcome> {
   const exchange = await db.exchange.findUnique({
     where: { id: exchangeId },
     select: { id: true, status: true },
   });
-  if (exchange?.status !== EXCHANGE_STATUS.DRAWN) return 'SKIPPED';
+  if (exchange?.status !== EXCHANGE_STATUS.DRAWN) return { kind: 'SKIPPED' };
 
   const cancel = async (reason: CancelReason) => {
     await db.exchange.updateMany({
@@ -1427,7 +1473,7 @@ async function spliceOutParticipant({
   });
   if (remaining < EXCHANGE_MIN_PARTICIPANTS) {
     await cancel(CANCEL_REASON.TOO_FEW_AFTER_LEAVE);
-    return 'CANCELLED_TOO_FEW';
+    return { kind: 'CANCELLED_TOO_FEW' };
   }
 
   const [outgoing, incoming] = await Promise.all([
@@ -1440,10 +1486,10 @@ async function spliceOutParticipant({
       select: { id: true, gifterId: true },
     }),
   ]);
-  if (!outgoing || !incoming) return 'SKIPPED';
+  if (!outgoing || !incoming) return { kind: 'SKIPPED' };
   // A two-person cycle can't be spliced into anything; the count above should
   // have cancelled first, so this is belt and braces.
-  if (incoming.gifterId === outgoing.gifteeId) return 'SKIPPED';
+  if (incoming.gifterId === outgoing.gifteeId) return { kind: 'SKIPPED' };
 
   // Exclusions are hard and symmetric. Closing the loop over the departing
   // person can land exactly on an excluded pair (A→X→B where A and B asked
@@ -1456,7 +1502,7 @@ async function spliceOutParticipant({
   });
   if (excluded) {
     await cancel(CANCEL_REASON.EXCLUSIONS_AFTER_LEAVE);
-    return 'CANCELLED_EXCLUSIONS';
+    return { kind: 'CANCELLED_EXCLUSIONS' };
   }
 
   await db.exchangeAssignment.updateMany({
@@ -1470,7 +1516,120 @@ async function spliceOutParticipant({
       gifteeId: outgoing.gifteeId,
     },
   });
-  return 'SPLICED';
+  return {
+    kind: 'SPLICED',
+    gifterId: incoming.gifterId,
+    displacedGifteeId: outgoing.gifteeId,
+  };
+}
+
+// ─── Leaving after the draw ───────────────────────────────────────────────────
+
+export type LeaveAfterDrawResult =
+  | { status: 'SPLICED' }
+  | { status: 'CANCELLED'; reason: CancelReason }
+  | { status: 'NOTHING_TO_DO' };
+
+// Somebody in a drawn loop is leaving. The loop closes up around them: their
+// gifter inherits their person, and exactly two people are told — see
+// `spliceOutParticipant` and `queueExchangeSpliceNotices`.
+//
+// The leaver is NOT told who had them. They are walking away from a loop that
+// is still running for everyone else, and their own gifter stays secret.
+export async function leaveAfterDraw({
+  exchangeId,
+  userId,
+  now = new Date(),
+}: {
+  exchangeId: string;
+  userId: string;
+  now?: Date;
+}): Promise<LeaveAfterDrawResult> {
+  const outcome = await prisma.$transaction(async (tx) => {
+    const result = await spliceOutParticipant({
+      exchangeId,
+      userId,
+      now,
+      db: tx,
+    });
+    if (result.kind === 'SKIPPED') return result;
+    // Out, not deleted: the roster keeps the fact that they were in it, and
+    // the retired assignment keeps the record of the original draw.
+    await tx.exchangeParticipant.updateMany({
+      where: { exchangeId, userId },
+      data: { status: PARTICIPANT_STATUS.OUT, leftAt: now },
+    });
+    return result;
+  });
+
+  if (outcome.kind === 'SPLICED') {
+    queueExchangeSpliceNotices({
+      exchangeId,
+      gifterId: outcome.gifterId,
+      displacedGifteeId: outcome.displacedGifteeId,
+    });
+    queueLogEvent({
+      name: 'exchange_participant_left_after_draw',
+      userId,
+      source: 'server',
+      properties: { exchangeId },
+    });
+    return { status: 'SPLICED' };
+  }
+  if (
+    outcome.kind === 'CANCELLED_TOO_FEW' ||
+    outcome.kind === 'CANCELLED_EXCLUSIONS'
+  ) {
+    queueExchangeCancelled(exchangeId, { includePending: false });
+    const reason =
+      outcome.kind === 'CANCELLED_TOO_FEW'
+        ? CANCEL_REASON.TOO_FEW_AFTER_LEAVE
+        : CANCEL_REASON.EXCLUSIONS_AFTER_LEAVE;
+    queueLogEvent({
+      name: 'exchange_cancelled',
+      userId,
+      source: 'server',
+      properties: { exchangeId, reason, fromStatus: EXCHANGE_STATUS.DRAWN },
+    });
+    return { status: 'CANCELLED', reason };
+  }
+  return { status: 'NOTHING_TO_DO' };
+}
+
+// Leaving a group — or being removed from one — takes you out of that group's
+// running exchanges too. Staying in the loop of a group you are no longer part
+// of means being shopped for by people you have left, and shopping for them.
+export async function leaveGroupExchanges({
+  userId,
+  giftGroupId,
+  now = new Date(),
+}: {
+  userId: string;
+  giftGroupId: string;
+  now?: Date;
+}): Promise<void> {
+  const drawn = await prisma.exchange.findMany({
+    where: {
+      giftGroupId,
+      status: EXCHANGE_STATUS.DRAWN,
+      participants: { some: { userId, status: PARTICIPANT_STATUS.IN } },
+    },
+    select: { id: true },
+  });
+  for (const { id } of drawn) {
+    await leaveAfterDraw({ exchangeId: id, userId, now });
+  }
+
+  // A gathering exchange needs no splice — nothing has been drawn — but they
+  // should not still be counted as in it.
+  await prisma.exchangeParticipant.updateMany({
+    where: {
+      userId,
+      status: PARTICIPANT_STATUS.IN,
+      exchange: { giftGroupId, status: EXCHANGE_STATUS.GATHERING },
+    },
+    data: { status: PARTICIPANT_STATUS.OUT, leftAt: now },
+  });
 }
 
 // ─── Standalone invite links ──────────────────────────────────────────────────
@@ -1746,8 +1905,9 @@ export async function getViewerProjection({
       getOwnAssignment(exchangeId, viewerId),
       prisma.exchangeAssignment.findFirst({
         where: { exchangeId, gifteeId: viewerId, supersededAt: null },
-        // Only the giftee-owned fields. Never the gifter.
-        select: { receivedAt: true, outcome: true },
+        // Only the giftee-owned fields, plus when the row appeared. Never the
+        // gifter — knowing that somebody new has you says nothing about who.
+        select: { receivedAt: true, outcome: true, createdAt: true },
       }),
       prisma.exchangeParticipant.findUnique({
         where: { exchangeId_userId: { exchangeId, userId: viewerId } },
@@ -1763,6 +1923,10 @@ export async function getViewerProjection({
         canViewWishlistOf(viewerId, assignment.gifteeId),
       ]);
       assignmentView = {
+        personChangedAt:
+          exchange.drawnAt && assignment.createdAt > exchange.drawnAt
+            ? assignment.createdAt
+            : null,
         id: assignment.id,
         giftee: assignment.giftee,
         giftStage: assignment.giftStage as GiftStage,
@@ -1781,6 +1945,10 @@ export async function getViewerProjection({
             outcome: (inbound.outcome as GiftOutcome | null) ?? null,
           }
         : null,
+      gifterChangedAt:
+        inbound && exchange.drawnAt && inbound.createdAt > exchange.drawnAt
+          ? inbound.createdAt
+          : null,
     };
   }
 

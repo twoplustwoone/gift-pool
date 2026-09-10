@@ -125,6 +125,16 @@ export const en = {
       message: '{{exchange}} was cancelled',
       pushTitle: 'Gift exchange cancelled',
     },
+    exchangePersonChanged: {
+      message: 'You have {{giftee}} now in {{exchange}}',
+      // No name: a push preview is read by whoever is nearby.
+      pushTitle: 'Your person changed',
+    },
+    exchangeNewGifter: {
+      // Never a name, in any channel — who has you is the whole game.
+      message: 'Someone new has you in {{exchange}}',
+      pushTitle: 'Someone new has you',
+    },
     exchangeAnswerReminder: {
       message: '{{organizer}} is waiting on your answer for {{exchange}}',
       pushTitle: 'The draw is waiting',

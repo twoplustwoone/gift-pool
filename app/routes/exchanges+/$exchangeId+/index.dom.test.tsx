@@ -337,10 +337,12 @@ describe('drawn', () => {
           giftStage: 'GOT_IT',
           giftStageAt: null,
           giftLabel: null,
+          personChangedAt: null,
           wishlistItemCount: 4,
           canViewWishlist: true,
         },
         covered: false,
+        gifterChangedAt: null,
         received: null,
       },
       ...overrides,
@@ -421,6 +423,40 @@ describe('drawn', () => {
       "That's your 3 notes for today.",
     );
     fetcherData.data = undefined;
+  });
+
+  it('tells the two spliced people different things', async () => {
+    // The person who inherited someone is told who; the person who was
+    // inherited is told only that it happened.
+    const { unmount } = renderPage(
+      drawnView({
+        you: {
+          ...drawnView().you!,
+          assignment: {
+            ...drawnView().you!.assignment!,
+            personChangedAt: new Date('2026-12-13T00:00:00Z'),
+          },
+        },
+      }),
+    );
+    const inherited = screen.getByTestId('person-changed');
+    expect(inherited).toHaveTextContent('Your person changed');
+    expect(inherited).toHaveTextContent('You have Agustin now');
+    unmount();
+
+    renderPage(
+      drawnView({
+        you: {
+          ...drawnView().you!,
+          gifterChangedAt: new Date('2026-12-13T00:00:00Z'),
+        },
+      }),
+    );
+    const displaced = screen.getByTestId('person-changed');
+    expect(displaced).toHaveTextContent('Someone new has you now');
+    // And not a word about who.
+    expect(displaced).toHaveTextContent(/not telling you who/);
+    expect(displaced).not.toHaveTextContent('Francisco');
   });
 
   it('keeps the notes behind the cover, since the thread names your person', () => {

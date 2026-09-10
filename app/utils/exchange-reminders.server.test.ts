@@ -12,6 +12,7 @@ vi.mock('#app/utils/exchange-notifications.server.ts', () => ({
   queueExchangeRevealed: vi.fn(),
   queueExchangeCancelled: vi.fn(),
   queueExchangeNotesDelivered: vi.fn(),
+  queueExchangeSpliceNotices: vi.fn(),
   queueExchangeReminder: (...args: Array<unknown>) => fanOut.reminder(...args),
 }));
 

@@ -143,6 +143,7 @@ export const ANALYTIC_EVENT_NAMES = [
   'exchange_revealed',
   'exchange_cancelled',
   'exchange_join_prompt_dismissed',
+  'exchange_participant_left_after_draw',
   // Browser/device/PWA environment snapshot. Anonymous-capable and deduped
   // daily by visitor id in analytics.server.ts.
   CLIENT_ENVIRONMENT_EVENT_NAME,
@@ -250,6 +251,7 @@ export const USER_REQUIRED_EVENTS: Set<AnalyticEventName> = new Set([
   'exchange_revealed',
   'exchange_cancelled',
   'exchange_join_prompt_dismissed',
+  'exchange_participant_left_after_draw',
   'organizer_reminder_sent',
   'organizer_reminder_skipped',
   'friend_request_sent',

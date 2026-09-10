@@ -11,6 +11,7 @@ vi.mock('#app/utils/exchange-notifications.server.ts', () => ({
   queueExchangeRevealed: vi.fn(),
   queueExchangeCancelled: vi.fn(),
   queueExchangeNotesDelivered: vi.fn(),
+  queueExchangeSpliceNotices: vi.fn(),
 }));
 
 import { prepareAccountForDeletion } from './account-deletion.server.ts';
