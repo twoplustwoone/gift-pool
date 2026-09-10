@@ -32,6 +32,10 @@ export function DangerZoneDeleteDialog({
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
   const isPending = fetcher.state !== 'idle';
+  const refusal =
+    fetcher.state === 'idle'
+      ? ((fetcher.data as { error?: string } | undefined)?.error ?? null)
+      : null;
   const matches = typed.trim() === username;
 
   useEffect(() => {
@@ -40,11 +44,7 @@ export function DangerZoneDeleteDialog({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="destructive"
-        onClick={() => setOpen(true)}
-      >
+      <Button type="button" variant="destructive" onClick={() => setOpen(true)}>
         <Icon name="trash">Delete all your data</Icon>
       </Button>
 
@@ -57,6 +57,15 @@ export function DangerZoneDeleteDialog({
               every group you own. It cannot be undone.
             </DialogDescription>
           </DialogHeader>
+
+          {refusal ? (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-foreground"
+            >
+              {refusal}
+            </p>
+          ) : null}
 
           <fetcher.Form method="POST" className="flex flex-col gap-3">
             <Label htmlFor="danger-zone-confirm" className="text-sm">
