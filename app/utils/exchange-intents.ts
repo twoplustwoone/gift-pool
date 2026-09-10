@@ -14,6 +14,9 @@ export const EXCHANGE_INTENT = {
   Cancel: 'cancel-exchange',
   UpdateSettings: 'update-settings',
   DismissJoinPrompt: 'dismiss-join-prompt',
+  SendNote: 'send-note',
+  SendClue: 'send-clue',
+  SetGuess: 'set-guess',
 } as const;
 
 export type ExchangeIntent =

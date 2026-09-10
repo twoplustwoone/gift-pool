@@ -28,6 +28,10 @@ import {
   type NoteKind,
 } from './exchange-notes.ts';
 import { requireExchangeVisible } from './exchange-access.server.ts';
+import {
+  queueExchangeNotesDelivered,
+  type DeliveredNoteBatch,
+} from './exchange-notifications.server.ts';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -622,12 +626,39 @@ export async function runNoteDeliverySweep({
 }: { now?: Date } = {}): Promise<NoteDeliverySweepSummary> {
   const due = await prisma.exchangeNote.findMany({
     where: { deliveredAt: null, scheduledFor: { lte: now } },
-    select: { id: true },
+    select: {
+      id: true,
+      exchangeId: true,
+      direction: true,
+      thread: { select: { gifterId: true, gifteeId: true } },
+    },
+    orderBy: { createdAt: 'asc' },
   });
   if (due.length === 0) return { delivered: 0, failed: 0 };
   const result = await prisma.exchangeNote.updateMany({
     where: { id: { in: due.map((d) => d.id) }, deliveredAt: null },
     data: { deliveredAt: now },
   });
+
+  // One notification per person per thread per morning. Told only after the
+  // delivery has committed, and fire-and-forget: a fan-out failure must not
+  // turn a delivered batch into an undelivered one.
+  const batches = new Map<string, DeliveredNoteBatch>();
+  for (const note of due) {
+    const toGiftee = note.direction === NOTE_DIRECTION.TO_GIFTEE;
+    const recipientId = toGiftee ? note.thread.gifteeId : note.thread.gifterId;
+    const thread = toGiftee ? 'FROM_YOUR_GIFTER' : 'FROM_YOUR_PERSON';
+    const key = `${recipientId}:${note.exchangeId}:${thread}`;
+    const existing = batches.get(key);
+    batches.set(key, {
+      recipientId,
+      exchangeId: note.exchangeId,
+      noteId: note.id,
+      thread,
+      noteCount: (existing?.noteCount ?? 0) + 1,
+    });
+  }
+  queueExchangeNotesDelivered([...batches.values()]);
+
   return { delivered: result.count, failed: due.length - result.count };
 }

@@ -101,6 +101,10 @@ export function getNotificationOccurrenceKey(
       return `exchange:${intent.payload.exchangeId}:revealed`;
     case NOTIFICATION_TYPES.EXCHANGE_CANCELLED:
       return `exchange:${intent.payload.exchangeId}:cancelled`;
+    // Keyed on the batch, not the note: everything that landed this morning
+    // is one line, so three notes don't buzz three times.
+    case NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED:
+      return `exchange-note:${intent.payload.noteId}`;
   }
 }
 
@@ -135,6 +139,7 @@ export async function renderNotificationChannel<C extends NotificationChannel>(
     case NOTIFICATION_TYPES.EXCHANGE_NAMES_DRAWN:
     case NOTIFICATION_TYPES.EXCHANGE_REVEALED:
     case NOTIFICATION_TYPES.EXCHANGE_CANCELLED:
+    case NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED:
       return renderExchangeEvent(intent, channel);
   }
 }
@@ -147,13 +152,15 @@ type ExchangeCopy = {
     | 'notifications.exchangeNamesDrawn.message'
     | 'notifications.exchangeRevealed.message'
     | 'notifications.exchangeFinished.message'
-    | 'notifications.exchangeCancelled.message';
+    | 'notifications.exchangeCancelled.message'
+    | 'notifications.exchangeNoteReceived.message';
   pushTitleKey:
     | 'notifications.exchangeStarted.pushTitle'
     | 'notifications.exchangeNamesDrawn.pushTitle'
     | 'notifications.exchangeRevealed.pushTitle'
     | 'notifications.exchangeFinished.pushTitle'
-    | 'notifications.exchangeCancelled.pushTitle';
+    | 'notifications.exchangeCancelled.pushTitle'
+    | 'notifications.exchangeNoteReceived.pushTitle';
   messageParams: Record<string, string>;
   emailBody: string;
   buttonLabel: string;
@@ -201,6 +208,26 @@ function getExchangeCopy(intent: ExchangeIntent): ExchangeCopy {
               'The whole loop is out: who had you, who you had, and what everyone gave.',
             buttonLabel: 'See the loop',
           };
+    // Says that something arrived and where to read it — never the text and
+    // never the sender. A push preview is readable by whoever is standing
+    // next to them, and the sender is the whole game.
+    case NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED: {
+      const count = intent.payload.noteCount;
+      const fromGifter = intent.payload.thread === 'FROM_YOUR_GIFTER';
+      return {
+        messageKey: 'notifications.exchangeNoteReceived.message',
+        pushTitleKey: 'notifications.exchangeNoteReceived.pushTitle',
+        messageParams: {
+          exchange,
+          count: String(count),
+          who: fromGifter ? 'the person who has you' : 'your person',
+        },
+        emailBody: fromGifter
+          ? `${count === 1 ? 'A note' : `${count} notes`} from whoever has you ${count === 1 ? 'is' : 'are'} waiting in ${exchange}.`
+          : `${count === 1 ? 'A reply' : `${count} replies`} from your person ${count === 1 ? 'is' : 'are'} waiting in ${exchange}.`,
+        buttonLabel: 'Read it',
+      };
+    }
     case NOTIFICATION_TYPES.EXCHANGE_CANCELLED:
       return {
         messageKey: 'notifications.exchangeCancelled.message',

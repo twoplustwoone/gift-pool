@@ -20,6 +20,7 @@ vi.mock('#app/utils/exchange-notifications.server.ts', () => ({
   queueExchangeRevealed: (...args: Array<unknown>) => fanOut.revealed(...args),
   queueExchangeCancelled: (...args: Array<unknown>) =>
     fanOut.cancelled(...args),
+  queueExchangeNotesDelivered: vi.fn(),
 }));
 import {
   EXCHANGE_STATUS,
@@ -785,6 +786,33 @@ describe('projection secrecy (property over role × status)', () => {
           expect(view.you).toBeNull();
           expect(view.progress).toBeNull();
           expect(view.viewer.role).toBe('MEMBER');
+          // Notes and guessing belong to people in the loop.
+          expect(view.notes).toBeNull();
+          expect(view.clues).toBeNull();
+          expect(view.guess).toBeNull();
+        }
+        // Notes and guesses only exist between the draw and the reveal, and a
+        // note never carries its sender — the projection is the last place
+        // that could leak one.
+        if (status !== 'DRAWN') {
+          expect(view.notes, `${label}: notes outside DRAWN`).toBeNull();
+          expect(view.guess).toBeNull();
+        }
+        for (const note of [
+          ...(view.notes?.fromYourGifter ?? []),
+          ...(view.notes?.toYourPerson ?? []),
+        ]) {
+          // Only a thank-you carries a name, and thank-yous exist after the
+          // reveal — so nothing in a drawn thread may name anyone.
+          expect(note.from, `${label}: attributed note`).toBeNull();
+        }
+        // A clue is about the viewer themselves; it must not name a candidate
+        // or carry anyone's id.
+        for (const clue of view.clues ?? []) {
+          for (const other of [f.organizer, f.a, f.b, f.c, f.d]) {
+            expect(clue.text).not.toContain(other.id);
+            expect(clue.text).not.toContain(other.name);
+          }
         }
         // Organizer panel: numbers only.
         if (view.progress) {

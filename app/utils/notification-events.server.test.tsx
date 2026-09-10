@@ -414,6 +414,63 @@ describe('exchange notifications', () => {
     expect(html).not.toMatch(/Agustin|Nicolas/);
   });
 
+  it('says a note arrived without saying what it says or who sent it', async () => {
+    createPreferenceToken.mockResolvedValue('token-1');
+    const intent = {
+      userId: 'np',
+      type: NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED,
+      payload: {
+        ...payload,
+        noteId: 'note-1',
+        thread: 'FROM_YOUR_GIFTER',
+        noteCount: 2,
+      },
+    } as const;
+
+    const push = await renderNotificationChannel(
+      intent,
+      NOTIFICATION_CHANNELS.WEB_PUSH,
+    );
+    // A push preview is read by whoever is standing next to them, and the
+    // sender is the entire game.
+    expect(push.body).not.toMatch(/Agustin|Nicolas|Francisco/);
+    expect(push.body).not.toContain("I've got your gift");
+    expect(push.tag).toBe('exchange-note:note-1');
+
+    const email = await renderNotificationChannel(
+      intent,
+      NOTIFICATION_CHANNELS.EMAIL,
+    );
+    const html = renderToStaticMarkup(email.react);
+    expect(html).toContain('2 notes');
+    expect(html).toContain('Read it');
+    expect(html).not.toMatch(/Agustin|Nicolas/);
+
+    const inApp = await renderNotificationChannel(
+      intent,
+      NOTIFICATION_CHANNELS.IN_APP,
+    );
+    expect(inApp).toMatchObject({
+      messageKey: 'notifications.exchangeNoteReceived.message',
+      targetUrl: '/exchanges/x1',
+    });
+  });
+
+  it('keys a note batch so a re-sweep is silent', () => {
+    expect(
+      getNotificationOccurrenceKey({
+        userId: 'np',
+        type: NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED,
+        payload: {
+          ...payload,
+          noteId: 'note-1',
+          thread: 'FROM_YOUR_PERSON',
+          noteCount: 1,
+        },
+      }),
+    ).toBe('exchange-note:note-1');
+  });
+
   it('renders the secret-forever finish differently from a reveal', async () => {
     const revealed = await renderNotificationChannel(
       {

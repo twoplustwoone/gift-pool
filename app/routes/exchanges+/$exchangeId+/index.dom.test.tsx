@@ -131,6 +131,9 @@ function baseView(overrides: Partial<ExchangeView> = {}): ExchangeView {
     exclusions: null,
     draw: null,
     you: null,
+    notes: null,
+    clues: null,
+    guess: null,
     progress: null,
     loop: null,
     yourGifter: null,
@@ -309,6 +312,66 @@ describe('drawn', () => {
     expect(screen.queryByTestId('organizer-progress')).not.toBeInTheDocument();
     // The other participants' names appear nowhere on a participant's page.
     expect(screen.queryByText('Juan Longo')).not.toBeInTheDocument();
+  });
+
+  it('gives a participant both threads and the guessing card', () => {
+    renderPage(
+      drawnView({
+        notes: {
+          fromYourGifter: [
+            {
+              id: 'n1',
+              text: "I've got your gift.",
+              kind: 'NOTE',
+              when: 'Tuesday morning',
+              pending: false,
+              mine: false,
+              from: null,
+            },
+          ],
+          toYourPerson: [],
+          remainingToday: 2,
+        },
+        clues: [
+          {
+            key: 'shared-groups',
+            text: "We're in two of the same groups.",
+            narrowsTo: 3,
+            uniquelyIdentifies: false,
+          },
+        ],
+        guess: null,
+      }),
+    );
+    expect(screen.getByTestId('notes-threads')).toBeInTheDocument();
+    expect(screen.getByText("I've got your gift.")).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: 'To Agustin' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Send a clue' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Make a guess' }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the notes behind the cover, since the thread names your person', () => {
+    renderPage(
+      drawnView({
+        you: { ...drawnView().you!, covered: true },
+        notes: {
+          fromYourGifter: [],
+          toYourPerson: [],
+          remainingToday: 3,
+        },
+        clues: [],
+        guess: null,
+      }),
+    );
+    // "To Agustin" would give away the name the cover exists to protect.
+    expect(screen.queryByTestId('notes-threads')).not.toBeInTheDocument();
+    expect(screen.queryByText(/To Agustin/)).not.toBeInTheDocument();
   });
 
   it('opens the covered card on arrival without spoiling the name', () => {

@@ -190,6 +190,12 @@ export type ExchangeView = {
     covered: boolean;
     received: { receivedAt: Date; outcome: GiftOutcome | null } | null;
   } | null;
+  // Live participants only, while DRAWN. The two conversations, the clues
+  // this viewer can truthfully claim, and their own guess — never anyone
+  // else's, and never who guessed them.
+  notes: NoteThreads | null;
+  clues: ClueCandidate[] | null;
+  guess: GuessView | null;
   // Organizer only, from DRAWN onwards.
   progress: ExchangeOrganizerProgress | null;
   // REVEALED only.
@@ -1188,6 +1194,15 @@ export {
 
 // Routes call only this module (AGENTS.md), so the notes half is re-exported
 // here rather than imported directly. Implementation: exchange-notes.server.ts.
+import {
+  computeClueCandidates,
+  getNoteThreads,
+  getOwnGuess,
+  type ClueCandidate,
+  type GuessView,
+  type NoteThreads,
+} from './exchange-notes.server.ts';
+
 export {
   computeClueCandidates,
   getNoteThreads,
@@ -1512,6 +1527,19 @@ export async function getViewerProjection({
     draw = (await computeDraw(exchange, roster)).preview;
   }
 
+  let notes: NoteThreads | null = null;
+  let clues: ClueCandidate[] | null = null;
+  let guess: GuessView | null = null;
+  // Notes and guesses live between the draw and the reveal, and only for
+  // someone actually in the loop.
+  if (isLive && status === EXCHANGE_STATUS.DRAWN) {
+    [notes, clues, guess] = await Promise.all([
+      getNoteThreads({ exchangeId, viewerId, now }),
+      computeClueCandidates({ exchangeId, viewerId, now }),
+      getOwnGuess({ exchangeId, viewerId }),
+    ]);
+  }
+
   let you: ExchangeView['you'] = null;
   if (isLive && drawnOrLater) {
     const [assignment, inbound, participantRow] = await Promise.all([
@@ -1651,6 +1679,9 @@ export async function getViewerProjection({
     exclusions,
     draw,
     you,
+    notes,
+    clues,
+    guess,
     progress,
     loop,
     yourGifter,
