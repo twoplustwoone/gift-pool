@@ -66,16 +66,19 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const { requireUserIdInGroup } = await import('#app/utils/groups.server.ts');
   const { getGroupOverviewData } =
     await import('#app/utils/group-overview.server.ts');
-  const { getGroupExchangeSummary } =
+  const { getGroupExchangeSummary, hasGroupExchangeArchive } =
     await import('#app/utils/exchanges.server.ts');
   const { getHints } = await import('#app/utils/client-hints.tsx');
   const viewerId = await requireUserIdInGroup(request, groupId);
   const { timeZone } = getHints(request);
-  const [overview, exchange] = await Promise.all([
+  const [overview, exchange, hasArchive] = await Promise.all([
     getGroupOverviewData(groupId, viewerId),
     getGroupExchangeSummary({ giftGroupId: groupId, viewerId, timeZone }),
+    // Just whether there is one: the archive itself is a page, and building
+    // it for a link nobody may click is work for nothing.
+    hasGroupExchangeArchive({ giftGroupId: groupId, viewerId }),
   ]);
-  return { ...overview, exchange };
+  return { ...overview, exchange, hasArchive };
 }
 
 // ─── Action queue icon map ───────────────────────────────────────────────────
@@ -152,6 +155,7 @@ const GiftGroupOverview = () => {
           <ExchangeSection
             exchange={data.exchange}
             giftGroupId={giftGroup.id}
+            hasArchive={data.hasArchive}
           />
           <UpcomingOccasionsSection occasions={data.upcomingOccasions} />
           <PastGiftsSection gifts={data.pastGifts} />
@@ -448,9 +452,12 @@ const PoolRow = ({ pool }: { pool: PoolSummary }) => {
 const ExchangeSection = ({
   exchange,
   giftGroupId,
+  hasArchive,
 }: {
   exchange: GroupExchangeSummary;
   giftGroupId: string;
+  /** Whether this viewer has any past exchange in this group to look back on. */
+  hasArchive: boolean;
 }) => {
   if (!exchange) {
     return (
@@ -469,6 +476,17 @@ const ExchangeSection = ({
           Everyone draws one person and gives to them in secret — and the group
           keeps the record afterwards.
         </Text>
+        {/* Only worth offering once there is something behind it: an empty
+            archive is a worse first impression than no link at all. */}
+        {hasArchive ? (
+          <Link
+            to={`/groups/${giftGroupId}/exchanges`}
+            className="mt-2 inline-block text-sm underline"
+            data-testid="archive-link"
+          >
+            See past exchanges
+          </Link>
+        ) : null}
       </section>
     );
   }

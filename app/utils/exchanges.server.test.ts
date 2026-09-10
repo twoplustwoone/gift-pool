@@ -52,6 +52,9 @@ import {
   addExclusion,
   markAssignmentViewed,
   dismissJoinPrompt,
+  getGroupExchangeArchive,
+  hasGroupExchangeArchive,
+  setGuess,
   leaveAfterDraw,
   leaveGroupExchanges,
   generateExchangeInviteCode,
@@ -1625,5 +1628,156 @@ describe('leaving after the draw', () => {
       where: { exchangeId: gathering.id, userId: f.a.id },
     });
     expect(row.status).toBe('OUT');
+  });
+});
+
+describe('getGroupExchangeArchive', () => {
+  // A revealed year and a secret-forever year, both with the same five people
+  // and the same guesses, so the difference between them is only what the
+  // archive is allowed to say.
+  async function playYear({
+    title,
+    year,
+    secretForever = false,
+  }: {
+    title: string;
+    year: number;
+    secretForever?: boolean;
+  }) {
+    // Each year is played at its own clock: createExchange refuses a date in
+    // the past, so an archive has to be built by living through the years
+    // rather than back-dating them.
+    const eventDate = new Date(Date.UTC(year, 11, 24));
+    const spring = new Date(Date.UTC(year, 2, 1));
+    const { id } = await createGroupExchange(f, {
+      title,
+      eventDate,
+      now: spring,
+      revealMode: secretForever ? REVEAL_MODE.SECRET_FOREVER : undefined,
+    });
+    await optInAll(f, id);
+    await drawNames({
+      exchangeId: id,
+      actorId: f.organizer.id,
+      now: spring,
+      rng: seededRng(year),
+    });
+    // Everyone guesses the organizer, so "nobody has ever guessed" is true of
+    // somebody and the secret year still contributes its guesses.
+    for (const u of f.members) {
+      await setGuess({
+        exchangeId: id,
+        guesserId: u.id,
+        guessedUserId: f.organizer.id,
+        now: spring,
+      });
+    }
+    await reveal({
+      exchangeId: id,
+      actorId: f.organizer.id,
+      now: new Date(Date.UTC(year, 11, 27)),
+    });
+    return id;
+  }
+
+  it('shows a viewer only the years they were in, from their own angle', async () => {
+    const id = await playYear({ title: 'The Painted 2026', year: 2026 });
+    const pairs = await prisma.exchangeAssignment.findMany({
+      where: { exchangeId: id, supersededAt: null },
+      select: { gifterId: true, gifteeId: true },
+    });
+
+    const mine = await getGroupExchangeArchive({
+      giftGroupId: f.group.id,
+      viewerId: f.a.id,
+    });
+    expect(mine.years).toHaveLength(1);
+    const year = mine.years[0]!;
+    expect(year.year).toBe(2026);
+    expect(year.secretForever).toBe(false);
+    expect(year.yourGifter?.id).toBe(
+      pairs.find((p) => p.gifteeId === f.a.id)!.gifterId,
+    );
+    expect(year.yourGiftee?.id).toBe(
+      pairs.find((p) => p.gifterId === f.a.id)!.gifteeId,
+    );
+
+    // Two people in the same group see two different archives — that is the
+    // design, not a bug.
+    const theirs = await getGroupExchangeArchive({
+      giftGroupId: f.group.id,
+      viewerId: f.b.id,
+    });
+    expect(theirs.years[0]!.yourGifter?.id).not.toBe(year.yourGifter?.id);
+
+    // Somebody who was never in it has no archive at all.
+    expect(
+      await getGroupExchangeArchive({
+        giftGroupId: f.group.id,
+        viewerId: f.outsider.id,
+      }),
+    ).toEqual({ years: [], memory: [], summary: null });
+  });
+
+  it('lets a secret year contribute its guesses but never its pairings', async () => {
+    await playYear({
+      title: 'The Painted 2025',
+      year: 2025,
+      secretForever: true,
+    });
+    const archive = await getGroupExchangeArchive({
+      giftGroupId: f.group.id,
+      viewerId: f.a.id,
+    });
+    const secret = archive.years[0]!;
+    expect(secret.secretForever).toBe(true);
+    expect(secret.yourGifter).toBeNull();
+    expect(secret.yourGiftee).toBeNull();
+    // Not even whether they called it: that is a pairing fact.
+    expect(secret.youGuessedRight).toBeNull();
+    expect(JSON.stringify(secret)).not.toContain('gifterId');
+  });
+
+  it('builds sentences about people out of more than one year', async () => {
+    await playYear({ title: 'The Painted 2025', year: 2025 });
+    await playYear({ title: 'The Painted 2026', year: 2026 });
+
+    const archive = await getGroupExchangeArchive({
+      giftGroupId: f.group.id,
+      viewerId: f.a.id,
+    });
+    expect(archive.years.map((y) => y.year)).toEqual([2026, 2025]);
+    expect(archive.summary).toBe('Two exchanges, 2025 to 2026.');
+
+    // Everybody guessed the organizer every year, so somebody else has never
+    // been guessed at all.
+    const unguessed = archive.memory.find((m) => m.key === 'unguessed');
+    expect(unguessed?.line).toMatch(/Nobody has ever guessed/);
+    // And the same person ran both.
+    const organizer = archive.memory.find((m) => m.key === 'organizer');
+    expect(organizer?.person.id).toBe(f.organizer.id);
+    expect(organizer?.line).toMatch(/has organized every one of them/);
+  });
+
+  it('tells the overview whether the link is worth offering', async () => {
+    expect(
+      await hasGroupExchangeArchive({
+        giftGroupId: f.group.id,
+        viewerId: f.a.id,
+      }),
+    ).toBe(false);
+    await playYear({ title: 'The Painted 2026', year: 2026 });
+    expect(
+      await hasGroupExchangeArchive({
+        giftGroupId: f.group.id,
+        viewerId: f.a.id,
+      }),
+    ).toBe(true);
+    expect(
+      await hasGroupExchangeArchive({
+        giftGroupId: f.group.id,
+        viewerId: f.outsider.id,
+      }),
+    ).toBe(false);
   });
 });

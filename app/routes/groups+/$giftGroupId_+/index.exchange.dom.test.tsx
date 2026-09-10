@@ -16,12 +16,14 @@ const loaderData: {
   upcomingOccasions: unknown[];
   pastGifts: unknown[];
   exchange: GroupExchangeSummary;
+  hasArchive: boolean;
 } = {
   actionQueue: [],
   activePools: [],
   upcomingOccasions: [],
   pastGifts: [],
   exchange: null,
+  hasArchive: false,
 };
 
 const layoutData = {
@@ -106,6 +108,7 @@ const section = () => screen.getByTestId('exchange-section');
 
 beforeEach(() => {
   loaderData.exchange = null;
+  loaderData.hasArchive = false;
 });
 
 describe('group overview exchange section', () => {
@@ -118,6 +121,20 @@ describe('group overview exchange section', () => {
     expect(
       screen.queryByTestId('exchange-join-prompt'),
     ).not.toBeInTheDocument();
+  });
+
+  it('offers the archive only once there is one', () => {
+    const { unmount } = renderOverview();
+    // An empty archive is a worse first impression than no link at all.
+    expect(screen.queryByTestId('archive-link')).not.toBeInTheDocument();
+    unmount();
+
+    loaderData.hasArchive = true;
+    renderOverview();
+    expect(screen.getByTestId('archive-link')).toHaveAttribute(
+      'href',
+      '/groups/g1/exchanges',
+    );
   });
 
   it('prompts a member who has not answered, and says who to beat', () => {
