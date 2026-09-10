@@ -207,7 +207,11 @@ design the boundaries deliberately.
   confirmed whether this created the standalone data-model concept described here, or
   writes into the existing pool-bound `GiftIdea` structure under a different UI label.
   Worth a direct check before treating this workstream as either done or still greenfield.
-- **Secret Santa** — table-stakes; reuse the secrecy primitive. Unchanged; not started.
+- **Secret Santa** — shipping as **Exchanges** (Sept 2026): distinct product, shared secrecy
+  discipline. Phase A (core loop: setup → gather → draw → gift progress → reveal) is in review;
+  notes/clues/guesses (Phase B) and standalone invites, splice, and the cross-year archive
+  (Phase C) follow. See `.agents/plans/exchanges/plan.md` and the "Exchanges" section of
+  `AGENTS.md`.
 - **Activity feed / gift memory** — seeded from the (now hidden) Activity tab; build as
   the beginning of the gift record, not a shallow "X joined" log. Unchanged; Activity tab
   still hidden as of 2026-07-11. Note: the person-surface "create person note" and

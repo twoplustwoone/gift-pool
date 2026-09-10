@@ -856,6 +856,97 @@ describe('lists and group summary', () => {
     expect(outsiderList.active.map((e) => e.id)).toEqual([standalone.id]);
   });
 
+  it('never carries a pairing in the group summary, in any status', async () => {
+    const { id } = await createGroupExchange(f);
+    await optInAll(f, id);
+    for (const status of ['GATHERING', 'DRAWN'] as const) {
+      if (status === 'DRAWN') {
+        await drawNames({
+          exchangeId: id,
+          actorId: f.organizer.id,
+          now: NOW,
+          rng: seededRng(11),
+        });
+      }
+      for (const viewer of [f.organizer, f.a, f.d]) {
+        const summary = await getGroupExchangeSummary({
+          giftGroupId: f.group.id,
+          viewerId: viewer.id,
+          now: NOW,
+        });
+        const json = JSON.stringify(summary);
+        expect(json).not.toContain('"gifterId"');
+        expect(json).not.toContain('"gifteeId"');
+        expect(json).not.toContain('"giftee"');
+        expect(json).not.toContain('"assignments"');
+        expect(findPairings(summary)).toEqual([]);
+        // Only the viewer's own participation, and an exchange-wide count.
+        expect(Object.keys(summary!.viewer).sort()).toEqual([
+          'dismissedJoinPrompt',
+          'isOrganizer',
+          'participation',
+        ]);
+        expect(typeof summary!.exchange.participantCount).toBe('number');
+      }
+    }
+  });
+
+  it('prefers an exchange still waiting on the viewer over the soonest one', async () => {
+    const answered = await createGroupExchange(f, {
+      title: 'Answered first',
+      eventDate: new Date('2026-12-20T00:00:00Z'),
+    });
+    const waiting = await createGroupExchange(f, {
+      title: 'Still waiting',
+      eventDate: new Date('2026-12-31T00:00:00Z'),
+    });
+    // The viewer has answered the earlier one but not the later one.
+    await setParticipation({
+      exchangeId: answered.id,
+      userId: f.a.id,
+      status: 'IN',
+    });
+
+    const summary = await getGroupExchangeSummary({
+      giftGroupId: f.group.id,
+      viewerId: f.a.id,
+      now: NOW,
+    });
+    expect(summary?.exchange.id).toBe(waiting.id);
+
+    // Dismissing is not answering: the later exchange must still be the one
+    // shown, so it can degrade to the quiet Join line instead of vanishing.
+    await dismissJoinPrompt({ exchangeId: waiting.id, userId: f.a.id });
+    const dismissed = await getGroupExchangeSummary({
+      giftGroupId: f.group.id,
+      viewerId: f.a.id,
+      now: NOW,
+    });
+    expect(dismissed?.exchange.id).toBe(waiting.id);
+    expect(dismissed?.viewer.dismissedJoinPrompt).toBe(true);
+
+    // Once they have answered both, the soonest is the one that matters.
+    await setParticipation({
+      exchangeId: waiting.id,
+      userId: f.a.id,
+      status: 'OUT',
+    });
+    const settled = await getGroupExchangeSummary({
+      giftGroupId: f.group.id,
+      viewerId: f.a.id,
+      now: NOW,
+    });
+    expect(settled?.exchange.id).toBe(answered.id);
+
+    // The organizer is never "awaiting an answer" on their own exchange.
+    const organizerView = await getGroupExchangeSummary({
+      giftGroupId: f.group.id,
+      viewerId: f.organizer.id,
+      now: NOW,
+    });
+    expect(organizerView?.exchange.id).toBe(answered.id);
+  });
+
   it('summarises the current group exchange with the viewer dismissal', async () => {
     const { id } = await createGroupExchange(f);
     let summary = await getGroupExchangeSummary({

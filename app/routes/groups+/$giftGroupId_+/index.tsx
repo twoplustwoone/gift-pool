@@ -23,6 +23,11 @@ import {
   useRouteLoaderData,
 } from 'react-router';
 import {
+  ExchangeJoinPrompt,
+  ExchangeQuietLine,
+} from '#app/components/exchanges/exchange-join-prompt.tsx';
+import { ExchangeStatusBadge } from '#app/components/exchanges/exchange-status-badge.tsx';
+import {
   MembersList,
   type MemberListEntry,
 } from '#app/components/groups/members-list.tsx';
@@ -43,6 +48,7 @@ import {
   type UpcomingOccasion,
 } from '#app/utils/group-overview.ts';
 import { type GroupRole } from '#app/utils/group-role.ts';
+import { type GroupExchangeSummary } from '#app/utils/exchanges.server.ts';
 import { cn, getUserImgSrc } from '#app/utils/misc.tsx';
 import {
   OCCASION_TYPE_LABELS,
@@ -60,8 +66,16 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const { requireUserIdInGroup } = await import('#app/utils/groups.server.ts');
   const { getGroupOverviewData } =
     await import('#app/utils/group-overview.server.ts');
+  const { getGroupExchangeSummary } =
+    await import('#app/utils/exchanges.server.ts');
+  const { getHints } = await import('#app/utils/client-hints.tsx');
   const viewerId = await requireUserIdInGroup(request, groupId);
-  return getGroupOverviewData(groupId, viewerId);
+  const { timeZone } = getHints(request);
+  const [overview, exchange] = await Promise.all([
+    getGroupOverviewData(groupId, viewerId),
+    getGroupExchangeSummary({ giftGroupId: groupId, viewerId, timeZone }),
+  ]);
+  return { ...overview, exchange };
 }
 
 // ─── Action queue icon map ───────────────────────────────────────────────────
@@ -79,9 +93,7 @@ const actionIcons: Record<ActionType, React.ReactNode> = {
   ),
   [ACTION_TYPE.PROPOSE_IDEA]: <LuLightbulb className="text-pool" />,
   [ACTION_TYPE.IDEA_CHOSEN]: <LuStar className="text-success" />,
-  [ACTION_TYPE.UPCOMING_OCCASION]: (
-    <LuCake className="text-muted-foreground" />
-  ),
+  [ACTION_TYPE.UPCOMING_OCCASION]: <LuCake className="text-muted-foreground" />,
   [ACTION_TYPE.POOL_STUCK]: <LuTriangleAlert className="text-warning" />,
 };
 
@@ -137,6 +149,10 @@ const GiftGroupOverview = () => {
             nextOccasion={data.upcomingOccasions[0] ?? null}
           />
           <ActivePoolsSection pools={data.activePools} groupId={giftGroup.id} />
+          <ExchangeSection
+            exchange={data.exchange}
+            giftGroupId={giftGroup.id}
+          />
           <UpcomingOccasionsSection occasions={data.upcomingOccasions} />
           <PastGiftsSection gifts={data.pastGifts} />
         </Stack>
@@ -421,6 +437,95 @@ const PoolRow = ({ pool }: { pool: PoolSummary }) => {
         </Flex>
       </Card>
     </Link>
+  );
+};
+
+// ─── Gift exchange ───────────────────────────────────────────────────────────
+// The join prompt lives HERE, not only on the exchange page — this is where a
+// non-participant actually is (design board §2b). Dismissing it degrades to a
+// quiet one-line Join link rather than vanishing.
+
+const ExchangeSection = ({
+  exchange,
+  giftGroupId,
+}: {
+  exchange: GroupExchangeSummary;
+  giftGroupId: string;
+}) => {
+  if (!exchange) {
+    return (
+      <section data-testid="exchange-section">
+        <SectionHeader
+          title="Gift exchange"
+          trailing={
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/exchanges/new?groupId=${giftGroupId}`}>
+                Start an exchange
+              </Link>
+            </Button>
+          }
+        />
+        <Text size="sm" className="text-muted-foreground">
+          Everyone draws one person and gives to them in secret — and the group
+          keeps the record afterwards.
+        </Text>
+      </section>
+    );
+  }
+
+  const { viewer } = exchange;
+  const gathering = exchange.exchange.status === 'GATHERING';
+  const isIn = viewer.isOrganizer || viewer.participation === 'IN';
+
+  if (isIn || viewer.participation === 'OUT') {
+    const label = viewer.isOrganizer
+      ? 'You organize this one'
+      : viewer.participation === 'IN'
+        ? "You're in"
+        : 'Sitting this one out';
+    return (
+      <section data-testid="exchange-section">
+        <SectionHeader title="Gift exchange" />
+        <Link to={`/exchanges/${exchange.exchange.id}`} className="block">
+          <Card variant="interactive" padding="md">
+            <Flex justify="between" align="center" gap={3}>
+              <Stack gap={0} className="min-w-0 flex-1">
+                <Text size="sm" weight="medium" className="truncate">
+                  {exchange.exchange.title}
+                </Text>
+                <Text size="xs" className="text-muted-foreground">
+                  {OCCASION_TYPE_LABELS[exchange.exchange.occasionType]} ·{' '}
+                  {formatMonthDay(exchange.exchange.eventDate)} ·{' '}
+                  {exchange.exchange.participantCount}{' '}
+                  {exchange.exchange.participantCount === 1
+                    ? 'person'
+                    : 'people'}{' '}
+                  · {label}
+                </Text>
+              </Stack>
+              <ExchangeStatusBadge stage={exchange.exchange.stage} />
+            </Flex>
+          </Card>
+        </Link>
+      </section>
+    );
+  }
+
+  // Non-participating member.
+  if (gathering && !viewer.dismissedJoinPrompt) {
+    return (
+      <section data-testid="exchange-section">
+        <ExchangeJoinPrompt
+          exchange={exchange.exchange}
+          participantCount={exchange.exchange.participantCount}
+        />
+      </section>
+    );
+  }
+  return (
+    <section data-testid="exchange-section">
+      <ExchangeQuietLine exchange={exchange.exchange} canJoin={gathering} />
+    </section>
   );
 };
 

@@ -1589,7 +1589,11 @@ export async function getGroupExchangeSummary({
   now?: Date;
   timeZone?: string;
 }): Promise<GroupExchangeSummary> {
-  const exchange = await prisma.exchange.findFirst({
+  // A group may run more than one active exchange. The one worth surfacing is
+  // whichever is still waiting on THIS viewer's answer — otherwise a member
+  // who already answered the earliest one would never see the prompt for a
+  // later one. Failing that, the soonest.
+  const active = await prisma.exchange.findMany({
     where: {
       giftGroupId,
       status: { in: [EXCHANGE_STATUS.GATHERING, EXCHANGE_STATUS.DRAWN] },
@@ -1609,6 +1613,20 @@ export async function getGroupExchangeSummary({
       },
     },
   });
+  // Still unanswered by this viewer — whether or not they dismissed the
+  // prompt. Dismissing is not answering: the exchange must still appear, as
+  // the quiet Join line, or a stray tap would hide it entirely.
+  const unanswered = active.filter(
+    (e) =>
+      e.status === EXCHANGE_STATUS.GATHERING &&
+      e.organizerId !== viewerId &&
+      (e.participants[0]?.status ?? PARTICIPANT_STATUS.PENDING) ===
+        PARTICIPANT_STATUS.PENDING,
+  );
+  const exchange =
+    unanswered.find((e) => e.joinPromptDismissals.length === 0) ??
+    unanswered[0] ??
+    active[0];
   if (!exchange) return null;
   return {
     exchange: {
