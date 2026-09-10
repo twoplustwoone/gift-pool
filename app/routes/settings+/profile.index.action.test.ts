@@ -136,3 +136,68 @@ test('deletes the account with no error when the user holds no wishlist claims',
   const deletedUser = await prisma.user.findUnique({ where: { id: user.id } });
   expect(deletedUser).toBeNull();
 });
+
+test('deletes the account of someone who belongs to a group', async () => {
+  // `UsersInGiftGroups.userId` is ON DELETE RESTRICT, and eight other foreign
+  // keys to User are too, so before `prepareAccountForDeletion` this action
+  // threw for every user who had ever joined a group — which is every real
+  // user. The delete button simply did not work.
+  const { user, cookie } = await createUserWithSession();
+  const other = await prisma.user.create({ data: createUser() });
+  const group = await prisma.giftGroup.create({
+    data: {
+      name: 'The Painted',
+      groupMembers: {
+        create: [
+          { userId: user.id, role: 'OWNER' },
+          { userId: other.id, role: 'MEMBER' },
+        ],
+      },
+    },
+  });
+
+  const response = await invokeDeleteData(cookie);
+  expect(getRouteResultStatus(response)).toBe(302);
+  expect(await prisma.user.findUnique({ where: { id: user.id } })).toBeNull();
+
+  // The group survives with its remaining member promoted to owner.
+  const rows = await prisma.usersInGiftGroups.findMany({
+    where: { giftGroupId: group.id },
+  });
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.role).toBe('OWNER');
+});
+
+test('returns the refusal as data when a live pool still needs their idea', async () => {
+  // The form posts with a fetcher, so a thrown response would replace the
+  // settings page with the error boundary and the person would never read
+  // what to do about it.
+  const { user, cookie } = await createUserWithSession();
+  const organizer = await prisma.user.create({ data: createUser() });
+  const pool = await prisma.pool.create({
+    data: { title: 'A telescope pool', organizerId: organizer.id },
+  });
+  const idea = await prisma.giftIdea.create({
+    data: { poolId: pool.id, proposedById: user.id, name: 'A telescope' },
+  });
+  await prisma.pool.update({
+    where: { id: pool.id },
+    data: { status: 'DECIDED', chosenIdeaId: idea.id, decidedAt: new Date() },
+  });
+
+  const result = (await invokeDeleteData(cookie)) as {
+    status: string;
+    error: string;
+  };
+  expect(result.status).toBe('error');
+  expect(result.error).toContain('A telescope');
+
+  // Nothing was taken apart on the way to refusing.
+  expect(
+    await prisma.user.findUnique({ where: { id: user.id } }),
+  ).not.toBeNull();
+  expect(
+    (await prisma.pool.findUniqueOrThrow({ where: { id: pool.id } }))
+      .chosenIdeaId,
+  ).toBe(idea.id);
+});

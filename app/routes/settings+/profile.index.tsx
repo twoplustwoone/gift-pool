@@ -32,9 +32,9 @@ import { Text } from '#app/components/ui-kit/text.tsx';
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import {
-  announceExchangeAccountDeletion,
-  prepareExchangesForAccountDeletion,
-} from '#app/utils/exchanges.server.ts';
+  announceAccountDeletion,
+  prepareAccountForDeletion,
+} from '#app/utils/account-deletion.server.ts';
 import { useDoubleCheck } from '#app/utils/misc.tsx';
 import { queueWishlistClaimTransferredNotification } from '#app/utils/pool.server.ts';
 import { authSessionStorage } from '#app/utils/session.server.ts';
@@ -830,6 +830,19 @@ async function signOutOfSessionsAction({ request, userId }: ProfileActionArgs) {
   return { status: 'success' } as const;
 }
 
+// The module refuses with a 409 `data(...)` when someone else's pool is still
+// counting on this account. Anything else is a genuine fault and rethrows.
+function asDeletionRefusal(error: unknown): string | null {
+  const candidate = error as {
+    init?: { status?: number };
+    status?: number;
+    data?: { error?: string };
+  };
+  const status = candidate?.init?.status ?? candidate?.status;
+  if (status !== 409) return null;
+  return candidate?.data?.error ?? null;
+}
+
 async function deleteDataAction({ userId }: ProfileActionArgs) {
   // `WishlistClaim.claimedByUserId` cascades on User deletion — a bare
   // `prisma.user.delete` would remove this user's solo claims at the DB
@@ -851,22 +864,27 @@ async function deleteDataAction({ userId }: ProfileActionArgs) {
       release.transferredClaimId,
     );
   }
-  // Every exchange foreign key to User cascades, including
-  // `Exchange.organizerId` — deleting an organizer would delete the whole
-  // exchange for their group, and deleting a participant mid-draw would leave
-  // two other people with a broken loop and no explanation. Splice, hand over
-  // or cancel first, in the same transaction as the deletion itself: if the
-  // delete fails on some other constraint, the exchange must not be left
-  // detached from an account that still exists.
-  const exchangeSummary = await prisma.$transaction(async (tx) => {
-    const summary = await prepareExchangesForAccountDeletion({
-      userId,
-      db: tx,
+  // Nine foreign keys to User are ON DELETE RESTRICT and several more cascade
+  // in ways that would damage other people's data, so the row cannot simply be
+  // deleted: see `account-deletion.server.ts`. Preparation runs in the same
+  // transaction as the deletion itself, so a delete that fails partway leaves
+  // nothing handed over.
+  let summary;
+  try {
+    summary = await prisma.$transaction(async (tx) => {
+      const prepared = await prepareAccountForDeletion({ userId, db: tx });
+      await tx.user.delete({ where: { id: userId } });
+      return prepared;
     });
-    await tx.user.delete({ where: { id: userId } });
-    return summary;
-  });
-  announceExchangeAccountDeletion(exchangeSummary);
+  } catch (error) {
+    // A refusal has to come back as data. This form posts with a fetcher, and
+    // a thrown non-OK response would take the whole settings page to the error
+    // boundary instead of telling them what to do about it.
+    const refusal = asDeletionRefusal(error);
+    if (!refusal) throw error;
+    return { status: 'error', error: refusal } as const;
+  }
+  announceAccountDeletion(summary);
   return redirectWithToast('/', {
     type: 'success',
     title: 'Data Deleted',
