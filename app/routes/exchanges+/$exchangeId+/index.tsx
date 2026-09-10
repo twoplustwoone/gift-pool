@@ -373,27 +373,37 @@ function Drawn({ view, now }: { view: ExchangeView; now: Date }) {
 
   const assignment = you.assignment;
   const gifteeFirst = assignment ? firstName(assignment.giftee) : 'them';
+  // Until the cover card is opened the page must not name the giftee anywhere
+  // — otherwise "Later" would hand the user the very screen the cover exists
+  // to protect. The name (and everything derived from it) appears only once
+  // they have chosen their moment.
+  const stillCovered = you.covered;
 
-  const yourGift = assignment ? (
-    <GiftProgressStepper
-      exchangeId={exchange.id}
-      stage={assignment.giftStage}
-      gifteeFirstName={gifteeFirst}
-      lead={afterEvent}
-    />
-  ) : null;
+  const yourGift =
+    assignment && !stillCovered ? (
+      <GiftProgressStepper
+        exchangeId={exchange.id}
+        stage={assignment.giftStage}
+        gifteeFirstName={gifteeFirst}
+        lead={afterEvent}
+      />
+    ) : null;
 
-  const yourPerson = assignment ? (
-    <YourPersonCard
-      assignment={assignment}
-      spendingGuideline={exchange.spendingGuideline}
-      eventDate={exchange.eventDate}
-    />
-  ) : null;
+  const yourPerson =
+    assignment && !stillCovered ? (
+      <YourPersonCard
+        assignment={assignment}
+        spendingGuideline={exchange.spendingGuideline}
+        eventDate={exchange.eventDate}
+      />
+    ) : null;
 
   return (
     <>
-      {assignment && you.covered ? (
+      {/* Kept mounted while the user has it open: marking it viewed
+          revalidates the loader, and unmounting on that would yank the card
+          away mid-interaction. */}
+      {assignment && (stillCovered || coverOpen) ? (
         <YouDrewCard
           exchangeId={exchange.id}
           exchangeTitle={exchange.title}
@@ -407,7 +417,7 @@ function Drawn({ view, now }: { view: ExchangeView; now: Date }) {
           onOpenChange={setCoverOpen}
         />
       ) : null}
-      {assignment && you.covered && !coverOpen ? (
+      {assignment && stillCovered && !coverOpen ? (
         <Card className="mb-4 flex items-center justify-between gap-3 border-pool/40 bg-pool/5">
           <p className="text-sm font-medium">
             Your person is waiting behind a card.
