@@ -119,6 +119,10 @@ const ActionSchema = z.discriminatedUnion('intent', [
     guessedUserId: z.string().min(1).max(64),
   }),
   Base.extend({
+    intent: z.literal(EXCHANGE_INTENT.SendThanks),
+    presetKey: z.string().min(1).max(64),
+  }),
+  Base.extend({
     intent: z.literal(EXCHANGE_INTENT.UpdateSettings),
     title: z.string().trim().max(100).optional(),
     occasionType: z.string().optional(),
@@ -238,6 +242,15 @@ export async function action({ request, params }: ActionFunctionArgs) {
           senderId: userId,
           direction: 'TO_GIFTEE',
           kind: 'CLUE',
+          presetKey: v.presetKey,
+        });
+        return data({ ok: true });
+      case EXCHANGE_INTENT.SendThanks:
+        await sendNote({
+          exchangeId,
+          senderId: userId,
+          direction: 'TO_GIFTER',
+          kind: 'THANKS',
           presetKey: v.presetKey,
         });
         return data({ ok: true });

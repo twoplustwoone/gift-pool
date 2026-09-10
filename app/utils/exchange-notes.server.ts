@@ -783,3 +783,204 @@ export async function runNoteDeliverySweep({
 
   return { delivered: result.count, failed: due.length - result.count };
 }
+
+// ─── Scoreboard ───────────────────────────────────────────────────────────────
+
+export type ScoreboardAward = {
+  kind: 'BEST_GUESSER' | 'UNGUESSABLE' | 'MOST_ACCUSED' | 'WAVERED';
+  /** The label under the person, e.g. "Best guesser". */
+  title: string;
+  /** A sentence about them, never a metric. */
+  line: string;
+  person: { id: string; name: string | null; username: string };
+};
+
+export type Scoreboard = {
+  awards: ScoreboardAward[];
+  correctCount: number;
+  guesserCount: number;
+  participantCount: number;
+  /** "2 of 5 guessed right this year." */
+  summary: string;
+};
+
+const displayName = (p: { name: string | null; username: string }) =>
+  p.name ?? p.username;
+
+const timesWord = (n: number) =>
+  n === 1 ? 'once' : n === 2 ? 'twice' : `${numberWord(n)} times`;
+
+// Written as sentences about people rather than metrics (board §3):
+// "Wavered" is affectionate, and nothing here is a ranking anyone loses.
+//
+// A SECRET_FOREVER exchange keeps the scoreboard and drops the loop, so the
+// awards it shows must state right and wrong WITHOUT implying a pairing:
+// "most accused — one of them was right" would tell three people that one of
+// them is holding the answer. That award is revealed-only.
+export async function computeScoreboard({
+  exchangeId,
+  secretForever = false,
+}: {
+  exchangeId: string;
+  secretForever?: boolean;
+}): Promise<Scoreboard> {
+  const [assignments, guesses, participants] = await Promise.all([
+    prisma.exchangeAssignment.findMany({
+      where: { exchangeId, supersededAt: null },
+      select: { gifterId: true, gifteeId: true },
+    }),
+    prisma.exchangeGuess.findMany({
+      where: { exchangeId },
+      select: {
+        guesserId: true,
+        guessedUserId: true,
+        changeCount: true,
+        firstGuessedAt: true,
+        firstGuessedUserId: true,
+        guesser: { select: { id: true, name: true, username: true } },
+        guessedUser: { select: { id: true, name: true, username: true } },
+      },
+    }),
+    prisma.exchangeParticipant.findMany({
+      where: { exchangeId, status: PARTICIPANT_STATUS.IN },
+      select: { user: { select: { id: true, name: true, username: true } } },
+    }),
+  ]);
+
+  // Who actually had each person: gifteeId → gifterId.
+  const gifterOf = new Map(assignments.map((a) => [a.gifteeId, a.gifterId]));
+  const correct = guesses.filter(
+    (g) => gifterOf.get(g.guesserId) === g.guessedUserId,
+  );
+
+  const awards: ScoreboardAward[] = [];
+
+  // Best guesser: right, and least helped by changing their mind. Ties go to
+  // whoever landed on it first.
+  const best = [...correct].sort(
+    (a, b) =>
+      a.changeCount - b.changeCount ||
+      a.firstGuessedAt.getTime() - b.firstGuessedAt.getTime(),
+  )[0];
+  if (best) {
+    const firstTry =
+      best.changeCount === 0 && best.firstGuessedUserId === best.guessedUserId;
+    awards.push({
+      kind: 'BEST_GUESSER',
+      title: 'Best guesser',
+      line: secretForever
+        ? 'Guessed right'
+        : firstTry
+          ? 'Got it first try'
+          : `Got there after changing their mind ${timesWord(best.changeCount)}`,
+      person: best.guesser,
+    });
+  }
+
+  // Unguessable: in the exchange, and nobody put their name down.
+  const accusedIds = new Set(guesses.map((g) => g.guessedUserId));
+  const unguessed = participants
+    .map((p) => p.user)
+    .filter((user) => !accusedIds.has(user.id));
+  if (unguessed.length > 0 && guesses.length > 0) {
+    awards.push({
+      kind: 'UNGUESSABLE',
+      title: 'Unguessable',
+      line: 'Nobody guessed them',
+      person: unguessed[0]!,
+    });
+  }
+
+  if (!secretForever) {
+    // Most accused: the name most people wrote down.
+    const accusations = new Map<string, typeof guesses>();
+    for (const g of guesses) {
+      accusations.set(g.guessedUserId, [
+        ...(accusations.get(g.guessedUserId) ?? []),
+        g,
+      ]);
+    }
+    const [mostAccusedId, theirAccusers] =
+      [...accusations.entries()].sort((a, b) => b[1].length - a[1].length)[0] ??
+      [];
+    if (mostAccusedId && theirAccusers && theirAccusers.length > 1) {
+      const rightOnes = theirAccusers.filter(
+        (g) => gifterOf.get(g.guesserId) === g.guessedUserId,
+      ).length;
+      awards.push({
+        kind: 'MOST_ACCUSED',
+        title: 'Most accused',
+        line: `${capitalise(numberWord(theirAccusers.length))} people accused them. ${
+          rightOnes === 0
+            ? 'None of them was right'
+            : rightOnes === 1
+              ? 'One was right'
+              : `${capitalise(numberWord(rightOnes))} were right`
+        }`,
+        person: theirAccusers[0]!.guessedUser,
+      });
+    }
+  }
+
+  // Wavered: affectionate, never a ranking anyone loses.
+  const wavered = [...guesses].sort((a, b) => b.changeCount - a.changeCount)[0];
+  if (wavered && wavered.changeCount > 1) {
+    awards.push({
+      kind: 'WAVERED',
+      title: 'Wavered',
+      line: `Changed their mind ${timesWord(wavered.changeCount)}`,
+      person: wavered.guesser,
+    });
+  }
+
+  return {
+    awards,
+    correctCount: correct.length,
+    guesserCount: guesses.length,
+    participantCount: participants.length,
+    summary:
+      guesses.length === 0
+        ? 'Nobody put a name down this year.'
+        : `${correct.length} of ${participants.length} guessed right this year.`,
+  };
+}
+
+// A thank-you is one-way and one-time in the UI: knowing it was sent is what
+// turns the composer into a receipt.
+export async function hasSentThanks({
+  exchangeId,
+  viewerId,
+}: {
+  exchangeId: string;
+  viewerId: string;
+}): Promise<boolean> {
+  const row = await prisma.exchangeNote.findFirst({
+    where: { exchangeId, senderId: viewerId, kind: NOTE_KIND.THANKS },
+    select: { id: true },
+  });
+  return row !== null;
+}
+
+// Whether the viewer called it. REVEALED only — on a secret-forever exchange
+// this would hand someone their own pairing, which is the one thing that page
+// promises never to show.
+export async function didGuessRight({
+  exchangeId,
+  viewerId,
+}: {
+  exchangeId: string;
+  viewerId: string;
+}): Promise<boolean | null> {
+  const [guess, assignment] = await Promise.all([
+    prisma.exchangeGuess.findUnique({
+      where: { exchangeId_guesserId: { exchangeId, guesserId: viewerId } },
+      select: { guessedUserId: true },
+    }),
+    prisma.exchangeAssignment.findFirst({
+      where: { exchangeId, gifteeId: viewerId, supersededAt: null },
+      select: { gifterId: true },
+    }),
+  ]);
+  if (!guess || !assignment) return null;
+  return guess.guessedUserId === assignment.gifterId;
+}

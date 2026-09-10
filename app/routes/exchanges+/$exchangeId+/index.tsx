@@ -19,6 +19,10 @@ import {
   NoteComposer,
 } from '#app/components/exchanges/note-composer.tsx';
 import { NotesThreads } from '#app/components/exchanges/notes-threads.tsx';
+import {
+  Scoreboard,
+  ThankYouComposer,
+} from '#app/components/exchanges/scoreboard.tsx';
 import { OrganizerProgressPanel } from '#app/components/exchanges/organizer-progress-panel.tsx';
 import { ReceivedCard } from '#app/components/exchanges/received-card.tsx';
 import { RevealControls } from '#app/components/exchanges/reveal-controls.tsx';
@@ -602,16 +606,18 @@ function Drawn({
 // ─── Revealed ─────────────────────────────────────────────────────────────────
 
 function Revealed({ view }: { view: ExchangeView }) {
-  const { exchange, viewer, loop, yourGifter } = view;
+  const { exchange, viewer, loop, yourGifter, scoreboard, youGuessedRight } =
+    view;
   const [labelOpen, setLabelOpen] = useState(false);
   const fetcher = useFetcher();
+  const thanksFetcher = useFetcher();
   const own = loop?.find((p) => p.gifter.id === viewer.id) ?? null;
   const canAddGiftLabel = own !== null;
 
   return (
     <div className="space-y-4">
       {yourGifter ? (
-        <YourGifterCard gifter={yourGifter} guessedRight={null} />
+        <YourGifterCard gifter={yourGifter} guessedRight={youGuessedRight} />
       ) : null}
       {loop ? (
         <RevealedLoop
@@ -620,6 +626,23 @@ function Revealed({ view }: { view: ExchangeView }) {
           canAddGiftLabel={canAddGiftLabel}
           onAddGiftLabel={() => setLabelOpen(true)}
         />
+      ) : null}
+      {scoreboard ? <Scoreboard scoreboard={scoreboard} /> : null}
+      {yourGifter ? (
+        <section className="rounded-2xl border p-4" aria-label="Say thanks">
+          <ThankYouComposer
+            gifter={yourGifter}
+            alreadySent={view.thanksSent}
+            pending={thanksFetcher.state !== 'idle'}
+            onSend={(presetKey) => {
+              const body = new FormData();
+              body.set('intent', EXCHANGE_INTENT.SendThanks);
+              body.set('exchangeId', exchange.id);
+              body.set('presetKey', presetKey);
+              void thanksFetcher.submit(body, { method: 'post' });
+            }}
+          />
+        </section>
       ) : null}
       <ResponsiveDialog open={labelOpen} onOpenChange={setLabelOpen}>
         <ResponsiveDialogContent>
@@ -672,7 +695,7 @@ function Revealed({ view }: { view: ExchangeView }) {
 // ─── Finished (secret forever) ────────────────────────────────────────────────
 
 function Finished({ view }: { view: ExchangeView }) {
-  const { exchange, roster, viewer } = view;
+  const { exchange, roster, viewer, scoreboard } = view;
   return (
     <div className="space-y-4">
       <Card className="border-pool/40 bg-pool/5">
@@ -682,11 +705,15 @@ function Finished({ view }: { view: ExchangeView }) {
           not now, not next year, not to {firstName(exchange.organizer)}.
         </p>
       </Card>
+      {/* Right and wrong are shown. Who had who is not — the scoreboard is
+          the half of the record this mode keeps. */}
+      {scoreboard ? <Scoreboard scoreboard={scoreboard} /> : null}
       <Section title={`${roster.length} people were in`}>
         <ExchangeRosterStrip roster={roster} viewerId={viewer.id} />
       </Section>
       <SecrecyNote>
-        Who had who is not shown — that's what "keep it secret forever" means.
+        Right and wrong are shown. Who had who is not — that's what "keep it
+        secret forever" means.
       </SecrecyNote>
     </div>
   );
