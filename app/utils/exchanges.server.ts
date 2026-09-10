@@ -1254,6 +1254,24 @@ export async function cancelExchange({
   });
 }
 
+// ─── Notes, clues and guesses ─────────────────────────────────────────────────
+
+// Routes call only this module (AGENTS.md), so the notes half is re-exported
+// here rather than imported directly. Implementation: exchange-notes.server.ts.
+export {
+  computeClueCandidates,
+  getNoteThreads,
+  getOwnGuess,
+  runNoteDeliverySweep,
+  sendNote,
+  setGuess,
+  type ClueCandidate,
+  type GuessView,
+  type NoteThreads,
+  type NoteView,
+  type NoteDeliverySweepSummary,
+} from './exchange-notes.server.ts';
+
 // ─── Account deletion ─────────────────────────────────────────────────────────
 
 export type ExchangeAccountDeletionSummary = {
