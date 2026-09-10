@@ -509,6 +509,30 @@ describe('reveal', () => {
     );
   });
 
+  it("gates the reveal on the organizer's calendar day, not a UTC instant", async () => {
+    const id = await drawn();
+    // 24 Dec 00:30Z is still 23 Dec in Los Angeles: the exchange day has not
+    // arrived for that organizer even though UTC has ticked over.
+    const justAfterUtcMidnight = new Date('2026-12-24T00:30:00Z');
+    await expectThrows(
+      reveal({
+        exchangeId: id,
+        actorId: f.organizer.id,
+        now: justAfterUtcMidnight,
+        timeZone: 'America/Los_Angeles',
+      }),
+      409,
+    );
+    // Sydney is already on the 24th while UTC is still on the 23rd.
+    const result = await reveal({
+      exchangeId: id,
+      actorId: f.organizer.id,
+      now: new Date('2026-12-23T22:00:00Z'),
+      timeZone: 'Australia/Sydney',
+    });
+    expect(result.status).toBe('REVEALED');
+  });
+
   it('reveals once, is idempotent, and exposes the loop afterwards', async () => {
     const id = await drawn();
     const first = await reveal({
