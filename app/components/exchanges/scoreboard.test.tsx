@@ -33,7 +33,7 @@ const board = (overrides: Partial<ScoreboardData> = {}): ScoreboardData => ({
       person: person('fd', 'Francisco Di Giandomenico'),
     },
   ],
-  correctCount: 2,
+  correctCount: 2 as number | null,
   guesserCount: 5,
   participantCount: 5,
   summary: '2 of 5 guessed right this year.',

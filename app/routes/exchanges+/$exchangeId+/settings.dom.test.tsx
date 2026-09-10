@@ -120,6 +120,7 @@ function view(overrides: Partial<ExchangeView> = {}): ExchangeView {
     scoreboard: null,
     youGuessedRight: null,
     thanksSent: false,
+    thanksReceived: null,
     ...overrides,
   };
 }

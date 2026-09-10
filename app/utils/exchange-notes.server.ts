@@ -38,6 +38,12 @@ type Db = Prisma.TransactionClient | typeof prisma;
 
 const notFound = () => data({ error: 'Exchange not found.' }, { status: 404 });
 
+export type ExchangeNoteSender = {
+  id: string;
+  name: string | null;
+  username: string;
+};
+
 export type NoteView = {
   id: string;
   text: string;
@@ -383,6 +389,7 @@ export async function sendNote({
       select: {
         id: true,
         kind: true,
+        threadId: true,
         senderId: true,
         renderedText: true,
         scheduledFor: true,
@@ -391,6 +398,26 @@ export async function sendNote({
       },
     });
   });
+
+  // A thank-you is attributed, expected and already delivered, so the
+  // delivery sweep never sees it — it has to announce itself.
+  if (kind === NOTE_KIND.THANKS) {
+    const thread = await prisma.exchangeAssignment.findUnique({
+      where: { id: created.threadId },
+      select: { gifterId: true },
+    });
+    if (thread) {
+      queueExchangeNotesDelivered([
+        {
+          recipientId: thread.gifterId,
+          exchangeId,
+          noteId: created.id,
+          thread: 'FROM_YOUR_PERSON',
+          noteCount: 1,
+        },
+      ]);
+    }
+  }
 
   return toNoteView(created, senderId, now, await zoneOf(prisma, senderId));
 }
@@ -797,7 +824,8 @@ export type ScoreboardAward = {
 
 export type Scoreboard = {
   awards: ScoreboardAward[];
-  correctCount: number;
+  /** Null on a secret-forever exchange — see `computeScoreboard`. */
+  correctCount: number | null;
   guesserCount: number;
   participantCount: number;
   /** "2 of 5 guessed right this year." */
@@ -857,22 +885,27 @@ export async function computeScoreboard({
 
   // Best guesser: right, and least helped by changing their mind. Ties go to
   // whoever landed on it first.
-  const best = [...correct].sort(
-    (a, b) =>
-      a.changeCount - b.changeCount ||
-      a.firstGuessedAt.getTime() - b.firstGuessedAt.getTime(),
-  )[0];
+  // Naming a correct guesser is naming a pairing. They remember who they put
+  // down, so "Guessed right" hands them their own gifter — the exact fact
+  // `didGuessRight` refuses to compute here. The board's finished frame does
+  // show this award, but its own promise ("not now, not next year, not to
+  // Francisco") is the stronger of the two, and it wins.
+  const best = secretForever
+    ? undefined
+    : [...correct].sort(
+        (a, b) =>
+          a.changeCount - b.changeCount ||
+          a.firstGuessedAt.getTime() - b.firstGuessedAt.getTime(),
+      )[0];
   if (best) {
     const firstTry =
       best.changeCount === 0 && best.firstGuessedUserId === best.guessedUserId;
     awards.push({
       kind: 'BEST_GUESSER',
       title: 'Best guesser',
-      line: secretForever
-        ? 'Guessed right'
-        : firstTry
-          ? 'Got it first try'
-          : `Got there after changing their mind ${timesWord(best.changeCount)}`,
+      line: firstTry
+        ? 'Got it first try'
+        : `Got there after changing their mind ${timesWord(best.changeCount)}`,
       person: best.guesser,
     });
   }
@@ -933,15 +966,24 @@ export async function computeScoreboard({
     });
   }
 
+  // "4 of 5 guessed right" is invertible when everybody played: each of the
+  // five would learn whether they were one of the four. A secret-forever
+  // exchange therefore counts who played, not who was right.
+  const summary =
+    guesses.length === 0
+      ? 'Nobody put a name down this year.'
+      : secretForever
+        ? `${guesses.length} of ${participants.length} put a name down this year.`
+        : `${correct.length} of ${participants.length} guessed right this year.`;
+
   return {
     awards,
-    correctCount: correct.length,
+    // Withheld entirely under secret-forever: the page must not be able to
+    // reconstruct who was right from what it was given.
+    correctCount: secretForever ? null : correct.length,
     guesserCount: guesses.length,
     participantCount: participants.length,
-    summary:
-      guesses.length === 0
-        ? 'Nobody put a name down this year.'
-        : `${correct.length} of ${participants.length} guessed right this year.`,
+    summary,
   };
 }
 
@@ -959,6 +1001,30 @@ export async function hasSentThanks({
     select: { id: true },
   });
   return row !== null;
+}
+
+// The thank-you their giftee sent them, if any. Attributed by design: the
+// exchange is over, so there is nothing left to give away.
+export async function getThanksReceived({
+  exchangeId,
+  viewerId,
+}: {
+  exchangeId: string;
+  viewerId: string;
+}): Promise<{ text: string; from: ExchangeNoteSender } | null> {
+  const row = await prisma.exchangeNote.findFirst({
+    where: {
+      exchangeId,
+      kind: NOTE_KIND.THANKS,
+      thread: { gifterId: viewerId, supersededAt: null },
+    },
+    select: {
+      renderedText: true,
+      sender: { select: { id: true, name: true, username: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  return row ? { text: row.renderedText, from: row.sender } : null;
 }
 
 // Whether the viewer called it. REVEALED only — on a secret-forever exchange

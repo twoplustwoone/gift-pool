@@ -19,6 +19,7 @@ import {
   computeClueCandidates,
   computeScoreboard,
   didGuessRight,
+  getThanksReceived,
   getNoteThreads,
   getOwnGuess,
   runNoteDeliverySweep,
@@ -737,6 +738,23 @@ describe('computeScoreboard', () => {
     expect(unguessable?.person.id).not.toBe(f.b.id);
   });
 
+  it('names no correct guesser when the pairings stay secret forever', async () => {
+    await playOut();
+    const secret = await computeScoreboard({
+      exchangeId: f.id,
+      secretForever: true,
+    });
+    // The best guesser remembers who they put down, so naming them as right
+    // hands them their own gifter — the fact this mode exists to withhold.
+    expect(secret.awards.map((a) => a.kind)).not.toContain('BEST_GUESSER');
+    expect(secret.correctCount).toBeNull();
+    // And the summary counts who played, not who was right: "4 of 4 guessed
+    // right" would tell all four.
+    expect(secret.summary).toBe('3 of 4 put a name down this year.');
+    // Nothing in the awards states a correct guess.
+    expect(JSON.stringify(secret.awards)).not.toContain('right');
+  });
+
   it('drops the accusation award when the pairings stay secret forever', async () => {
     await playOut();
     const open = await computeScoreboard({ exchangeId: f.id });
@@ -749,10 +767,12 @@ describe('computeScoreboard', () => {
     // is holding the answer — which is the thing this mode never shows.
     expect(open.awards.map((a) => a.kind)).toContain('MOST_ACCUSED');
     expect(secret.awards.map((a) => a.kind)).not.toContain('MOST_ACCUSED');
-    // Right and wrong still are shown.
-    expect(secret.awards.find((a) => a.kind === 'BEST_GUESSER')?.line).toBe(
-      'Guessed right',
-    );
+    // What survives are the awards that imply no pairing at all: nobody
+    // guessed them, and somebody kept changing their mind.
+    expect(secret.awards.map((a) => a.kind).sort()).toEqual([
+      'UNGUESSABLE',
+      'WAVERED',
+    ]);
   });
 
   it('says so plainly when nobody put a name down', async () => {
@@ -786,6 +806,47 @@ describe('didGuessRight', () => {
     // Someone who never guessed gets nothing, not a false.
     expect(
       await didGuessRight({ exchangeId: f.id, viewerId: f.organizer.id }),
+    ).toBeNull();
+  });
+});
+
+describe('getThanksReceived', () => {
+  it('gives a gifter the thank-you their person sent, with the name on it', async () => {
+    await prisma.exchange.update({
+      where: { id: f.id },
+      data: { status: EXCHANGE_STATUS.REVEALED },
+    });
+    const giftee = f.a;
+    const gifter = gifterOf(f, giftee.id);
+
+    expect(
+      await getThanksReceived({ exchangeId: f.id, viewerId: gifter }),
+    ).toBeNull();
+
+    await sendNote({
+      exchangeId: f.id,
+      senderId: giftee.id,
+      direction: NOTE_DIRECTION.TO_GIFTER,
+      kind: NOTE_KIND.THANKS,
+      presetKey: 'loved-it',
+      now: NOW,
+    });
+
+    // It reaches the gifter without waiting for a delivery sweep: a thank-you
+    // is attributed and expected, so there is nothing to anonymise.
+    const received = await getThanksReceived({
+      exchangeId: f.id,
+      viewerId: gifter,
+    });
+    expect(received?.text).toBe('Thank you — I loved it.');
+    expect(received?.from.id).toBe(giftee.id);
+
+    // And nobody else sees it.
+    const bystander = [f.organizer, f.a, f.b, f.c].find(
+      (u) => u.id !== gifter && u.id !== giftee.id,
+    )!;
+    expect(
+      await getThanksReceived({ exchangeId: f.id, viewerId: bystander.id }),
     ).toBeNull();
   });
 });

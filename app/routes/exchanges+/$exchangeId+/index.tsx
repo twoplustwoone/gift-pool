@@ -627,6 +627,19 @@ function Revealed({ view }: { view: ExchangeView }) {
           onAddGiftLabel={() => setLabelOpen(true)}
         />
       ) : null}
+      {view.thanksReceived ? (
+        <Card
+          data-testid="thanks-received"
+          className="border-pool/40 bg-pool/5"
+        >
+          <p className="text-sm font-medium">
+            {firstName(view.thanksReceived.from)} said thanks
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            “{view.thanksReceived.text}”
+          </p>
+        </Card>
+      ) : null}
       {scoreboard ? <Scoreboard scoreboard={scoreboard} /> : null}
       {yourGifter ? (
         <section className="rounded-2xl border p-4" aria-label="Say thanks">
@@ -707,6 +720,19 @@ function Finished({ view }: { view: ExchangeView }) {
       </Card>
       {/* Right and wrong are shown. Who had who is not — the scoreboard is
           the half of the record this mode keeps. */}
+      {view.thanksReceived ? (
+        <Card
+          data-testid="thanks-received"
+          className="border-pool/40 bg-pool/5"
+        >
+          <p className="text-sm font-medium">
+            {firstName(view.thanksReceived.from)} said thanks
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            “{view.thanksReceived.text}”
+          </p>
+        </Card>
+      ) : null}
       {scoreboard ? <Scoreboard scoreboard={scoreboard} /> : null}
       <Section title={`${roster.length} people were in`}>
         <ExchangeRosterStrip roster={roster} viewerId={viewer.id} />

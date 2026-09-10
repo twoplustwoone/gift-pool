@@ -144,6 +144,7 @@ function baseView(overrides: Partial<ExchangeView> = {}): ExchangeView {
     scoreboard: null,
     youGuessedRight: null,
     thanksSent: false,
+    thanksReceived: null,
     ...overrides,
   };
 }
@@ -487,7 +488,7 @@ const scoreboardFixture = {
       person: { id: 'fc', name: 'Francisco Ceriani', username: 'fc' },
     },
   ],
-  correctCount: 2,
+  correctCount: 2 as number | null,
   guesserCount: 4,
   participantCount: 5,
   summary: '2 of 5 guessed right this year.',
@@ -558,6 +559,29 @@ describe('revealed, finished and cancelled', () => {
     expect(
       screen.getByText(/there's nothing left to give away/),
     ).toBeInTheDocument();
+  });
+
+  it('shows the thank-you their person sent back', () => {
+    renderPage(
+      baseView({
+        exchange: {
+          ...baseView().exchange,
+          status: 'REVEALED',
+          stage: 'REVEALED',
+        },
+        yourGifter: organizer,
+        thanksReceived: {
+          text: 'Thank you — I loved it.',
+          from: al,
+        },
+        loop: [
+          { gifter: organizer, giftee: np, giftLabel: null, outcome: null },
+        ],
+      }),
+    );
+    const card = screen.getByTestId('thanks-received');
+    expect(card).toHaveTextContent('Agustin said thanks');
+    expect(card).toHaveTextContent('Thank you — I loved it.');
   });
 
   it('says nobody will ever know on a secret-forever exchange, and shows no loop', () => {
