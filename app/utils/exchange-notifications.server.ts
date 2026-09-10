@@ -173,19 +173,34 @@ export function queueExchangeRevealed(
   );
 }
 
-export function queueExchangeCancelled(exchangeId: string): void {
+// `includePending` is set when the exchange is cancelled before the draw:
+// everyone who was told it started deserves to hear it is off, and pre-draw
+// there are no pairings, so a wider audience discloses nothing. After the draw
+// only live participants hear — a broadcast then would tell bystanders which
+// people were affected.
+export function queueExchangeCancelled(
+  exchangeId: string,
+  { includePending = false }: { includePending?: boolean } = {},
+): void {
   background(
-    (async () =>
-      fanOut(exchangeId, {
+    (async () => {
+      const exchange = await loadExchangeForNotification(exchangeId);
+      const live = await participantIds(exchangeId, PARTICIPANT_STATUS.IN);
+      const pending =
+        includePending && exchange?.giftGroupId
+          ? await pendingCurrentMemberIds(exchangeId, exchange.giftGroupId)
+          : [];
+      return fanOut(exchangeId, {
         type: NOTIFICATION_TYPES.EXCHANGE_CANCELLED,
-        userIds: await participantIds(exchangeId, PARTICIPANT_STATUS.IN),
+        userIds: [...new Set([...live, ...pending])],
         buildPayload: (e) => ({
           exchangeId: e.id,
           exchangeTitle: e.title,
           organizerUserId: e.organizerId,
           organizerDisplayName: e.organizerDisplayName,
         }),
-      }))(),
+      });
+    })(),
     { exchangeId, moment: 'cancelled' },
   );
 }

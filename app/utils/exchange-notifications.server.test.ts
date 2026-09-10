@@ -147,6 +147,42 @@ describe('exchange notification fan-out', () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it('tells pending invitees too when an exchange is cancelled before the draw', async () => {
+    participantFindMany
+      .mockResolvedValueOnce([{ userId: 'fd' }])
+      .mockResolvedValueOnce([{ userId: 'np' }, { userId: 'jl' }]);
+    queueExchangeCancelled('x1', { includePending: true });
+    await flush();
+    await flush();
+    expect(participantFindMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: {
+          exchangeId: 'x1',
+          status: 'PENDING',
+          user: { giftGroups: { some: { giftGroupId: 'g1' } } },
+        },
+      }),
+    );
+    expect(queueNotification.mock.calls.map(([i]) => i.userId).sort()).toEqual([
+      'fd',
+      'jl',
+      'np',
+    ]);
+  });
+
+  it('tells only live participants when a drawn exchange is cancelled', async () => {
+    participantFindMany.mockResolvedValue([{ userId: 'fd' }, { userId: 'np' }]);
+    queueExchangeCancelled('x1');
+    await flush();
+    await flush();
+    expect(participantFindMany).toHaveBeenCalledTimes(1);
+    expect(queueNotification.mock.calls.map(([i]) => i.userId)).toEqual([
+      'fd',
+      'np',
+    ]);
+  });
+
   it('reports a failed fan-out to Sentry instead of throwing', async () => {
     participantFindMany.mockRejectedValue(new Error('db down'));
     queueExchangeCancelled('x1');

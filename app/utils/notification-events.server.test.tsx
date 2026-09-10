@@ -439,7 +439,7 @@ describe('exchange notifications', () => {
     );
   });
 
-  it('sends a cancelled exchange to the list, not to a dead page', async () => {
+  it('sends a cancelled exchange to the page that explains it', async () => {
     const inApp = await renderNotificationChannel(
       {
         userId: 'np',
@@ -448,6 +448,9 @@ describe('exchange notifications', () => {
       },
       NOTIFICATION_CHANNELS.IN_APP,
     );
-    expect(inApp.targetUrl).toBe('/exchanges');
+    // The exchange page renders a "this was cancelled" card, so it is more
+    // use than the bare list — and it matches where the "started"
+    // notification the same people already have points.
+    expect(inApp.targetUrl).toBe('/exchanges/x1');
   });
 });

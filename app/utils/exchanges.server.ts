@@ -1233,7 +1233,9 @@ export async function cancelExchange({
       EXCHANGE_STATUS_PREDECESSORS.CANCELLED,
     );
   }
-  queueExchangeCancelled(exchangeId);
+  queueExchangeCancelled(exchangeId, {
+    includePending: exchange.status === EXCHANGE_STATUS.GATHERING,
+  });
   queueLogEvent({
     name: 'exchange_cancelled',
     userId: actorId,

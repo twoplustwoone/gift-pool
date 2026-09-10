@@ -207,7 +207,7 @@ function getExchangeCopy(intent: ExchangeIntent): ExchangeCopy {
         pushTitleKey: 'notifications.exchangeCancelled.pushTitle',
         messageParams: { exchange },
         emailBody: `${intent.payload.organizerDisplayName} cancelled the exchange. Nothing more is expected of you.`,
-        buttonLabel: 'Open Gift Pool',
+        buttonLabel: 'See the exchange',
       };
   }
 }
@@ -221,10 +221,10 @@ async function renderExchangeEvent<C extends NotificationChannel>(
 ): Promise<NotificationChannelMessageMap[C]> {
   const copy = getExchangeCopy(intent);
   const message = translate('en', copy.messageKey, copy.messageParams);
-  const exchangeUrl =
-    intent.type === NOTIFICATION_TYPES.EXCHANGE_CANCELLED
-      ? '/exchanges'
-      : `/exchanges/${intent.payload.exchangeId}`;
+  // Always the exchange itself: a cancelled exchange still renders a page
+  // that says so, which is more use than a bare list — and it keeps this link
+  // consistent with the "started" notification the same people already have.
+  const exchangeUrl = `/exchanges/${intent.payload.exchangeId}`;
 
   switch (channel) {
     case NOTIFICATION_CHANNELS.IN_APP:
