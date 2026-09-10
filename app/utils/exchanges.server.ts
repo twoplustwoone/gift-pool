@@ -1613,15 +1613,20 @@ export async function getGroupExchangeSummary({
       },
     },
   });
-  const awaitingAnswer = active.find(
+  // Still unanswered by this viewer — whether or not they dismissed the
+  // prompt. Dismissing is not answering: the exchange must still appear, as
+  // the quiet Join line, or a stray tap would hide it entirely.
+  const unanswered = active.filter(
     (e) =>
       e.status === EXCHANGE_STATUS.GATHERING &&
       e.organizerId !== viewerId &&
       (e.participants[0]?.status ?? PARTICIPANT_STATUS.PENDING) ===
-        PARTICIPANT_STATUS.PENDING &&
-      e.joinPromptDismissals.length === 0,
+        PARTICIPANT_STATUS.PENDING,
   );
-  const exchange = awaitingAnswer ?? active[0];
+  const exchange =
+    unanswered.find((e) => e.joinPromptDismissals.length === 0) ??
+    unanswered[0] ??
+    active[0];
   if (!exchange) return null;
   return {
     exchange: {

@@ -914,6 +914,17 @@ describe('lists and group summary', () => {
     });
     expect(summary?.exchange.id).toBe(waiting.id);
 
+    // Dismissing is not answering: the later exchange must still be the one
+    // shown, so it can degrade to the quiet Join line instead of vanishing.
+    await dismissJoinPrompt({ exchangeId: waiting.id, userId: f.a.id });
+    const dismissed = await getGroupExchangeSummary({
+      giftGroupId: f.group.id,
+      viewerId: f.a.id,
+      now: NOW,
+    });
+    expect(dismissed?.exchange.id).toBe(waiting.id);
+    expect(dismissed?.viewer.dismissedJoinPrompt).toBe(true);
+
     // Once they have answered both, the soonest is the one that matters.
     await setParticipation({
       exchangeId: waiting.id,
