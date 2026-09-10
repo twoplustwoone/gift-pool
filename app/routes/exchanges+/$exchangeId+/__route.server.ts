@@ -27,8 +27,10 @@ import {
   markAssignmentViewed,
   removeExclusion,
   reveal,
+  sendNote,
   setGiftLabel,
   setGiftStage,
+  setGuess,
   setParticipation,
   setReceived,
   updateExchangeSettings,
@@ -101,6 +103,21 @@ const ActionSchema = z.discriminatedUnion('intent', [
   Base.extend({ intent: z.literal(EXCHANGE_INTENT.Reveal) }),
   Base.extend({ intent: z.literal(EXCHANGE_INTENT.Cancel) }),
   Base.extend({ intent: z.literal(EXCHANGE_INTENT.DismissJoinPrompt) }),
+  Base.extend({
+    intent: z.literal(EXCHANGE_INTENT.SendNote),
+    direction: z.enum(['TO_GIFTEE', 'TO_GIFTER']),
+    presetKey: z.string().min(1).max(64),
+  }),
+  Base.extend({
+    intent: z.literal(EXCHANGE_INTENT.SendClue),
+    // Only the key: the sentence itself is derived server-side from what is
+    // actually true of this sender.
+    presetKey: z.string().min(1).max(64),
+  }),
+  Base.extend({
+    intent: z.literal(EXCHANGE_INTENT.SetGuess),
+    guessedUserId: z.string().min(1).max(64),
+  }),
   Base.extend({
     intent: z.literal(EXCHANGE_INTENT.UpdateSettings),
     title: z.string().trim().max(100).optional(),
@@ -206,6 +223,32 @@ export async function action({ request, params }: ActionFunctionArgs) {
       case EXCHANGE_INTENT.DismissJoinPrompt:
         await dismissJoinPrompt({ exchangeId, userId });
         return data({ ok: true });
+      case EXCHANGE_INTENT.SendNote:
+        await sendNote({
+          exchangeId,
+          senderId: userId,
+          direction: v.direction,
+          kind: 'NOTE',
+          presetKey: v.presetKey,
+        });
+        return data({ ok: true });
+      case EXCHANGE_INTENT.SendClue:
+        await sendNote({
+          exchangeId,
+          senderId: userId,
+          direction: 'TO_GIFTEE',
+          kind: 'CLUE',
+          presetKey: v.presetKey,
+        });
+        return data({ ok: true });
+      case EXCHANGE_INTENT.SetGuess: {
+        const guess = await setGuess({
+          exchangeId,
+          guesserId: userId,
+          guessedUserId: v.guessedUserId,
+        });
+        return data({ ok: true, guess });
+      }
       case EXCHANGE_INTENT.UpdateSettings: {
         const current = await prisma.exchange.findUnique({
           where: { id: exchangeId },

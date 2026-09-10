@@ -204,3 +204,64 @@ export function queueExchangeCancelled(
     { exchangeId, moment: 'cancelled' },
   );
 }
+
+export type DeliveredNoteBatch = {
+  recipientId: string;
+  exchangeId: string;
+  /** The newest note in the batch — the ledger key, so a re-sweep is silent. */
+  noteId: string;
+  thread: 'FROM_YOUR_GIFTER' | 'FROM_YOUR_PERSON';
+  noteCount: number;
+};
+
+// One line per person per thread per morning, not one per note: the batch is
+// the delivery, so three notes must not buzz three times. The payload carries
+// no text and no sender — a push preview is read by whoever is standing next
+// to them, and not knowing who wrote it is the entire game.
+export function queueExchangeNotesDelivered(
+  batches: DeliveredNoteBatch[],
+): void {
+  if (batches.length === 0) return;
+  background(
+    (async () => {
+      const byExchange = new Map<string, DeliveredNoteBatch[]>();
+      for (const batch of batches) {
+        const list = byExchange.get(batch.exchangeId) ?? [];
+        list.push(batch);
+        byExchange.set(batch.exchangeId, list);
+      }
+
+      for (const [exchangeId, group] of byExchange) {
+        const exchange = await loadExchangeForNotification(exchangeId);
+        if (!exchange) continue;
+        // One policy resolution for the whole exchange, not one per note.
+        const policies = await resolveNotificationPoliciesForUsers({
+          userIds: [...new Set(group.map((b) => b.recipientId))],
+          type: NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED,
+        });
+        for (const batch of group) {
+          const policy = policies.get(batch.recipientId);
+          queueNotification(
+            {
+              userId: batch.recipientId,
+              type: NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED,
+              payload: {
+                exchangeId: exchange.id,
+                exchangeTitle: exchange.title,
+                organizerUserId: exchange.organizerId,
+                organizerDisplayName: exchange.organizerDisplayName,
+                noteId: batch.noteId,
+                thread: batch.thread,
+                noteCount: batch.noteCount,
+              },
+              sourceIdentifier: `exchange-note:${batch.noteId}`,
+            },
+            policy ? { policy } : undefined,
+          );
+        }
+      }
+      return batches.length;
+    })(),
+    { moment: 'notes-delivered', batches: batches.length },
+  );
+}

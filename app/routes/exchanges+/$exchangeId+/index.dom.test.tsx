@@ -26,6 +26,9 @@ const snapshot: {
   viewerWishlistItemCount: 3,
 };
 
+// Lets a test put a server refusal in front of the page.
+const fetcherData: { data: unknown } = { data: undefined };
+
 vi.mock('react-router', async () => {
   const actual = await vi.importActual<typeof ReactRouter>('react-router');
   return {
@@ -37,7 +40,7 @@ vi.mock('react-router', async () => {
       ),
       submit: () => {},
       state: 'idle' as const,
-      data: undefined,
+      data: fetcherData.data,
       formData: undefined,
     }),
   };
@@ -131,6 +134,9 @@ function baseView(overrides: Partial<ExchangeView> = {}): ExchangeView {
     exclusions: null,
     draw: null,
     you: null,
+    notes: null,
+    clues: null,
+    guess: null,
     progress: null,
     loop: null,
     yourGifter: null,
@@ -309,6 +315,91 @@ describe('drawn', () => {
     expect(screen.queryByTestId('organizer-progress')).not.toBeInTheDocument();
     // The other participants' names appear nowhere on a participant's page.
     expect(screen.queryByText('Juan Longo')).not.toBeInTheDocument();
+  });
+
+  it('gives a participant both threads and the guessing card', () => {
+    renderPage(
+      drawnView({
+        notes: {
+          fromYourGifter: [
+            {
+              id: 'n1',
+              text: "I've got your gift.",
+              kind: 'NOTE',
+              when: 'Tuesday morning',
+              pending: false,
+              mine: false,
+              from: null,
+            },
+          ],
+          toYourPerson: [],
+          remainingToday: 2,
+          nextDeliveryLabel: 'tomorrow morning',
+        },
+        clues: [
+          {
+            key: 'shared-groups',
+            text: "We're in two of the same groups.",
+            narrowsTo: 3,
+            uniquelyIdentifies: false,
+          },
+        ],
+        guess: null,
+      }),
+    );
+    expect(screen.getByTestId('notes-threads')).toBeInTheDocument();
+    expect(screen.getByText("I've got your gift.")).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: 'To Agustin' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Send a clue' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Make a guess' }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows a refusal from the server instead of swallowing it', () => {
+    // The exchange can be revealed in another tab, or the allowance can go
+    // stale between opening the picker and sending. Silence would leave
+    // someone believing they sent something they didn't.
+    fetcherData.data = { error: "That's your 3 notes for today." };
+    renderPage(
+      drawnView({
+        notes: {
+          fromYourGifter: [],
+          toYourPerson: [],
+          remainingToday: 0,
+          nextDeliveryLabel: 'tomorrow morning',
+        },
+        clues: [],
+        guess: null,
+      }),
+    );
+    expect(screen.getByTestId('notes-error')).toHaveTextContent(
+      "That's your 3 notes for today.",
+    );
+    fetcherData.data = undefined;
+  });
+
+  it('keeps the notes behind the cover, since the thread names your person', () => {
+    renderPage(
+      drawnView({
+        you: { ...drawnView().you!, covered: true },
+        notes: {
+          fromYourGifter: [],
+          toYourPerson: [],
+          remainingToday: 3,
+          nextDeliveryLabel: 'tomorrow morning',
+        },
+        clues: [],
+        guess: null,
+      }),
+    );
+    // "To Agustin" would give away the name the cover exists to protect.
+    expect(screen.queryByTestId('notes-threads')).not.toBeInTheDocument();
+    expect(screen.queryByText(/To Agustin/)).not.toBeInTheDocument();
   });
 
   it('opens the covered card on arrival without spoiling the name', () => {

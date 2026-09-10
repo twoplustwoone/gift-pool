@@ -18,6 +18,7 @@ export const NOTIFICATION_TYPES = {
   EXCHANGE_NAMES_DRAWN: 'EXCHANGE_NAMES_DRAWN',
   EXCHANGE_REVEALED: 'EXCHANGE_REVEALED',
   EXCHANGE_CANCELLED: 'EXCHANGE_CANCELLED',
+  EXCHANGE_NOTE_RECEIVED: 'EXCHANGE_NOTE_RECEIVED',
 } as const;
 
 export type NotificationType =
@@ -81,6 +82,7 @@ export const EXCHANGE_NOTIFICATION_TYPES = [
   NOTIFICATION_TYPES.EXCHANGE_NAMES_DRAWN,
   NOTIFICATION_TYPES.EXCHANGE_REVEALED,
   NOTIFICATION_TYPES.EXCHANGE_CANCELLED,
+  NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED,
 ] as const;
 
 export type ExchangeNotificationType =
@@ -155,6 +157,7 @@ export const NOTIFICATION_TOPICS = {
   WISHLIST_CLAIM_CONFLICTS: 'WISHLIST_CLAIM_CONFLICTS',
   EXCHANGE_KEY_MOMENTS: 'EXCHANGE_KEY_MOMENTS',
   EXCHANGE_INVITATIONS: 'EXCHANGE_INVITATIONS',
+  EXCHANGE_NOTES: 'EXCHANGE_NOTES',
 } as const;
 
 export type NotificationTopic =
@@ -284,6 +287,20 @@ export const NOTIFICATION_TOPIC_CATALOG = {
     label: 'Draws and reveals',
     description:
       'When names are drawn, the pairings are revealed, or an exchange is cancelled.',
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: false,
+      pushEnabled: false,
+    },
+  },
+  [NOTIFICATION_TOPICS.EXCHANGE_NOTES]: {
+    category: NOTIFICATION_CATEGORIES.EXCHANGES,
+    label: 'Notes and clues',
+    description:
+      'When the person who has you sends a note or a clue, or your person replies.',
+    // Push off by default like every other topic — that invariant is asserted
+    // repo-wide in notification-catalog.test.ts, and a note is not urgent
+    // enough to be the exception that breaks it.
     defaults: {
       inAppEnabled: true,
       emailEnabled: false,
@@ -457,6 +474,17 @@ export const NOTIFICATION_EVENT_CATALOG = {
   [NOTIFICATION_TYPES.EXCHANGE_CANCELLED]: {
     topic: NOTIFICATION_TOPICS.EXCHANGE_KEY_MOMENTS,
     importance: 'IMPORTANT',
+    context: 'NONE',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  // Also context: 'NONE'. A note is addressed to one person by another
+  // person in an exchange they opted into; a muted group must not eat it.
+  // The body never carries the note's text or its sender — the whole point of
+  // the thread is that you don't know who wrote it.
+  [NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED]: {
+    topic: NOTIFICATION_TOPICS.EXCHANGE_NOTES,
+    importance: 'ROUTINE',
     context: 'NONE',
     supportedChannels: allChannels,
     deliveryStrategy: 'PER_CHANNEL_LEDGER',
@@ -683,6 +711,16 @@ type PayloadByType = {
     finalStatus: 'REVEALED' | 'FINISHED';
   };
   [NOTIFICATION_TYPES.EXCHANGE_CANCELLED]: ExchangeEventPayload;
+  // No sender, no text: the notification says a note arrived and where to
+  // read it. Anything more would either name the person or let the body be
+  // read from a lock screen by whoever is standing next to them.
+  [NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED]: ExchangeEventPayload & {
+    noteId: string;
+    /** Their gifter's thread, or their own person's reply. */
+    thread: 'FROM_YOUR_GIFTER' | 'FROM_YOUR_PERSON';
+    /** How many landed in this morning's batch, for a single summary line. */
+    noteCount: number;
+  };
 };
 
 export type NotificationPayload<T extends NotificationType> = PayloadByType[T];

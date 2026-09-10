@@ -10,6 +10,7 @@ vi.mock('#app/utils/exchange-notifications.server.ts', () => ({
   queueExchangeNamesDrawn: vi.fn(),
   queueExchangeRevealed: vi.fn(),
   queueExchangeCancelled: vi.fn(),
+  queueExchangeNotesDelivered: vi.fn(),
 }));
 
 import { EXCHANGE_STATUS } from './exchange-constants.ts';
@@ -412,6 +413,42 @@ describe('computeClueCandidates', () => {
     expect(groups?.uniquelyIdentifies).toBe(false);
   });
 
+  it('will not offer a birthday clue about a birthday the sender cannot see', async () => {
+    // The clue only appears when the two halves match, so offering it at all
+    // would tell the sender which half the recipient's birthday is in — even
+    // when that person set their birthday to NOBODY.
+    const sender = f.a;
+    const recipient = gifteeOf(f, sender.id);
+    const june = new Date('1990-02-02T00:00:00Z');
+    await prisma.user.update({
+      where: { id: sender.id },
+      data: { birthday: june, birthdayVisibility: 'EVERYONE' },
+    });
+    await prisma.user.update({
+      where: { id: recipient },
+      data: { birthday: june, birthdayVisibility: 'NOBODY' },
+    });
+
+    const hidden = await computeClueCandidates({
+      exchangeId: f.id,
+      viewerId: sender.id,
+      now: NOW,
+    });
+    expect(hidden.map((c) => c.key)).not.toContain('birthday-half');
+
+    // Shared with the group, the same clue becomes available.
+    await prisma.user.update({
+      where: { id: recipient },
+      data: { birthdayVisibility: 'EVERYONE' },
+    });
+    const shown = await computeClueCandidates({
+      exchangeId: f.id,
+      viewerId: sender.id,
+      now: NOW,
+    });
+    expect(shown.map((c) => c.key)).toContain('birthday-half');
+  });
+
   it('offers nothing to someone with no assignment', async () => {
     expect(
       await computeClueCandidates({
@@ -476,6 +513,24 @@ describe('setGuess', () => {
     expect(guess.guessedUser?.id).toBe(own);
   });
 
+  it('gives an outsider the same 404 as a missing exchange', async () => {
+    const outsider = await makeUser('Outsider');
+    const attempt = (exchangeId: string) =>
+      setGuess({
+        exchangeId,
+        guesserId: outsider.id,
+        guessedUserId: f.b.id,
+        now: NOW,
+      }).catch((err: unknown) => err);
+    const real = await attempt(f.id);
+    const imaginary = await attempt('does-not-exist');
+    expect(statusOf(real)).toBe(404);
+    expect(statusOf(imaginary)).toBe(404);
+    expect((real as { data: unknown }).data).toEqual(
+      (imaginary as { data: unknown }).data,
+    );
+  });
+
   it('refuses the guesser themselves', async () => {
     let caught: unknown;
     try {
@@ -529,6 +584,50 @@ describe('setGuess', () => {
 });
 
 describe('runNoteDeliverySweep', () => {
+  it('leaves a note alone once its exchange is no longer readable', async () => {
+    // The auto-reveal sweep runs in the same hour. A note delivered into a
+    // revealed exchange would notify someone about a thread that is gone.
+    await sendNote({
+      exchangeId: f.id,
+      senderId: f.a.id,
+      direction: NOTE_DIRECTION.TO_GIFTEE,
+      kind: NOTE_KIND.NOTE,
+      presetKey: 'got-it',
+      now: NOW,
+    });
+    await prisma.exchange.update({
+      where: { id: f.id },
+      data: { status: EXCHANGE_STATUS.REVEALED },
+    });
+
+    expect(
+      await runNoteDeliverySweep({ now: new Date('2026-12-13T14:00:00Z') }),
+    ).toEqual({ delivered: 0, failed: 0 });
+    const row = await prisma.exchangeNote.findFirstOrThrow({
+      where: { exchangeId: f.id },
+    });
+    expect(row.deliveredAt).toBeNull();
+  });
+
+  it('leaves a note alone once its thread has been spliced away', async () => {
+    await sendNote({
+      exchangeId: f.id,
+      senderId: f.a.id,
+      direction: NOTE_DIRECTION.TO_GIFTEE,
+      kind: NOTE_KIND.NOTE,
+      presetKey: 'got-it',
+      now: NOW,
+    });
+    await prisma.exchangeAssignment.updateMany({
+      where: { exchangeId: f.id, gifterId: f.a.id },
+      data: { supersededAt: NOW },
+    });
+
+    expect(
+      await runNoteDeliverySweep({ now: new Date('2026-12-13T14:00:00Z') }),
+    ).toEqual({ delivered: 0, failed: 0 });
+  });
+
   it('delivers only what is due, and is a no-op on a second run', async () => {
     await sendNote({
       exchangeId: f.id,

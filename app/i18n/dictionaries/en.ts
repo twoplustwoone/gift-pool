@@ -125,6 +125,12 @@ export const en = {
       message: '{{exchange}} was cancelled',
       pushTitle: 'Gift exchange cancelled',
     },
+    exchangeNoteReceived: {
+      // Never the note's text and never its sender: this line is read on a
+      // lock screen, and not knowing who wrote it is the point.
+      message: 'Something arrived from {{who}} in {{exchange}}',
+      pushTitle: 'A note is waiting',
+    },
     markAllReadSuccess: 'All notifications marked as read.',
   },
   friends: {

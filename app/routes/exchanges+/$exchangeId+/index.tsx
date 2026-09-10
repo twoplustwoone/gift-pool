@@ -13,6 +13,12 @@ import {
   ExchangeRosterStrip,
 } from '#app/components/exchanges/exchange-roster.tsx';
 import { GiftProgressStepper } from '#app/components/exchanges/gift-progress-stepper.tsx';
+import { GuessCard } from '#app/components/exchanges/guess-card.tsx';
+import {
+  CluePicker,
+  NoteComposer,
+} from '#app/components/exchanges/note-composer.tsx';
+import { NotesThreads } from '#app/components/exchanges/notes-threads.tsx';
 import { OrganizerProgressPanel } from '#app/components/exchanges/organizer-progress-panel.tsx';
 import { ReceivedCard } from '#app/components/exchanges/received-card.tsx';
 import { RevealControls } from '#app/components/exchanges/reveal-controls.tsx';
@@ -350,7 +356,29 @@ function Drawn({
   now: Date;
   timeZone: string;
 }) {
-  const { exchange, viewer, you, progress, roster } = view;
+  const { exchange, viewer, you, progress, roster, notes, clues, guess } = view;
+  const noteFetcher = useFetcher();
+  const guessFetcher = useFetcher();
+  // Domain refusals come back as data, so they have to be shown: an exchange
+  // revealed in another tab, an allowance that went stale, a clue that
+  // stopped being true. Silently swallowing them leaves someone believing
+  // they sent something they didn't.
+  const sendError =
+    noteFetcher.state === 'idle'
+      ? ((noteFetcher.data as { error?: string } | undefined)?.error ?? null)
+      : null;
+  const guessError =
+    guessFetcher.state === 'idle'
+      ? ((guessFetcher.data as { error?: string } | undefined)?.error ?? null)
+      : null;
+  const post = (
+    fetcher: ReturnType<typeof useFetcher>,
+    fields: Record<string, string>,
+  ) => {
+    const body = new FormData();
+    for (const [k, v] of Object.entries(fields)) body.set(k, v);
+    void fetcher.submit(body, { method: 'post' });
+  };
   // The exchange date is a calendar day, so "has it arrived" is a calendar
   // question in the viewer's zone — comparing instants would open the reveal
   // the previous afternoon west of UTC.
@@ -478,12 +506,93 @@ function Drawn({
               }
             />
           ) : null}
-          <Section title="From your secret gifter">
-            <p className="text-sm text-muted-foreground">
-              Nothing yet. Notes and clues arrive with the next update — for now
-              your gifter is quietly getting on with it.
-            </p>
-          </Section>
+          {/* Notes name the person you drew, so like everything else on this
+              page they wait until the cover card has been opened. */}
+          {notes && !stillCovered ? (
+            <>
+              {sendError || guessError ? (
+                <p
+                  role="alert"
+                  data-testid="notes-error"
+                  className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm"
+                >
+                  {sendError ?? guessError}
+                </p>
+              ) : null}
+              <NotesThreads
+                threads={notes}
+                personFirstName={gifteeFirst}
+                replyAction={
+                  <NoteComposer
+                    direction="TO_GIFTER"
+                    personFirstName={gifteeFirst}
+                    remainingToday={notes.remainingToday}
+                    deliveryLabel={notes.nextDeliveryLabel}
+                    pending={noteFetcher.state !== 'idle'}
+                    onSend={(presetKey) =>
+                      post(noteFetcher, {
+                        intent: EXCHANGE_INTENT.SendNote,
+                        exchangeId: exchange.id,
+                        direction: 'TO_GIFTER',
+                        presetKey,
+                      })
+                    }
+                  />
+                }
+                sendAction={
+                  <div className="flex flex-wrap gap-2">
+                    <NoteComposer
+                      direction="TO_GIFTEE"
+                      personFirstName={gifteeFirst}
+                      remainingToday={notes.remainingToday}
+                      deliveryLabel={notes.nextDeliveryLabel}
+                      pending={noteFetcher.state !== 'idle'}
+                      onSend={(presetKey) =>
+                        post(noteFetcher, {
+                          intent: EXCHANGE_INTENT.SendNote,
+                          exchangeId: exchange.id,
+                          direction: 'TO_GIFTEE',
+                          presetKey,
+                        })
+                      }
+                    />
+                    <CluePicker
+                      personFirstName={gifteeFirst}
+                      clues={clues ?? []}
+                      remainingToday={notes.remainingToday}
+                      deliveryLabel={notes.nextDeliveryLabel}
+                      pending={noteFetcher.state !== 'idle'}
+                      onSend={(clueKey) =>
+                        post(noteFetcher, {
+                          intent: EXCHANGE_INTENT.SendClue,
+                          exchangeId: exchange.id,
+                          presetKey: clueKey,
+                        })
+                      }
+                    />
+                  </div>
+                }
+              />
+              <GuessCard
+                candidates={roster
+                  .filter(
+                    (entry) =>
+                      entry.status === 'IN' && entry.user.id !== viewer.id,
+                  )
+                  .map((entry) => entry.user)}
+                guess={guess}
+                threads={notes}
+                pending={guessFetcher.state !== 'idle'}
+                onGuess={(userId) =>
+                  post(guessFetcher, {
+                    intent: EXCHANGE_INTENT.SetGuess,
+                    exchangeId: exchange.id,
+                    guessedUserId: userId,
+                  })
+                }
+              />
+            </>
+          ) : null}
         </div>
       </div>
     </>
