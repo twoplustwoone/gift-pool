@@ -2257,20 +2257,17 @@ export async function getGroupExchangeArchive({
     .filter((e) => e.status === EXCHANGE_STATUS.REVEALED)
     .map((e) => e.id);
 
-  const [assignments, guesses] = await Promise.all([
-    // Pairings come only from revealed years.
-    revealedIds.length > 0
-      ? prisma.exchangeAssignment.findMany({
-          where: { exchangeId: { in: revealedIds }, supersededAt: null },
-          select: {
-            exchangeId: true,
-            gifterId: true,
-            gifteeId: true,
-            gifter: { select: personSelect },
-            giftee: { select: personSelect },
-          },
-        })
-      : Promise.resolve([]),
+  const [assignmentsByYear, guesses] = await Promise.all([
+    // Pairings leave the database through `getRevealedLoop` and nowhere else
+    // (AGENTS.md). It throws unless the exchange is REVEALED, so the archive
+    // cannot read a secret year's loop even if this filter were ever widened
+    // — which is exactly the guard worth having on a third projection.
+    Promise.all(
+      revealedIds.map(async (exchangeId) => ({
+        exchangeId,
+        pairs: await getRevealedLoop(exchangeId),
+      })),
+    ),
     // Guesses come from every year, including the secret ones.
     prisma.exchangeGuess.findMany({
       where: { exchangeId: { in: ids } },
@@ -2283,6 +2280,16 @@ export async function getGroupExchangeArchive({
       },
     }),
   ]);
+
+  const assignments = assignmentsByYear.flatMap(({ exchangeId, pairs }) =>
+    pairs.map((p) => ({
+      exchangeId,
+      gifterId: p.gifterId,
+      gifteeId: p.gifteeId,
+      gifter: p.gifter,
+      giftee: p.giftee,
+    })),
+  );
 
   const years: ArchiveYear[] = exchanges.map((e) => {
     const secretForever = e.status === EXCHANGE_STATUS.FINISHED;
@@ -2419,13 +2426,26 @@ function buildArchiveMemory({
       (p) => p.id !== viewerId && !guessedIds.has(p.id),
     );
     if (unguessed) {
-      memory.push({
-        key: 'unguessed',
-        person: unguessed,
-        line: `Nobody has ever guessed ${displayNameOf(unguessed)}. ${capitaliseFirst(
-          numberWordOrDigits(years.length),
-        )} years unbeaten.`,
-      });
+      // Their years, not the viewer's: a roster changes, and somebody who
+      // joined only last year has not been unbeaten for four of them.
+      const theirYears = new Set<string>();
+      for (const a of assignments) {
+        if (a.gifterId === unguessed.id || a.gifteeId === unguessed.id) {
+          theirYears.add(a.exchangeId);
+        }
+      }
+      for (const g of guesses) {
+        if (g.guesserId === unguessed.id) theirYears.add(g.exchangeId);
+      }
+      if (theirYears.size > 1) {
+        memory.push({
+          key: 'unguessed',
+          person: unguessed,
+          line: `Nobody has ever guessed ${displayNameOf(unguessed)}. ${capitaliseFirst(
+            numberWordOrDigits(theirYears.size),
+          )} years unbeaten.`,
+        });
+      }
     }
   }
 

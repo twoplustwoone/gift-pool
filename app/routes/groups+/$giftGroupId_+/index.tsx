@@ -449,6 +449,26 @@ const PoolRow = ({ pool }: { pool: PoolSummary }) => {
 // non-participant actually is (design board §2b). Dismissing it degrades to a
 // quiet one-line Join link rather than vanishing.
 
+// The only way into the archive. It has to be reachable while an exchange is
+// running too — a group with a live exchange is exactly the group with years
+// behind it.
+const ArchiveLink = ({
+  giftGroupId,
+  hasArchive,
+}: {
+  giftGroupId: string;
+  hasArchive: boolean;
+}) =>
+  hasArchive ? (
+    <Link
+      to={`/groups/${giftGroupId}/exchanges`}
+      className="mt-2 inline-block text-sm underline"
+      data-testid="archive-link"
+    >
+      See past exchanges
+    </Link>
+  ) : null;
+
 const ExchangeSection = ({
   exchange,
   giftGroupId,
@@ -476,17 +496,7 @@ const ExchangeSection = ({
           Everyone draws one person and gives to them in secret — and the group
           keeps the record afterwards.
         </Text>
-        {/* Only worth offering once there is something behind it: an empty
-            archive is a worse first impression than no link at all. */}
-        {hasArchive ? (
-          <Link
-            to={`/groups/${giftGroupId}/exchanges`}
-            className="mt-2 inline-block text-sm underline"
-            data-testid="archive-link"
-          >
-            See past exchanges
-          </Link>
-        ) : null}
+        <ArchiveLink giftGroupId={giftGroupId} hasArchive={hasArchive} />
       </section>
     );
   }
@@ -525,6 +535,7 @@ const ExchangeSection = ({
             </Flex>
           </Card>
         </Link>
+        <ArchiveLink giftGroupId={giftGroupId} hasArchive={hasArchive} />
       </section>
     );
   }
@@ -537,12 +548,14 @@ const ExchangeSection = ({
           exchange={exchange.exchange}
           participantCount={exchange.exchange.participantCount}
         />
+        <ArchiveLink giftGroupId={giftGroupId} hasArchive={hasArchive} />
       </section>
     );
   }
   return (
     <section data-testid="exchange-section">
       <ExchangeQuietLine exchange={exchange.exchange} canJoin={gathering} />
+      <ArchiveLink giftGroupId={giftGroupId} hasArchive={hasArchive} />
     </section>
   );
 };

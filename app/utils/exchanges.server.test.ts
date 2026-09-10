@@ -803,6 +803,37 @@ describe('projection secrecy (property over role × status)', () => {
           expect(view.clues).toBeNull();
           expect(view.guess).toBeNull();
         }
+        // The archive is the third loader-facing projection, so it belongs in
+        // this test rather than beside it (AGENTS.md). Same rule, same place.
+        const archive = await getGroupExchangeArchive({
+          giftGroupId: f.group.id,
+          viewerId: viewer.id,
+        });
+        const archiveJson = JSON.stringify(archive);
+        expect(archiveJson).not.toContain('"gifterId"');
+        expect(archiveJson).not.toContain('"gifteeId"');
+        for (const archived of archive.years) {
+          // Only ever the viewer's own two ends of the loop.
+          const ownGifter = live.find((x) => x.gifteeId === viewer.id);
+          const ownGiftee = live.find((x) => x.gifterId === viewer.id);
+          if (archived.yourGifter) {
+            expect(archived.yourGifter.id).toBe(ownGifter?.gifterId);
+          }
+          if (archived.yourGiftee) {
+            expect(archived.yourGiftee.id).toBe(ownGiftee?.gifteeId);
+          }
+          // A secret year says nothing about pairings at all.
+          if (archived.secretForever) {
+            expect(archived.yourGifter).toBeNull();
+            expect(archived.yourGiftee).toBeNull();
+            expect(archived.youGuessedRight).toBeNull();
+          }
+        }
+        // Nothing but a revealed exchange ever reaches the archive.
+        if (status !== 'REVEALED' && status !== 'FINISHED') {
+          expect(archive.years).toEqual([]);
+        }
+
         // A secret-forever exchange keeps the scoreboard and drops the loop,
         // so the awards must state right and wrong without implying who had
         // who — "three accused them, one was right" would tell three people
@@ -1757,6 +1788,75 @@ describe('getGroupExchangeArchive', () => {
     const organizer = archive.memory.find((m) => m.key === 'organizer');
     expect(organizer?.person.id).toBe(f.organizer.id);
     expect(organizer?.line).toMatch(/has organized every one of them/);
+  });
+
+  it("counts an unbeaten run in that person's own years, not the viewer's", async () => {
+    // A roster changes. Somebody who appears in only the latest of several
+    // exchanges has not been unbeaten for all of them.
+    await playYear({ title: 'The Painted 2025', year: 2025 });
+    await playYear({ title: 'The Painted 2026', year: 2026 });
+    const archive = await getGroupExchangeArchive({
+      giftGroupId: f.group.id,
+      viewerId: f.a.id,
+    });
+    const unguessed = archive.memory.find((m) => m.key === 'unguessed');
+    // Both years, so both — but it is counted from their participation, not
+    // from the length of the viewer's archive.
+    expect(unguessed?.line).toContain('Two years unbeaten');
+
+    // Now a year they were not part of: the viewer's archive grows, their
+    // unbeaten run does not.
+    const third = await createGroupExchange(f, {
+      title: 'The Painted 2027',
+      eventDate: new Date(Date.UTC(2027, 11, 24)),
+      now: new Date(Date.UTC(2027, 2, 1)),
+    });
+    await setParticipation({
+      exchangeId: third.id,
+      userId: f.a.id,
+      status: 'IN',
+      now: new Date(Date.UTC(2027, 2, 1)),
+    });
+    await setParticipation({
+      exchangeId: third.id,
+      userId: f.b.id,
+      status: 'IN',
+      now: new Date(Date.UTC(2027, 2, 1)),
+    });
+    await drawNames({
+      exchangeId: third.id,
+      actorId: f.organizer.id,
+      now: new Date(Date.UTC(2027, 2, 1)),
+      rng: seededRng(2027),
+    });
+    await reveal({
+      exchangeId: third.id,
+      actorId: f.organizer.id,
+      now: new Date(Date.UTC(2027, 11, 27)),
+    });
+
+    const grown = await getGroupExchangeArchive({
+      giftGroupId: f.group.id,
+      viewerId: f.a.id,
+    });
+    expect(grown.years).toHaveLength(3);
+
+    const stillUnguessed = grown.memory.find((m) => m.key === 'unguessed');
+    expect(stillUnguessed).toBeDefined();
+    // The number in the sentence is that person's own participation, counted
+    // from the database rather than from the length of the viewer's archive.
+    const theirExchangeIds = await prisma.exchangeParticipant.findMany({
+      where: {
+        userId: stillUnguessed!.person.id,
+        status: 'IN',
+        exchangeId: { in: grown.years.map((y) => y.exchangeId) },
+      },
+      select: { exchangeId: true },
+    });
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five'];
+    expect(stillUnguessed!.line).toContain(
+      `${words[theirExchangeIds.length]!.replace(/^./, (c) => c.toUpperCase())} years unbeaten`,
+    );
   });
 
   it('tells the overview whether the link is worth offering', async () => {
