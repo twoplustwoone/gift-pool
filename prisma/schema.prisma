@@ -19,6 +19,7 @@ model User {
   // String, not a true enum — SQLite doesn't support enums natively. Valid
   // values are enforced at the app layer via `BirthdayVisibilitySchema`
   // (see `app/utils/user-validation.ts`): 'EVERYONE' | 'FRIENDS_OF_FRIENDS' | 'FRIENDS' | 'NOBODY'.
+  timeZone                     String?
   birthdayVisibility           String                        @default("FRIENDS")
   // String, not a true enum — valid values enforced via `WishlistVisibilitySchema`
   // (see `app/utils/user-validation.ts`): 'EVERYONE' | 'FRIENDS_OF_FRIENDS' | 'FRIENDS'.
@@ -79,6 +80,9 @@ model User {
   exchangeAssignmentsAsGifter  ExchangeAssignment[]          @relation("ExchangeAssignment_Gifter")
   exchangeAssignmentsAsGiftee  ExchangeAssignment[]          @relation("ExchangeAssignment_Giftee")
   exchangeJoinPromptDismissals ExchangeJoinPromptDismissal[] @relation("ExchangeJoinPromptDismissal_User")
+  exchangeNotesSent            ExchangeNote[]                @relation("ExchangeNote_Sender")
+  exchangeGuesses              ExchangeGuess[]               @relation("ExchangeGuess_Guesser")
+  exchangeGuessedAs            ExchangeGuess[]               @relation("ExchangeGuess_Guessed")
   feedback                     Feedback[]
   consents                     Consent[]
   // Person-surface memory relations
@@ -580,6 +584,8 @@ model Exchange {
   exclusions           ExchangeExclusion[]
   assignments          ExchangeAssignment[]
   joinPromptDismissals ExchangeJoinPromptDismissal[]
+  notes                ExchangeNote[]
+  guesses              ExchangeGuess[]
 
   @@index([giftGroupId])
   @@index([organizerId])
@@ -655,6 +661,7 @@ model ExchangeAssignment {
   exchange Exchange @relation(fields: [exchangeId], references: [id], onDelete: Cascade)
   gifter   User     @relation("ExchangeAssignment_Gifter", fields: [gifterId], references: [id], onDelete: Cascade)
   giftee   User     @relation("ExchangeAssignment_Giftee", fields: [gifteeId], references: [id], onDelete: Cascade)
+  notes    ExchangeNote[]
 
   @@index([exchangeId, gifterId])
   @@index([exchangeId, gifteeId])
@@ -663,6 +670,54 @@ model ExchangeAssignment {
 // A non-participating group member dismissed the "join before the draw"
 // prompt on the group overview. Per exchange, permanent, cross-device — the
 // prompt degrades to a quiet one-line Join link rather than vanishing.
+model ExchangeNote {
+  id           String    @id @default(cuid())
+  createdAt    DateTime  @default(now())
+  exchangeId   String
+  // The assignment the note belongs to, NOT the pair of users: a splice
+  // retires the assignment, so a retired thread can never be re-attributed to
+  // whoever inherited the person.
+  threadId     String
+  // Server-only. Never projected — the whole point of an inbound note is that
+  // the recipient doesn't know who sent it.
+  senderId     String
+  direction    String
+  kind         String
+  presetKey    String
+  renderedText String
+  scheduledFor DateTime
+  deliveredAt  DateTime?
+
+  exchange Exchange           @relation(fields: [exchangeId], references: [id], onDelete: Cascade)
+  thread   ExchangeAssignment @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender   User               @relation("ExchangeNote_Sender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([exchangeId, threadId])
+  @@index([exchangeId, senderId, createdAt])
+  @@index([deliveredAt, scheduledFor])
+}
+
+model ExchangeGuess {
+  id                 String   @id @default(cuid())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  exchangeId         String
+  guesserId          String
+  guessedUserId      String
+  // The first answer and how often they moved: the scoreboard's "Wavered"
+  // line. Never shown to anyone before the reveal.
+  firstGuessedUserId String
+  firstGuessedAt     DateTime
+  changeCount        Int      @default(0)
+
+  exchange    Exchange @relation(fields: [exchangeId], references: [id], onDelete: Cascade)
+  guesser     User     @relation("ExchangeGuess_Guesser", fields: [guesserId], references: [id], onDelete: Cascade)
+  guessedUser User     @relation("ExchangeGuess_Guessed", fields: [guessedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([exchangeId, guesserId])
+  @@index([exchangeId])
+}
+
 model ExchangeJoinPromptDismissal {
   exchangeId  String
   userId      String
