@@ -30,18 +30,28 @@ export type AccountDeletionSummary = {
 };
 
 // The one case with no safe answer. `Pool.chosenIdeaId` is SET NULL, so
-// deleting the idea a live pool decided on would quietly un-decide that pool
-// for everyone else. Rather than corrupt it or misattribute the idea to
+// deleting the idea a pool is still working from would quietly un-decide that
+// pool for everyone else. Rather than corrupt it or misattribute the idea to
 // someone who didn't have it, refuse and say what to do — the same shape of
 // answer `leaveGroup` gives a sole owner.
-async function assertNoChosenIdeas(db: Db, userId: string) {
+//
+// Only DECIDED counts. A purchased or delivered pool is finished: nobody can
+// choose a different idea on it (`chooseIdea` won't touch one, and the UI
+// offers no cancellation for a delivered pool), so blocking on those would
+// bar the account from ever being deleted with no action that could unblock
+// it. Those pools lose the record of which idea won, which is the same kind
+// of gap a departed person leaves in a revealed exchange loop.
+export async function assertAccountDeletable({
+  userId,
+  db = prisma,
+}: {
+  userId: string;
+  db?: Db;
+}) {
   const chosen = await db.giftIdea.findMany({
     where: {
       proposedById: userId,
-      pool: {
-        status: { not: POOL_STATUS.CANCELLED },
-        chosenIdeaId: { not: null },
-      },
+      pool: { status: POOL_STATUS.DECIDED, chosenIdeaId: { not: null } },
     },
     select: { id: true, name: true, pool: { select: { chosenIdeaId: true } } },
   });
@@ -67,7 +77,7 @@ export async function prepareAccountForDeletion({
   db: Db;
   now?: Date;
 }): Promise<AccountDeletionSummary> {
-  await assertNoChosenIdeas(db, userId);
+  await assertAccountDeletable({ userId, db });
 
   const summary: AccountDeletionSummary = {
     poolsHandedOver: [],

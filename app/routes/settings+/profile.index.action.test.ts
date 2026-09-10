@@ -174,14 +174,55 @@ test('returns the refusal as data when a live pool still needs their idea', asyn
   // what to do about it.
   const { user, cookie } = await createUserWithSession();
   const organizer = await prisma.user.create({ data: createUser() });
-  const pool = await prisma.pool.create({
+  const owner = await prisma.user.create({ data: createUser() });
+
+  // A solo claim with a decided pool waiting behind it: deletion normally
+  // hands this over, in its own transaction, before the account is touched.
+  const item = await prisma.wishlistItem.create({
+    data: {
+      ownerId: owner.id,
+      title: 'Espresso machine',
+      type: 'text',
+      sortOrder: 0,
+    },
+  });
+  await prisma.wishlistClaim.create({
+    data: { wishlistItemId: item.id, claimedByUserId: user.id },
+  });
+  const waiting = await prisma.pool.create({
+    data: {
+      title: 'Espresso machine pool',
+      organizerId: organizer.id,
+      recipientUserId: owner.id,
+    },
+  });
+  const waitingIdea = await prisma.giftIdea.create({
+    data: {
+      poolId: waiting.id,
+      proposedById: organizer.id,
+      name: 'Espresso machine',
+      wishlistItemId: item.id,
+    },
+  });
+  await prisma.pool.update({
+    where: { id: waiting.id },
+    data: {
+      status: 'DECIDED',
+      chosenIdeaId: waitingIdea.id,
+      decidedAt: new Date(),
+    },
+  });
+
+  // And a second pool that decided on an idea this user proposed — the one
+  // thing deletion refuses over.
+  const blocked = await prisma.pool.create({
     data: { title: 'A telescope pool', organizerId: organizer.id },
   });
   const idea = await prisma.giftIdea.create({
-    data: { poolId: pool.id, proposedById: user.id, name: 'A telescope' },
+    data: { poolId: blocked.id, proposedById: user.id, name: 'A telescope' },
   });
   await prisma.pool.update({
-    where: { id: pool.id },
+    where: { id: blocked.id },
     data: { status: 'DECIDED', chosenIdeaId: idea.id, decidedAt: new Date() },
   });
 
@@ -192,12 +233,19 @@ test('returns the refusal as data when a live pool still needs their idea', asyn
   expect(result.status).toBe('error');
   expect(result.error).toContain('A telescope');
 
-  // Nothing was taken apart on the way to refusing.
+  // Nothing was taken apart on the way to refusing. The claim releases run in
+  // their own transactions, so refusing after them would have handed this
+  // claim to the waiting pool for a deletion that never happened.
   expect(
     await prisma.user.findUnique({ where: { id: user.id } }),
   ).not.toBeNull();
+  const claim = await prisma.wishlistClaim.findUniqueOrThrow({
+    where: { wishlistItemId: item.id },
+  });
+  expect(claim.claimedByUserId).toBe(user.id);
+  expect(claim.poolId).toBeNull();
   expect(
-    (await prisma.pool.findUniqueOrThrow({ where: { id: pool.id } }))
+    (await prisma.pool.findUniqueOrThrow({ where: { id: blocked.id } }))
       .chosenIdeaId,
   ).toBe(idea.id);
 });

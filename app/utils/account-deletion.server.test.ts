@@ -198,6 +198,35 @@ describe('prepareAccountForDeletion', () => {
     ).toBe(idea.id);
   });
 
+  it('lets them go once the gift has actually been bought', async () => {
+    // A purchased or delivered pool is finished: nobody can choose a different
+    // idea on it, so refusing would bar this account from ever being deleted
+    // with no action that could unblock it.
+    const group = await makeGroup([
+      { id: leaver.id, role: 'MEMBER' },
+      { id: other.id, role: 'OWNER' },
+    ]);
+    const pool = await makePool(group.id, other.id, [leaver.id, other.id]);
+    const idea = await prisma.giftIdea.create({
+      data: { poolId: pool.id, proposedById: leaver.id, name: 'A telescope' },
+      select: { id: true },
+    });
+    await prisma.pool.update({
+      where: { id: pool.id },
+      data: { chosenIdeaId: idea.id, status: 'PURCHASED' },
+    });
+
+    await deleteAccount(leaver.id);
+
+    expect(
+      await prisma.user.findUnique({ where: { id: leaver.id } }),
+    ).toBeNull();
+    // The pool survives; it loses only the record of which idea won.
+    const after = await prisma.pool.findUnique({ where: { id: pool.id } });
+    expect(after?.status).toBe('PURCHASED');
+    expect(after?.chosenIdeaId).toBeNull();
+  });
+
   it('clears the ideas, votes and messages that are theirs alone', async () => {
     const group = await makeGroup([
       { id: leaver.id, role: 'MEMBER' },

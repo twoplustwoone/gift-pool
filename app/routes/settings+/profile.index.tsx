@@ -33,6 +33,7 @@ import { requireUserId, sessionKey } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import {
   announceAccountDeletion,
+  assertAccountDeletable,
   prepareAccountForDeletion,
 } from '#app/utils/account-deletion.server.ts';
 import { useDoubleCheck } from '#app/utils/misc.tsx';
@@ -855,6 +856,19 @@ async function deleteDataAction({ userId }: ProfileActionArgs) {
   // remove the evidence of that claim — goes away. `releaseSoloClaimsMatching`
   // is a no-op (empty array, no throw) when the user holds no solo claims,
   // so this never blocks deletion.
+  // Check the one blocking condition BEFORE anything commits. The claim
+  // releases below are their own transactions, so refusing after them would
+  // leave the account intact with its claims already handed to waiting pools.
+  // `prepareAccountForDeletion` checks again inside the transaction, which is
+  // what actually guarantees it.
+  try {
+    await assertAccountDeletable({ userId });
+  } catch (error) {
+    const refusal = asDeletionRefusal(error);
+    if (!refusal) throw error;
+    return { status: 'error', error: refusal } as const;
+  }
+
   const released = await releaseSoloClaimsMatching({ claimedByUserId: userId });
   for (const release of released) {
     if (!release.transferredToPoolId || !release.transferredClaimId) continue;
