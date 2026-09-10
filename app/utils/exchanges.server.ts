@@ -1488,6 +1488,15 @@ export async function generateExchangeInviteCode({
   const exchange = await requireExchangeVisible(actorId, exchangeId);
   requireExchangeOrganizer(actorId, exchange);
   assertExchangeStatus(exchange, [EXCHANGE_STATUS.GATHERING]);
+  // A group exchange's roster is the group. Minting a public link for one
+  // would let anybody with the URL into a group's exchange without ever
+  // joining the group — a way around membership, not an invitation.
+  if (exchange.giftGroupId) {
+    throw data(
+      { error: 'A group exchange invites the group, not a link.' },
+      { status: 409 },
+    );
+  }
   const code = nanoid(10);
   await prisma.exchange.update({
     where: { id: exchangeId },
@@ -1537,11 +1546,25 @@ export async function getExchangeInvite(
       occasionType: true,
       eventDate: true,
       status: true,
+      giftGroupId: true,
       organizer: { select: personSelect },
-      _count: { select: { participants: true } },
+      // Only the people actually in it: somebody who joined and then sat it
+      // out is not "in so far", and counting them would overstate the
+      // exchange to whoever is deciding whether to join.
+      _count: {
+        select: { participants: { where: { status: PARTICIPANT_STATUS.IN } } },
+      },
     },
   });
-  if (!exchange || exchange.status !== EXCHANGE_STATUS.GATHERING) return null;
+  // A link on a group exchange should not exist; if one ever does, it does
+  // not work.
+  if (
+    !exchange ||
+    exchange.giftGroupId ||
+    exchange.status !== EXCHANGE_STATUS.GATHERING
+  ) {
+    return null;
+  }
   return {
     exchangeId: exchange.id,
     title: exchange.title,
@@ -1566,14 +1589,18 @@ export async function joinExchangeByCode({
   userId: string;
   now?: Date;
 }): Promise<JoinByCodeResult> {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     // Re-read inside the transaction: the organizer may have drawn names or
     // replaced the link between the page loading and this POST.
     const exchange = await tx.exchange.findUnique({
       where: { inviteCode: code },
-      select: { id: true, status: true },
+      select: { id: true, status: true, giftGroupId: true },
     });
-    if (!exchange || exchange.status !== EXCHANGE_STATUS.GATHERING) {
+    if (
+      !exchange ||
+      exchange.giftGroupId ||
+      exchange.status !== EXCHANGE_STATUS.GATHERING
+    ) {
       return { status: 'INVALID' as const };
     }
     const existing = await tx.exchangeParticipant.findUnique({
@@ -1599,6 +1626,20 @@ export async function joinExchangeByCode({
     });
     return { status: 'JOINED' as const, exchangeId: exchange.id };
   });
+
+  // Completes the invite funnel that `invite_landed` opens — an entry event
+  // without a paired completion is a funnel that can only ever read 0%
+  // (the pairing convention lives in analytics.ts). After the transaction,
+  // like every other event in this module.
+  if (result.status === 'JOINED') {
+    queueLogEvent({
+      name: 'exchange_participant_opted_in',
+      userId,
+      source: 'server',
+      properties: { exchangeId: result.exchangeId, via: 'invite_link' },
+    });
+  }
+  return result;
 }
 
 // ─── Join prompt ──────────────────────────────────────────────────────────────

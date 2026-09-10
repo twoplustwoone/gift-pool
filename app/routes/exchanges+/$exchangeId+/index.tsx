@@ -71,7 +71,7 @@ const ExchangePage = () => {
     enabled: status === 'GATHERING' || status === 'DRAWN',
   });
   if (!data) return null;
-  const { view, viewerWishlistItemCount, reminder } = data;
+  const { view, viewerWishlistItemCount, reminder, origin } = data;
   const now = new Date(data.now);
   const timeZone = data.timeZone;
 
@@ -82,6 +82,7 @@ const ExchangePage = () => {
           view={view}
           viewerWishlistItemCount={viewerWishlistItemCount}
           reminder={reminder}
+          origin={origin}
         />
       );
     case 'DRAWN':
@@ -103,10 +104,12 @@ function Gathering({
   view,
   viewerWishlistItemCount,
   reminder,
+  origin,
 }: {
   view: ExchangeView;
   viewerWishlistItemCount: number | null;
   reminder: ExchangeReminderAvailability | null;
+  origin: string;
 }) {
   const { exchange, viewer, roster, counts } = view;
   const organizerFirst = firstName(exchange.organizer);
@@ -114,9 +117,6 @@ function Gathering({
   const removeExclusionFetcher = useFetcher();
   const reminderFetcher = useFetcher();
   const inviteFetcher = useFetcher();
-  // Built client-side so the link is always the origin the organizer is
-  // actually looking at, rather than one baked in at render time.
-  const origin = typeof window === 'undefined' ? '' : window.location.origin;
 
   const submit = (
     fetcher: ReturnType<typeof useFetcher>,

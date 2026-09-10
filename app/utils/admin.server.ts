@@ -1404,6 +1404,17 @@ export async function getDropOffFunnels({
           AND createdAt >= ${since}
       `;
 
+      // The same shape for standalone exchange links: only a link join
+      // carries via=invite_link, so opting in from a group roster (which saw
+      // no landing page) is correctly excluded.
+      const [exchangeInviteRows] = await prisma.$queryRaw<Array<{ n: bigint }>>`
+        SELECT COUNT(DISTINCT COALESCE(userId, eventId)) AS n
+        FROM AnalyticsEvent
+        WHERE name = 'exchange_participant_opted_in'
+          AND json_extract(properties, '$.via') = 'invite_link'
+          AND createdAt >= ${since}
+      `;
+
       const submitted = get('signup_submitted');
       const pctOfSubmitted = (n: number) =>
         submitted > 0 ? Math.round((n / submitted) * 100) : 0;
@@ -1445,6 +1456,12 @@ export async function getDropOffFunnels({
           landed: inviteCount('friend', true),
           deadLinkLandings: inviteCount('friend', false),
           completed: Number(friendInviteRows?.n ?? 0),
+        },
+        {
+          inviteType: 'exchange',
+          landed: inviteCount('exchange', true),
+          deadLinkLandings: inviteCount('exchange', false),
+          completed: Number(exchangeInviteRows?.n ?? 0),
         },
       ];
 

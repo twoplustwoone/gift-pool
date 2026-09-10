@@ -6,6 +6,7 @@ import {
 import { z } from 'zod';
 import { requireUserId } from '#app/utils/auth.server.ts';
 import { getHints } from '#app/utils/client-hints.tsx';
+import { getDomainUrl } from '#app/utils/misc.tsx';
 import { prisma } from '#app/utils/db.server.ts';
 import {
   GIFT_OUTCOME,
@@ -81,6 +82,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     timeZone,
     viewerWishlistItemCount,
     reminder,
+    // Built here rather than from `window.location` so the server and the
+    // browser render the same string — a mismatch makes React throw the
+    // markup away and re-render on hydration.
+    origin: getDomainUrl(request),
   };
 }
 

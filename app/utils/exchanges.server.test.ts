@@ -1397,6 +1397,36 @@ describe('standalone invite links', () => {
     ).toBe(0);
   });
 
+  it('refuses to mint a link for a group exchange', async () => {
+    // A group exchange's roster IS the group. A public link would be a way
+    // around membership, not an invitation to it.
+    const { id } = await createGroupExchange(f);
+    await expectThrows(
+      generateExchangeInviteCode({ exchangeId: id, actorId: f.organizer.id }),
+      409,
+    );
+  });
+
+  it('counts only the people who are actually in', async () => {
+    const { id } = await makeStandalone();
+    const code = await generateExchangeInviteCode({
+      exchangeId: id,
+      actorId: f.organizer.id,
+    });
+    await joinExchangeByCode({ code, userId: f.a.id, now: NOW });
+    await joinExchangeByCode({ code, userId: f.b.id, now: NOW });
+    expect((await getExchangeInvite(code))?.participantCount).toBe(3);
+
+    // Someone who sat it out is not "in so far".
+    await setParticipation({
+      exchangeId: id,
+      userId: f.b.id,
+      status: 'OUT',
+      now: NOW,
+    });
+    expect((await getExchangeInvite(code))?.participantCount).toBe(2);
+  });
+
   it("is the organizer's link to make", async () => {
     const { id } = await makeStandalone();
     await expectThrows(
