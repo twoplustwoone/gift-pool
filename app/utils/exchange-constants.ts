@@ -150,6 +150,10 @@ export const GIFT_OUTCOME_LABELS: Record<GiftOutcome, string> = {
 export const CANCEL_REASON = {
   ORGANIZER: 'ORGANIZER',
   TOO_FEW_AFTER_LEAVE: 'TOO_FEW_AFTER_LEAVE',
+  // Removing someone from a drawn loop would have joined two people who are
+  // excluded from each other. Exclusions are hard, so the exchange stops
+  // rather than quietly pairing a couple who asked not to be paired.
+  EXCLUSIONS_AFTER_LEAVE: 'EXCLUSIONS_AFTER_LEAVE',
 } as const;
 
 export type CancelReason = (typeof CANCEL_REASON)[keyof typeof CANCEL_REASON];

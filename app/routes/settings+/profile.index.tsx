@@ -31,7 +31,10 @@ import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Text } from '#app/components/ui-kit/text.tsx';
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
-import { prepareExchangesForAccountDeletion } from '#app/utils/exchanges.server.ts';
+import {
+  announceExchangeAccountDeletion,
+  prepareExchangesForAccountDeletion,
+} from '#app/utils/exchanges.server.ts';
 import { useDoubleCheck } from '#app/utils/misc.tsx';
 import { queueWishlistClaimTransferredNotification } from '#app/utils/pool.server.ts';
 import { authSessionStorage } from '#app/utils/session.server.ts';
@@ -852,9 +855,18 @@ async function deleteDataAction({ userId }: ProfileActionArgs) {
   // `Exchange.organizerId` — deleting an organizer would delete the whole
   // exchange for their group, and deleting a participant mid-draw would leave
   // two other people with a broken loop and no explanation. Splice, hand over
-  // or cancel first, while the rows still exist.
-  await prepareExchangesForAccountDeletion({ userId });
-  await prisma.user.delete({ where: { id: userId } });
+  // or cancel first, in the same transaction as the deletion itself: if the
+  // delete fails on some other constraint, the exchange must not be left
+  // detached from an account that still exists.
+  const exchangeSummary = await prisma.$transaction(async (tx) => {
+    const summary = await prepareExchangesForAccountDeletion({
+      userId,
+      db: tx,
+    });
+    await tx.user.delete({ where: { id: userId } });
+    return summary;
+  });
+  announceExchangeAccountDeletion(exchangeSummary);
   return redirectWithToast('/', {
     type: 'success',
     title: 'Data Deleted',
