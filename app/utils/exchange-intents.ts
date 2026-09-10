@@ -18,6 +18,7 @@ export const EXCHANGE_INTENT = {
   SendClue: 'send-clue',
   SetGuess: 'set-guess',
   SendThanks: 'send-thanks',
+  SendReminder: 'send-reminder',
 } as const;
 
 export type ExchangeIntent =

@@ -1198,6 +1198,17 @@ export {
   type ExchangePerson,
 } from './exchange-access.server.ts';
 
+// Reminders reach routes through here too — `exchanges.server.ts` is the only
+// exchange seam a route may call (AGENTS.md).
+export {
+  previewExchangeReminder,
+  sendExchangeReminder,
+  EXCHANGE_REMINDER_KIND,
+  type ExchangeReminderAvailability,
+  type ExchangeReminderKind,
+  type ExchangeReminderSendResult,
+} from './exchange-reminders.server.ts';
+
 // ─── Notes, clues and guesses ─────────────────────────────────────────────────
 
 // Routes call only this module (AGENTS.md), so the notes half is re-exported

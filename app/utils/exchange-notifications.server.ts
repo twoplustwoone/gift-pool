@@ -57,7 +57,9 @@ async function pendingCurrentMemberIds(
     where: {
       exchangeId,
       status: PARTICIPANT_STATUS.PENDING,
-      user: { giftGroups: { some: { giftGroupId } } },
+      // `removedAt` matters: membership is soft-removed, so without it
+      // somebody who left the group still gets told about its exchange.
+      user: { giftGroups: { some: { giftGroupId, removedAt: null } } },
     },
     select: { userId: true },
   });
@@ -263,5 +265,50 @@ export function queueExchangeNotesDelivered(
       return batches.length;
     })(),
     { moment: 'notes-delivered', batches: batches.length },
+  );
+}
+
+// Reminds the people who have not answered yet. The organizer is told how
+// many, never which — so this takes no recipient list from the caller and
+// returns no names.
+export function queueExchangeReminder(
+  exchangeId: string,
+  {
+    senderId,
+    giftGroupId,
+    now = new Date(),
+  }: { senderId: string; giftGroupId: string | null; now?: Date },
+): void {
+  background(
+    (async () => {
+      const pending = giftGroupId
+        ? await pendingCurrentMemberIds(exchangeId, giftGroupId)
+        : (
+            await prisma.exchangeParticipant.findMany({
+              where: { exchangeId, status: PARTICIPANT_STATUS.PENDING },
+              select: { userId: true },
+            })
+          ).map((p) => p.userId);
+      return fanOut(exchangeId, {
+        type: NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER,
+        userIds: pending.filter((id) => id !== senderId),
+        // GROUP-scoped, like EXCHANGE_STARTED and for the same reason: the
+        // recipient has NOT opted into this exchange, so a group they muted
+        // is exactly the preference that should govern whether they hear
+        // about it. The key moments are context: 'NONE' because those go to
+        // people who did opt in.
+        ...(giftGroupId
+          ? { context: { kind: 'GROUP' as const, groupId: giftGroupId } }
+          : {}),
+        buildPayload: (e) => ({
+          exchangeId: e.id,
+          exchangeTitle: e.title,
+          organizerUserId: e.organizerId,
+          organizerDisplayName: e.organizerDisplayName,
+          reminderAt: now,
+        }),
+      });
+    })(),
+    { exchangeId, moment: 'reminder' },
   );
 }

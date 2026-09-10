@@ -10,6 +10,7 @@ import userEvent from '@testing-library/user-event';
 import * as ReactRouter from 'react-router';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { type ExchangeReminderAvailability } from '#app/utils/exchange-reminders.server.ts';
 import {
   type ExchangePerson,
   type ExchangeView,
@@ -20,11 +21,13 @@ const snapshot: {
   now: string;
   timeZone: string;
   viewerWishlistItemCount: number | null;
+  reminder: ExchangeReminderAvailability | null;
 } = {
   view: {} as ExchangeView,
   now: '2026-12-12T12:00:00Z',
   timeZone: 'UTC',
   viewerWishlistItemCount: 3,
+  reminder: null,
 };
 
 // Lets a test put a server refusal in front of the page.
@@ -149,9 +152,14 @@ function baseView(overrides: Partial<ExchangeView> = {}): ExchangeView {
   };
 }
 
-const renderPage = (view: ExchangeView, wishlistCount: number | null = 3) => {
+const renderPage = (
+  view: ExchangeView,
+  wishlistCount: number | null = 3,
+  reminder: ExchangeReminderAvailability | null = null,
+) => {
   snapshot.view = view;
   snapshot.viewerWishlistItemCount = wishlistCount;
+  snapshot.reminder = reminder;
   return render(
     <MemoryRouter initialEntries={['/exchanges/x1']}>
       <ExchangePage />
@@ -164,6 +172,33 @@ beforeEach(() => {
 });
 
 describe('gathering', () => {
+  it('lets the organizer remind the people who have not answered', async () => {
+    const user = userEvent.setup();
+    renderPage(
+      baseView({
+        viewer: {
+          id: 'fd',
+          role: 'ORGANIZER',
+          participation: 'IN',
+          dismissedJoinPrompt: false,
+        },
+      }),
+      3,
+      { status: 'AVAILABLE', kind: 'ANSWER', eligibleCount: 2 },
+    );
+    await user.click(screen.getByRole('button', { name: 'Remind' }));
+    expect(
+      screen.getByText(/2 people haven't answered yet/),
+    ).toBeInTheDocument();
+    // The organizer is told how many, never which.
+    expect(screen.queryByText(/Agustin Luque haven/)).not.toBeInTheDocument();
+  });
+
+  it('offers no reminder to a participant', () => {
+    renderPage(baseView(), 3, null);
+    expect(screen.queryByRole('button', { name: 'Remind' })).toBeNull();
+  });
+
   it('gives the organizer the roster, the draw sentence and the secrecy boundary', () => {
     renderPage(
       baseView({

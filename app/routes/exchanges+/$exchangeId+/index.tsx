@@ -19,10 +19,13 @@ import {
   NoteComposer,
 } from '#app/components/exchanges/note-composer.tsx';
 import { NotesThreads } from '#app/components/exchanges/notes-threads.tsx';
+import { ExchangeReminderAction } from '#app/components/exchanges/reminder-action.tsx';
 import {
   Scoreboard,
   ThankYouComposer,
 } from '#app/components/exchanges/scoreboard.tsx';
+import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
+import { type ExchangeReminderAvailability } from '#app/utils/exchange-reminders.server.ts';
 import { OrganizerProgressPanel } from '#app/components/exchanges/organizer-progress-panel.tsx';
 import { ReceivedCard } from '#app/components/exchanges/received-card.tsx';
 import { RevealControls } from '#app/components/exchanges/reveal-controls.tsx';
@@ -67,7 +70,7 @@ const ExchangePage = () => {
     enabled: status === 'GATHERING' || status === 'DRAWN',
   });
   if (!data) return null;
-  const { view, viewerWishlistItemCount } = data;
+  const { view, viewerWishlistItemCount, reminder } = data;
   const now = new Date(data.now);
   const timeZone = data.timeZone;
 
@@ -77,6 +80,7 @@ const ExchangePage = () => {
         <Gathering
           view={view}
           viewerWishlistItemCount={viewerWishlistItemCount}
+          reminder={reminder}
         />
       );
     case 'DRAWN':
@@ -97,14 +101,17 @@ export default ExchangePage;
 function Gathering({
   view,
   viewerWishlistItemCount,
+  reminder,
 }: {
   view: ExchangeView;
   viewerWishlistItemCount: number | null;
+  reminder: ExchangeReminderAvailability | null;
 }) {
   const { exchange, viewer, roster, counts } = view;
   const organizerFirst = firstName(exchange.organizer);
   const participationFetcher = useFetcher();
   const removeExclusionFetcher = useFetcher();
+  const reminderFetcher = useFetcher();
 
   const submit = (
     fetcher: ReturnType<typeof useFetcher>,
@@ -128,6 +135,21 @@ function Gathering({
             }
           >
             <ExchangeRoster roster={roster} viewerId={viewer.id} />
+            {reminder ? (
+              <div className="mt-4">
+                <ExchangeReminderAction
+                  availability={reminder}
+                  pending={reminderFetcher.state !== 'idle'}
+                  onSend={() =>
+                    submit(reminderFetcher, {
+                      intent: EXCHANGE_INTENT.SendReminder,
+                      exchangeId: exchange.id,
+                      idempotencyKey: createClientMutationId(),
+                    })
+                  }
+                />
+              </div>
+            ) : null}
           </Section>
           {view.draw ? (
             <DrawControls

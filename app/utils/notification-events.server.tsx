@@ -105,6 +105,8 @@ export function getNotificationOccurrenceKey(
     // is one line, so three notes don't buzz three times.
     case NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED:
       return `exchange-note:${intent.payload.noteId}`;
+    case NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER:
+      return `exchange-reminder:${intent.payload.exchangeId}:${intent.payload.reminderAt.toISOString()}`;
   }
 }
 
@@ -140,6 +142,7 @@ export async function renderNotificationChannel<C extends NotificationChannel>(
     case NOTIFICATION_TYPES.EXCHANGE_REVEALED:
     case NOTIFICATION_TYPES.EXCHANGE_CANCELLED:
     case NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED:
+    case NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER:
       return renderExchangeEvent(intent, channel);
   }
 }
@@ -153,14 +156,16 @@ type ExchangeCopy = {
     | 'notifications.exchangeRevealed.message'
     | 'notifications.exchangeFinished.message'
     | 'notifications.exchangeCancelled.message'
-    | 'notifications.exchangeNoteReceived.message';
+    | 'notifications.exchangeNoteReceived.message'
+    | 'notifications.exchangeAnswerReminder.message';
   pushTitleKey:
     | 'notifications.exchangeStarted.pushTitle'
     | 'notifications.exchangeNamesDrawn.pushTitle'
     | 'notifications.exchangeRevealed.pushTitle'
     | 'notifications.exchangeFinished.pushTitle'
     | 'notifications.exchangeCancelled.pushTitle'
-    | 'notifications.exchangeNoteReceived.pushTitle';
+    | 'notifications.exchangeNoteReceived.pushTitle'
+    | 'notifications.exchangeAnswerReminder.pushTitle';
   messageParams: Record<string, string>;
   emailBody: string;
   buttonLabel: string;
@@ -228,6 +233,20 @@ function getExchangeCopy(intent: ExchangeIntent): ExchangeCopy {
         buttonLabel: 'Read it',
       };
     }
+    // Never says who else was reminded, or how many: the organizer sees a
+    // count and the recipient sees only their own invitation.
+    case NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER:
+      return {
+        messageKey: 'notifications.exchangeAnswerReminder.message',
+        pushTitleKey: 'notifications.exchangeAnswerReminder.pushTitle',
+        messageParams: {
+          exchange,
+          organizer: intent.payload.organizerDisplayName,
+        },
+        emailBody:
+          'Names get drawn once everyone has answered. Say yes or sit this one out — either is fine, but the draw is waiting.',
+        buttonLabel: 'Answer now',
+      };
     case NOTIFICATION_TYPES.EXCHANGE_CANCELLED:
       return {
         messageKey: 'notifications.exchangeCancelled.message',

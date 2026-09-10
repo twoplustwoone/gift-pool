@@ -18,6 +18,7 @@ import {
   defaultAutoRevealInstant,
 } from '#app/utils/exchange-dates.ts';
 import { EXCHANGE_INTENT } from '#app/utils/exchange-intents.ts';
+
 import {
   addExclusion,
   cancelExchange,
@@ -25,8 +26,10 @@ import {
   drawNames,
   getViewerProjection,
   markAssignmentViewed,
+  previewExchangeReminder,
   removeExclusion,
   reveal,
+  sendExchangeReminder,
   sendNote,
   setGiftLabel,
   setGiftStage,
@@ -61,7 +64,23 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
           where: { ownerId: userId, status: 'ACTIVE' },
         })
       : null;
-  return { view, now: now.toISOString(), timeZone, viewerWishlistItemCount };
+  // Only the organizer, and only while answers still matter. The count is
+  // aggregate — there is no recipient list to hand the page.
+  const reminder =
+    view.viewer.role === 'ORGANIZER' && view.exchange.status === 'GATHERING'
+      ? await previewExchangeReminder({
+          exchangeId: params.exchangeId!,
+          actorId: userId,
+          now,
+        })
+      : null;
+  return {
+    view,
+    now: now.toISOString(),
+    timeZone,
+    viewerWishlistItemCount,
+    reminder,
+  };
 }
 
 // ─── Action ───────────────────────────────────────────────────────────────────
@@ -121,6 +140,10 @@ const ActionSchema = z.discriminatedUnion('intent', [
   Base.extend({
     intent: z.literal(EXCHANGE_INTENT.SendThanks),
     presetKey: z.string().min(1).max(64),
+  }),
+  Base.extend({
+    intent: z.literal(EXCHANGE_INTENT.SendReminder),
+    idempotencyKey: z.string().min(1).max(64),
   }),
   Base.extend({
     intent: z.literal(EXCHANGE_INTENT.UpdateSettings),
@@ -245,6 +268,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
           presetKey: v.presetKey,
         });
         return data({ ok: true });
+      case EXCHANGE_INTENT.SendReminder: {
+        const result = await sendExchangeReminder({
+          exchangeId,
+          actorId: userId,
+          idempotencyKey: v.idempotencyKey,
+        });
+        return data({ ok: true, reminder: result });
+      }
       case EXCHANGE_INTENT.SendThanks:
         await sendNote({
           exchangeId,

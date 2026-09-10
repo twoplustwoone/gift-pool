@@ -103,12 +103,14 @@ describe('notification catalog', () => {
     ];
 
     expect(getNotificationTopicsForContext('POOL')).toEqual(poolTopics);
-    // EXCHANGE_STARTED is the one exchange event with GROUP context, so its
-    // topic appears under group controls only — a muted group stays quiet
-    // about new exchanges but can never swallow a draw or reveal.
+    // The two exchange events aimed at people who have NOT opted in carry
+    // GROUP context, so their topics appear under group controls: a muted
+    // group stays quiet about a new exchange and about being chased for an
+    // answer, but can never swallow a draw or a reveal.
     expect(getNotificationTopicsForContext('GROUP')).toEqual([
       ...poolTopics,
       NOTIFICATION_TOPICS.EXCHANGE_INVITATIONS,
+      NOTIFICATION_TOPICS.EXCHANGE_REMINDERS,
     ]);
   });
 
