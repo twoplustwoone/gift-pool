@@ -31,6 +31,10 @@ import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Text } from '#app/components/ui-kit/text.tsx';
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
+import {
+  announceExchangeAccountDeletion,
+  prepareExchangesForAccountDeletion,
+} from '#app/utils/exchanges.server.ts';
 import { useDoubleCheck } from '#app/utils/misc.tsx';
 import { queueWishlistClaimTransferredNotification } from '#app/utils/pool.server.ts';
 import { authSessionStorage } from '#app/utils/session.server.ts';
@@ -154,12 +158,7 @@ const SettingsProfileHub = () => {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
-        <Text
-          as="h1"
-          size="2xl"
-          weight="semibold"
-          className="text-foreground"
-        >
+        <Text as="h1" size="2xl" weight="semibold" className="text-foreground">
           Settings
         </Text>
         <Text size="sm" className="text-muted-foreground">
@@ -370,7 +369,9 @@ function AccountCard() {
           to={data.hasPassword ? 'password' : 'password/create'}
           icon="dots-horizontal"
           label="Password"
-          value={data.hasPassword ? 'Change your password' : 'Create a password'}
+          value={
+            data.hasPassword ? 'Change your password' : 'Create a password'
+          }
           accessibleName={
             data.hasPassword ? 'Change password' : 'Create password'
           }
@@ -380,7 +381,9 @@ function AccountCard() {
           icon={data.isTwoFactorEnabled ? 'lock-closed' : 'lock-open-1'}
           label="Two-factor authentication"
           value={data.isTwoFactorEnabled ? 'Enabled' : 'Not enabled'}
-          accessibleName={data.isTwoFactorEnabled ? 'Disable 2FA' : 'Enable 2FA'}
+          accessibleName={
+            data.isTwoFactorEnabled ? 'Disable 2FA' : 'Enable 2FA'
+          }
         />
       </div>
     </Card>
@@ -430,8 +433,7 @@ const WISHLIST_PRIVACY_OPTIONS: ReadonlyArray<{
   {
     value: 'FRIENDS_OF_FRIENDS',
     label: 'Friends of friends',
-    description:
-      'Your friends and people who share mutual friends with you.',
+    description: 'Your friends and people who share mutual friends with you.',
   },
   {
     value: 'FRIENDS',
@@ -455,7 +457,9 @@ function VisibilityRadioGroup<T extends string>({
 }) {
   return (
     <fieldset className="flex flex-col gap-3">
-      <legend className="mb-1 text-sm font-medium text-foreground">{legend}</legend>
+      <legend className="mb-1 text-sm font-medium text-foreground">
+        {legend}
+      </legend>
       {options.map((option) => {
         const id = `${name}-${option.value}`;
         const isSelected = selected === option.value;
@@ -847,7 +851,22 @@ async function deleteDataAction({ userId }: ProfileActionArgs) {
       release.transferredClaimId,
     );
   }
-  await prisma.user.delete({ where: { id: userId } });
+  // Every exchange foreign key to User cascades, including
+  // `Exchange.organizerId` — deleting an organizer would delete the whole
+  // exchange for their group, and deleting a participant mid-draw would leave
+  // two other people with a broken loop and no explanation. Splice, hand over
+  // or cancel first, in the same transaction as the deletion itself: if the
+  // delete fails on some other constraint, the exchange must not be left
+  // detached from an account that still exists.
+  const exchangeSummary = await prisma.$transaction(async (tx) => {
+    const summary = await prepareExchangesForAccountDeletion({
+      userId,
+      db: tx,
+    });
+    await tx.user.delete({ where: { id: userId } });
+    return summary;
+  });
+  announceExchangeAccountDeletion(exchangeSummary);
   return redirectWithToast('/', {
     type: 'success',
     title: 'Data Deleted',
