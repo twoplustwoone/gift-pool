@@ -19,6 +19,7 @@ export const NOTIFICATION_TYPES = {
   EXCHANGE_REVEALED: 'EXCHANGE_REVEALED',
   EXCHANGE_CANCELLED: 'EXCHANGE_CANCELLED',
   EXCHANGE_NOTE_RECEIVED: 'EXCHANGE_NOTE_RECEIVED',
+  EXCHANGE_ANSWER_REMINDER: 'EXCHANGE_ANSWER_REMINDER',
 } as const;
 
 export type NotificationType =
@@ -83,6 +84,7 @@ export const EXCHANGE_NOTIFICATION_TYPES = [
   NOTIFICATION_TYPES.EXCHANGE_REVEALED,
   NOTIFICATION_TYPES.EXCHANGE_CANCELLED,
   NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED,
+  NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER,
 ] as const;
 
 export type ExchangeNotificationType =
@@ -158,6 +160,7 @@ export const NOTIFICATION_TOPICS = {
   EXCHANGE_KEY_MOMENTS: 'EXCHANGE_KEY_MOMENTS',
   EXCHANGE_INVITATIONS: 'EXCHANGE_INVITATIONS',
   EXCHANGE_NOTES: 'EXCHANGE_NOTES',
+  EXCHANGE_REMINDERS: 'EXCHANGE_REMINDERS',
 } as const;
 
 export type NotificationTopic =
@@ -301,6 +304,17 @@ export const NOTIFICATION_TOPIC_CATALOG = {
     // Push off by default like every other topic — that invariant is asserted
     // repo-wide in notification-catalog.test.ts, and a note is not urgent
     // enough to be the exception that breaks it.
+    defaults: {
+      inAppEnabled: true,
+      emailEnabled: false,
+      pushEnabled: false,
+    },
+  },
+  [NOTIFICATION_TOPICS.EXCHANGE_REMINDERS]: {
+    category: NOTIFICATION_CATEGORIES.EXCHANGES,
+    label: 'Exchange reminders',
+    description:
+      'When an organizer reminds the group about something the exchange needs.',
     defaults: {
       inAppEnabled: true,
       emailEnabled: false,
@@ -484,6 +498,16 @@ export const NOTIFICATION_EVENT_CATALOG = {
   // the thread is that you don't know who wrote it.
   [NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED]: {
     topic: NOTIFICATION_TOPICS.EXCHANGE_NOTES,
+    importance: 'ROUTINE',
+    context: 'NONE',
+    supportedChannels: allChannels,
+    deliveryStrategy: 'PER_CHANNEL_LEDGER',
+  },
+  // context: 'NONE' like the other exchange moments — a reminder is about an
+  // exchange someone was invited to, and a muted group must not swallow the
+  // one message asking them to answer before the draw closes.
+  [NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER]: {
+    topic: NOTIFICATION_TOPICS.EXCHANGE_REMINDERS,
     importance: 'ROUTINE',
     context: 'NONE',
     supportedChannels: allChannels,
@@ -714,6 +738,10 @@ type PayloadByType = {
   // No sender, no text: the notification says a note arrived and where to
   // read it. Anything more would either name the person or let the body be
   // read from a lock screen by whoever is standing next to them.
+  [NOTIFICATION_TYPES.EXCHANGE_ANSWER_REMINDER]: ExchangeEventPayload & {
+    /** Distinguishes one send from the next in the ledger. */
+    reminderAt: Date;
+  };
   [NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED]: ExchangeEventPayload & {
     noteId: string;
     /** Their gifter's thread, or their own person's reply. */

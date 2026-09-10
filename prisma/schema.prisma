@@ -83,6 +83,7 @@ model User {
   exchangeNotesSent            ExchangeNote[]                @relation("ExchangeNote_Sender")
   exchangeGuesses              ExchangeGuess[]               @relation("ExchangeGuess_Guesser")
   exchangeGuessedAs            ExchangeGuess[]               @relation("ExchangeGuess_Guessed")
+  exchangeRemindersSent        ExchangeReminder[]            @relation("ExchangeReminder_Sender")
   feedback                     Feedback[]
   consents                     Consent[]
   // Person-surface memory relations
@@ -586,6 +587,7 @@ model Exchange {
   joinPromptDismissals ExchangeJoinPromptDismissal[]
   notes                ExchangeNote[]
   guesses              ExchangeGuess[]
+  reminders            ExchangeReminder[]
 
   @@index([giftGroupId])
   @@index([organizerId])
@@ -716,6 +718,31 @@ model ExchangeGuess {
 
   @@unique([exchangeId, guesserId])
   @@index([exchangeId])
+}
+
+// The durable record of a reminder having been sent, and the only thing the
+// limits are counted from. Deliberately NOT a generalisation of OrganizerNudge:
+// that module is 687 lines of pool-shaped limits with a required poolId, and
+// widening it for one exchange preset would have meant rebuilding its table
+// and rewriting every limit query in a working, money-adjacent flow.
+//
+// There is no recipient table on purpose. The organizer never learns who
+// received a reminder, so storing it would create a record nothing may read.
+model ExchangeReminder {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  exchangeId     String
+  senderId       String
+  kind           String
+  idempotencyKey String
+  targetCount    Int
+
+  exchange Exchange @relation(fields: [exchangeId], references: [id], onDelete: Cascade)
+  sender   User     @relation("ExchangeReminder_Sender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, idempotencyKey])
+  @@index([exchangeId, kind, createdAt])
+  @@index([exchangeId, createdAt])
 }
 
 model ExchangeJoinPromptDismissal {

@@ -125,6 +125,10 @@ export const en = {
       message: '{{exchange}} was cancelled',
       pushTitle: 'Gift exchange cancelled',
     },
+    exchangeAnswerReminder: {
+      message: '{{organizer}} is waiting on your answer for {{exchange}}',
+      pushTitle: 'The draw is waiting',
+    },
     exchangeNoteReceived: {
       // Never the note's text and never its sender: this line is read on a
       // lock screen, and not knowing who wrote it is the point.
