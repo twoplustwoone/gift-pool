@@ -99,10 +99,14 @@ COPY --from=build /myapp/package.json /myapp/package.json
 COPY --from=build /myapp/prisma /myapp/prisma
 COPY --from=build /myapp/public /myapp/public
 COPY --from=build /myapp/app/components/ui/icons /myapp/app/components/ui/icons
-# The daily occasion-reminder scheduled Machine runs this script from the
-# same image (`--entrypoint "node other/trigger-occasion-reminders.js"`) —
-# without this COPY it dies with MODULE_NOT_FOUND before POSTing the sweep.
+# Every scheduled Machine runs its trigger script out of this same image
+# (`--entrypoint "node other/trigger-<name>.js"`). A script that isn't copied
+# here dies with MODULE_NOT_FOUND on each schedule tick, and the only symptom
+# is a stopped machine with exit code 1 that nobody is watching — which is
+# exactly what happened to the exchange sweeps. Adding a trigger script means
+# adding a line here; `scheduled-trigger-image.test.ts` fails if you forget.
 COPY --from=build /myapp/other/trigger-occasion-reminders.js /myapp/other/trigger-occasion-reminders.js
+COPY --from=build /myapp/other/trigger-exchange-sweeps.js /myapp/other/trigger-exchange-sweeps.js
 
 # prepare for litefs
 COPY --from=flyio/litefs:0.5.14 /usr/local/bin/litefs /usr/local/bin/litefs
