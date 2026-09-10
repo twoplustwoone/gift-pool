@@ -30,9 +30,11 @@ import { createExchange } from '#app/utils/exchanges.server.ts';
 import { OCCASION_TYPE } from '#app/utils/pool-constants.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 
-// Phase A: exchanges are started from a group. Standalone exchanges (joined by
-// invite link) arrive with Phase C; until then there is no way to gather
-// people for one, so the form does not offer it.
+// Two doors (board §8): from a group overview the group is pre-filled and its
+// members are asked to join; from here the first question is group or
+// standalone. A standalone exchange has no roster to opt in, so it gathers
+// people through an invite link instead — and has no "someone new" lookback,
+// because it has no prior draws to look back at.
 export async function loader({ request }: LoaderFunctionArgs) {
   const userId = await requireUserId(request);
   const url = new URL(request.url);
@@ -57,9 +59,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
     memberCount: m.giftGroup._count.groupMembers,
   }));
 
+  const standalone = url.searchParams.get('standalone') === '1';
   const selected = groupId ? groups.find((g) => g.id === groupId) : undefined;
   if (!selected) {
-    return { groups, group: null };
+    return { groups, group: null, standalone };
   }
   const members = await prisma.usersInGiftGroups.findMany({
     where: { giftGroupId: selected.id },
@@ -76,6 +79,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   });
   return {
     groups,
+    standalone: false,
     group: {
       ...selected,
       members: members.map((m) => m.user),
@@ -89,7 +93,8 @@ const OnOff = z
   .transform((v) => v === 'on');
 
 export const CreateExchangeSchema = z.object({
-  giftGroupId: z.string().min(1),
+  // Empty for a standalone exchange: there is no group to belong to.
+  giftGroupId: z.string().optional(),
   title: z.string().trim().min(1, 'Give the exchange a name.').max(100),
   occasionType: z
     .string()
@@ -194,7 +199,7 @@ export async function action({ request }: ActionFunctionArgs) {
       occasionType: v.occasionType as keyof typeof OCCASION_TYPE,
       eventDate,
       spendingGuideline: v.spendingGuideline || null,
-      giftGroupId: v.giftGroupId,
+      giftGroupId: v.giftGroupId || null,
       revealMode: v.revealMode,
       autoRevealAt,
       avoidRepeatsLookback: v.avoidRepeats ? 2 : null,
@@ -225,7 +230,7 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 
 const NewExchange = () => {
-  const { groups, group } = useLoaderData<typeof loader>();
+  const { groups, group, standalone } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submitting = navigation.state !== 'idle';
@@ -242,7 +247,7 @@ const NewExchange = () => {
         contentWidth="narrow"
       />
       <PageShell width="narrow" className="min-h-0 flex-1 py-6">
-        {!group ? (
+        {!group && !standalone ? (
           <Stack gap={4}>
             <Text size="sm" color="muted">
               Which group is this for? The people in it will be asked to join.
@@ -285,19 +290,38 @@ const NewExchange = () => {
                 ))}
               </ul>
             )}
+            {/* The second door: no group, gathered by link instead. */}
+            <Card>
+              <Text weight="semibold">Or start one on its own</Text>
+              <Text size="sm" color="muted" className="mt-1 block">
+                No group needed — you&apos;ll get a link to send to whoever you
+                like. They can join until you draw.
+              </Text>
+              <Button asChild variant="outline" className="mt-4">
+                <Link to="/exchanges/new?standalone=1">
+                  Start a standalone exchange
+                </Link>
+              </Button>
+            </Card>
           </Stack>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
             <Form method="post" className="space-y-6">
-              <input type="hidden" name="giftGroupId" value={group.id} />
+              <input type="hidden" name="giftGroupId" value={group?.id ?? ''} />
               <Text size="sm" color="muted">
-                In group{' '}
-                <Link
-                  to={`/groups/${group.id}`}
-                  className="font-medium text-foreground"
-                >
-                  {group.name}
-                </Link>
+                {group ? (
+                  <>
+                    In group{' '}
+                    <Link
+                      to={`/groups/${group.id}`}
+                      className="font-medium text-foreground"
+                    >
+                      {group.name}
+                    </Link>
+                  </>
+                ) : (
+                  <>On its own — you&apos;ll invite people by link</>
+                )}
                 {' · '}
                 <Link to="/exchanges/new" className="underline">
                   change
@@ -305,12 +329,14 @@ const NewExchange = () => {
               </Text>
               <ExchangeSettingsFields
                 mode="create"
-                isGroup
-                groupName={group.name}
-                members={group.members}
+                isGroup={group !== null}
+                groupName={group?.name ?? ''}
+                members={group?.members ?? []}
                 errors={errors}
                 defaults={{
-                  title: `${group.name} ${new Date().getFullYear()}`,
+                  title: group
+                    ? `${group.name} ${new Date().getFullYear()}`
+                    : `Gift exchange ${new Date().getFullYear()}`,
                 }}
               />
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -319,14 +345,20 @@ const NewExchange = () => {
                   disabled={submitting}
                   className="w-full sm:w-auto"
                 >
-                  {submitting ? 'Saving…' : 'Save and gather people'}
+                  {submitting
+                    ? 'Saving…'
+                    : group
+                      ? 'Save and gather people'
+                      : 'Save and get a link'}
                 </Button>
                 <Button asChild variant="ghost">
                   <Link to="/exchanges">Cancel</Link>
                 </Button>
               </div>
               <Text size="xs" color="muted">
-                You'll draw names once everyone's in.
+                {group
+                  ? "You'll draw names once everyone's in."
+                  : "You'll get a link to send. Draw names once everyone's in."}
               </Text>
             </Form>
             <aside className="space-y-4">
@@ -340,7 +372,11 @@ const NewExchange = () => {
                   What happens next
                 </Text>
                 <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-                  <li>{group.name} members opt in.</li>
+                  <li>
+                    {group
+                      ? `${group.name} members opt in.`
+                      : 'You send the link. Whoever follows it is in.'}
+                  </li>
                   <li>You draw names. That's the point of no return.</li>
                   <li>Everyone gives their gift.</li>
                   <li>You reveal — or Gift Pool does it for you.</li>

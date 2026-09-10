@@ -18,6 +18,7 @@ import {
   CluePicker,
   NoteComposer,
 } from '#app/components/exchanges/note-composer.tsx';
+import { InviteLinkCard } from '#app/components/exchanges/invite-link-card.tsx';
 import { NotesThreads } from '#app/components/exchanges/notes-threads.tsx';
 import { ExchangeReminderAction } from '#app/components/exchanges/reminder-action.tsx';
 import {
@@ -112,6 +113,10 @@ function Gathering({
   const participationFetcher = useFetcher();
   const removeExclusionFetcher = useFetcher();
   const reminderFetcher = useFetcher();
+  const inviteFetcher = useFetcher();
+  // Built client-side so the link is always the origin the organizer is
+  // actually looking at, rather than one baked in at render time.
+  const origin = typeof window === 'undefined' ? '' : window.location.origin;
 
   const submit = (
     fetcher: ReturnType<typeof useFetcher>,
@@ -135,6 +140,32 @@ function Gathering({
             }
           >
             <ExchangeRoster roster={roster} viewerId={viewer.id} />
+            {/* A standalone exchange has no group to chase, so there is
+                nobody to remind — the link is how people get in. */}
+            {!exchange.giftGroup && viewer.role === 'ORGANIZER' ? (
+              <div className="mt-4">
+                <InviteLinkCard
+                  inviteUrl={
+                    exchange.inviteCode
+                      ? `${origin}/exchanges/join/${exchange.inviteCode}`
+                      : null
+                  }
+                  pending={inviteFetcher.state !== 'idle'}
+                  onGenerate={() =>
+                    submit(inviteFetcher, {
+                      intent: EXCHANGE_INTENT.CreateInviteLink,
+                      exchangeId: exchange.id,
+                    })
+                  }
+                  onReplace={() =>
+                    submit(inviteFetcher, {
+                      intent: EXCHANGE_INTENT.ReplaceInviteLink,
+                      exchangeId: exchange.id,
+                    })
+                  }
+                />
+              </div>
+            ) : null}
             {reminder ? (
               <div className="mt-4">
                 <ExchangeReminderAction

@@ -211,6 +211,8 @@ app.use((req, res, next) => {
     // Each unfurl triggers an outbound page fetch (and possibly an LLM call),
     // so it gets the strictest tier.
     '/api/wishlist/unfurl',
+    // Joining by invite code: an unauthenticated POST that mutates a roster.
+    '/exchanges/join/',
   ];
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     if (strongPaths.some((p) => req.path.includes(p))) {
@@ -222,6 +224,13 @@ app.use((req, res, next) => {
   // the verify route is a special case because it's a GET route that
   // can have a token in the query string
   if (req.path.includes('/verify')) {
+    return strongestRateLimit(req, res, next);
+  }
+
+  // An exchange invite code sits in the URL of a GET, like verify does, and
+  // an anonymous visitor can hit it — so the guessing budget has to be the
+  // strict one rather than the general page tier.
+  if (req.path.includes('/exchanges/join/')) {
     return strongestRateLimit(req, res, next);
   }
 

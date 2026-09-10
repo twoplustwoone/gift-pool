@@ -49,6 +49,10 @@ import {
   addExclusion,
   markAssignmentViewed,
   dismissJoinPrompt,
+  generateExchangeInviteCode,
+  getExchangeInvite,
+  joinExchangeByCode,
+  revokeExchangeInviteCode,
   announceExchangeAccountDeletion,
   prepareExchangesForAccountDeletion,
   type ExchangeView,
@@ -1271,5 +1275,133 @@ describe('prepareExchangesForAccountDeletion', () => {
       where: { exchangeId: id },
     });
     expect(rows.map((r) => r.userId)).not.toContain(f.a.id);
+  });
+});
+
+describe('standalone invite links', () => {
+  async function makeStandalone() {
+    return createExchange({
+      organizerId: f.organizer.id,
+      title: 'Studio Christmas',
+      eventDate: EVENT,
+      giftGroupId: null,
+      now: NOW,
+    });
+  }
+
+  it('gathers people by link when there is no group to gather from', async () => {
+    const { id } = await makeStandalone();
+    const code = await generateExchangeInviteCode({
+      exchangeId: id,
+      actorId: f.organizer.id,
+    });
+    expect(code).toHaveLength(10);
+
+    const invite = await getExchangeInvite(code);
+    expect(invite?.exchangeId).toBe(id);
+    expect(invite?.title).toBe('Studio Christmas');
+
+    const joined = await joinExchangeByCode({
+      code,
+      userId: f.outsider.id,
+      now: NOW,
+    });
+    expect(joined).toEqual({ status: 'JOINED', exchangeId: id });
+    const row = await prisma.exchangeParticipant.findFirstOrThrow({
+      where: { exchangeId: id, userId: f.outsider.id },
+    });
+    expect(row.status).toBe('IN');
+
+    // Following it again is not an error — it is just already true.
+    expect(
+      await joinExchangeByCode({ code, userId: f.outsider.id, now: NOW }),
+    ).toEqual({ status: 'ALREADY_IN', exchangeId: id });
+  });
+
+  it('lets someone who opted out change their mind through the link', async () => {
+    const { id } = await makeStandalone();
+    const code = await generateExchangeInviteCode({
+      exchangeId: id,
+      actorId: f.organizer.id,
+    });
+    await joinExchangeByCode({ code, userId: f.a.id, now: NOW });
+    await setParticipation({
+      exchangeId: id,
+      userId: f.a.id,
+      status: 'OUT',
+      now: NOW,
+    });
+
+    expect(
+      await joinExchangeByCode({ code, userId: f.a.id, now: NOW }),
+    ).toEqual({ status: 'JOINED', exchangeId: id });
+    const row = await prisma.exchangeParticipant.findFirstOrThrow({
+      where: { exchangeId: id, userId: f.a.id },
+    });
+    expect(row.status).toBe('IN');
+  });
+
+  it('gives every dead cause the same answer', async () => {
+    const { id } = await makeStandalone();
+    const code = await generateExchangeInviteCode({
+      exchangeId: id,
+      actorId: f.organizer.id,
+    });
+
+    // Replaced.
+    const replacement = await generateExchangeInviteCode({
+      exchangeId: id,
+      actorId: f.organizer.id,
+    });
+    expect(await getExchangeInvite(code)).toBeNull();
+    expect(await getExchangeInvite(replacement)).not.toBeNull();
+
+    // Revoked.
+    await revokeExchangeInviteCode({
+      exchangeId: id,
+      actorId: f.organizer.id,
+    });
+    expect(await getExchangeInvite(replacement)).toBeNull();
+
+    // Never existed.
+    expect(await getExchangeInvite('nope123456')).toBeNull();
+  });
+
+  it('closes the link once the names are drawn', async () => {
+    const { id } = await makeStandalone();
+    const code = await generateExchangeInviteCode({
+      exchangeId: id,
+      actorId: f.organizer.id,
+    });
+    for (const u of [f.a, f.b]) {
+      await joinExchangeByCode({ code, userId: u.id, now: NOW });
+    }
+    await drawNames({
+      exchangeId: id,
+      actorId: f.organizer.id,
+      now: NOW,
+      rng: seededRng(4),
+    });
+
+    // A drawn exchange reads exactly like one that never existed: saying
+    // "already drawn" would confirm it does.
+    expect(await getExchangeInvite(code)).toBeNull();
+    expect(
+      await joinExchangeByCode({ code, userId: f.c.id, now: NOW }),
+    ).toEqual({ status: 'INVALID' });
+    // And nobody was added to the closed loop.
+    expect(
+      await prisma.exchangeParticipant.count({
+        where: { exchangeId: id, userId: f.c.id },
+      }),
+    ).toBe(0);
+  });
+
+  it("is the organizer's link to make", async () => {
+    const { id } = await makeStandalone();
+    await expectThrows(
+      generateExchangeInviteCode({ exchangeId: id, actorId: f.a.id }),
+      404,
+    );
   });
 });
