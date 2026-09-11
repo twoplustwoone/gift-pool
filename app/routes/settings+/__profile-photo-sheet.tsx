@@ -145,7 +145,7 @@ export function ProfilePhotoSheet({
 
   return (
     <MobileBottomSheet open={open} onOpenChange={handleOpenChange}>
-      <MobileBottomSheetContent className="max-h-[90vh]">
+      <MobileBottomSheetContent className="max-h-[90dvh]">
         <MobileBottomSheetHeader>
           <MobileBottomSheetTitle>Profile photo</MobileBottomSheetTitle>
           <MobileBottomSheetDescription>

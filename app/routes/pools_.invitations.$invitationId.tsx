@@ -80,7 +80,7 @@ export default function PoolInvitationReviewPage() {
   const available = invitation.status === 'PENDING' && invitation.isActive;
 
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-2xl items-center px-4 py-10 sm:px-6">
+    <main className="mx-auto flex min-h-full max-w-2xl items-center px-4 py-10 sm:px-6">
       <Card className="w-full overflow-hidden">
         <div className="bg-primary/5 px-6 py-8 text-center sm:px-10">
           <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
