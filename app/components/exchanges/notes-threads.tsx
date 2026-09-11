@@ -96,7 +96,9 @@ export function NotesThreads({
   };
 
   return (
-    <div className="space-y-4" data-testid="notes-threads">
+    // `id` is the landing point for a note notification's deep link — see
+    // the hash handling in root.tsx.
+    <div id="notes" className="space-y-4" data-testid="notes-threads">
       <Thread
         title="From your secret gifter"
         notes={threads.fromYourGifter}

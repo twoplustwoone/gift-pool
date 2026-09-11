@@ -50,6 +50,7 @@ import {
   reloadOnceForChunkError,
 } from './utils/chunk-error.client.ts';
 import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx';
+import { scrollForNavigation } from './utils/scroll-to-hash.ts';
 import { trackClientEnvironmentOncePerDay } from './utils/client-environment.ts';
 import { prisma } from './utils/db.server.ts';
 import { getEnv } from './utils/env.server.ts';
@@ -360,18 +361,17 @@ const App = () => {
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Reset the scroll area on navigation, since window scrolling is disabled
+  // Reset the scroll area on navigation, since window scrolling is disabled —
+  // or scroll to the anchor when there is one. See `scrollForNavigation` for
+  // why this container has to own both.
   useEffect(() => {
     if (navigation.state !== 'idle') return;
     const key = `${location.pathname}${location.search}${location.hash}`;
     if (lastRouteKey.current === key) return;
     lastRouteKey.current = key;
+    const hash = location.hash;
     requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({
-        top: 0,
-        left: 0,
-        behavior: 'auto',
-      });
+      scrollForNavigation({ container: scrollRef.current, hash });
     });
   }, [location, navigation.state]);
   const targetLocation = navigation.location;

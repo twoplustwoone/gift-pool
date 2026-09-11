@@ -85,7 +85,7 @@ describe('sendWebPush', () => {
     const result = await sendWebPush(user.id, {
       title: 'New friend request',
       body: 'Ada sent you a friend request',
-      url: '/friends#incoming-requests',
+      url: '/friends#pending-requests',
       tag: 'friend-request:abc:received',
     });
 
@@ -105,7 +105,7 @@ describe('sendWebPush', () => {
     const payload = JSON.parse(firstCall?.[1] as string);
     expect(payload).toMatchObject({
       title: 'New friend request',
-      url: '/friends#incoming-requests',
+      url: '/friends#pending-requests',
       tag: 'friend-request:abc:received',
     });
   });

@@ -333,6 +333,12 @@ async function renderExchangeEvent<C extends NotificationChannel>(
   // that says so, which is more use than a bare list — and it keeps this link
   // consistent with the "started" notification the same people already have.
   const exchangeUrl = `/exchanges/${intent.payload.exchangeId}`;
+  // A note notification opens the thread rather than the top of the page
+  // (board §8). Everything else lands on the page itself.
+  const deepLink =
+    intent.type === NOTIFICATION_TYPES.EXCHANGE_NOTE_RECEIVED
+      ? `${exchangeUrl}#notes`
+      : exchangeUrl;
 
   switch (channel) {
     case NOTIFICATION_CHANNELS.IN_APP:
@@ -340,7 +346,7 @@ async function renderExchangeEvent<C extends NotificationChannel>(
         status: 'UNREAD',
         messageKey: copy.messageKey,
         messageParams: JSON.stringify(copy.messageParams),
-        targetUrl: exchangeUrl,
+        targetUrl: deepLink,
         metadata: JSON.stringify({ exchangeId: intent.payload.exchangeId }),
         friendRequestId: null,
       } as NotificationChannelMessageMap[C];
@@ -364,7 +370,7 @@ async function renderExchangeEvent<C extends NotificationChannel>(
       return {
         title: translate('en', copy.pushTitleKey),
         body: copy.pushBody ?? message,
-        url: exchangeUrl,
+        url: deepLink,
         tag: getNotificationOccurrenceKey(intent),
       } as NotificationChannelMessageMap[C];
   }
@@ -448,7 +454,7 @@ async function renderFriendRequestReceived<C extends NotificationChannel>(
         status: 'UNREAD',
         messageKey: 'notifications.friendRequest.message',
         messageParams: JSON.stringify({ name: payload.actorDisplayName }),
-        targetUrl: '/friends#incoming-requests',
+        targetUrl: '/friends#pending-requests',
         metadata: JSON.stringify({
           senderUserId: payload.actorUserId,
           senderDisplayName: payload.actorDisplayName,
@@ -486,7 +492,7 @@ async function renderFriendRequestReceived<C extends NotificationChannel>(
         body: translate('en', 'notifications.friendRequest.message', {
           name: payload.actorDisplayName,
         }),
-        url: '/friends#incoming-requests',
+        url: '/friends#pending-requests',
         tag: getNotificationOccurrenceKey(intent),
       } as NotificationChannelMessageMap[C];
   }

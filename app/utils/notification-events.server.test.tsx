@@ -452,7 +452,8 @@ describe('exchange notifications', () => {
     );
     expect(inApp).toMatchObject({
       messageKey: 'notifications.exchangeNoteReceived.message',
-      targetUrl: '/exchanges/x1',
+      // Opens the thread, not the top of the page (board §8).
+      targetUrl: '/exchanges/x1#notes',
     });
   });
 
