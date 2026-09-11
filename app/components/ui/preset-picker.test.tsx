@@ -137,12 +137,12 @@ describe('<PresetPicker />', () => {
 
       const second = screen.getByRole('radio', { name: /wishlist/i });
       expect(second).toHaveFocus();
-      expect(second).toHaveAttribute('aria-checked', 'true');
+      expect(second).toBeChecked();
       // Right/Left are the same axis for a vertical list.
       await user.keyboard('{ArrowUp}');
       expect(
         screen.getByRole('radio', { name: /got your gift/i }),
-      ).toHaveAttribute('aria-checked', 'true');
+      ).toBeChecked();
     });
 
     it('wraps at both ends, and Home/End jump', async () => {
