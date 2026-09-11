@@ -45,3 +45,15 @@ storybook-static
 
 # Worktree-local agent plans and handoff state (never commit)
 /.agents/plans/
+
+# Vendored agent skill packs (BMAD / WDS) and scratch output. These are
+# installed per-machine, not part of the repo: `.agents/skills` holds the
+# four committed repo skills and nothing else. Left untracked and unignored,
+# 79 of these directories sat in `git status`, and one `git add -A` swept
+# 1,585 files into a commit.
+/_bmad/
+/.lavish/
+/.agents/skills/bmad-*/
+/.agents/skills/wds-*/
+/.agents/skills/memory/
+/.agents/skills/sync/

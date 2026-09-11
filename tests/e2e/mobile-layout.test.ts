@@ -118,6 +118,9 @@ test.describe('mobile layout', () => {
     const urls = [
       '/exchanges/new?standalone=1',
       '/exchanges/new',
+      // The group-scoped form is the page that was screenshotted as broken
+      // and was the one variant this list did not cover.
+      `/exchanges/new?groupId=${groupId}`,
       `/exchanges/${exchangeId}`,
       '/exchanges',
       '/pools',
