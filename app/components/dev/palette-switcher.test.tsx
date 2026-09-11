@@ -25,9 +25,54 @@ afterEach(() => {
   document.documentElement.classList.remove(...ALL_CLASSES);
 });
 
+// The switcher now starts collapsed so it stops covering whatever sits at the
+// bottom-right of a page — on a phone that is usually the primary action.
+// Every test that cares about the palette buttons opens it first.
+async function renderExpanded() {
+  const user = userEvent.setup();
+  render(<PaletteSwitcher />);
+  await user.click(
+    await screen.findByRole('button', { name: 'Change palette' }),
+  );
+  return user;
+}
+
 describe('<PaletteSwitcher />', () => {
-  it('defaults to the current palette when nothing is stored', async () => {
+  it('starts collapsed, so it covers nothing', async () => {
     render(<PaletteSwitcher />);
+    expect(
+      await screen.findByRole('button', { name: 'Change palette' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Current' })).toBeNull();
+  });
+
+  it('opens and closes again', async () => {
+    const user = await renderExpanded();
+    expect(screen.getByRole('button', { name: 'Current' })).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Hide palette switcher' }),
+    );
+    expect(screen.queryByRole('button', { name: 'Current' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Change palette' }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the chosen palette applied while collapsed', async () => {
+    const user = await renderExpanded();
+    await user.click(screen.getByRole('button', { name: 'Fête' }));
+    await waitFor(() =>
+      expect(document.documentElement).toHaveClass(FETE_CLASS),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Hide palette switcher' }),
+    );
+    // Collapsing is not reverting.
+    expect(document.documentElement).toHaveClass(FETE_CLASS);
+  });
+
+  it('defaults to the current palette when nothing is stored', async () => {
+    await renderExpanded();
 
     const current = await screen.findByRole('button', { name: 'Current' });
     expect(current).toHaveStyle({ background: '#fff' });
@@ -37,7 +82,7 @@ describe('<PaletteSwitcher />', () => {
   it('reads a previously stored palette on mount', async () => {
     window.localStorage.setItem(PALETTE_STORAGE_KEY, 'fete');
 
-    render(<PaletteSwitcher />);
+    await renderExpanded();
 
     const fete = await screen.findByRole('button', { name: 'Fête' });
     await waitFor(() =>
@@ -49,7 +94,7 @@ describe('<PaletteSwitcher />', () => {
   it('falls back to the current palette for an unrecognized stored value', async () => {
     window.localStorage.setItem(PALETTE_STORAGE_KEY, 'some-removed-palette');
 
-    render(<PaletteSwitcher />);
+    await renderExpanded();
 
     const current = await screen.findByRole('button', { name: 'Current' });
     expect(current).toHaveStyle({ background: '#fff' });
@@ -57,8 +102,7 @@ describe('<PaletteSwitcher />', () => {
   });
 
   it('switches palette, toggles the root class, and persists the choice', async () => {
-    const user = userEvent.setup();
-    render(<PaletteSwitcher />);
+    const user = await renderExpanded();
 
     await screen.findByRole('button', { name: 'Current' });
     await user.click(screen.getByRole('button', { name: 'Fête' }));
@@ -77,8 +121,7 @@ describe('<PaletteSwitcher />', () => {
   });
 
   it('switching between two non-default palettes removes the previous class', async () => {
-    const user = userEvent.setup();
-    render(<PaletteSwitcher />);
+    const user = await renderExpanded();
 
     await user.click(screen.getByRole('button', { name: 'Fête' }));
     await waitFor(() =>
@@ -95,8 +138,7 @@ describe('<PaletteSwitcher />', () => {
   });
 
   it('reasserts the palette class after something else overwrites <html>.className', async () => {
-    const user = userEvent.setup();
-    render(<PaletteSwitcher />);
+    const user = await renderExpanded();
 
     await user.click(screen.getByRole('button', { name: 'Fête' }));
     await waitFor(() =>
