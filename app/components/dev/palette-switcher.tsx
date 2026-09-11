@@ -6,7 +6,7 @@
  * `.palette-*` blocks in tailwind.css wholesale once a palette decision is
  * made.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { userHasRole } from '#app/utils/user.ts';
 
 export const PALETTE_STORAGE_KEY = 'gp-dev-palette';
@@ -69,6 +69,12 @@ export const PaletteSwitcher = () => {
   // bottom-right of the page, which on a phone is usually the primary action —
   // it was covering "Save and gather people" on the new-exchange form.
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  // Opening and closing swap one tree for another, so the element the keyboard
+  // user just activated stops existing. Without this, focus falls back to
+  // <body> and they have to tab in from the top of the page again.
+  const wasOpen = useRef(open);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(PALETTE_STORAGE_KEY);
@@ -98,6 +104,13 @@ export const PaletteSwitcher = () => {
     };
   }, [palette]);
 
+  useEffect(() => {
+    if (open === wasOpen.current) return;
+    wasOpen.current = open;
+    // Into the panel on open, back to the trigger on close.
+    (open ? closeRef : triggerRef).current?.focus();
+  }, [open]);
+
   if (palette === null) return null;
 
   const shell = {
@@ -113,6 +126,7 @@ export const PaletteSwitcher = () => {
   if (!open) {
     return (
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Change palette"
@@ -149,6 +163,7 @@ export const PaletteSwitcher = () => {
       data-testid="palette-switcher"
     >
       <button
+        ref={closeRef}
         type="button"
         onClick={() => setOpen(false)}
         aria-label="Hide palette switcher"

@@ -58,6 +58,28 @@ describe('<PaletteSwitcher />', () => {
     ).toBeInTheDocument();
   });
 
+  it('carries focus with it, so a keyboard user is not dropped', async () => {
+    const user = userEvent.setup();
+    render(<PaletteSwitcher />);
+    const trigger = await screen.findByRole('button', {
+      name: 'Change palette',
+    });
+    trigger.focus();
+    await user.keyboard('{Enter}');
+
+    // Opening replaces the trigger with the panel; focus has to follow, or it
+    // falls back to <body> and they tab in from the top of the page again.
+    const close = screen.getByRole('button', { name: 'Hide palette switcher' });
+    await waitFor(() => expect(close).toHaveFocus());
+
+    await user.keyboard('{Enter}');
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Change palette' }),
+      ).toHaveFocus(),
+    );
+  });
+
   it('keeps the chosen palette applied while collapsed', async () => {
     const user = await renderExpanded();
     await user.click(screen.getByRole('button', { name: 'Fête' }));
