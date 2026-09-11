@@ -237,7 +237,7 @@ const NewExchange = () => {
   const errors = (actionData?.errors ?? {}) as FieldErrors;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col">
       <PageHeader
         variant="detail"
         back={{ label: 'Exchanges', href: '/exchanges' }}

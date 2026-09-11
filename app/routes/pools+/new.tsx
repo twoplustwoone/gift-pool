@@ -477,7 +477,7 @@ const NewPool = () => {
   const backHref = cancelHref;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col">
       <div className="border-b bg-surface px-4 py-4 shadow">
         <div className="container flex items-center gap-3">
           <Button asChild variant="ghost" size="sm" className="px-2">

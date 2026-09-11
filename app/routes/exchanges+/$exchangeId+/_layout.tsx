@@ -35,7 +35,7 @@ const ExchangeLayout = () => {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col">
       <PageHeader
         variant="detail"
         back={back}
@@ -58,7 +58,7 @@ const ExchangeLayout = () => {
         </div>
       </PageHeader>
 
-      <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="w-full min-w-0">
         <PageShell className="py-4 sm:py-6">
           {exchange.giftGroup ? (
             <Link
@@ -74,7 +74,7 @@ const ExchangeLayout = () => {
           ) : null}
           <Outlet />
         </PageShell>
-      </main>
+      </div>
     </div>
   );
 };
