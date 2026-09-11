@@ -33,7 +33,10 @@ async function seedUser(name: string): Promise<SeededUser> {
   return { ...user, name, password };
 }
 
-test.describe('exchanges', () => {
+// `.serial`: the second test reads the assignments the first one draws. That
+// assumption held only in CI, where workers are pinned to 1 — the config sets
+// fullyParallel, so locally these could run in either order.
+test.describe.serial('exchanges', () => {
   let organizer: SeededUser;
   let a: SeededUser;
   let b: SeededUser;
