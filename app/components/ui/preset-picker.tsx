@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Button } from '#app/components/ui/button.tsx';
 import {
   ResponsiveDialog,
@@ -39,6 +39,11 @@ export type PresetPickerProps = {
   /** Small print under the send button. */
   footnote?: string;
   emptyLabel?: string;
+  /**
+   * What a screen reader hears when an option is picked. The board asks the
+   * guess picker for "Your guess is now X", which only the caller can word.
+   */
+  announceSelection?: (option: PresetOption) => string;
 };
 
 // The board's highest-value component decision: notes, clues, guesses and
@@ -58,15 +63,81 @@ export function PresetPicker({
   allowance,
   footnote,
   emptyLabel = 'Nothing to send just yet.',
+  announceSelection,
 }: PresetPickerProps) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const groupId = useId();
+  const [announcement, setAnnouncement] = useState('');
+  const statusId = useId();
+  const optionRefs = useRef(new Map<string, HTMLButtonElement>());
   const exhausted = allowance ? allowance.remaining <= 0 : false;
   const selected = options.find((o) => o.key === selectedKey) ?? null;
 
+  const isDisabled = (option: PresetOption) =>
+    Boolean(option.disabled) || exhausted || pending;
+
+  // Sections render first and the ungrouped list trails them, so arrow keys
+  // have to walk THAT order rather than the order of `options` — otherwise
+  // focus jumps around a sectioned clue picker.
+  const ungrouped = sections
+    ? options.filter((o) => !sections.some((s) => s.keys.includes(o.key)))
+    : options;
+  const visualOrder = sections
+    ? [
+        ...sections.flatMap((section) =>
+          options.filter((o) => section.keys.includes(o.key)),
+        ),
+        ...ungrouped,
+      ]
+    : options;
+  const focusable = visualOrder.filter((o) => !isDisabled(o));
+
+  // Exactly one option is ever in the tab order. `disabled` on a real button
+  // makes it unfocusable, so the roving index must land on an enabled one —
+  // and when everything is disabled, on nothing at all.
+  const rovingKey = focusable.some((o) => o.key === selectedKey)
+    ? selectedKey
+    : (focusable[0]?.key ?? null);
+
+  const choose = (option: PresetOption) => {
+    setSelectedKey(option.key);
+    setAnnouncement(announceSelection?.(option) ?? `${option.label} selected`);
+  };
+
+  const moveFocus = (from: PresetOption, delta: number | 'first' | 'last') => {
+    if (focusable.length === 0) return;
+    const current = focusable.findIndex((o) => o.key === from.key);
+    const next =
+      delta === 'first'
+        ? focusable[0]!
+        : delta === 'last'
+          ? focusable[focusable.length - 1]!
+          : focusable[(current + delta + focusable.length) % focusable.length]!;
+    // Moving focus selects, as a radio group does.
+    choose(next);
+    optionRefs.current.get(next.key)?.focus();
+  };
+
+  const onOptionKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    option: PresetOption,
+  ) => {
+    const handled: Record<string, () => void> = {
+      ArrowDown: () => moveFocus(option, 1),
+      ArrowRight: () => moveFocus(option, 1),
+      ArrowUp: () => moveFocus(option, -1),
+      ArrowLeft: () => moveFocus(option, -1),
+      Home: () => moveFocus(option, 'first'),
+      End: () => moveFocus(option, 'last'),
+    };
+    const run = handled[event.key];
+    if (!run) return;
+    event.preventDefault();
+    run();
+  };
+
   const renderOption = (option: PresetOption) => {
     const isSelected = option.key === selectedKey;
-    const disabled = option.disabled || exhausted || pending;
+    const disabled = isDisabled(option);
     return (
       <li key={option.key}>
         <button
@@ -74,10 +145,17 @@ export function PresetPicker({
           role="radio"
           aria-checked={isSelected}
           disabled={disabled}
-          onClick={() => setSelectedKey(option.key)}
+          tabIndex={option.key === rovingKey ? 0 : -1}
+          ref={(node) => {
+            if (node) optionRefs.current.set(option.key, node);
+            else optionRefs.current.delete(option.key);
+          }}
+          onKeyDown={(event) => onOptionKeyDown(event, option)}
+          onClick={() => choose(option)}
           className={cn(
             'flex w-full flex-col items-start gap-1 rounded-xl border p-4 text-left transition',
-            'min-h-11 disabled:cursor-not-allowed disabled:opacity-60',
+            'min-h-11 outline-none ring-ring focus-visible:ring-2',
+            'disabled:cursor-not-allowed disabled:opacity-60',
             isSelected
               ? 'border-primary bg-primary/5'
               : 'border-border hover:bg-muted/40',
@@ -101,10 +179,6 @@ export function PresetPicker({
     );
   };
 
-  const ungrouped = sections
-    ? options.filter((o) => !sections.some((s) => s.keys.includes(o.key)))
-    : options;
-
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-md">
@@ -120,12 +194,7 @@ export function PresetPicker({
         {options.length === 0 ? (
           <p className="text-sm text-muted-foreground">{emptyLabel}</p>
         ) : (
-          <div
-            role="radiogroup"
-            aria-label={title}
-            id={groupId}
-            className="space-y-4"
-          >
+          <div role="radiogroup" aria-label={title} className="space-y-4">
             {sections?.map((section) => {
               const inSection = options.filter((o) =>
                 section.keys.includes(o.key),
@@ -145,6 +214,10 @@ export function PresetPicker({
             ) : null}
           </div>
         )}
+
+        <p id={statusId} role="status" aria-live="polite" className="sr-only">
+          {announcement}
+        </p>
 
         {allowance ? (
           <p

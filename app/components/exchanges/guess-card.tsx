@@ -106,6 +106,9 @@ export function GuessCard({
           label: person.name ?? person.username,
         }))}
         sendLabel={(selected) => `Lock in ${selected.label.split(' ')[0]}`}
+        // The board's wording (§17): the announcement says what the guess is
+        // now, not that a row was selected.
+        announceSelection={(option) => `Your guess is now ${option.label}`}
         onSend={(userId) => {
           onGuess(userId);
           setOpen(false);
