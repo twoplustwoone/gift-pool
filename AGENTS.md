@@ -173,6 +173,18 @@ other/                 # Build and administrative scripts
 - Cascade deletes for relational integrity
 - Seed file: `prisma/seed.ts`
 
+### One scroller, and no viewport units in the shell — HARD RULE
+
+**The app has exactly one scroll container: `<div data-testid="app-scroll-area">` in `app/root.tsx`.** The document must never be able to scroll, and no route, section layout or page may declare a scroller of its own.
+
+- `html` and `body` are `h-full overflow-hidden`. The shell below them is `h-full`, never `100dvh`.
+- **Never put a viewport unit (`100vh`, `100dvh`, `min-h-screen`, `h-screen`) in the shell, a section layout or a page wrapper.** Page wrappers use `min-h-full`; section layouts declare no height at all.
+- Two things make a second scroller, and both shipped at once (#599). `overflow-x: hidden` with `overflow-y: visible` **computes to `auto`** — a `visible` axis paired with a non-`visible` one is promoted, so one-axis clipping silently creates a two-axis scroll container. And `100vh` is the **large** viewport: while a mobile browser shows its toolbar, a `min-h-screen` body is about the toolbar's height taller than the window and scrolls by exactly that much.
+- The symptoms do not look like "the page scrolls twice." Dragging past the end scrolls the document, which moves everything _except_ the fixed bottom nav — so it reads as a gap under the footer, and as the top of the main content being clipped until you scroll again. Three consecutive PRs (#597, #598, #599) chased those symptoms before the cause.
+- Pinned by `tests/e2e/mobile-layout.test.ts`: computed overflow on `html`/`body`, no viewport unit in the body's `min-height`, neither element scrolling when driven, and no nested scroller inside `main`.
+
+Fixed-position overlays are the exception — a bottom sheet legitimately scrolls its own content. Those should use `dvh`, not `vh`.
+
 ### Styling
 
 - Tailwind CSS with prettier-plugin-tailwindcss (auto-sorts classes)
@@ -335,5 +347,9 @@ Do not infer horizontal overflow from a `fullPage` screenshot's width. It sizes 
 `test-results/.last-run.json` (`status`, `failedTests`) is a good corroborating read — it names which tests failed, and its count should reconcile with `npx playwright test --list`. Treat it as corroboration, not as an override: Playwright writes it from the same result that determines the exit code, so a genuine disagreement means the file is stale from an earlier invocation. On a mismatch, treat the outcome as unknown and re-run rather than believing either side.
 
 `playwright.config.ts` sets `reuseExistingServer: true`, so Playwright adopts any server already listening on the port regardless of how it was configured — including one left over from another session. Confirm the run started its own (`[WebServer]` lines in the output) or free the port first. A foreign server produces mass failures that look exactly like product defects. A cold Vite server is the other false-failure source: first-touch route compilation blows the 15s test timeout, so warm the server before comparing a branch against `main`.
+
+**A Chromium measurement cannot disprove a user-reported mobile viewport bug, and the e2e suite is chromium-only** (`playwright.config.ts` has a single `Desktop Chrome` project; the mobile specs just call `setViewportSize`). There is no browser toolbar and no safe-area inset in that environment, so `100vh` equals the window and a whole class of mobile layout bug is unreproducible by construction. A clean probe there is evidence of nothing. Reason about the CSS structurally, or drive `webkit` with `devices['iPhone 13']`.
+
+**Assert the invariant, not the symptom.** The document-scroll bug survived a dedicated `mobile-layout` spec because every assertion measured consequences — element widths, scrollers nested inside `main` — and nothing ever asked whether the _document_ could scroll. The same Chromium that reported the page clean fails within a second once the test reads `getComputedStyle(document.documentElement).overflowY` and drives `scrollTop` directly. When a layout test passes on a page the user says is broken, suspect the assertions before the report, and mutation-check the new test by restoring the old code.
 
 For authenticated verification (screenshots, probing a gated page), use the `login` fixture in `tests/playwright-utils.ts` — it inserts a `Session` row and injects the signed `en_session` cookie directly, so no login form and no credentials are involved.
