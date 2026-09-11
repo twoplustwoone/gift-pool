@@ -267,7 +267,7 @@ describe('notification dispatcher', () => {
     expect(sendWebPush).toHaveBeenCalledTimes(1);
     expect(sendWebPush).toHaveBeenCalledWith(
       recipient.id,
-      expect.objectContaining({ url: '/friends#incoming-requests' }),
+      expect.objectContaining({ url: '/friends#pending-requests' }),
     );
   });
 

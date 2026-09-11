@@ -389,7 +389,8 @@ describe('drawn', () => {
         guess: null,
       }),
     );
-    expect(screen.getByTestId('notes-threads')).toBeInTheDocument();
+    // The landing point for a note notification's deep link.
+    expect(screen.getByTestId('notes-threads')).toHaveAttribute('id', 'notes');
     expect(screen.getByText("I've got your gift.")).toBeInTheDocument();
     expect(
       screen.getByRole('region', { name: 'To Agustin' }),
