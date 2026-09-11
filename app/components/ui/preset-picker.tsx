@@ -117,10 +117,24 @@ export function PresetPicker({
     optionRefs.current.get(next.key)?.focus();
   };
 
+  const send = (option: PresetOption) => {
+    if (isDisabled(option)) return;
+    onSend(option.key);
+  };
+
   const onOptionKeyDown = (
     event: React.KeyboardEvent<HTMLButtonElement>,
     option: PresetOption,
   ) => {
+    // Board §17: "arrows move, Enter confirms". Enter on a focused option
+    // does what the send button does, so a keyboard user never has to leave
+    // the list. Space is left to the native button, which just selects.
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      choose(option);
+      send(option);
+      return;
+    }
     const handled: Record<string, () => void> = {
       ArrowDown: () => moveFocus(option, 1),
       ArrowRight: () => moveFocus(option, 1),
@@ -239,7 +253,7 @@ export function PresetPicker({
           <Button
             type="button"
             disabled={!selected || exhausted || pending}
-            onClick={() => selected && onSend(selected.key)}
+            onClick={() => selected && send(selected)}
           >
             {pending
               ? 'Sending…'

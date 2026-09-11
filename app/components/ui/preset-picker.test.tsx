@@ -214,6 +214,25 @@ describe('<PresetPicker />', () => {
       }
     });
 
+    it('confirms the focused option with Enter, without reaching for the button', async () => {
+      const user = userEvent.setup();
+      const { onSend } = renderPicker();
+      screen.getAllByRole('radio')[0]!.focus();
+      await user.keyboard('{ArrowDown}');
+      await user.keyboard('{Enter}');
+      // Board §17: "arrows move, Enter confirms" — a keyboard user never has
+      // to leave the list to send.
+      expect(onSend).toHaveBeenCalledWith('b');
+    });
+
+    it('will not confirm an option that cannot be sent', async () => {
+      const user = userEvent.setup();
+      const { onSend } = renderPicker({ pending: true });
+      screen.getAllByRole('radio')[0]!.focus();
+      await user.keyboard('{Enter}');
+      expect(onSend).not.toHaveBeenCalled();
+    });
+
     it("says what was picked, in the caller's words", async () => {
       const user = userEvent.setup();
       renderPicker({
