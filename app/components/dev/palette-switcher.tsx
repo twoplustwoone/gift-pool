@@ -6,7 +6,7 @@
  * `.palette-*` blocks in tailwind.css wholesale once a palette decision is
  * made.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { userHasRole } from '#app/utils/user.ts';
 
 export const PALETTE_STORAGE_KEY = 'gp-dev-palette';
@@ -65,6 +65,16 @@ export const PaletteSwitcher = () => {
   // applied the right class before hydration; this just needs to agree with
   // it once it reads localStorage itself.
   const [palette, setPalette] = useState<PaletteId | null>(null);
+  // Collapsed by default: expanded, this sits on top of whatever occupies the
+  // bottom-right of the page, which on a phone is usually the primary action —
+  // it was covering "Save and gather people" on the new-exchange form.
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  // Opening and closing swap one tree for another, so the element the keyboard
+  // user just activated stops existing. Without this, focus falls back to
+  // <body> and they have to tab in from the top of the page again.
+  const wasOpen = useRef(open);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(PALETTE_STORAGE_KEY);
@@ -94,26 +104,84 @@ export const PaletteSwitcher = () => {
     };
   }, [palette]);
 
+  useEffect(() => {
+    if (open === wasOpen.current) return;
+    wasOpen.current = open;
+    // Into the panel on open, back to the trigger on close.
+    (open ? closeRef : triggerRef).current?.focus();
+  }, [open]);
+
   if (palette === null) return null;
+
+  const shell = {
+    position: 'fixed',
+    bottom: '5.5rem',
+    right: '1rem',
+    zIndex: 9999,
+    borderRadius: 16,
+    background: 'rgba(24,18,20,0.9)',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+  } as const;
+
+  if (!open) {
+    return (
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Change palette"
+        aria-expanded={false}
+        style={{
+          ...shell,
+          display: 'grid',
+          placeItems: 'center',
+          width: 36,
+          height: 36,
+          border: 'none',
+          cursor: 'pointer',
+          color: '#fff',
+          fontSize: 15,
+          lineHeight: 1,
+        }}
+        data-testid="palette-switcher"
+      >
+        <span aria-hidden>🎨</span>
+      </button>
+    );
+  }
 
   return (
     <div
       style={{
-        position: 'fixed',
-        bottom: '5.5rem',
-        right: '1rem',
-        zIndex: 9999,
+        ...shell,
         display: 'flex',
         flexWrap: 'wrap',
         maxWidth: '13rem',
         gap: 4,
         padding: 4,
-        borderRadius: 16,
-        background: 'rgba(24,18,20,0.9)',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
       }}
       data-testid="palette-switcher"
     >
+      <button
+        ref={closeRef}
+        type="button"
+        onClick={() => setOpen(false)}
+        aria-label="Hide palette switcher"
+        aria-expanded
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          lineHeight: 1,
+          padding: '7px 9px',
+          borderRadius: 999,
+          border: 'none',
+          cursor: 'pointer',
+          background: 'transparent',
+          color: '#fff',
+        }}
+      >
+        ✕
+      </button>
       {PALETTES.map(({ id, label }) => (
         <button
           key={id}
