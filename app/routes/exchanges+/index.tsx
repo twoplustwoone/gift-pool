@@ -94,7 +94,7 @@ const ExchangesIndex = () => {
   const hasAny = data.active.length > 0 || data.past.length > 0;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col">
       <PageHeader
         variant="section"
         icon={<LuShuffle className="text-primary" size={22} />}

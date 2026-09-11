@@ -205,7 +205,7 @@ const PoolsIndex = () => {
   const panelLabelId = tab === 'active' ? 'tab-active' : 'tab-past';
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col">
       <PageHeader
         variant="section"
         icon={<LuGift className="text-primary" size={22} />}

@@ -427,10 +427,16 @@ const App = () => {
             <div
               ref={scrollRef}
               style={{ paddingTop: 'var(--top-bar-height)' }}
-              className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-background to-background-muted pb-bottom-nav md:pb-0"
+              className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-gradient-to-br from-background to-background-muted pb-bottom-nav md:pb-0"
               data-testid="app-scroll-area"
             >
-              <div className="flex min-h-full flex-col">
+              {/* `flex-1` rather than `min-h-full`: this container's own
+                  padding-top means a percentage min-height never resolved
+                  against it, so the wrapper collapsed to its content and the
+                  footer floated mid-screen on any short page. Filling by flex
+                  pins the footer without boxing a tall page — the content
+                  still overflows into this container's scroll. */}
+              <div className="flex flex-1 flex-col">
                 <div className="flex-1">{routeContent}</div>
                 <SiteFooter />
               </div>

@@ -103,7 +103,7 @@ const GroupLayout = () => {
           </div>
         </PageHeader>
       )}
-      <main className="min-h-0 flex-1 overflow-y-auto">
+      <div className="w-full min-w-0">
         <div className="mx-auto max-w-6xl p-3 sm:p-6">
           <Stack gap={6}>
             {!isSettings ? (
@@ -124,7 +124,7 @@ const GroupLayout = () => {
             <Outlet />
           </Stack>
         </div>
-      </main>
+      </div>
     </div>
   );
 };

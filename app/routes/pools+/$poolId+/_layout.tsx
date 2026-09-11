@@ -34,7 +34,7 @@ const PoolLayout = () => {
 		: { label: 'Pools', href: '/pools' }
 
 	return (
-		<div className="flex h-full min-h-0 flex-col">
+		<div className="flex min-h-full flex-col">
 			<PageHeader
 				variant="detail"
 				back={back}
@@ -64,7 +64,7 @@ const PoolLayout = () => {
 			</PageHeader>
 
 			{/* Content */}
-			<main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+			<div className="w-full min-w-0">
 				<div className="mx-auto max-w-6xl p-3 sm:p-6">
 					<Stack gap={6}>
 						<ContextNotificationAwarenessNotice
@@ -88,7 +88,7 @@ const PoolLayout = () => {
 						<Outlet />
 					</Stack>
 				</div>
-			</main>
+			</div>
 		</div>
 	)
 }
