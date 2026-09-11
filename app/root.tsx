@@ -259,7 +259,14 @@ const Document = ({
   showPaletteSwitcher?: boolean;
 }) => {
   return (
-    <html lang="en" className={`${theme} min-h-full overflow-x-hidden`}>
+    // `h-full overflow-hidden` on BOTH html and body, and no viewport units
+    // anywhere in the shell. `min-h-screen` (100vh) used to make the document
+    // taller than the window whenever a mobile browser showed its toolbar —
+    // 100vh is the LARGE viewport — so the document itself became scrollable
+    // by about the toolbar's height. That was a second scroller behind the
+    // app's own: dragging past the end scrolled the whole page, which opened
+    // a gap under the footer and cut the top of the content off.
+    <html lang="en" className={`${theme} h-full overflow-hidden`}>
       <head>
         <ClientHintCheck nonce={nonce} />
         <Meta />
@@ -286,7 +293,7 @@ const Document = ({
           />
         ) : null}
       </head>
-      <body className="min-h-screen overflow-hidden bg-background text-foreground">
+      <body className="h-full overflow-hidden bg-background text-foreground">
         {children}
         <script
           nonce={nonce}
@@ -421,7 +428,11 @@ const App = () => {
           initialUnreadCount={data.notifications?.unreadCount ?? 0}
         >
           {data.notifications ? <NotificationPolling /> : null}
-          <div className="flex max-h-[100dvh] min-h-[100dvh] flex-col overflow-hidden">
+          {/* `h-full`, not `100dvh`: the document is pinned to the layout
+              viewport above, so a dvh-sized shell could only disagree with it
+              — and on iOS dvh grows when the toolbar hides, which is exactly
+              how the second scroller appeared. */}
+          <div className="flex h-full flex-col overflow-hidden">
             <TopBar hidden={hideHeader} />
 
             <div

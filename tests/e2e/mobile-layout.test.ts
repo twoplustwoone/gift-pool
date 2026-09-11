@@ -143,6 +143,50 @@ test.describe('mobile layout', () => {
     }
   });
 
+  test('the document itself cannot scroll — only the app area does', async ({
+    page,
+  }) => {
+    await loginWithPassword(page, {
+      username: user.username,
+      password: user.password,
+    });
+    await page.setViewportSize(PHONE);
+    await page.goto('/exchanges/new');
+    await page.waitForLoadState('networkidle');
+
+    const doc = await page.evaluate(() => {
+      const html = document.documentElement;
+      const body = document.body;
+      const htmlCs = getComputedStyle(html);
+      const bodyCs = getComputedStyle(body);
+      const canScroll = (el: HTMLElement) => {
+        el.scrollTop = 500;
+        const moved = el.scrollTop > 0;
+        el.scrollTop = 0;
+        return moved;
+      };
+      return {
+        htmlOverflowY: htmlCs.overflowY,
+        bodyOverflowY: bodyCs.overflowY,
+        // `min-h-screen` (100vh) is the specific thing that broke this: on a
+        // mobile browser 100vh is the LARGE viewport, so while the toolbar is
+        // showing the body is taller than the window and the DOCUMENT scrolls
+        // by about the toolbar's height. That second scroll shifted the page
+        // up, opening a gap under the footer and cutting off the top of the
+        // content until you scrolled again.
+        bodyMinHeight: bodyCs.minHeight,
+        htmlScrolls: canScroll(html),
+        bodyScrolls: canScroll(body),
+      };
+    });
+
+    expect(doc.htmlOverflowY).toBe('hidden');
+    expect(doc.bodyOverflowY).toBe('hidden');
+    expect(doc.bodyMinHeight).not.toMatch(/vh|dvh|svh|lvh/);
+    expect(doc.htmlScrolls, 'the document must not scroll').toBe(false);
+    expect(doc.bodyScrolls, 'the body must not scroll').toBe(false);
+  });
+
   test('a long form is reachable to its last control', async ({ page }) => {
     await loginWithPassword(page, {
       username: user.username,
