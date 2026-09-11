@@ -14,7 +14,7 @@ import {
   MoveByOffsetButtons,
   SortableShell,
 } from './wishlist-category-card';
-import  {
+import {
   type CategoryMutationResult,
   type WishlistCategory,
 } from './wishlist-category-state';
@@ -35,7 +35,11 @@ export const OrganizeBanner = ({
   onDone: () => void;
   onModeChange: (mode: OrganizeMode) => void;
 }) => (
-  <div className="sticky top-2 z-20 rounded-xl border border-pool/25 bg-pool/10 px-3 py-2 shadow-sm backdrop-blur">
+  // The sticky offset has to clear the fixed top bar. This banner sticks to
+  // the app's scroll container, whose scrollport starts at the very top of the
+  // viewport — behind the header — so a bare `top-2` would park the banner
+  // underneath it. The header's own height is the offset.
+  <div className="sticky top-[calc(var(--top-bar-height)+0.5rem)] z-20 rounded-xl border border-pool/25 bg-pool/10 px-3 py-2 shadow-sm backdrop-blur">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="min-w-0">
         <Text size="sm" weight="bold" className="text-pool">
@@ -148,11 +152,9 @@ export const OrganizeCategoriesPanel = ({
 
   useEffect(() => {
     const createResult = createFetcher.data as
-      | CategoryMutationResult
-      | undefined;
+      CategoryMutationResult | undefined;
     const renameResult = renameFetcher.data as
-      | CategoryMutationResult
-      | undefined;
+      CategoryMutationResult | undefined;
     const createdOk =
       createResult?.ok &&
       createResult.clientMutationId != null &&
@@ -188,12 +190,7 @@ export const OrganizeCategoriesPanel = ({
       pendingRenameMutationIdRef.current = null;
       setEditingId(null);
     }
-  }, [
-    createFetcher.data,
-    renameFetcher.data,
-    onMutationResult,
-    createName,
-  ]);
+  }, [createFetcher.data, renameFetcher.data, onMutationResult, createName]);
 
   return (
     <div className="space-y-3">
@@ -317,8 +314,7 @@ export const OrganizeCategoriesPanel = ({
                             {category.name}
                           </Text>
                           <Text size="xs" className="text-muted-foreground">
-                            (
-                            {itemIdsByCategoryKey[category.id]?.length ?? 0})
+                            ({itemIdsByCategoryKey[category.id]?.length ?? 0})
                           </Text>
                         </Flex>
                       </div>

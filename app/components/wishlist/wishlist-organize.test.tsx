@@ -52,6 +52,24 @@ function renderWithStub(ui: ReactElement) {
 }
 
 describe('OrganizeBanner', () => {
+  it('sticks below the fixed top bar, not behind it', () => {
+    // This banner sticks to the app's single scroll container, whose
+    // scrollport starts at the top of the viewport — behind the fixed header.
+    // A bare `top-2` parks it underneath, invisible, the moment the header
+    // reveals on scroll-up.
+    const { container } = renderWithStub(
+      <OrganizeBanner
+        isCategoryReorderMode={false}
+        isItemReorderMode
+        onDone={() => {}}
+        onModeChange={() => {}}
+      />,
+    );
+    const banner = container.querySelector('.sticky')!;
+    expect(banner.className).toContain('var(--top-bar-height)');
+    expect(banner.className).not.toMatch(/\btop-2\b/);
+  });
+
   it('shows the items-mode description by default', () => {
     renderWithStub(
       <OrganizeBanner
@@ -96,7 +114,9 @@ describe('OrganizeBanner', () => {
     );
     expect(onModeChange).toHaveBeenCalledWith('categories');
 
-    await user.click(screen.getByRole('button', { name: /item reorder mode/i }));
+    await user.click(
+      screen.getByRole('button', { name: /item reorder mode/i }),
+    );
     expect(onModeChange).toHaveBeenCalledWith('items');
   });
 
@@ -194,7 +214,9 @@ describe('OrganizeCategoriesPanel', () => {
 
   it('disables the up move on the first category and the down move on the last', () => {
     renderWithStub(<OrganizeCategoriesPanel {...baseCategoriesProps} />);
-    expect(screen.getByRole('button', { name: 'Move Books up' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Move Books up' }),
+    ).toBeDisabled();
     expect(
       screen.getByRole('button', { name: 'Move Games down' }),
     ).toBeDisabled();
