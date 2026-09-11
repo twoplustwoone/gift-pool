@@ -7,6 +7,7 @@
  * made.
  */
 import { useEffect, useRef, useState } from 'react';
+import { LuPalette } from 'react-icons/lu';
 import { userHasRole } from '#app/utils/user.ts';
 
 export const PALETTE_STORAGE_KEY = 'gp-dev-palette';
@@ -145,7 +146,7 @@ export const PaletteSwitcher = () => {
         }}
         data-testid="palette-switcher"
       >
-        <span aria-hidden>🎨</span>
+        <LuPalette aria-hidden size={16} />
       </button>
     );
   }
