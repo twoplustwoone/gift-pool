@@ -13,6 +13,7 @@ import {
   createExchange,
   drawNames,
   generateExchangeInviteCode,
+  runNoteDeliverySweep,
   setParticipation,
 } from '#app/utils/exchanges.server.ts';
 import { createUser } from '#tests/db-utils.ts';
@@ -139,14 +140,41 @@ test.describe.serial('exchange notes and guessing', () => {
       page.getByRole('region', { name: 'From your secret gifter' }),
     ).not.toContainText("I've got your gift.");
 
-    // And the payload behind the page carries neither the note nor any
-    // sender. (Participant ids ARE in there — the roster is shared within an
-    // exchange — so the thing to assert is that no note and no sender field
-    // reached the client, not that a particular id is absent.)
-    const payload = await page.request.get(`/exchanges/${exchangeId}.data`);
-    const body = await payload.text();
-    expect(body).not.toContain("I've got your gift.");
-    expect(body).not.toContain('senderId');
+    // Nothing of the note has reached them yet — not on the page, not in the
+    // payload behind it.
+    const beforeDelivery = await (
+      await page.request.get(`/exchanges/${exchangeId}.data`)
+    ).text();
+    expect(beforeDelivery).not.toContain("I've got your gift.");
+
+    // Now its morning arrives. The sweep is called directly rather than
+    // through the internal HTTP route, the same way this file already calls
+    // drawNames — it is the delivery that matters here, not the transport.
+    const delivered = await runNoteDeliverySweep({
+      now: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+    });
+    expect(delivered.delivered).toBe(1);
+
+    await page.reload();
+    const inbound = page.getByRole('region', {
+      name: 'From your secret gifter',
+    });
+    await expect(inbound).toContainText("I've got your gift.");
+    // Delivered and readable — and still saying nothing about who wrote it.
+    // This is the assertion the whole feature rests on.
+    await expect(inbound).not.toContainText(a.name);
+    await expect(inbound).toContainText(/morning/i);
+
+    const afterDelivery = await (
+      await page.request.get(`/exchanges/${exchangeId}.data`)
+    ).text();
+    expect(afterDelivery).toContain("I've got your gift.");
+    // The note is there and carries no attribution. Names and ids of every
+    // participant ARE in the payload — the roster is shared within an
+    // exchange — so the assertion has to be about the note's own `from`,
+    // which is null for anything but a thank-you.
+    expect(afterDelivery).not.toContain('"from":{');
+    expect(afterDelivery).not.toContain('senderId');
   });
 
   test('a guess is kept, changeable, and told to nobody', async ({ page }) => {
