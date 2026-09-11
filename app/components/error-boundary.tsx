@@ -82,7 +82,7 @@ export const GeneralErrorBoundary = ({
   }, [error]);
 
   return (
-    <div className="container flex min-h-[50vh] items-center justify-center p-8">
+    <div className="container flex min-h-[50dvh] items-center justify-center p-8">
       {isRouteErrorResponse(error)
         ? (statusHandlers?.[error.status] ?? defaultStatusHandler)({
             error,
