@@ -265,6 +265,25 @@ describe('<GuessCard />', () => {
     ).toBeInTheDocument();
   });
 
+  it("announces the guess in the board's words, for a screen reader", async () => {
+    const user = userEvent.setup();
+    render(
+      <GuessCard
+        candidates={candidates}
+        guess={null}
+        threads={threads()}
+        pending={false}
+        onGuess={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Make a guess' }));
+    await user.click(screen.getByRole('radio', { name: 'Nicolas Burroni' }));
+    // Board §17: "polite announcement 'Your guess is now X'".
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Your guess is now Nicolas Burroni',
+    );
+  });
+
   it('keeps the guess visible with how often it changed, and offers a change', async () => {
     const user = userEvent.setup();
     const onGuess = vi.fn();
