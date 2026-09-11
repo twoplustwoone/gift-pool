@@ -444,6 +444,9 @@ describe('exchange notifications', () => {
     const html = renderToStaticMarkup(email.react);
     expect(html).toContain('2 notes');
     expect(html).toContain('Read it');
+    // The email's button lands on the thread too — otherwise one channel
+    // opens it and the other two don't.
+    expect(html).toContain('/exchanges/x1#notes');
     expect(html).not.toMatch(/Agustin|Nicolas/);
 
     const inApp = await renderNotificationChannel(

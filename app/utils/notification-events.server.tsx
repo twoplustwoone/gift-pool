@@ -359,7 +359,7 @@ async function renderExchangeEvent<C extends NotificationChannel>(
             appName={appName}
             heading={message}
             message={copy.emailBody}
-            exchangeUrl={buildAppUrl(exchangeUrl)}
+            exchangeUrl={buildAppUrl(deepLink)}
             buttonLabel={copy.buttonLabel}
             managePreferencesUrl={managePreferencesUrl}
           />
