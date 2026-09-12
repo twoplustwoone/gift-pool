@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { LuX } from 'react-icons/lu';
 import { Button } from '#app/components/ui/button.tsx';
+import { DateField } from '#app/components/ui/date-field.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
 import {
@@ -129,20 +130,16 @@ export function ExchangeSettingsFields({
               ))}
             </select>
           </div>
-          <div className="min-w-0 space-y-1.5">
-            <Label htmlFor="exchange-date">Exchange date</Label>
-            <Input
+          <div className="min-w-0">
+            <DateField
               id="exchange-date"
-              name="eventDate"
-              type="date"
+              label="Exchange date"
               required
               value={eventDate}
-              onChange={(e) => setEventDate(e.target.value)}
-              aria-invalid={errors.eventDate ? true : undefined}
+              onChange={setEventDate}
+              error={errors.eventDate}
             />
-            {errors.eventDate ? (
-              <FieldError>{errors.eventDate}</FieldError>
-            ) : null}
+            <input type="hidden" name="eventDate" value={eventDate} />
           </div>
         </div>
 
@@ -225,28 +222,33 @@ export function ExchangeSettingsFields({
               value={autoReveal ? 'on' : 'off'}
             />
             {autoReveal ? (
-              <div className="space-y-1.5 pl-1">
-                <Label htmlFor="auto-reveal-date">On</Label>
-                <Input
+              <div className="pl-1">
+                <DateField
                   id="auto-reveal-date"
-                  name="autoRevealDate"
-                  type="date"
+                  label="On"
                   min={eventDate || undefined}
                   value={autoRevealDate}
-                  onChange={(e) => setAutoRevealDate(e.target.value)}
-                  aria-invalid={errors.autoRevealDate ? true : undefined}
+                  onChange={setAutoRevealDate}
+                  error={errors.autoRevealDate}
+                  hint={
+                    (autoRevealDate
+                      ? ''
+                      : 'Leave blank for three days after the exchange. ') +
+                    (eventDate
+                      ? `Any date from ${formatExchangeDate(eventDate)} onwards works.`
+                      : '')
+                  }
+                  rangeNote={
+                    eventDate
+                      ? `On or after the exchange date, ${formatExchangeDate(eventDate)}.`
+                      : undefined
+                  }
                 />
-                <p className="text-xs text-muted-foreground">
-                  {autoRevealDate
-                    ? ''
-                    : 'Leave blank for three days after the exchange. '}
-                  {eventDate
-                    ? `Any date from ${formatExchangeDate(eventDate)} onwards works.`
-                    : ''}
-                </p>
-                {errors.autoRevealDate ? (
-                  <FieldError>{errors.autoRevealDate}</FieldError>
-                ) : null}
+                <input
+                  type="hidden"
+                  name="autoRevealDate"
+                  value={autoRevealDate}
+                />
               </div>
             ) : null}
           </div>

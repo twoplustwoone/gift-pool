@@ -41,9 +41,8 @@ const loaderDataSnapshot: {
 };
 
 vi.mock('react-router', async () => {
-  const actual = await vi.importActual<typeof import('react-router')>(
-    'react-router',
-  );
+  const actual =
+    await vi.importActual<typeof import('react-router')>('react-router');
   return {
     ...actual,
     Form: (props: React.ComponentProps<'form'>) => <form {...props} />,
@@ -66,10 +65,9 @@ vi.mock('./__profile-photo-sheet.tsx', () => ({
 }));
 
 vi.mock('#app/utils/misc.tsx', async () => {
-  const actual =
-    await vi.importActual<typeof import('#app/utils/misc.tsx')>(
-      '#app/utils/misc.tsx',
-    );
+  const actual = await vi.importActual<typeof import('#app/utils/misc.tsx')>(
+    '#app/utils/misc.tsx',
+  );
   return {
     ...actual,
     getUserImgSrc: (id?: string | null) =>
@@ -148,7 +146,10 @@ describe('<SettingsProfileHub />', () => {
     ) as HTMLInputElement;
     expect(bio.value).toBe('Mercenary with a mouth.');
     expect(birthday.value).toBe('1992-05-26');
-    expect(birthday.type).toBe('date');
+    expect(birthday.type).toBe('hidden');
+    expect(
+      container.querySelector('input[placeholder="mm/dd/yyyy"]'),
+    ).toHaveValue('26 May 1992');
   });
 
   it('renders all four birthday visibility options with FRIENDS selected by default', () => {

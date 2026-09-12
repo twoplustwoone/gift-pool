@@ -146,8 +146,8 @@ describe('exchange settings', () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText('Name')).toHaveValue('The Painted 2026');
     expect(screen.getByLabelText('Name')).toBeEnabled();
-    expect(screen.getByLabelText('Exchange date')).toHaveValue('2026-12-24');
-    expect(screen.getByLabelText('On')).toHaveValue('2026-12-27');
+    expect(screen.getByLabelText('Exchange date')).toHaveValue('24 Dec 2026');
+    expect(screen.getByLabelText('On')).toHaveValue('27 Dec 2026');
     expect(
       screen.getByRole('switch', { name: 'Give everyone someone new' }),
     ).toBeChecked();
