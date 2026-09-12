@@ -20,7 +20,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
