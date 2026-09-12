@@ -7,7 +7,7 @@ import {
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { invariantResponse } from '@epic-web/invariant';
 import { type SEOHandle } from '@nasa-gcn/remix-seo';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   data as rrData,
   Link,
@@ -26,6 +26,7 @@ import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx';
 import { Avatar } from '#app/components/ui/avatar.tsx';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
+import { DateField } from '#app/components/ui/date-field.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { Text } from '#app/components/ui-kit/text.tsx';
@@ -241,6 +242,19 @@ function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
     },
   });
 
+  // Plain local state, not Conform's useInputControl: that hook attaches to
+  // the <form> DOM node on mount, but this form only exists once `editing`
+  // is true, so the very first (read-mode) mount can never find it. Reset
+  // on every edit-mode open so a cancelled edit doesn't linger — the same
+  // thing Conform's own native inputs get for free from their uncontrolled
+  // defaultValue re-mounting.
+  const [birthday, setBirthday] = useState(() =>
+    toDateInputValue(data.user.birthday),
+  );
+  useEffect(() => {
+    if (editing) setBirthday(toDateInputValue(data.user.birthday));
+  }, [editing, data.user.birthday]);
+
   // Leave edit mode once the save lands so we drop back to the read view.
   useExitOnSubmitSuccess({
     state: fetcher.state,
@@ -315,17 +329,16 @@ function ProfileCard({ onOpenPhoto }: Readonly<{ onOpenPhoto: () => void }>) {
             }}
             errors={fields.bio.errors}
           />
-          <Field
-            labelProps={{
-              htmlFor: fields.birthday.id,
-              children: 'Birthday',
-            }}
-            inputProps={{
-              ...getInputProps(fields.birthday, { type: 'date' }),
-              required: false,
-            }}
-            errors={fields.birthday.errors}
-          />
+          <div>
+            <DateField
+              id={fields.birthday.id}
+              label="Birthday"
+              value={birthday}
+              onChange={setBirthday}
+              error={fields.birthday.errors?.filter(Boolean).join(' ')}
+            />
+            <input type="hidden" name="birthday" value={birthday} />
+          </div>
           <ErrorList errors={form.errors} id={form.errorId} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={stopEditing}>
