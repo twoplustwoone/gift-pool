@@ -2,40 +2,15 @@
 // stored as UTC midnight (the same convention as pool event dates); the
 // auto-reveal instant is a real moment, chosen as 09:00 in the organizer's
 // time zone so "reveals on 27 Dec" means their morning, not a UTC boundary.
+// The generic `yyyy-mm-dd` string parsing/formatting lives in
+// `date-input.ts` (shared by every date field, not just exchanges).
 
-const DATE_INPUT = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-export function parseDateInput(
-  value: string | null | undefined,
-): { year: number; month: number; day: number } | null {
-  if (!value) return null;
-  const match = DATE_INPUT.exec(value.trim());
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const probe = new Date(Date.UTC(year, month - 1, day));
-  if (
-    probe.getUTCFullYear() !== year ||
-    probe.getUTCMonth() !== month - 1 ||
-    probe.getUTCDate() !== day
-  ) {
-    return null;
-  }
-  return { year, month, day };
-}
-
-// "2026-12-24" → 2026-12-24T00:00:00Z
-export function dateInputToUtcMidnight(value: string): Date | null {
-  const parts = parseDateInput(value);
-  if (!parts) return null;
-  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
-}
-
-// Date → "2026-12-24" (UTC calendar parts)
-export function toDateInput(date: Date): string {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
-}
+export {
+  parseDateInput,
+  dateInputToUtcMidnight,
+  toDateInput,
+} from './date-input.ts';
+import { parseDateInput, toDateInput } from './date-input.ts';
 
 function zonedParts(instant: Date, timeZone: string) {
   const fmt = new Intl.DateTimeFormat('en-US', {
