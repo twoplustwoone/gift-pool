@@ -34,7 +34,7 @@
     "e2e:prepare-db": "cp tests/prisma/base.db tests/prisma/data.e2e.db && touch tests/prisma/cache.db",
     "pretest:e2e:run": "run-s build prisma:generate e2e:prepare-db",
     "test:e2e:run": "cross-env CI=true DATABASE_URL=file:$(pwd)/tests/prisma/data.e2e.db DATABASE_PATH=$(pwd)/tests/prisma/data.e2e.db CACHE_DATABASE_PATH=$(pwd)/tests/prisma/cache.db SESSION_SECRET=SESSION_SECRET INTERNAL_COMMAND_TOKEN=INTERNAL_COMMAND_TOKEN HONEYPOT_SECRET=HONEYPOT_SECRET playwright test",
-    "test:e2e:install": "npx playwright install --with-deps chromium",
+    "test:e2e:install": "npx playwright install --with-deps chromium webkit",
     "typegen": "react-router typegen",
     "typecheck": "npm run typegen && tsc",
     "validate:agent-config": "node other/validate-agent-config.js",
