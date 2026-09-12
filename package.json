@@ -160,7 +160,7 @@
     "@storybook/react-vite": "^9.1.19",
     "@storybook/react-webpack5": "^9.1.19",
     "@testing-library/dom": "^10.3.2",
-    "@testing-library/jest-dom": "^6.4.6",
+    "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.2",
     "@total-typescript/ts-reset": "^0.6.0",
