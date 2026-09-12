@@ -34,6 +34,12 @@ const schema = z.object({
   GITHUB_CLIENT_SECRET: z.string().default('MOCK_GITHUB_CLIENT_SECRET'),
   GITHUB_TOKEN: z.string().default('MOCK_GITHUB_TOKEN'),
   ALLOW_INDEXING: z.enum(['true', 'false']).optional(),
+  // Set only by the e2e Playwright webServer (never in a real deployment),
+  // which runs with NODE_ENV=production over plain HTTP for unrelated
+  // reasons. Without this, every `Secure` cookie is silently dropped by
+  // WebKit (unlike Chromium, it refuses to store one on a non-HTTPS
+  // origin), breaking any test that logs in and then navigates again.
+  INSECURE_COOKIES: z.enum(['true', 'false']).optional(),
 });
 
 declare global {
@@ -76,6 +82,15 @@ export function getPublicEnv() {
 }
 
 export { getPublicEnv as getEnv };
+
+// A cookie should carry `Secure` in every real deployment (Fly terminates
+// TLS at the edge, so a request that reaches the app in production is
+// always HTTPS from the client's perspective) but not when the e2e
+// webServer's NODE_ENV=production-over-HTTP setup would otherwise make
+// WebKit silently discard the cookie. See `INSECURE_COOKIES` above.
+export const secureCookies =
+  process.env.NODE_ENV === 'production' &&
+  process.env.INSECURE_COOKIES !== 'true';
 
 type ENV = ReturnType<typeof getPublicEnv>;
 

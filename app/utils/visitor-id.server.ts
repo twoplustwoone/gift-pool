@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import * as cookie from 'cookie';
+import { secureCookies } from './env.server.ts';
 
 // First-party anonymous visitor id for drop-off analytics. Lets us see
 // share-link and invite-link landings (and their conversion to signup)
@@ -54,7 +55,7 @@ export function ensureVisitorId(request: Request): {
       maxAge: VISITOR_COOKIE_MAX_AGE,
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      secure: secureCookies,
     }),
   };
 }
