@@ -170,7 +170,7 @@ const CacheAdminRoute = () => {
         onChange={(event) => handleFormChange(event.currentTarget)}
       >
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_140px_minmax(220px,280px)_auto] lg:items-end">
-          <label className="space-y-2">
+          <label className="min-w-0 space-y-2">
             <span className="text-sm font-medium">Search key</span>
             <div className="relative">
               <LuSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -184,7 +184,7 @@ const CacheAdminRoute = () => {
             </div>
           </label>
 
-          <label className="space-y-2">
+          <label className="min-w-0 space-y-2">
             <span className="text-sm font-medium">Limit</span>
             <Input
               name="limit"
@@ -196,7 +196,7 @@ const CacheAdminRoute = () => {
             />
           </label>
 
-          <label className="space-y-2">
+          <label className="min-w-0 space-y-2">
             <span className="text-sm font-medium">Instance</span>
             <select
               name="instance"
@@ -222,7 +222,7 @@ const CacheAdminRoute = () => {
             </select>
           </label>
 
-          <Button type="submit" className="gap-2">
+          <Button type="submit" className="min-w-0 gap-2">
             <LuSearch className="h-4 w-4" />
             Search
           </Button>

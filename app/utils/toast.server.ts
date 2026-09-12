@@ -1,6 +1,7 @@
 import { createId as cuid } from '@paralleldrive/cuid2';
 import { createCookieSessionStorage, redirect } from 'react-router';
 import { z } from 'zod';
+import { secureCookies } from './env.server.ts';
 import { combineHeaders } from './misc.tsx';
 
 export const toastKey = 'toast';
@@ -22,7 +23,7 @@ export const toastSessionStorage = createCookieSessionStorage({
     path: '/',
     httpOnly: true,
     secrets: process.env.SESSION_SECRET.split(','),
-    secure: process.env.NODE_ENV === 'production',
+    secure: secureCookies,
   },
 });
 

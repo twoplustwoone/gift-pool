@@ -127,7 +127,7 @@ export default function PoolInvitationReviewPage() {
                 type="submit"
                 name="intent"
                 value="accept"
-                className="min-h-11"
+                className="min-h-11 min-w-0"
                 disabled={pending}
               >
                 {submittedIntent === 'accept' ? 'Joining…' : 'Accept and join'}
@@ -137,7 +137,7 @@ export default function PoolInvitationReviewPage() {
                 name="intent"
                 value="decline"
                 variant="outline"
-                className="min-h-11"
+                className="min-h-11 min-w-0"
                 disabled={pending}
               >
                 {submittedIntent === 'decline' ? 'Declining…' : 'Decline'}
