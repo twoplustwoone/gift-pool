@@ -15,6 +15,7 @@ import {
 import { z } from 'zod';
 import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
+import { DateField } from '#app/components/ui/date-field.tsx';
 import { Icon } from '#app/components/ui/icon.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
@@ -470,6 +471,8 @@ const NewPool = () => {
     },
   });
 
+  const [eventDate, setEventDate] = useState('');
+
   const cancelHref = groupContext
     ? `/groups/${groupContext.groupId}`
     : '/pools';
@@ -571,11 +574,14 @@ const NewPool = () => {
             </Stack>
 
             <Stack gap={2}>
-              <Label htmlFor={fields.eventDate.id}>
-                Event date{' '}
-                <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Input {...getInputProps(fields.eventDate, { type: 'date' })} />
+              <DateField
+                id={fields.eventDate.id}
+                label="Event date (optional)"
+                value={eventDate}
+                onChange={setEventDate}
+                error={fields.eventDate.errors?.filter(Boolean).join(' ')}
+              />
+              <input type="hidden" name="eventDate" value={eventDate} />
             </Stack>
 
             {groupContext ? (

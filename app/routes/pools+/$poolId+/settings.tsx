@@ -25,6 +25,7 @@ import { Button } from '#app/components/ui/button.tsx';
 import { Card } from '#app/components/ui/card.tsx';
 import { Checkbox } from '#app/components/ui/checkbox.tsx';
 import { ConfirmDialog } from '#app/components/ui/confirm-dialog.tsx';
+import { DateField } from '#app/components/ui/date-field.tsx';
 import { Input } from '#app/components/ui/input.tsx';
 import { Label } from '#app/components/ui/label.tsx';
 import {
@@ -216,6 +217,19 @@ function PoolDetailsCard({
 		},
 	});
 
+	// Plain local state, not Conform's useInputControl: that hook attaches to
+	// the <form> DOM node on mount, but this form only exists once `editing`
+	// is true, so the very first (read-mode) mount can never find it. Reset
+	// on every edit-mode open so a cancelled edit doesn't linger — the same
+	// thing Conform's own native inputs get for free from their uncontrolled
+	// defaultValue re-mounting.
+	const [eventDate, setEventDate] = useState(() =>
+		toDateInputValue(pool.eventDate),
+	);
+	useEffect(() => {
+		if (editing) setEventDate(toDateInputValue(pool.eventDate));
+	}, [editing, pool.eventDate]);
+
 	useExitOnSubmitSuccess({
 		state: fetcher.state,
 		success: form.status === 'success',
@@ -285,14 +299,16 @@ function PoolDetailsCard({
 						</select>
 					</div>
 
-					<Field
-						labelProps={{ htmlFor: fields.eventDate.id, children: 'Date' }}
-						inputProps={{
-							...getInputProps(fields.eventDate, { type: 'date' }),
-							required: false,
-						}}
-						errors={fields.eventDate.errors}
-					/>
+					<div>
+						<DateField
+							id={fields.eventDate.id}
+							label="Date"
+							value={eventDate}
+							onChange={setEventDate}
+							error={fields.eventDate.errors?.filter(Boolean).join(' ')}
+						/>
+						<input type="hidden" name="eventDate" value={eventDate} />
+					</div>
 				</div>
 
 				<div className="flex flex-col gap-1.5">
