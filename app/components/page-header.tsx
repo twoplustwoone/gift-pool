@@ -33,9 +33,9 @@ const PageHeader = (props: PageHeaderProps) => {
       >
         {props.variant === 'section' ? (
           <>
-            <Flex gap={2} align="center" className="flex-1">
-              {props.icon}
-              <Text size="xl" weight="bold">
+            <Flex gap={2} align="center" className="min-w-0 flex-1">
+              <span className="shrink-0">{props.icon}</span>
+              <Text size="xl" weight="bold" className="min-w-0 truncate">
                 {props.title}
               </Text>
             </Flex>

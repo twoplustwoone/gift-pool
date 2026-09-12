@@ -114,7 +114,7 @@ export function ExchangeSettingsFields({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
+          <div className="min-w-0 space-y-1.5">
             <Label htmlFor="exchange-occasion">Occasion</Label>
             <select
               id="exchange-occasion"
@@ -129,7 +129,7 @@ export function ExchangeSettingsFields({
               ))}
             </select>
           </div>
-          <div className="space-y-1.5">
+          <div className="min-w-0 space-y-1.5">
             <Label htmlFor="exchange-date">Exchange date</Label>
             <Input
               id="exchange-date"
