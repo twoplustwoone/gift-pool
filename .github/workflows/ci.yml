@@ -25,7 +25,7 @@ permissions:
 jobs:
   lint:
     name: ⬣ ESLint
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
@@ -38,7 +38,7 @@ jobs:
 
   typecheck:
     name: ʦ TypeScript
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
@@ -51,7 +51,7 @@ jobs:
 
   vitest:
     name: ⚡ Vitest
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
@@ -65,7 +65,7 @@ jobs:
 
   playwright:
     name: 🎭 Playwright
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
