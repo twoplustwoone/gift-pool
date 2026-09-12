@@ -254,7 +254,8 @@ A distinct product from pools that shares only the secrecy discipline (vision sp
 - **Auto-reveal**: 09:00 in the organizer's client-hint time zone (`exchange-dates.ts`), swept hourly by `api.internal.exchange-sweeps.ts` (see the scheduler section above). The reveal refuses to run before the event date even for the sweep.
 - **Routes**: `exchanges+/` (list with `GiftingSegments`, `new` = group picker then form, `$exchangeId+/` layout + page composed by status × role + settings). The index page re-exports the shared `action` because its fetchers post to the leaf route. Domain refusals return as `data({ error }, { status })`, never thrown, so a fetcher cannot blow up the page. Phase A offers group exchanges only; standalone invite links arrive with Phase C.
 - **Nav**: the "Gifting" tab targets `/pools` and stays active on `/exchanges*` via `alsoMatches` on both nav items.
-- **Deferred to Phase C** (recorded from Codex review): account deletion must splice/cancel DRAWN exchanges before `prisma.user.delete`; standalone invite path.
+- **Account deletion** splices/cancels the leaver's DRAWN exchanges before `prisma.user.delete` — nine FKs to User are `ON DELETE RESTRICT`, so the delete throws otherwise. `prepareExchangesForAccountDeletion` runs inside the caller's transaction; `announceExchangeAccountDeletion` fans out after it commits.
+- **Standalone invite links** land on `exchanges_.join.$code.tsx` (break-out filename, so it does NOT nest under the auth-gated section layout — same rule as the other invite landings above).
 
 ### Admin surface
 
