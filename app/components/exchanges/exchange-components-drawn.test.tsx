@@ -580,7 +580,7 @@ describe('remaining branches', () => {
     expect(
       screen.getByRole('switch', { name: 'Reveal for me if I forget' }),
     ).toBeEnabled();
-    expect(screen.getByLabelText('On')).toHaveValue('2026-12-27');
+    expect(screen.getByLabelText('On')).toHaveValue('27 Dec 2026');
     expect(
       screen.queryByText("Don't pair these people"),
     ).not.toBeInTheDocument();
