@@ -26,6 +26,22 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
       },
     },
+    // WebKit renders real CSS/layout differently from Chromium (this is
+    // what caught the missing-clamp class of bug this project pins), but it
+    // is a desktop WebKit build under UA/viewport emulation, not literally
+    // iOS — it does NOT reproduce an OS-native control's own intrinsic
+    // sizing (e.g. `<input type="date">`'s wide min-content width on a real
+    // iPhone; measured identical to Chromium here). Same limitation as the
+    // vh/dvh gap this repo already documents: some mobile Safari bugs are
+    // only visible on a real device. Scoped to just the mobile-layout spec
+    // so the rest of the e2e suite doesn't run twice.
+    {
+      name: 'mobile-webkit',
+      testMatch: /mobile-layout\.test\.ts$/,
+      use: {
+        ...devices['iPhone 13'],
+      },
+    },
   ],
 
   webServer: {
@@ -47,6 +63,12 @@ export default defineConfig({
       //
       // Ensure MSW mocks are enabled even when running locally (non-CI)
       MOCKS: 'true',
+      // This webServer always serves plain HTTP, but the CI path sets
+      // NODE_ENV=production (see above), which would otherwise mark every
+      // cookie `Secure` — WebKit (unlike Chromium) refuses to store a
+      // `Secure` cookie on a non-HTTPS origin, silently losing the session
+      // on the next navigation. Never set in a real deployment.
+      INSECURE_COOKIES: 'true',
     },
   },
 });
