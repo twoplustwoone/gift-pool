@@ -12,7 +12,13 @@ vi.mock('#app/utils/auth.server.ts', () => ({
   requireUserId: (...args: Array<unknown>) => requireUserId(...args),
 }));
 
-import PoolsRoute, { loader } from './route.tsx';
+const captureException = vi.fn();
+
+vi.mock('@sentry/react-router', () => ({
+  captureException: (...args: Array<unknown>) => captureException(...args),
+}));
+
+import PoolsRoute, { ErrorBoundary, loader } from './route.tsx';
 
 describe('app/routes/pools+/route.tsx', () => {
   beforeEach(() => {
@@ -48,5 +54,37 @@ describe('app/routes/pools+/route.tsx', () => {
     render(<App initialEntries={['/pools']} />);
 
     expect(screen.getByText('Pool list content')).toBeInTheDocument();
+  });
+
+  it('contains a child route error inside the pools section and reports it', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const error = new Error(
+      'No result found for routeId "routes/pools+/route"',
+    );
+    const App = createRoutesStub([
+      {
+        path: '/',
+        Component: () => <div>App shell</div>,
+        children: [],
+      },
+      {
+        path: '/pools',
+        Component: PoolsRoute,
+        ErrorBoundary,
+        children: [
+          {
+            index: true,
+            Component: () => {
+              throw error;
+            },
+          },
+        ],
+      },
+    ]);
+
+    render(<App initialEntries={['/pools']} />);
+
+    expect(await screen.findByText('Something went wrong')).toBeInTheDocument();
+    expect(captureException).toHaveBeenCalledWith(error);
   });
 });
