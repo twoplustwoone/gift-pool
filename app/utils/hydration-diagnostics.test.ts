@@ -1,5 +1,20 @@
-import { describe, expect, it } from 'vitest';
-import { readHydrationSnapshot } from './hydration-diagnostics.ts';
+/**
+ * @vitest-environment jsdom
+ */
+import { describe, expect, it, vi } from 'vitest';
+
+const setContext = vi.fn();
+const setTag = vi.fn();
+
+vi.mock('@sentry/react-router', () => ({
+  setContext: (...args: Array<unknown>) => setContext(...args),
+  setTag: (...args: Array<unknown>) => setTag(...args),
+}));
+
+import {
+  readHydrationSnapshot,
+  recordHydrationSnapshotOnRouterCreation,
+} from './hydration-diagnostics.ts';
 
 const POOL_ROUTES = [
   'root',
@@ -107,5 +122,36 @@ describe('readHydrationSnapshot', () => {
       routerInitialized: null,
       routeIdsMissingData: null,
     });
+  });
+});
+
+describe('recordHydrationSnapshotOnRouterCreation', () => {
+  it('records once, at the moment React Router publishes its router', () => {
+    const fake = makeWindow({ loaderRouteIds: ['root'], initialized: false });
+    Object.assign(window, {
+      __reactRouterRouteModules: fake.__reactRouterRouteModules,
+      __reactRouterContext: fake.__reactRouterContext,
+    });
+
+    recordHydrationSnapshotOnRouterCreation();
+    expect(setContext).not.toHaveBeenCalled();
+
+    const w = window as unknown as { __reactRouterDataRouter: unknown };
+    w.__reactRouterDataRouter = fake.__reactRouterDataRouter;
+
+    expect(w.__reactRouterDataRouter).toBe(fake.__reactRouterDataRouter);
+    expect(setContext).toHaveBeenCalledTimes(1);
+    expect(setContext).toHaveBeenCalledWith(
+      'hydration',
+      expect.objectContaining({
+        routerInitialized: false,
+        routeIdsMissingData: POOL_ROUTES.slice(1),
+      }),
+    );
+    expect(setTag).toHaveBeenCalledWith('hydration.missing_route_data', 'true');
+
+    // A later reassignment (HMR) must not overwrite the hydration-time record.
+    w.__reactRouterDataRouter = fake.__reactRouterDataRouter;
+    expect(setContext).toHaveBeenCalledTimes(1);
   });
 });

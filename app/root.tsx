@@ -55,7 +55,6 @@ import { trackClientEnvironmentOncePerDay } from './utils/client-environment.ts'
 import { prisma } from './utils/db.server.ts';
 import { getEnv } from './utils/env.server.ts';
 import { honeypot } from './utils/honeypot.server.ts';
-import { recordHydrationSnapshot } from './utils/hydration-diagnostics.ts';
 import { I18nProvider, getLocaleFromRequest } from './utils/i18n.tsx';
 import { combineHeaders, getDomainUrl } from './utils/misc.tsx';
 import { useNonce } from './utils/nonce-provider.ts';
@@ -330,11 +329,6 @@ const App = () => {
   useIsomorphicLayoutEffect(() => {
     setPrefetchCacheScope(data.user?.id ?? null);
   }, [data.user?.id]);
-  // Must be a layout effect: it has to observe the router before
-  // HydratedRouter's own layout effect calls `router.initialize()`.
-  useIsomorphicLayoutEffect(() => {
-    recordHydrationSnapshot();
-  }, []);
   useToast(data.toast);
   useEffect(() => {
     void trackClientEnvironmentOncePerDay();

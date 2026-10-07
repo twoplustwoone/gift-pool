@@ -93,12 +93,36 @@ let recorded = false;
 
 /**
  * Attaches the hydration snapshot to every later Sentry event from this
- * document. Call from the root route's first layout effect: child layout
- * effects run before `HydratedRouter`'s, so this observes the router before
- * `initialize()` can start an initial-load navigation.
+ * document, taken the moment React Router creates its router.
+ *
+ * `HydratedRouter` assigns `window.__reactRouterDataRouter` at the end of
+ * `createHydratedRouter`, after building the router from the hydration data
+ * and before its layout effect calls `router.initialize()` — exactly the state
+ * to capture. A setter observes that without touching the React tree: a root
+ * route effect never runs on the failing load (with route data missing, React
+ * Router renders nothing for the route tree, as there is no HydrateFallback),
+ * and a sibling component next to `HydratedRouter` would shift `useId` values
+ * away from the server-rendered tree.
+ *
+ * Call once, before `hydrateRoot`.
  */
-export function recordHydrationSnapshot() {
-  if (recorded || typeof window === 'undefined') return;
+export function recordHydrationSnapshotOnRouterCreation() {
+  if (typeof window === 'undefined') return;
+
+  let router: unknown;
+  Object.defineProperty(window, '__reactRouterDataRouter', {
+    configurable: true,
+    enumerable: true,
+    get: () => router,
+    set: (value: unknown) => {
+      router = value;
+      recordHydrationSnapshot();
+    },
+  });
+}
+
+function recordHydrationSnapshot() {
+  if (recorded) return;
   recorded = true;
 
   const snapshot = readHydrationSnapshot(

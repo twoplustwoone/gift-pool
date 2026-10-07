@@ -2,6 +2,7 @@ import { startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import { reloadOnceForChunkError } from './utils/chunk-error.client.ts';
+import { recordHydrationSnapshotOnRouterCreation } from './utils/hydration-diagnostics.ts';
 import { NonceProvider } from './utils/nonce-provider.ts';
 import { NOTIFICATIONS_REFRESH_EVENT } from './utils/web-push.client.ts';
 
@@ -33,6 +34,8 @@ function getCspNonceFromMeta() {
   const el = document.querySelector('meta[name="csp-nonce"]');
   return el?.getAttribute('content') ?? '';
 }
+
+recordHydrationSnapshotOnRouterCreation();
 
 startTransition(() => {
   const nonce = getCspNonceFromMeta();
