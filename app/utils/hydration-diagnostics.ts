@@ -24,6 +24,9 @@ type HydrationWindow = {
   performance?: { getEntriesByType?: (type: string) => unknown[] };
   __reactRouterDataRouter?: RouterLike;
   __reactRouterRouteModules?: Record<string, unknown>;
+  __reactRouterManifest?: {
+    routes?: Record<string, { hasLoader?: boolean } | undefined>;
+  };
   __reactRouterContext?: {
     state?: {
       loaderData?: Record<string, unknown> | null;
@@ -48,8 +51,10 @@ export type HydrationSnapshot = {
   // considered itself initialized from that hydration data.
   routerMatchIds: string[] | null;
   routerInitialized: boolean | null;
-  // Client matches the hydration data has nothing for — non-empty is the
-  // exact condition that produces `No result found for routeId`.
+  // Client matches that have a loader but no hydration data or error —
+  // non-empty is the exact condition that produces `No result found for
+  // routeId`. Loaderless routes (e.g. an action-only index) never have a
+  // `loaderData` entry, so they are excluded, as React Router does.
   routeIdsMissingData: string[] | null;
 };
 
@@ -69,6 +74,7 @@ export function readHydrationSnapshot(
   const routerMatchIds = router
     ? router.state.matches.map((match) => match.route.id)
     : null;
+  const manifestRoutes = win.__reactRouterManifest?.routes ?? {};
 
   return {
     pathname: win.location.pathname,
@@ -83,7 +89,9 @@ export function readHydrationSnapshot(
       routerMatchIds && loaderData
         ? routerMatchIds.filter(
             (id) =>
-              !(id in loaderData) && !(state?.errors && id in state.errors),
+              manifestRoutes[id]?.hasLoader === true &&
+              !(id in loaderData) &&
+              !(state?.errors && id in state.errors),
           )
         : null,
   };

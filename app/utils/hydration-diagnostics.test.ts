@@ -28,20 +28,32 @@ function makeWindow({
   errorRouteIds = [],
   initialized,
   navigationType = 'navigate',
+  matchIds = POOL_ROUTES,
+  loaderlessRouteIds = [],
 }: {
   loaderRouteIds: string[];
   errorRouteIds?: string[];
   initialized: boolean;
   navigationType?: string;
+  matchIds?: string[];
+  loaderlessRouteIds?: string[];
 }) {
   return {
+    __reactRouterManifest: {
+      routes: Object.fromEntries(
+        matchIds.map((id) => [
+          id,
+          { hasLoader: !loaderlessRouteIds.includes(id) },
+        ]),
+      ),
+    },
     location: { pathname: '/pools/abc/settings' },
     performance: {
       getEntriesByType: (type: string) =>
         type === 'navigation' ? [{ type: navigationType }] : [],
     },
     __reactRouterRouteModules: Object.fromEntries(
-      POOL_ROUTES.map((id) => [id, {}]),
+      matchIds.map((id) => [id, {}]),
     ),
     __reactRouterContext: {
       state: {
@@ -54,7 +66,7 @@ function makeWindow({
     __reactRouterDataRouter: {
       state: {
         initialized,
-        matches: POOL_ROUTES.map((id) => ({ route: { id } })),
+        matches: matchIds.map((id) => ({ route: { id } })),
         loaderData: {},
         errors: null,
       },
@@ -105,6 +117,28 @@ describe('readHydrationSnapshot', () => {
     expect(readHydrationSnapshot(win, null).routeIdsMissingData).toEqual([]);
   });
 
+  it('does not count a loaderless route, which never has hydration data', () => {
+    const detail = [
+      'root',
+      'routes/pools+/route',
+      'routes/pools+/$poolId+/_layout',
+      'routes/pools+/$poolId+/index',
+    ];
+    const snapshot = readHydrationSnapshot(
+      makeWindow({
+        // A healthy /pools/:poolId hydration: the action-only index route has
+        // no loaderData entry at all.
+        loaderRouteIds: detail.slice(0, 3),
+        initialized: true,
+        matchIds: detail,
+        loaderlessRouteIds: ['routes/pools+/$poolId+/index'],
+      }),
+      null,
+    );
+
+    expect(snapshot.routeIdsMissingData).toEqual([]);
+  });
+
   it('degrades to nulls when the router globals are absent', () => {
     const snapshot = readHydrationSnapshot(
       { location: { pathname: '/' } },
@@ -129,6 +163,7 @@ describe('recordHydrationSnapshotOnRouterCreation', () => {
   it('records once, at the moment React Router publishes its router', () => {
     const fake = makeWindow({ loaderRouteIds: ['root'], initialized: false });
     Object.assign(window, {
+      __reactRouterManifest: fake.__reactRouterManifest,
       __reactRouterRouteModules: fake.__reactRouterRouteModules,
       __reactRouterContext: fake.__reactRouterContext,
     });
