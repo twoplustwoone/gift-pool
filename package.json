@@ -194,7 +194,7 @@
     "jsdom": "^24.1.0",
     "msw": "2.15.0",
     "npm-run-all2": "^5.0.0",
-    "prettier": "3.9.9",
+    "prettier": "3.9.10",
     "prettier-plugin-sql": "^0.20.0",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "remix-flat-routes": "^0.8.0",
