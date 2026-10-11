@@ -147,7 +147,7 @@
   "devDependencies": {
     "@chromatic-com/storybook": "^4.1.1",
     "@epic-web/config": "^1.12.0",
-    "@faker-js/faker": "^8.4.1",
+    "@faker-js/faker": "^10.0.0",
     "@playwright/test": "^1.55.0",
     "@react-router/dev": "^7.18.0",
     "@react-router/remix-routes-option-adapter": "^7.18.0",
