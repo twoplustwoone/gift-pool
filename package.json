@@ -173,7 +173,7 @@
     "@types/fs-extra": "^11.0.4",
     "@types/glob": "^9.0.0",
     "@types/morgan": "^1.9.9",
-    "@types/node": "^20.14.11",
+    "@types/node": "^24.0.0",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
