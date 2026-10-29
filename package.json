@@ -165,7 +165,7 @@
     "@testing-library/user-event": "^14.5.2",
     "@total-typescript/ts-reset": "^0.6.0",
     "@types/bcryptjs": "^2.4.6",
-    "@types/better-sqlite3": "^7.6.11",
+    "@types/better-sqlite3": "^9.0.0",
     "@types/compression": "^1.7.5",
     "@types/cookie": "^0.6.0",
     "@types/eslint": "^9.0.0",
