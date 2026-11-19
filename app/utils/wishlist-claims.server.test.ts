@@ -250,6 +250,36 @@ describe('repeatable items are never claimed', () => {
     expect(claim?.claimedByUserId).toBeNull();
   });
 
+  it('shows the conflict banner to every other pool when the owner turns repeatable off', async () => {
+    const { owner, organizer, item } = await fixture();
+    await prisma.wishlistItem.update({
+      where: { id: item.id },
+      data: { repeatable: true },
+    });
+    const first = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(2026, 0, 1),
+    );
+    const second = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(2026, 0, 2),
+    );
+
+    await setRepeatable(item.id, false);
+
+    expect((await claimOn(item.id))?.poolId).toBe(first.id);
+    const { chosenIdeaId } = await prisma.pool.findUniqueOrThrow({
+      where: { id: second.id },
+      select: { chosenIdeaId: true },
+    });
+    const conflicts = await loadIdeaClaimConflicts(second.id, organizer.id);
+    expect(conflicts.get(chosenIdeaId ?? '')).toMatchObject({ show: true });
+  });
+
   it('never settles a repeatable item onto a waiting pool, even from a stray claim row', async () => {
     const { owner, friend, organizer, item } = await fixture();
     await prisma.wishlistItem.update({
