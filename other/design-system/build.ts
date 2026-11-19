@@ -160,11 +160,18 @@ function cssBlock(css: string, selector: string) {
 }
 
 function cssVars(block: string) {
-  return new Map(
-    [...block.matchAll(/--([a-z0-9-]+):([^;]+);/g)].map(
-      ([, name, value]) => [name!, value!.trim()] as const,
-    ),
-  );
+  const vars = new Map<string, string>();
+  for (const declaration of block.split(';').slice(0, -1)) {
+    const start = declaration.indexOf('--');
+    const colon = declaration.indexOf(':', start);
+    if (start !== -1 && colon > start + 2) {
+      vars.set(
+        declaration.slice(start + 2, colon),
+        declaration.slice(colon + 1).trim(),
+      );
+    }
+  }
+  return vars;
 }
 
 const HSL_CHANNELS = /^[\d.]+ [\d.]+% [\d.]+%( \/ [\d.]+)?$/;
