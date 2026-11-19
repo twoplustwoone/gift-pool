@@ -195,6 +195,7 @@ describe('PersonSurface form emission', () => {
             url: null,
             priceCents: null,
             currency: null,
+            repeatable: false,
             claimed: false,
             claimedByViewer: false,
             claimDisclosure: HIDDEN_CLAIM_DISCLOSURE,
@@ -296,6 +297,37 @@ describe('PersonSurface pool continuation (§6.3)', () => {
   });
 });
 
+describe('PersonSurface repeatable wishlist item', () => {
+  it('shows the badge instead of the claim toggle and keeps propose', () => {
+    renderSurface(
+      baseData({
+        wishlistSource: [
+          {
+            id: 'w1',
+            title: 'Gift card',
+            url: null,
+            priceCents: null,
+            currency: null,
+            repeatable: true,
+            claimed: false,
+            claimedByViewer: false,
+            claimDisclosure: HIDDEN_CLAIM_DISCLOSURE,
+          },
+        ],
+        openPools: [{ id: 'p1', title: 'Pool' }],
+      }),
+    );
+
+    expect(screen.getByText('Multiples welcome')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /i'm getting this/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /propose to pool/i }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('PersonSurface wishlist claim attribution', () => {
   it('renders the tiered ClaimDescriptor text in place of the old generic "Spoken for" badge', () => {
     renderSurface(
@@ -307,6 +339,7 @@ describe('PersonSurface wishlist claim attribution', () => {
             url: null,
             priceCents: null,
             currency: null,
+            repeatable: false,
             claimed: true,
             claimedByViewer: false,
             claimDisclosure: {
@@ -345,6 +378,7 @@ describe('PersonSurface wishlist claim attribution', () => {
             url: null,
             priceCents: null,
             currency: null,
+            repeatable: false,
             claimed: true,
             claimedByViewer: false,
             claimDisclosure: {

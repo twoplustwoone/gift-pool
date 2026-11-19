@@ -61,6 +61,7 @@ const friendWishlistPageDetailsSelect = {
       note: true,
       priceCents: true,
       currency: true,
+      repeatable: true,
       categoryId: true,
       updatedAt: true,
       sortOrder: true,
@@ -111,6 +112,7 @@ function mapWishlistItems(
     note: string | null;
     priceCents?: number | null;
     currency?: string | null;
+    repeatable: boolean;
     categoryId: string | null;
     updatedAt: Date;
     sortOrder: number;
@@ -223,6 +225,7 @@ export async function loadOwnWishlistPageData({
           type: true,
           priceCents: true,
           currency: true,
+          repeatable: true,
           updatedAt: true,
           sortOrder: true,
           hasImage: true,

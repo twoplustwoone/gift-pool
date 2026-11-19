@@ -66,6 +66,7 @@ const baseItem = {
   imageSource: null,
   priceCents: null,
   currency: null,
+  repeatable: false,
   updatedAt: new Date(),
 };
 
@@ -271,6 +272,61 @@ describe('WishlistItemEditor — Phase 2: list link behaviour', () => {
       screen.queryByText(/looks like an external wishlist/i),
     ).not.toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /note for friends/i })).toBeInTheDocument();
+  });
+});
+
+describe('WishlistItemEditor repeatable switch', () => {
+  function repeatableInput() {
+    return document.querySelector<HTMLInputElement>('input[name="repeatable"]');
+  }
+
+  it('starts from the saved flag and submits the toggled value', async () => {
+    const user = userEvent.setup();
+    render(
+      <WishlistItemEditor
+        wishlistItem={{ ...baseItem, repeatable: true, status: 'ACTIVE' }}
+        canEdit
+        initialMode="edit"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+    await user.click(screen.getByText('Open'));
+
+    const toggle = screen.getByRole('switch', {
+      name: 'Can be gifted more than once',
+    });
+    expect(toggle).toBeChecked();
+    expect(repeatableInput()?.value).toBe('on');
+    expect(screen.getByText('Friends will see')).toBeInTheDocument();
+
+    await user.click(toggle);
+
+    expect(toggle).not.toBeChecked();
+    expect(repeatableInput()?.value).toBe('');
+    expect(screen.queryByText('Friends will see')).not.toBeInTheDocument();
+  });
+
+  it('is not offered for a list link', async () => {
+    const user = userEvent.setup();
+    render(
+      <WishlistItemEditor
+        wishlistItem={{
+          ...baseItem,
+          type: 'wishlist',
+          url: 'https://www.amazon.com/hz/wishlist/ls/ABC',
+          status: 'ACTIVE',
+        }}
+        canEdit
+        initialMode="edit"
+        trigger={<button type="button">Open</button>}
+      />,
+    );
+    await user.click(screen.getByText('Open'));
+
+    expect(
+      screen.queryByRole('switch', { name: 'Can be gifted more than once' }),
+    ).not.toBeInTheDocument();
+    expect(repeatableInput()?.value).toBe('');
   });
 });
 

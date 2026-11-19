@@ -48,6 +48,7 @@ import { SystemLabel } from '#app/components/ui/system-label.tsx';
 import { Textarea } from '#app/components/ui/textarea.tsx';
 import { Flex, Stack, Text } from '#app/components/ui-kit';
 import { ClaimDescriptor } from '#app/components/wishlist/claim-descriptor.tsx';
+import { RepeatableBadge } from '#app/components/wishlist/repeatable-badge.tsx';
 import { formatCents } from '#app/utils/pool-contributions.ts';
 import {
   DECISION_MODE,
@@ -267,6 +268,7 @@ const IdeaCard = ({
                   From wishlist
                 </span>
               ))}
+            {idea.wishlistItem?.repeatable ? <RepeatableBadge /> : null}
           </div>
         </div>
       </div>
@@ -503,6 +505,9 @@ const ProposeIdeaForm = ({
                     {item.priceCents == null
                       ? ''
                       : ` — ${formatCents(item.priceCents, item.currency ?? 'USD')}`}
+                    {item.repeatable ? (
+                      <RepeatableBadge className="ml-2 align-middle" />
+                    ) : null}
                     {item.claimDisclosure?.show ? (
                       <ClaimDescriptor
                         disclosure={item.claimDisclosure}

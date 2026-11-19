@@ -13,6 +13,7 @@ import {
   claimForUser,
   loadClaimStates,
   loadIdeaClaimConflicts,
+  reconcileClaimsForRepeatable,
   releaseUserClaim,
   syncPoolClaim,
 } from './wishlist-claims.server.ts';
@@ -131,6 +132,187 @@ describe('claimForUser', () => {
       where: { wishlistItemId: item.id },
     });
     expect(claims).toHaveLength(1);
+  });
+});
+
+async function setRepeatable(itemId: string, repeatable: boolean) {
+  await prisma.$transaction(async (tx) => {
+    await tx.wishlistItem.update({
+      where: { id: itemId },
+      data: { repeatable },
+    });
+    await reconcileClaimsForRepeatable(tx, itemId);
+  });
+}
+
+async function claimOn(itemId: string) {
+  return prisma.wishlistClaim.findUnique({ where: { wishlistItemId: itemId } });
+}
+
+describe('repeatable items are never claimed', () => {
+  it('refuses a solo claim and writes no row', async () => {
+    const { friend, item } = await fixture();
+    await prisma.wishlistItem.update({
+      where: { id: item.id },
+      data: { repeatable: true },
+    });
+
+    await expect(claimForUser(item.id, friend.id)).resolves.toEqual({
+      ok: false,
+      reason: 'not-claimable',
+    });
+    expect(await claimOn(item.id)).toBeNull();
+  });
+
+  it('drops a solo claim when the owner marks the item repeatable', async () => {
+    const { friend, item } = await fixture();
+    await claimForUser(item.id, friend.id);
+
+    await setRepeatable(item.id, true);
+
+    expect(await claimOn(item.id)).toBeNull();
+  });
+
+  it('drops a pool claim without handing the item to another waiting pool', async () => {
+    const { owner, organizer, item } = await fixture();
+    const holder = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(2026, 0, 1),
+    );
+    await syncPoolClaim(holder.id);
+    const waiting = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(2026, 0, 2),
+    );
+    await syncPoolClaim(waiting.id);
+    expect((await claimOn(item.id))?.poolId).toBe(holder.id);
+
+    await setRepeatable(item.id, true);
+
+    expect(await claimOn(item.id)).toBeNull();
+  });
+
+  it('lets pools choose a repeatable item with no claim and no conflict', async () => {
+    const { owner, organizer, item } = await fixture();
+    await prisma.wishlistItem.update({
+      where: { id: item.id },
+      data: { repeatable: true },
+    });
+    const first = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
+    const second = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
+
+    for (const pool of [first, second]) {
+      expect(await syncPoolClaim(pool.id)).toEqual({
+        claimedItemId: null,
+        conflictedItemId: null,
+        released: [],
+      });
+    }
+    expect(await claimOn(item.id)).toBeNull();
+    expect(await loadIdeaClaimConflicts(second.id, organizer.id)).toEqual(
+      new Map(),
+    );
+  });
+
+  it('hands the item to the waiting pool when the owner turns repeatable off', async () => {
+    const { owner, organizer, item } = await fixture();
+    await prisma.wishlistItem.update({
+      where: { id: item.id },
+      data: { repeatable: true },
+    });
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
+    await syncPoolClaim(pool.id);
+    expect(await claimOn(item.id)).toBeNull();
+
+    await setRepeatable(item.id, false);
+
+    const claim = await claimOn(item.id);
+    expect(claim?.poolId).toBe(pool.id);
+    expect(claim?.claimedByUserId).toBeNull();
+  });
+
+  it('shows the conflict banner to every other pool when the owner turns repeatable off', async () => {
+    const { owner, organizer, item } = await fixture();
+    await prisma.wishlistItem.update({
+      where: { id: item.id },
+      data: { repeatable: true },
+    });
+    const first = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(2026, 0, 1),
+    );
+    const second = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(2026, 0, 2),
+    );
+
+    await setRepeatable(item.id, false);
+
+    expect((await claimOn(item.id))?.poolId).toBe(first.id);
+    const { chosenIdeaId } = await prisma.pool.findUniqueOrThrow({
+      where: { id: second.id },
+      select: { chosenIdeaId: true },
+    });
+    const conflicts = await loadIdeaClaimConflicts(second.id, organizer.id);
+    expect(conflicts.get(chosenIdeaId ?? '')).toMatchObject({ show: true });
+  });
+
+  it('never settles a repeatable item onto a waiting pool, even from a stray claim row', async () => {
+    const { owner, friend, organizer, item } = await fixture();
+    await prisma.wishlistItem.update({
+      where: { id: item.id },
+      data: { repeatable: true },
+    });
+    await prisma.wishlistClaim.create({
+      data: { wishlistItemId: item.id, claimedByUserId: friend.id },
+    });
+    await decidedPoolFor(item.id, owner.id, organizer.id, new Date());
+
+    await expect(releaseUserClaim(item.id, friend.id)).resolves.toMatchObject({
+      ok: true,
+      transferredToPoolId: null,
+    });
+    expect(await claimOn(item.id)).toBeNull();
+  });
+
+  it('is idempotent when the flag has not changed', async () => {
+    const { owner, organizer, item } = await fixture();
+    const pool = await decidedPoolFor(
+      item.id,
+      owner.id,
+      organizer.id,
+      new Date(),
+    );
+    await syncPoolClaim(pool.id);
+    const before = await claimOn(item.id);
+
+    await setRepeatable(item.id, false);
+    await setRepeatable(item.id, false);
+
+    expect((await claimOn(item.id))?.id).toBe(before?.id);
   });
 });
 
@@ -629,7 +811,8 @@ describe('claimForUser losing a race', () => {
 
     const loser = results.find((r) => !r.ok);
     expect(loser).toBeDefined();
-    if (!loser || loser.ok) throw new Error('expected a losing outcome');
+    if (!loser || loser.ok || loser.reason === 'not-claimable')
+      throw new Error('expected a losing outcome');
     expect(loser.reason).toBe('held-by-user');
     // The loser must be told the actual winner, not null.
     expect(loser.claim.claimedByUserId).not.toBeNull();

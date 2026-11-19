@@ -26,6 +26,7 @@ const items = [
     sortOrder: 0,
     updatedAt: new Date(),
     status: 'ACTIVE' as const,
+    repeatable: false,
   },
   {
     id: 'i2',
@@ -39,6 +40,7 @@ const items = [
     sortOrder: 1,
     updatedAt: new Date(),
     status: 'ACTIVE' as const,
+    repeatable: false,
   },
   {
     id: 'i3',
@@ -52,6 +54,7 @@ const items = [
     sortOrder: 0,
     updatedAt: new Date(),
     status: 'ACTIVE' as const,
+    repeatable: false,
   },
 ];
 
@@ -68,6 +71,7 @@ const viewerItems = [
     sortOrder: 0,
     updatedAt: new Date(),
     status: 'ACTIVE' as const,
+    repeatable: false,
   },
   {
     id: 'i5',
@@ -81,6 +85,7 @@ const viewerItems = [
     sortOrder: 1,
     updatedAt: new Date(),
     status: 'ACTIVE' as const,
+    repeatable: false,
   },
   {
     id: 'i6',
@@ -94,6 +99,7 @@ const viewerItems = [
     sortOrder: 0,
     updatedAt: new Date(),
     status: 'ACTIVE' as const,
+    repeatable: false,
   },
 ];
 

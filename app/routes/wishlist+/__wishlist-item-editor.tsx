@@ -54,8 +54,10 @@ import {
   MobileBottomSheetDescription,
 } from '#app/components/ui/mobile-bottom-sheet';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
+import { Switch } from '#app/components/ui/switch.tsx';
 import { Flex, Text } from '#app/components/ui-kit';
 import { useIsDesktop } from '#app/components/wishlist/hooks/use-is-desktop.ts';
+import { RepeatableBadge } from '#app/components/wishlist/repeatable-badge.tsx';
 import { track } from '#app/utils/analytics.client.ts';
 import { createClientMutationId } from '#app/utils/client-mutation-id.ts';
 import { cn, getWishlistItemImgSrc, useIsPending } from '#app/utils/misc.tsx';
@@ -137,6 +139,8 @@ export const WishlistItemSchema = z
       .string()
       .regex(/^[A-Z]{3}$/)
       .optional(),
+    // Conform turns the hidden input's 'on' into true and '' into undefined.
+    repeatable: z.boolean().optional(),
     // Enrichment bookkeeping (hidden inputs) — analytics only, never persisted.
     enrichedFields: z.string().max(64).optional(),
     enrichmentEdited: z.string().optional(),
@@ -313,6 +317,8 @@ type EditorProps = {
     // typing is what let that ship.
     priceCents: number | null;
     currency: string | null;
+    // Required for the same reason as the price fields.
+    repeatable: boolean;
   } & Partial<{
       hasImage: boolean;
       imageSource: WishlistItemImageSource | null;
@@ -1540,6 +1546,10 @@ function EditorFormSection({
     !listLinkSuggestionDismissed &&
     looksLikeWishlistUrl(fields.url.value ?? '');
   const fieldConfig = getEditorFieldConfig(isListLinkType);
+  const savedRepeatable = wishlistItem?.repeatable ?? false;
+  const [repeatable, setRepeatable] = React.useState(savedRepeatable);
+  const repeatableChanged = !isListLinkType && repeatable !== savedRepeatable;
+  const submitDisabled = isPending || (saveDisabled && !repeatableChanged);
   return (
     <Form
       method="POST"
@@ -1547,6 +1557,9 @@ function EditorFormSection({
       className="flex flex-col gap-4"
       encType="multipart/form-data"
       ref={formRef as React.RefObject<HTMLFormElement>}
+      // "Save & Add Another" resets the form element but not React state.
+      // Without this, the next item would start with the switch on.
+      onReset={() => setRepeatable(savedRepeatable)}
       onSubmit={(event) => {
         conformOnSubmit?.(event);
         if (!event.defaultPrevented) {
@@ -1557,6 +1570,11 @@ function EditorFormSection({
       <input type="hidden" name="clientMutationId" value="" />
       <input type="hidden" name="type" value={itemType} />
       <input type="hidden" name="currency" value={enrichment.currencyValue} />
+      <input
+        type="hidden"
+        name="repeatable"
+        value={repeatable && !isListLinkType ? 'on' : ''}
+      />
       <input
         type="hidden"
         name="enrichedFields"
@@ -1643,6 +1661,9 @@ function EditorFormSection({
           }}
           errors={fields.price.errors}
         />
+      )}
+      {isListLinkType ? null : (
+        <RepeatableField checked={repeatable} onCheckedChange={setRepeatable} />
       )}
       <TextareaField
         className="w-full"
@@ -1856,7 +1877,7 @@ function EditorFormSection({
         <StatusButton
           form={form.id}
           type="submit"
-          disabled={saveDisabled}
+          disabled={submitDisabled}
           status={isPending ? 'pending' : 'idle'}
           variant="default"
           name="intent"
@@ -1871,7 +1892,7 @@ function EditorFormSection({
           <StatusButton
             form={form.id}
             type="submit"
-            disabled={saveDisabled}
+            disabled={submitDisabled}
             status={isPending ? 'pending' : 'idle'}
             variant="default"
             name="intent"
@@ -1884,6 +1905,46 @@ function EditorFormSection({
         ) : null}
       </DialogFooterComponent>
     </Form>
+  );
+}
+
+function RepeatableField({
+  checked,
+  onCheckedChange,
+}: Readonly<{
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}>) {
+  const id = React.useId();
+  const labelId = `${id}-label`;
+  const helpId = `${id}-help`;
+  return (
+    <div className="flex flex-col gap-2.5 rounded-xl border border-border bg-card py-3 pl-4 pr-2">
+      <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span id={labelId} className="text-sm font-semibold text-foreground">
+            Can be gifted more than once
+          </span>
+          <span id={helpId} className="text-sm text-muted-foreground">
+            Great for gift cards. Friends won't see it as claimed, so anyone can
+            give it.
+          </span>
+        </div>
+        <Switch
+          checked={checked}
+          aria-labelledby={labelId}
+          aria-describedby={helpId}
+          onCheckedChange={onCheckedChange}
+        />
+      </div>
+      {checked ? (
+        <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-border pt-2.5 text-xs text-muted-foreground">
+          <span>Friends will see</span>
+          <RepeatableBadge />
+          <span>and no claim button.</span>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

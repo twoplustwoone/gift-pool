@@ -155,6 +155,7 @@ export const PastWishlistItemCard = ({
         imageSource: item.imageSource ?? null,
         priceCents: item.priceCents ?? null,
         currency: item.currency ?? null,
+        repeatable: item.repeatable,
         updatedAt: item.updatedAt,
         status: item.status as WishlistItemStatusValue,
       }}

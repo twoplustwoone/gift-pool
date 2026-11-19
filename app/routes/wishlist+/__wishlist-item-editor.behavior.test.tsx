@@ -127,6 +127,7 @@ const baseItem = {
   note: null,
   priceCents: null,
   status: 'ACTIVE' as const,
+  repeatable: false,
   title: 'My Item',
   type: 'text' as const,
   updatedAt: new Date(),

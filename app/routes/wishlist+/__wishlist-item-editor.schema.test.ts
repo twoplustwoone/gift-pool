@@ -6,6 +6,7 @@
  * URL constructor (the jsdom test file stubs URL.createObjectURL which
  * can break Zod's URL validation).
  */
+import { parseWithZod } from '@conform-to/zod';
 import { describe, expect, it } from 'vitest';
 import { WishlistItemSchema, looksLikeWishlistUrl } from './__wishlist-item-editor';
 
@@ -101,5 +102,32 @@ describe('WishlistItemSchema — URL required for list links', () => {
   it('passes when type is link and no URL is supplied', () => {
     const result = parse({ type: 'link' });
     expect(result.success).toBe(true);
+  });
+});
+
+describe('WishlistItemSchema repeatable', () => {
+  function parseForm(repeatable: string | null) {
+    const formData = new FormData();
+    formData.set('title', 'Gift card');
+    formData.set('type', 'text');
+    formData.set('imageAction', 'none');
+    if (repeatable !== null) formData.set('repeatable', repeatable);
+    return parseWithZod(formData, { schema: WishlistItemSchema });
+  }
+
+  it("reads the hidden input's 'on' as true", () => {
+    const submission = parseForm('on');
+    expect(submission.status).toBe('success');
+    if (submission.status !== 'success') return;
+    expect(submission.value.repeatable).toBe(true);
+  });
+
+  it('reads an empty or missing input as not repeatable', () => {
+    for (const value of ['', null]) {
+      const submission = parseForm(value);
+      expect(submission.status).toBe('success');
+      if (submission.status !== 'success') return;
+      expect(submission.value.repeatable).toBeFalsy();
+    }
   });
 });

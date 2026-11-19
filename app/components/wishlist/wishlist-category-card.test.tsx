@@ -220,6 +220,7 @@ describe('WishlistCategoryCard', () => {
                 sortOrder: 0,
                 updatedAt: new Date(),
                 status: 'ACTIVE',
+                repeatable: false,
               },
             ]}
           />
