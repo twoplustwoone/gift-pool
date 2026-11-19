@@ -35,6 +35,7 @@ import {
 } from '#app/components/ui/responsive-dialog.tsx';
 import { Textarea } from '#app/components/ui/textarea.tsx';
 import { ClaimDescriptor } from '#app/components/wishlist/claim-descriptor.tsx';
+import { RepeatableBadge } from '#app/components/wishlist/repeatable-badge.tsx';
 import { type RelationshipState } from '#app/utils/friends.ts';
 import { formatCents } from '#app/utils/pool-contributions.ts';
 import { type ClaimDisclosure } from '#app/utils/wishlist-claim-disclosure.ts';
@@ -99,6 +100,7 @@ export type PersonSurfaceViewData = {
     url: string | null;
     priceCents: number | null;
     currency: string | null;
+    repeatable: boolean;
     claimed: boolean;
     claimedByViewer: boolean;
     claimDisclosure: ClaimDisclosure;
@@ -1137,26 +1139,32 @@ function WishlistSourceRow({
         ) : null}
       </div>
       <div className="mt-3 flex gap-2">
-        <claimFetcher.Form
-          method="post"
-          action="/wishlist/purchase"
-          className="flex-1"
-        >
-          <input
-            type="hidden"
-            name="intent"
-            value={item.claimedByViewer ? 'unpurchase' : 'purchase'}
-          />
-          <input type="hidden" name="wishlistItemId" value={item.id} />
-          <button
-            type="submit"
-            disabled={claimFetcher.state !== 'idle'}
-            className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-full border text-[12.5px] font-bold transition-colors hover:bg-accent"
+        {item.repeatable ? (
+          <div className="flex h-9 flex-1 items-center justify-center">
+            <RepeatableBadge />
+          </div>
+        ) : (
+          <claimFetcher.Form
+            method="post"
+            action="/wishlist/purchase"
+            className="flex-1"
           >
-            <LuCheck size={15} />
-            {item.claimedByViewer ? "I'm not, actually" : "I'm getting this"}
-          </button>
-        </claimFetcher.Form>
+            <input
+              type="hidden"
+              name="intent"
+              value={item.claimedByViewer ? 'unpurchase' : 'purchase'}
+            />
+            <input type="hidden" name="wishlistItemId" value={item.id} />
+            <button
+              type="submit"
+              disabled={claimFetcher.state !== 'idle'}
+              className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-full border text-[12.5px] font-bold transition-colors hover:bg-accent"
+            >
+              <LuCheck size={15} />
+              {item.claimedByViewer ? "I'm not, actually" : "I'm getting this"}
+            </button>
+          </claimFetcher.Form>
+        )}
         {!item.claimedByViewer ? (
           <ProposeControl
             recipientId={recipientId}

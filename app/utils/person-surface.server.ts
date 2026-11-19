@@ -449,6 +449,7 @@ export type PersonWishlistItem = {
   url: string | null;
   priceCents: number | null;
   currency: string | null;
+  repeatable: boolean;
   claimed: boolean;
   claimedByViewer: boolean;
   // Tiered disclosure for the "claimed by someone else" case (pool or
@@ -473,6 +474,7 @@ export async function loadPersonWishlistSource(
       url: true,
       priceCents: true,
       currency: true,
+      repeatable: true,
       claim: { select: { claimedByUserId: true } },
     },
     orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
@@ -487,6 +489,7 @@ export async function loadPersonWishlistSource(
     url: i.url,
     priceCents: i.priceCents,
     currency: i.currency,
+    repeatable: i.repeatable,
     claimed: i.claim != null,
     claimedByViewer: i.claim?.claimedByUserId === viewerId,
     claimDisclosure: claimDisclosures.get(i.id) ?? HIDDEN_CLAIM_DISCLOSURE,
