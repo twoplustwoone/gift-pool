@@ -451,7 +451,7 @@ function WishlistNonOwnerExtras({
 }: WishlistNonOwnerExtrasProps) {
   if (repeatable) {
     return (
-      <div className="flex flex-col gap-2.5 rounded-xl bg-muted p-3.5">
+      <div className="flex flex-col gap-2.5">
         <RepeatableBadge className="bg-card" />
         <Text size="sm">
           Anyone can give this, so there's nothing to claim. They're happy to
