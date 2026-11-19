@@ -44,7 +44,7 @@
     "trigger:exchange-sweeps": "node other/trigger-exchange-sweeps.js",
     "storybook": "cross-env STORYBOOK=1 storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "design-system:build": "npm run build:icons --silent && tsx ./other/design-system/build.ts"
+    "design-system:build": "npm run build:icons --silent && tsx ./other/design-system/build.ts --ref=\"$(git rev-parse --abbrev-ref HEAD)@$(git rev-parse --short HEAD)\""
   },
   "eslintIgnore": [
     "/node_modules",

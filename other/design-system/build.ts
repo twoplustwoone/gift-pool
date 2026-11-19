@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 import * as esbuild from 'esbuild';
 import {
   colorUsage,
@@ -142,8 +143,9 @@ const contentDir = path.join(here, 'content');
 const outRoot = path.join(repo, 'build', 'design-system');
 const out = path.join(outRoot, 'project');
 
-const git = (...args: string[]) =>
-  execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+const { ref } = parseArgs({
+  options: { ref: { type: 'string', default: 'unknown' } },
+}).values;
 
 function cssBlock(css: string, selector: string) {
   const open = css.indexOf(`${selector} {`);
@@ -158,7 +160,7 @@ function cssBlock(css: string, selector: string) {
 
 function cssVars(block: string) {
   return new Map(
-    [...block.matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)].map(
+    [...block.matchAll(/--([a-z0-9-]+):([^;]+);/g)].map(
       ([, name, value]) => [name!, value!.trim()] as const,
     ),
   );
@@ -219,7 +221,7 @@ async function readFonts() {
   return [...css.matchAll(/@font-face\s*{([^}]*)}/g)].map(([, body]) => {
     const family = /font-family:\s*'([^']+)'/.exec(body!)?.[1];
     const url = /url\('([^']+)'\)/.exec(body!)?.[1];
-    const weight = /font-weight:\s*([^;]+);/.exec(body!)?.[1]?.trim();
+    const weight = /font-weight:([^;]+);/.exec(body!)?.[1]?.trim();
     if (!family || !url || !weight)
       throw new Error(`Unreadable @font-face in fonts.css:${body}`);
     return {
@@ -282,7 +284,7 @@ function buildTokens(
     meta: {
       source: 'github',
       repo: 'twoplustwoone/gift-pool',
-      ref: `${git('rev-parse', '--abbrev-ref', 'HEAD')}@${git('rev-parse', '--short', 'HEAD')}`,
+      ref,
       package: '.',
       paths: {
         tokens: ['app/styles/tailwind.css', 'other/design-system/tokens.ts'],
@@ -428,7 +430,7 @@ async function buildCss(appSources: string[]) {
   // The app stores colours as bare HSL channels; the artifact's tokens are whole colours.
   const css = (await fs.readFile(raw, 'utf8'))
     .replace(
-      /hsl\(var\(--([\w-]+)\)\s*\/\s*((?:[^()]|\([^()]*\))+)\)/g,
+      /hsl\(var\(--([\w-]+)\) \/ ([^()]*(?:\([^()]*\))?)\)/g,
       'hsl(from var(--$1) h s l / $2)',
     )
     .replace(/hsl\(var\(--([\w-]+)\)\)/g, 'var(--$1)');
@@ -462,9 +464,12 @@ async function main() {
   );
   await fs.writeFile(path.join(out, 'tokens.css'), tokensCss(tokens));
   await fs.mkdir(path.join(out, 'fonts'), { recursive: true });
-  for (const f of fonts)
-    await fs.copyFile(path.join(repo, 'public', f.url), path.join(out, f.file));
-  await fs.copyFile(sprite, path.join(out, 'components/sprite.svg'));
+  await Promise.all([
+    ...fonts.map((f) =>
+      fs.copyFile(path.join(repo, 'public', f.url), path.join(out, f.file)),
+    ),
+    fs.copyFile(sprite, path.join(out, 'components/sprite.svg')),
+  ]);
 
   await buildCss(await buildBundle());
 
