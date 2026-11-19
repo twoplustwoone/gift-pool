@@ -206,6 +206,9 @@ export async function sendOrganizerNudge({
   });
 
   let result: OrganizerNudgeSendResult;
+  // A concurrent duplicate replays the winner's nudge, and the winner already
+  // queued its delivery.
+  let createdNudgeId: string | null = null;
   try {
     result = await prisma.$transaction(async (tx) => {
       const concurrentExisting = await tx.organizerNudge.findUnique({
@@ -256,6 +259,7 @@ export async function sendOrganizerNudge({
           },
         },
       });
+      createdNudgeId = nudge.id;
 
       return {
         status: 'QUEUED' as const,
@@ -275,6 +279,7 @@ export async function sendOrganizerNudge({
       };
     });
   } catch (error) {
+    createdNudgeId = null;
     if (!isUniqueConstraintError(error)) throw error;
     const raced = await prisma.organizerNudge.findUnique({
       where: { senderId_idempotencyKey: { senderId, idempotencyKey } },
@@ -284,7 +289,7 @@ export async function sendOrganizerNudge({
   }
 
   if (result.status === 'QUEUED') {
-    queueOrganizerNudgeNotifications(result.nudgeId);
+    if (createdNudgeId) queueOrganizerNudgeNotifications(createdNudgeId);
   } else {
     recordSkippedOrganizerNudge({ poolId, senderId, result });
   }

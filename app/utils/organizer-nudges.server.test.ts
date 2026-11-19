@@ -201,6 +201,9 @@ describe('organizer nudge module', () => {
     await expect(
       prisma.organizerNudge.count({ where: { poolId: pool.id } }),
     ).resolves.toBe(1);
+    // The send runs after sendOrganizerNudge returns. A test that ends before
+    // it lands leaves the call to be counted by the next test's spy.
+    await vi.waitFor(() => expect(queueNotification).toHaveBeenCalledTimes(1));
   });
 
   it('serializes distinct concurrent requests against the kind cooldown', async () => {
@@ -246,6 +249,7 @@ describe('organizer nudge module', () => {
         reason: 'COOLDOWN',
       },
     });
+    await vi.waitFor(() => expect(queueNotification).toHaveBeenCalledTimes(1));
   });
 
   it('keeps a zero-recipient attempt as a no-op that consumes no limit', async () => {
