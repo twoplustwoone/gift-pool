@@ -321,3 +321,83 @@ test('claim rolls back when purchase mutation fails', async ({
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   }
 });
+
+test('an owner marks a claimed item repeatable and friends can no longer claim it', async ({
+  page,
+  login,
+}) => {
+  const createMember = () => {
+    const data = createUser();
+    return prisma.user.create({
+      select: { id: true, username: true },
+      data: {
+        ...data,
+        roles: connectUserRole,
+        password: { create: createPassword(data.username) },
+      },
+    });
+  };
+  const [owner, friend] = await Promise.all([createMember(), createMember()]);
+  const createdUserIds = [owner.id, friend.id];
+  await createFriendship(owner.id, friend.id);
+
+  const wishlistItem = await prisma.wishlistItem.create({
+    select: { id: true, title: true },
+    data: {
+      ownerId: owner.id,
+      title: 'Bookshop gift card',
+      type: 'text',
+      sortOrder: 0,
+    },
+  });
+  await prisma.wishlistClaim.create({
+    data: { wishlistItemId: wishlistItem.id, claimedByUserId: friend.id },
+  });
+
+  try {
+    await page.context().clearCookies();
+    await login({ id: owner.id });
+    await page.goto('/wishlist');
+    await dismissInstallPrompt(page);
+    await page
+      .getByTestId('wishlist-item-row')
+      .and(page.getByRole('button', { name: wishlistItem.title }))
+      .click();
+    const repeatableSwitch = page.getByRole('switch', {
+      name: 'Can be gifted more than once',
+    });
+    await repeatableSwitch.click();
+    await expect(page.getByText('Friends will see')).toBeVisible();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await waitFor(
+      async () => {
+        const saved = await prisma.wishlistItem.findUnique({
+          where: { id: wishlistItem.id },
+          select: { repeatable: true },
+        });
+        return saved?.repeatable ? saved : null;
+      },
+      { timeout: 8000 },
+    );
+    expect(
+      await prisma.wishlistClaim.findUnique({
+        where: { wishlistItemId: wishlistItem.id },
+      }),
+    ).toBeNull();
+
+    await page.context().clearCookies();
+    await login({ id: friend.id });
+    await page.goto(`/users/${owner.username}/wishlist`);
+    await dismissInstallPrompt(page);
+    const card = page
+      .getByTestId('wishlist-item-card')
+      .filter({ hasText: wishlistItem.title });
+    await expect(card.getByText('Multiples welcome')).toBeVisible();
+    await expect(card.getByText('Claimed')).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: /grab this gift/i }),
+    ).toHaveCount(0);
+  } finally {
+    await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
+  }
+});
