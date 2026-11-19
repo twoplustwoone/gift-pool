@@ -195,14 +195,17 @@ describe('wishlist item editor behavior', () => {
         'Acme Widget',
       );
       expect(screen.getByLabelText('Price (optional)')).toHaveValue('49.99');
+      // form.update writes the inputs at once, but these hidden inputs follow
+      // React state and only change on the next render.
+      expect(
+        document.querySelector<HTMLInputElement>('input[name="currency"]')
+          ?.value,
+      ).toBe('USD');
+      expect(
+        document.querySelector<HTMLInputElement>('input[name="enrichedFields"]')
+          ?.value,
+      ).toBe('title,price');
     });
-    expect(
-      document.querySelector<HTMLInputElement>('input[name="currency"]')?.value,
-    ).toBe('USD');
-    expect(
-      document.querySelector<HTMLInputElement>('input[name="enrichedFields"]')
-        ?.value,
-    ).toBe('title,price');
     expect(
       screen.getByText('Filled from link — edit anything that looks off.'),
     ).toBeInTheDocument();
@@ -237,14 +240,14 @@ describe('wishlist item editor behavior', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText('Price (optional)')).toHaveValue('10.00');
+      expect(
+        document.querySelector<HTMLInputElement>('input[name="enrichedFields"]')
+          ?.value,
+      ).toBe('price');
     });
     expect(screen.getByPlaceholderText('Title for your item')).toHaveValue(
       'My own title',
     );
-    expect(
-      document.querySelector<HTMLInputElement>('input[name="enrichedFields"]')
-        ?.value,
-    ).toBe('price');
   });
 
   // Regression for GIFTPOOL-UI-1T. useUrlEnrichment lives in the outer editor,
