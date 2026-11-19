@@ -123,6 +123,17 @@ export async function action({ request }: ActionFunctionArgs) {
   }
   if (intent === 'purchase') {
     const outcome = await claimForUser(wishlistItemId, userId);
+    if (!outcome.ok && outcome.reason === 'not-claimable') {
+      return data(
+        {
+          ok: false,
+          wishlistItemId,
+          claim: null,
+          error: "Anyone can give this item, so there's nothing to claim.",
+        },
+        { status: 409 },
+      );
+    }
     if (!outcome.ok) {
       return data(
         {

@@ -1,8 +1,11 @@
 /**
  * Wishlist claims — the only code in the app permitted to write WishlistClaim.
  *
- * Owns one invariant: exactly one claim per item, and an item that becomes free
- * goes immediately to the longest-waiting pool that has intent on it.
+ * Owns three invariants. An item has at most one claim. An item that becomes
+ * free goes immediately to the longest-waiting pool that has intent on it. A
+ * repeatable item never has a claim. The write paths below never create one,
+ * and `reconcileClaimsForRepeatable` deletes any existing claim when the owner
+ * turns the flag on. Readers therefore need no special case.
  *
  * Claim intent is never stored. It is derived: a pool in a live decided status
  * whose chosen idea links the item. Cancellation, re-decision, and idea deletion
@@ -80,11 +83,11 @@ type ClaimSettlement = { poolId: string; claimId: string };
  * actively buying: exactly the bug this feature exists to close.
  */
 async function settleItem(tx: Tx, wishlistItemId: string): Promise<ClaimSettlement | null> {
-  const existing = await tx.wishlistClaim.findUnique({
-    where: { wishlistItemId },
-    select: { id: true },
-  });
-  if (existing) return null;
+  const [existing, item] = await Promise.all([
+    tx.wishlistClaim.findUnique({ where: { wishlistItemId }, select: { id: true } }),
+    tx.wishlistItem.findUnique({ where: { id: wishlistItemId }, select: { repeatable: true } }),
+  ]);
+  if (existing || item?.repeatable) return null;
 
   const candidates = await tx.pool.findMany({
     where: {
@@ -109,38 +112,52 @@ async function settleItem(tx: Tx, wishlistItemId: string): Promise<ClaimSettleme
   return { poolId: heir.id, claimId: created.id };
 }
 
-export type ClaimForUserFailure = {
-  ok: false;
-  reason: 'held-by-user' | 'held-by-pool';
-  // The claim as it actually stands after the attempt — never the
-  // pre-attempt read. A loser of a concurrent race must be told the winner's
-  // claim exists, or its UI reconciles back to "unclaimed" while the winner's
-  // row sits in the DB. `claimedByUserId: null` here means a pool holds it
-  // (same sentinel shape used across the module for a pool-held claim).
-  claim: { claimedByUserId: string | null };
-};
+export type ClaimForUserFailure =
+  | {
+      ok: false;
+      reason: 'held-by-user' | 'held-by-pool';
+      // The claim as it actually stands after the attempt — never the
+      // pre-attempt read. A loser of a concurrent race must be told the winner's
+      // claim exists, or its UI reconciles back to "unclaimed" while the winner's
+      // row sits in the DB. `claimedByUserId: null` here means a pool holds it
+      // (same sentinel shape used across the module for a pool-held claim).
+      claim: { claimedByUserId: string | null };
+    }
+  // The item is repeatable, so anyone can give it and nobody holds it.
+  | { ok: false; reason: 'not-claimable' };
 
 export async function claimForUser(
   wishlistItemId: string,
   userId: string,
 ): Promise<{ ok: true } | ClaimForUserFailure> {
-  const existing = await prisma.wishlistClaim.findUnique({
-    where: { wishlistItemId },
-    select: { claimedByUserId: true, poolId: true },
-  });
-
-  if (existing) {
-    if (existing.claimedByUserId === userId) return { ok: true };
-    return {
-      ok: false,
-      reason: existing.poolId ? 'held-by-pool' : 'held-by-user',
-      claim: { claimedByUserId: existing.claimedByUserId },
-    };
-  }
-
   try {
-    await prisma.wishlistClaim.create({ data: { wishlistItemId, claimedByUserId: userId } });
-    return { ok: true };
+    // Reading the flag and creating the claim in one transaction stops a
+    // concurrent repeatable flip from leaving a claim on the item.
+    return await prisma.$transaction(async (tx): Promise<{ ok: true } | ClaimForUserFailure> => {
+      const [item, existing] = await Promise.all([
+        tx.wishlistItem.findUnique({
+          where: { id: wishlistItemId },
+          select: { repeatable: true },
+        }),
+        tx.wishlistClaim.findUnique({
+          where: { wishlistItemId },
+          select: { claimedByUserId: true, poolId: true },
+        }),
+      ]);
+      if (item?.repeatable) return { ok: false, reason: 'not-claimable' };
+
+      if (existing) {
+        if (existing.claimedByUserId === userId) return { ok: true };
+        return {
+          ok: false,
+          reason: existing.poolId ? 'held-by-pool' : 'held-by-user',
+          claim: { claimedByUserId: existing.claimedByUserId },
+        };
+      }
+
+      await tx.wishlistClaim.create({ data: { wishlistItemId, claimedByUserId: userId } });
+      return { ok: true };
+    }, CLAIM_TRANSACTION_OPTIONS);
   } catch (error) {
     // Two callers can both pass the existence check above and race to
     // `create`; the loser hits the DB's unique constraint on
@@ -295,11 +312,19 @@ export type SyncPoolClaimResult = {
 export async function syncPoolClaimInTx(tx: Tx, poolId: string): Promise<SyncPoolClaimResult> {
   const pool = await tx.pool.findUnique({
     where: { id: poolId },
-    select: { status: true, chosenIdea: { select: { wishlistItemId: true } } },
+    select: {
+      status: true,
+      chosenIdea: {
+        select: { wishlistItemId: true, wishlistItem: { select: { repeatable: true } } },
+      },
+    },
   });
 
+  // A repeatable item is never held, so choosing one claims nothing.
   const intendedItemId =
-    pool && (POOL_INTENT_STATUSES as readonly string[]).includes(pool.status)
+    pool &&
+    (POOL_INTENT_STATUSES as readonly string[]).includes(pool.status) &&
+    !pool.chosenIdea?.wishlistItem?.repeatable
       ? (pool.chosenIdea?.wishlistItemId ?? null)
       : null;
 
@@ -345,6 +370,30 @@ export async function syncPoolClaimInTx(tx: Tx, poolId: string): Promise<SyncPoo
 
   await tx.wishlistClaim.create({ data: { wishlistItemId: intendedItemId, poolId } });
   return { claimedItemId: intendedItemId, conflictedItemId: null, released };
+}
+
+/**
+ * Matches an item's claims to its current `repeatable` flag. The editor calls
+ * this in the same transaction as the flag write. When the flag is on, it
+ * deletes any claim without notifying anyone, because the owner never sees
+ * claims. When the flag is off, it settles the item, so a pool that chose the
+ * item while it was repeatable takes the hold. Running it twice gives the
+ * same result.
+ */
+export async function reconcileClaimsForRepeatable(
+  tx: Tx,
+  wishlistItemId: string,
+): Promise<ClaimSettlement | null> {
+  const item = await tx.wishlistItem.findUnique({
+    where: { id: wishlistItemId },
+    select: { repeatable: true },
+  });
+  if (!item) return null;
+  if (item.repeatable) {
+    await tx.wishlistClaim.deleteMany({ where: { wishlistItemId } });
+    return null;
+  }
+  return settleItem(tx, wishlistItemId);
 }
 
 export async function syncPoolClaim(poolId: string): Promise<SyncPoolClaimResult> {

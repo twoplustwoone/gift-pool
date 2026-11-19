@@ -227,6 +227,30 @@ test('rejects claiming an item already claimed by another user', async () => {
   });
 });
 
+test('refuses to claim a repeatable item with a 409 and writes no claim', async () => {
+  const { user: owner } = await createUserWithSession();
+  const { user: friend, cookie } = await createUserWithSession();
+  await makeFriends(owner.id, friend.id);
+  const item = await prisma.wishlistItem.create({
+    data: { ownerId: owner.id, sortOrder: 0, title: 'Gift card', type: 'text', repeatable: true },
+  });
+
+  const response = await invoke({
+    cookie,
+    form: { wishlistItemId: item.id, intent: 'purchase' },
+  });
+
+  expect(getRouteResultStatus(response)).toBe(409);
+  await expect(getRouteResultData(response)).resolves.toEqual({
+    ok: false,
+    wishlistItemId: item.id,
+    claim: null,
+    error: "Anyone can give this item, so there's nothing to claim.",
+  });
+  expect(await prisma.wishlistClaim.count({ where: { wishlistItemId: item.id } })).toBe(0);
+  expect(queueLogEvent).not.toHaveBeenCalled();
+});
+
 test('rejects claiming an item already held by a pool, without implying it was purchased', async () => {
   const { user: owner } = await createUserWithSession();
   const { user: organizer } = await createUserWithSession();
