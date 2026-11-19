@@ -147,6 +147,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
           note: true,
           priceCents: true,
           currency: true,
+          repeatable: true,
           categoryId: true,
           updatedAt: true,
           sortOrder: true,

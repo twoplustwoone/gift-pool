@@ -106,6 +106,7 @@ describe('WishlistItem', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -127,6 +128,7 @@ describe('WishlistItem', () => {
       ownerId: 'owner-id',
       updatedAt: new Date(),
       status: 'ACTIVE' as const,
+      repeatable: false,
     };
 
     const { rerender } = render(
@@ -172,6 +174,7 @@ describe('WishlistItem', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -197,6 +200,7 @@ describe('WishlistItem', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -231,6 +235,7 @@ describe('WishlistItem', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -271,6 +276,7 @@ describe('WishlistItem', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -307,6 +313,7 @@ describe('WishlistItem', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -335,6 +342,7 @@ describe('WishlistItem', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
           claim: null,
         }}
       />,
@@ -365,6 +373,7 @@ describe('WishlistItem', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -393,6 +402,7 @@ describe('WishlistItem', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
           claim: { claimedByUserId: 'friend-id' },
         }}
       />,
@@ -426,6 +436,7 @@ describe('WishlistItem', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
           claim: { claimedByUserId: null },
         }}
       />,
@@ -504,6 +515,7 @@ describe('WishlistItem — list link type', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -525,6 +537,7 @@ describe('WishlistItem — list link type', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -547,6 +560,7 @@ describe('WishlistItem — list link type', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -574,6 +588,7 @@ describe('WishlistItem — list link type', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -598,6 +613,7 @@ describe('WishlistItem — list link type', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -632,6 +648,7 @@ describe('WishlistItem — owner ⋮ menu type-change', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );
@@ -666,6 +683,7 @@ describe('WishlistItem — owner ⋮ menu type-change', () => {
           ownerId: 'owner-id',
           updatedAt: new Date(),
           status: 'ACTIVE',
+          repeatable: false,
         }}
       />,
     );

@@ -56,6 +56,7 @@ import {
 import { Text } from '../ui-kit';
 import { ClaimDescriptor } from './claim-descriptor.tsx';
 import { type usePressFeedback } from './hooks/use-press-feedback.ts';
+import { RepeatableBadge } from './repeatable-badge.tsx';
 import { WishlistStatusBadge, getWishlistStatusMeta } from './status';
 import {
   WishlistRowActionsItem,
@@ -111,6 +112,7 @@ type WishlistItemRecord = (Pick<
   | 'status'
 > & {
   status: WishlistItemStatusValue;
+  repeatable: boolean;
 }) &
   Partial<{
     hasImage: boolean;
@@ -140,6 +142,7 @@ type WishlistArchivedTriggerProps = Readonly<{
 }>;
 type WishlistNonOwnerExtrasProps = Readonly<{
   allowClaims: boolean;
+  repeatable: boolean;
   disclosure: ClaimDisclosure;
   handlePurchaseToggle: (event: React.SyntheticEvent) => void;
   isClaimed: boolean;
@@ -190,6 +193,7 @@ function toEditorWishlistItem(
     // including every price link enrichment had just filled in.
     priceCents: wishlistItem.priceCents ?? null,
     currency: wishlistItem.currency ?? null,
+    repeatable: wishlistItem.repeatable,
     updatedAt: wishlistItem.updatedAt,
     status: normalizedStatus,
   };
@@ -433,6 +437,7 @@ function WishlistArchivedTrigger({
 
 function WishlistNonOwnerExtras({
   allowClaims,
+  repeatable,
   disclosure,
   handlePurchaseToggle,
   isClaimed,
@@ -444,6 +449,18 @@ function WishlistNonOwnerExtras({
   purchaseButtonContent,
   purchaseStatusText,
 }: WishlistNonOwnerExtrasProps) {
+  if (repeatable) {
+    return (
+      <div className="flex flex-col gap-2.5 rounded-xl bg-muted p-3.5">
+        <RepeatableBadge className="bg-card" />
+        <Text size="sm">
+          Anyone can give this, so there's nothing to claim. They're happy to
+          get more than one.
+        </Text>
+      </div>
+    );
+  }
+
   if (allowClaims) {
     if (isPurchasedBySomeoneElse) {
       return <ClaimDescriptor disclosure={disclosure} variant="label" />;
@@ -711,6 +728,7 @@ function WishlistNonOwnerTrigger({
       onOpen={onOpen}
       priceCents={wishlistItem.priceCents ?? null}
       currency={wishlistItem.currency ?? null}
+      repeatable={wishlistItem.repeatable}
       rightSlot={
         <NonOwnerClaimSlot
           allowClaims={allowClaims}
@@ -865,6 +883,7 @@ type WishlistItemCardShellProps = Readonly<{
   onOpen: () => void;
   priceCents?: number | null;
   currency?: string | null;
+  repeatable: boolean;
   rightSlot?: React.ReactNode;
   title: string;
   url: string | null;
@@ -897,6 +916,7 @@ function WishlistItemCardShell({
   onOpen,
   priceCents,
   currency,
+  repeatable,
   rightSlot,
   title,
   url,
@@ -952,6 +972,7 @@ function WishlistItemCardShell({
               List link
             </span>
           ) : null}
+          {repeatable ? <RepeatableBadge /> : null}
           {priceCents != null || url ? (
             <div className="flex max-w-full flex-wrap items-center gap-1.5">
               {priceCents == null ? null : (
@@ -1022,6 +1043,7 @@ function WishlistOwnerRow({
       onOpen={onOpen}
       priceCents={wishlistItem.priceCents ?? null}
       currency={wishlistItem.currency ?? null}
+      repeatable={wishlistItem.repeatable}
       rightSlot={actionMenu}
       title={wishlistItem.title}
       url={wishlistItem.url ?? null}
@@ -1183,11 +1205,12 @@ export const WishlistItem = ({
 
   // ---------------- Non-owner: simple, tappable row → read-only view
   if (!isOwner) {
-    const allowClaims = !disableClaims;
+    const allowClaims = !disableClaims && !wishlistItem.repeatable;
     const isClaimed = isPurchasedByMe || isPurchasedBySomeoneElse;
     const viewPurchaseExtras = (
       <WishlistNonOwnerExtras
         allowClaims={allowClaims}
+        repeatable={wishlistItem.repeatable}
         disclosure={claimDisclosure}
         handlePurchaseToggle={handlePurchaseToggle}
         isClaimed={isClaimed}

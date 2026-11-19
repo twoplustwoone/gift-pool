@@ -172,6 +172,7 @@ describe('app/routes/wishlist+/__wishlist-item-editor.server.tsx', () => {
         type: 'text',
         wishlistItemId: expect.any(String),
         hasPrice: false,
+        repeatable: false,
         enriched: false,
         enrichedFields: [],
         enrichmentEdited: false,
@@ -223,6 +224,134 @@ describe('app/routes/wishlist+/__wishlist-item-editor.server.tsx', () => {
         }),
       }),
     );
+  });
+
+  function saveForm(fields: Record<string, string>) {
+    const formData = new FormData();
+    formData.set('intent', 'save');
+    formData.set('type', 'text');
+    formData.set('imageAction', 'none');
+    for (const [key, value] of Object.entries(fields)) formData.set(key, value);
+    return formData;
+  }
+
+  async function submit(cookie: string, formData: FormData) {
+    return action(
+      toActionArgs({
+        context,
+        params: {},
+        request: createEditorRequest({ cookie, formData }),
+      }),
+    );
+  }
+
+  it('saves a repeatable item, returns the flag, and reports it in analytics', async () => {
+    const { cookie, user } = await createOwnerWithSession();
+    queueLogEvent.mockReturnValue({ eventId: 'analytics-3' });
+
+    const response = await submit(
+      cookie,
+      saveForm({ title: 'Gift card', repeatable: 'on' }),
+    );
+
+    expect(getRouteResultStatus(response)).toBe(200);
+    await expect(getRouteResultData(response)).resolves.toMatchObject({
+      item: { title: 'Gift card', repeatable: true },
+    });
+    await expect(
+      prisma.wishlistItem.findFirstOrThrow({
+        where: { ownerId: user.id, title: 'Gift card' },
+        select: { repeatable: true },
+      }),
+    ).resolves.toEqual({ repeatable: true });
+    expect(queueLogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'wishlist_item_added',
+        properties: expect.objectContaining({ repeatable: true }),
+      }),
+    );
+  });
+
+  it('never stores a list link as repeatable', async () => {
+    const { cookie, user } = await createOwnerWithSession();
+    queueLogEvent.mockReturnValue({ eventId: 'analytics-4' });
+
+    await submit(
+      cookie,
+      saveForm({
+        title: 'My Amazon list',
+        type: 'wishlist',
+        url: 'https://www.amazon.com/hz/wishlist/ls/ABC',
+        repeatable: 'on',
+      }),
+    );
+
+    await expect(
+      prisma.wishlistItem.findFirstOrThrow({
+        where: { ownerId: user.id, title: 'My Amazon list' },
+        select: { repeatable: true },
+      }),
+    ).resolves.toEqual({ repeatable: false });
+  });
+
+  it('releases a claim when the owner marks the item repeatable, and restores a waiting pool when they unmark it', async () => {
+    const { cookie, user } = await createOwnerWithSession();
+    const friend = await prisma.user.create({ data: createUser() });
+    const item = await prisma.wishlistItem.create({
+      data: {
+        ownerId: user.id,
+        sortOrder: 0,
+        title: 'Gift card',
+        type: 'text',
+      },
+    });
+    await prisma.wishlistClaim.create({
+      data: { wishlistItemId: item.id, claimedByUserId: friend.id },
+    });
+
+    await submit(
+      cookie,
+      saveForm({ id: item.id, title: 'Gift card', repeatable: 'on' }),
+    );
+
+    expect(
+      await prisma.wishlistClaim.findUnique({
+        where: { wishlistItemId: item.id },
+      }),
+    ).toBeNull();
+
+    const pool = await prisma.pool.create({
+      data: {
+        title: 'Birthday pool',
+        organizerId: friend.id,
+        recipientUserId: user.id,
+      },
+    });
+    const idea = await prisma.giftIdea.create({
+      data: {
+        poolId: pool.id,
+        proposedById: friend.id,
+        name: 'Gift card',
+        wishlistItemId: item.id,
+      },
+    });
+    await prisma.pool.update({
+      where: { id: pool.id },
+      data: { status: 'DECIDED', chosenIdeaId: idea.id, decidedAt: new Date() },
+    });
+
+    await submit(cookie, saveForm({ id: item.id, title: 'Gift card' }));
+
+    const claim = await prisma.wishlistClaim.findUnique({
+      where: { wishlistItemId: item.id },
+    });
+    expect(claim?.poolId).toBe(pool.id);
+    await expect(
+      prisma.wishlistItem.findUniqueOrThrow({
+        where: { id: item.id },
+        select: { repeatable: true },
+      }),
+    ).resolves.toEqual({ repeatable: false });
   });
 
   it('defaults currency to USD when a price is saved without one, and clears price on empty update', async () => {

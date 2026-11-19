@@ -12,6 +12,10 @@ import {
 } from '#app/utils/request-context.server.ts';
 import { WishlistNoteSchema } from '#app/utils/user-validation.ts';
 import {
+  CLAIM_TRANSACTION_OPTIONS,
+  reconcileClaimsForRepeatable,
+} from '#app/utils/wishlist-claims.server.ts';
+import {
   processImageFromFile,
   processImageFromUrl,
   type WishlistItemImageSource,
@@ -196,6 +200,7 @@ async function findExistingWishlistItem(wishlistItemId: string | undefined) {
       id: true,
       ownerId: true,
       categoryId: true,
+      repeatable: true,
       url: true,
       image: true,
       imageSource: true,
@@ -250,6 +255,7 @@ function buildWishlistItemDataWithImage({
   normalizedUrl,
   priceCents,
   currency,
+  repeatable,
 }: {
   data: Omit<
     z.infer<typeof WishlistItemSchema>,
@@ -260,6 +266,7 @@ function buildWishlistItemDataWithImage({
     | 'imageFile'
     | 'price'
     | 'currency'
+    | 'repeatable'
     | 'enrichedFields'
     | 'enrichmentEdited'
   >;
@@ -269,6 +276,7 @@ function buildWishlistItemDataWithImage({
   nextImageSource: WishlistItemImageSource | null | undefined;
   priceCents: number | null;
   currency: string | null;
+  repeatable: boolean;
 }) {
   return {
     ...data,
@@ -276,6 +284,7 @@ function buildWishlistItemDataWithImage({
     url: normalizedUrl,
     priceCents,
     currency,
+    repeatable,
     ...(typeof nextImage !== 'undefined'
       ? {
           image: nextImage,
@@ -308,6 +317,7 @@ async function saveUpdatedWishlistItem({
     type: true,
     priceCents: true,
     currency: true,
+    repeatable: true,
     categoryId: true,
     sortOrder: true,
     updatedAt: true,
@@ -317,7 +327,9 @@ async function saveUpdatedWishlistItem({
   } as const;
 
   const categoryChanged = existingItem.categoryId !== nextCategoryId;
-  if (!categoryChanged) {
+  const repeatableChanged =
+    existingItem.repeatable !== dataWithImage.repeatable;
+  if (!categoryChanged && !repeatableChanged) {
     return prisma.wishlistItem.update({
       select,
       where: {
@@ -330,10 +342,12 @@ async function saveUpdatedWishlistItem({
     });
   }
 
-  const nextSortOrder = await getNextSortOrderForCategory({
-    ownerId: userId,
-    categoryId: nextCategoryId,
-  });
+  const nextSortOrder = categoryChanged
+    ? await getNextSortOrderForCategory({
+        ownerId: userId,
+        categoryId: nextCategoryId,
+      })
+    : undefined;
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.wishlistItem.update({
@@ -347,14 +361,19 @@ async function saveUpdatedWishlistItem({
         sortOrder: nextSortOrder,
       },
     });
-    await redensifyCategory({
-      tx,
-      ownerId: userId,
-      categoryId: existingItem.categoryId,
-      excludeId: wishlistItemId,
-    });
+    if (categoryChanged) {
+      await redensifyCategory({
+        tx,
+        ownerId: userId,
+        categoryId: existingItem.categoryId,
+        excludeId: wishlistItemId,
+      });
+    }
+    if (repeatableChanged) {
+      await reconcileClaimsForRepeatable(tx, wishlistItemId);
+    }
     return updated;
-  });
+  }, CLAIM_TRANSACTION_OPTIONS);
 }
 
 async function createWishlistItem({
@@ -381,6 +400,7 @@ async function createWishlistItem({
       type: true,
       priceCents: true,
       currency: true,
+      repeatable: true,
       categoryId: true,
       sortOrder: true,
       updatedAt: true,
@@ -446,6 +466,7 @@ export async function action({ request }: ActionFunctionArgs) {
     imageFile,
     price,
     currency,
+    repeatable,
     enrichedFields,
     enrichmentEdited,
     ...data
@@ -467,6 +488,8 @@ export async function action({ request }: ActionFunctionArgs) {
     priceCents: price ?? null,
     // Never store a currency without a price.
     currency: price == null ? null : (currency ?? 'USD'),
+    // A list link points at a whole list, so it can't be repeatable.
+    repeatable: data.type !== 'wishlist' && Boolean(repeatable),
   });
   const nextCategoryId = categoryId || null;
   const savedItem = wishlistItemId
@@ -501,6 +524,7 @@ export async function action({ request }: ActionFunctionArgs) {
         categoryId: savedItem.categoryId,
         type: savedItem.type,
         hasPrice: savedItem.priceCents != null,
+        repeatable: savedItem.repeatable,
         enriched: Boolean(enrichedFields),
         enrichedFields: enrichedFields
           ? enrichedFields.split(',').filter(Boolean)
@@ -532,6 +556,7 @@ export async function action({ request }: ActionFunctionArgs) {
         type: savedItem.type,
         priceCents: savedItem.priceCents,
         currency: savedItem.currency,
+        repeatable: savedItem.repeatable,
         categoryId: savedItem.categoryId,
         sortOrder: savedItem.sortOrder,
         updatedAt: savedItem.updatedAt,

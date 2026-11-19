@@ -40,6 +40,7 @@ const makeItem = (overrides: Partial<WishlistItem> & { id: string }): WishlistIt
   sortOrder: 0,
   updatedAt: overrides.updatedAt ?? new Date('2024-01-01'),
   status: 'ARCHIVED',
+  repeatable: false,
   hasImage: false,
   imageSource: null,
 });

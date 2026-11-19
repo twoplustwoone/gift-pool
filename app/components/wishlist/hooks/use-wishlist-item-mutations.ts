@@ -81,6 +81,7 @@ function collectPendingUpsert({
         normalizeNullableFormValue(getFormString(formData, 'type')) ??
         existingItem?.type ??
         'text',
+      repeatable: getFormString(formData, 'repeatable') === 'on',
       categoryId,
       hasImage,
       imageSource,

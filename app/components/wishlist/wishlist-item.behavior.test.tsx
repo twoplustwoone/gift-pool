@@ -209,6 +209,7 @@ describe('wishlist item behavior', () => {
           note: 'A note',
           ownerId: 'owner-id',
           status: 'ACTIVE',
+          repeatable: false,
           title: 'Item one',
           type: 'text',
           updatedAt: new Date('2026-03-31T12:00:00.000Z'),
@@ -239,6 +240,7 @@ describe('wishlist item behavior', () => {
           note: 'Old idea',
           ownerId: 'owner-id',
           status: 'ARCHIVED',
+          repeatable: false,
           title: 'Archived item',
           type: 'text',
           updatedAt: new Date('2026-03-31T12:00:00.000Z'),
@@ -306,6 +308,7 @@ describe('wishlist item behavior', () => {
       note: null,
       ownerId: 'owner-id',
       status: 'ACTIVE' as const,
+      repeatable: false,
       title: 'Item one',
       type: 'text',
       updatedAt: new Date('2026-03-31T12:00:00.000Z'),
@@ -381,6 +384,7 @@ describe('wishlist item behavior', () => {
       note: null,
       ownerId: 'owner-id',
       status: 'ACTIVE' as const,
+      repeatable: false,
       title: 'Item one',
       type: 'text',
       updatedAt: new Date('2026-03-31T12:00:00.000Z'),
@@ -441,5 +445,49 @@ describe('wishlist item behavior', () => {
     expect(screen.queryByText(/claimed by/i)).not.toBeInTheDocument();
     expect(screen.queryByText('someone-else')).not.toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+});
+
+describe('repeatable wishlist item', () => {
+  const repeatableItem = {
+    categoryId: null,
+    claim: null,
+    id: 'item-gift-card',
+    note: null,
+    ownerId: 'owner-id',
+    status: 'ACTIVE' as const,
+    repeatable: true,
+    title: 'Gift card',
+    type: 'text',
+    updatedAt: new Date('2026-03-31T12:00:00.000Z'),
+    url: null,
+  };
+
+  it('shows a friend the badge and no claim control on the row or in the detail view', async () => {
+    mockUser = { id: 'friend-id', roles: [] };
+    render(<WishlistItem categories={[]} wishlistItem={repeatableItem} />);
+
+    expect(screen.getByText('Multiples welcome')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: "I'll grab this gift" }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId('wishlist-item-row'));
+
+    expect(
+      screen.getByText(
+        "Anyone can give this, so there's nothing to claim. They're happy to get more than one.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /grab/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/sign in to claim/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the owner the badge on their own row', () => {
+    render(
+      <WishlistItem categories={[]} isOwner wishlistItem={repeatableItem} />,
+    );
+
+    expect(screen.getByText('Multiples welcome')).toBeInTheDocument();
   });
 });

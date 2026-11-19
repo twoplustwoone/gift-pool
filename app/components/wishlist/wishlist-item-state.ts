@@ -15,6 +15,7 @@ export type WishlistItem = {
   type: string;
   priceCents?: number | null;
   currency?: string | null;
+  repeatable: boolean;
   categoryId: string | null;
   sortOrder: number;
   updatedAt: Date;
@@ -166,6 +167,7 @@ export type PendingItemMutation =
       note: string | null;
       url: string | null;
       itemType: string;
+      repeatable: boolean;
       categoryId: string | null;
       hasImage: boolean;
       imageSource: WishlistItemImageSource | null;
@@ -243,6 +245,7 @@ export const applyPendingItemMutations = ({
         note: mutation.note,
         url: mutation.url,
         type: mutation.itemType,
+        repeatable: mutation.repeatable,
         categoryId: mutation.categoryId,
         sortOrder: getNextSortOrder(nextItems, mutation.categoryId),
         updatedAt: mutation.updatedAt,
@@ -268,6 +271,7 @@ export const applyPendingItemMutations = ({
       note: mutation.note,
       url: mutation.url,
       type: mutation.itemType,
+      repeatable: mutation.repeatable,
       categoryId: mutation.categoryId,
       sortOrder: nextSortOrder,
       updatedAt: mutation.updatedAt,
