@@ -1,0 +1,39 @@
+<!-- @dsCard group="Forms" height=104 subtitle="On, off, disabled" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Switch — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function Row(props) {
+        var s = React.useState(props.on);
+        return h(
+          'div',
+          { className: 'flex items-center justify-between gap-6 text-sm' },
+          h('span', null, props.label),
+          h(G.Switch, {
+            checked: s[0],
+            onCheckedChange: s[1],
+            label: props.label,
+            disabled: props.disabled,
+          }),
+        );
+      }
+      function App() {
+        return h(
+          'div',
+          { className: 'flex max-w-sm flex-col p-4' },
+          h(Row, { label: 'Email me about new ideas', on: true }),
+          h(Row, { label: 'Push notifications', on: false }),
+          h(Row, { label: 'Weekly digest', on: false, disabled: true }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

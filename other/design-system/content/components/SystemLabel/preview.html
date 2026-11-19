@@ -1,0 +1,32 @@
+<!-- @dsCard group="Status" height=88 subtitle="System annotations beside names" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SystemLabel — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        var who = function (name, label) {
+          return h(
+            'div',
+            { className: 'flex items-center gap-2 text-sm font-medium' },
+            name,
+            h(G.SystemLabel, null, label),
+          );
+        };
+        return h(
+          'div',
+          { className: 'flex flex-col gap-2 p-4' },
+          who('Maya Chen', 'you'),
+          who('Jordan Lee', 'owner'),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

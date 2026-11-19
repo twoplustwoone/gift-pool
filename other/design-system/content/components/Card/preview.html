@@ -1,0 +1,45 @@
+<!-- @dsCard group="Surfaces" height=236 subtitle="Default, interactive, elevated" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Card — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        var body = function (title, meta) {
+          return h(
+            G.CardContent,
+            null,
+            h(
+              'div',
+              { className: 'font-semibold text-card-foreground' },
+              title,
+            ),
+            h('div', { className: 'text-sm text-muted-foreground' }, meta),
+          );
+        };
+        return h(
+          'div',
+          { className: 'grid gap-4 p-4 sm:grid-cols-3' },
+          h(G.Card, null, body("Maya's birthday", 'Mar 14 · 4 people')),
+          h(
+            G.Card,
+            { variant: 'interactive', tabIndex: 0 },
+            body('Noise-cancelling headphones', 'From her wishlist · $249'),
+          ),
+          h(
+            G.Card,
+            { variant: 'elevated', padding: 'lg' },
+            body('Book club', '8 members'),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

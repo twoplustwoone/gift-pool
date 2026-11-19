@@ -1,0 +1,51 @@
+<!-- @dsCard group="Forms" height=196 subtitle="Default, invalid, disabled" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Input — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        return h(
+          'div',
+          { className: 'grid max-w-sm gap-4 p-4' },
+          h(
+            'div',
+            { className: 'grid gap-2' },
+            h(G.Label, { htmlFor: 'name' }, 'Pool name'),
+            h(G.Input, { id: 'name', placeholder: "Maya's 30th" }),
+          ),
+          h(
+            'div',
+            { className: 'grid gap-2' },
+            h(G.Label, { htmlFor: 'price' }, 'Gift price'),
+            h(G.Input, {
+              id: 'price',
+              defaultValue: 'abc',
+              'aria-invalid': true,
+              'aria-describedby': 'price-err',
+            }),
+            h(
+              'p',
+              {
+                id: 'price-err',
+                className: 'text-sm text-foreground-destructive',
+              },
+              'Enter an amount, like 45 or 45.50.',
+            ),
+          ),
+          h(G.Input, {
+            disabled: true,
+            defaultValue: 'Locked once the gift is chosen',
+          }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

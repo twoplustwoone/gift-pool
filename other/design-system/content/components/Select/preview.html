@@ -1,0 +1,35 @@
+<!-- @dsCard group="Forms" height=280 subtitle="Open menu" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Select — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        return h(
+          'div',
+          { className: 'grid max-w-xs gap-2 p-4' },
+          h(G.Label, null, 'Remind me'),
+          h(
+            G.Select,
+            { defaultValue: '7', defaultOpen: true },
+            h(G.SelectTrigger, null, h(G.SelectValue, null)),
+            h(
+              G.SelectContent,
+              null,
+              h(G.SelectItem, { value: '1' }, '1 day before'),
+              h(G.SelectItem, { value: '7' }, '1 week before'),
+              h(G.SelectItem, { value: '14' }, '2 weeks before'),
+            ),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+<!-- @dsCard group="Forms" height=96 subtitle="Field labels" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Label — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        return h(
+          'div',
+          { className: 'grid max-w-sm gap-2 p-4' },
+          h(G.Label, { htmlFor: 'occ' }, 'Occasion'),
+          h(G.Input, { id: 'occ', defaultValue: 'Birthday' }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

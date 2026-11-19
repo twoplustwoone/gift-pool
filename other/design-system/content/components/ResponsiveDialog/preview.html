@@ -1,0 +1,46 @@
+<!-- @dsCard group="Overlays" height=340 subtitle="Centered from 640px, bottom sheet below" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ResponsiveDialog — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        return h(
+          G.ResponsiveDialog,
+          { defaultOpen: true },
+          h(
+            G.ResponsiveDialogContent,
+            null,
+            h(
+              G.ResponsiveDialogHeader,
+              null,
+              h(G.ResponsiveDialogTitle, null, 'Leave Book club?'),
+              h(
+                G.ResponsiveDialogDescription,
+                null,
+                "You'll stop seeing its occasions and pools. Your wishlist stays yours.",
+              ),
+            ),
+            h(
+              G.ResponsiveDialogFooter,
+              null,
+              h(
+                G.ResponsiveDialogClose,
+                { asChild: true },
+                h(G.Button, { variant: 'outline' }, 'Stay'),
+              ),
+              h(G.Button, { variant: 'destructive' }, 'Leave group'),
+            ),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

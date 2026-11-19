@@ -1,0 +1,27 @@
+<!-- @dsCard group="Forms" height=156 subtitle="Multi-line field" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Textarea — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        return h(
+          'div',
+          { className: 'grid max-w-sm gap-2 p-4' },
+          h(G.Label, { htmlFor: 'notes' }, 'Your notes · private'),
+          h(G.Textarea, {
+            id: 'notes',
+            placeholder: 'Sizes, colours, things she already has…',
+          }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

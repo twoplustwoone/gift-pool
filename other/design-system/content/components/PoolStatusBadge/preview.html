@@ -1,0 +1,32 @@
+<!-- @dsCard group="Status" height=72 subtitle="Every stage, label always shown" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PoolStatusBadge — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        return h(
+          'div',
+          { className: 'flex flex-wrap items-center gap-3 p-4' },
+          [
+            'OPEN',
+            'VOTING',
+            'DECIDED',
+            'PURCHASED',
+            'DELIVERED',
+            'CANCELLED',
+          ].map(function (s) {
+            return h(G.PoolStatusBadge, { key: s, status: s });
+          }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

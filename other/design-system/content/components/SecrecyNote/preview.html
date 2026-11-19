@@ -1,0 +1,27 @@
+<!-- @dsCard group="Status" height=112 subtitle="A deliberate privacy boundary" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SecrecyNote — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        return h(
+          'div',
+          { className: 'p-4' },
+          h(
+            G.SecrecyNote,
+            { title: 'Hidden from Maya' },
+            "Maya can't see this pool, its ideas or who's chipping in.",
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

@@ -1,0 +1,47 @@
+<!-- @dsCard group="Surfaces" height=236 subtitle="Titled, with action" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Section — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        var row = function (name, when) {
+          return h(
+            'div',
+            {
+              className:
+                'flex items-center justify-between rounded-lg border border-subcard-border bg-subcard px-3 py-2 text-sm',
+            },
+            h('span', { className: 'font-medium' }, name),
+            h('span', { className: 'text-muted-foreground' }, when),
+          );
+        };
+        return h(
+          'div',
+          { className: 'p-4' },
+          h(
+            G.Section,
+            {
+              title: 'Upcoming occasions',
+              description: 'Birthdays your friends and groups share with you.',
+              action: h(G.Button, { variant: 'ghost', size: 'sm' }, 'See all'),
+            },
+            h(
+              'div',
+              { className: 'flex flex-col gap-2' },
+              row('Maya Chen', 'in 6 days'),
+              row('Jordan Lee', 'Apr 2'),
+            ),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

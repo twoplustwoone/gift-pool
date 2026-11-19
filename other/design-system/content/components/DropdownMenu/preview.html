@@ -1,0 +1,45 @@
+<!-- @dsCard group="Overlays" height=260 subtitle="Open menu with groups" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DropdownMenu — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        return h(
+          'div',
+          { className: 'flex p-4' },
+          h(
+            G.DropdownMenu,
+            { defaultOpen: true, modal: false },
+            h(
+              G.DropdownMenuTrigger,
+              { asChild: true },
+              h(G.Button, { variant: 'outline' }, 'Pool actions'),
+            ),
+            h(
+              G.DropdownMenuContent,
+              { align: 'start' },
+              h(G.DropdownMenuLabel, null, "Maya's birthday"),
+              h(G.DropdownMenuSeparator, null),
+              h(G.DropdownMenuItem, null, 'Copy invite link'),
+              h(G.DropdownMenuItem, null, 'Send a reminder'),
+              h(G.DropdownMenuSeparator, null),
+              h(
+                G.DropdownMenuItem,
+                { className: 'text-foreground-destructive' },
+                'Cancel pool',
+              ),
+            ),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

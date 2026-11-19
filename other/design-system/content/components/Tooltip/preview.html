@@ -1,0 +1,40 @@
+<!-- @dsCard group="Overlays" height=120 subtitle="Open on a trigger" -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tooltip — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        return h(
+          'div',
+          { className: 'flex justify-center p-4 pt-14' },
+          h(
+            G.TooltipProvider,
+            null,
+            h(
+              G.Tooltip,
+              { defaultOpen: true },
+              h(
+                G.TooltipTrigger,
+                { asChild: true },
+                h(
+                  G.Button,
+                  { variant: 'outline', size: 'sm' },
+                  'Hidden amount',
+                ),
+              ),
+              h(G.TooltipContent, null, 'Hidden due to privacy settings'),
+            ),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>
