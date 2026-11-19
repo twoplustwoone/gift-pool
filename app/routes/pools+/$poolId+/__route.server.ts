@@ -170,6 +170,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             url: true,
             priceCents: true,
             currency: true,
+            repeatable: true,
           },
           orderBy: [{ categoryId: 'asc' }, { sortOrder: 'asc' }],
         })
