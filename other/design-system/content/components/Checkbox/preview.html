@@ -1,0 +1,32 @@
+<!-- @dsCard group="Forms" height=96 subtitle="Checked and unchecked" -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Checkbox — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        var item = function (id, label, checked) {
+          return h(
+            'div',
+            { className: 'flex items-center gap-2' },
+            h(G.Checkbox, { id: id, defaultChecked: checked }),
+            h(G.Label, { htmlFor: id }, label),
+          );
+        };
+        return h(
+          'div',
+          { className: 'flex flex-col gap-3 p-4' },
+          item('a', 'Remind me a week before', true),
+          item('b', 'Share my birthday with this group', false),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

@@ -1,0 +1,33 @@
+<!-- @dsCard group="Actions" height=96 subtitle="Idle, pending, success, error" -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>StatusButton — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        var row = function (status, label) {
+          return h(
+            G.StatusButton,
+            { status: status, spinDelay: { delay: 0, minDuration: 0 } },
+            label,
+          );
+        };
+        return h(
+          'div',
+          { className: 'flex flex-wrap items-center gap-3 p-4' },
+          row('idle', 'Save'),
+          row('pending', 'Saving…'),
+          row('success', 'Saved'),
+          row('error', 'Try again'),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

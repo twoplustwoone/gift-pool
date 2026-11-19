@@ -1,0 +1,27 @@
+<!-- @dsCard group="Surfaces" height=176 subtitle="One purposeful next step" -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>EmptyState — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        return h(
+          'div',
+          { className: 'p-4' },
+          h(G.EmptyState, {
+            title: 'No ideas yet',
+            description: 'Ideas you and the group suggest show up here.',
+            action: h(G.Button, { size: 'sm' }, 'Suggest an idea'),
+          }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

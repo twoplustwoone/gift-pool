@@ -1,0 +1,40 @@
+<!-- @dsCard group="Actions" height=168 subtitle="Six variants, sizes, disabled" -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Button — preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      var G = window.GiftPool,
+        h = React.createElement;
+      function App() {
+        return h(
+          'div',
+          { className: 'flex flex-col gap-4 p-4' },
+          h(
+            'div',
+            { className: 'flex flex-wrap items-center gap-3' },
+            h(G.Button, null, 'Start a pool'),
+            h(G.Button, { variant: 'secondary' }, 'Add to wishlist'),
+            h(G.Button, { variant: 'outline' }, 'Copy invite link'),
+            h(G.Button, { variant: 'ghost' }, 'Not this time'),
+            h(G.Button, { variant: 'link' }, 'View wishlist'),
+            h(G.Button, { variant: 'destructive' }, 'Leave group'),
+          ),
+          h(
+            'div',
+            { className: 'flex flex-wrap items-center gap-3' },
+            h(G.Button, { size: 'xs', variant: 'outline' }, 'Edit'),
+            h(G.Button, { size: 'sm' }, 'Suggest an idea'),
+            h(G.Button, { size: 'lg' }, 'Create your wishlist'),
+            h(G.Button, { disabled: true }, 'Choose the gift'),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+    </script>
+  </body>
+</html>

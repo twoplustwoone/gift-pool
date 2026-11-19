@@ -1,0 +1,1 @@
+The Gift Pool mark: a gold gift box on a coral-to-red gradient heart (`logo.svg`, 296×256, from `public/img/logo.svg`; the favicon is the same file). It's full color with fixed fills, so it reads the same in light and dark. Set it at 32px beside the live-text wordmark ("gift" light in `gift`, "pool" bold in `pool`). Never recolor, outline or redraw it.
