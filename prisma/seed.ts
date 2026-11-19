@@ -516,6 +516,16 @@ async function seed() {
 				type: 'text',
 				...itemImage(4),
 			},
+			{
+				ownerId: wade.id,
+				categoryId: wadeExperiences.id,
+				sortOrder: 3,
+				title: 'REI gift card',
+				note: 'Any amount. Saving up for a new tent.',
+				url: 'https://www.rei.com/gift-card',
+				type: 'text',
+				repeatable: true,
+			},
 		],
 	})
 

@@ -943,6 +943,8 @@ model WishlistItem {
   type        String
   priceCents  Int?
   currency    String? // ISO-4217; only ever stored alongside a price
+  // Several people can give a repeatable item, so nobody claims it.
+  repeatable  Boolean           @default(false)
   image       Bytes?
   hasImage    Boolean           @default(false)
   imageSource String?
