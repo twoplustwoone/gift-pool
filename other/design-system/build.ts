@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import * as esbuild from 'esbuild';
 import {
@@ -137,7 +138,7 @@ const COMPONENTS: Component[] = [
 // Preview-only cards: showcase pages and the cover, not bundle exports.
 const PAGES = new Set(['Cover', 'Logo']);
 
-const here = import.meta.dirname;
+const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../..');
 const contentDir = path.join(here, 'content');
 const outRoot = path.join(repo, 'build', 'design-system');
