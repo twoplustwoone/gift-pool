@@ -63,7 +63,7 @@ const createWishlistItem = async ({
   page: Page;
   title: string;
 }) => {
-  await page.getByRole('button', { name: /^Add Item$/ }).click();
+  await page.getByRole('button', { name: /^Add item$/ }).click();
   const editor = page.getByRole('dialog');
   await expect(editor).toBeVisible();
   await editor.getByLabel('Title').fill(title);
@@ -196,7 +196,7 @@ test('users can add wishlist items', async ({ page, login }) => {
   await page.goto('/wishlist');
   await page.waitForLoadState('networkidle');
 
-  const addItemButton = page.getByRole('button', { name: /^Add Item$/ });
+  const addItemButton = page.getByRole('button', { name: /^Add item$/ });
   await expect(addItemButton).toBeVisible();
   await addItemButton.click();
 
@@ -210,7 +210,7 @@ test('users can add wishlist items', async ({ page, login }) => {
   await expect(page.getByText('First Item').first()).toBeVisible();
 
   // Add second item and keep dialog open
-  await page.getByRole('button', { name: /^Add Item$/ }).click();
+  await page.getByRole('button', { name: /^Add item$/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByLabel('Title').fill('Second Item');
   await page.getByRole('button', { name: /save & add another/i }).click();
@@ -498,7 +498,7 @@ test('owners can clear a wishlist item description', async ({
   await page.goto('/wishlist');
   await page.waitForLoadState('networkidle');
 
-  await page.getByRole('button', { name: /^Add Item$/ }).click();
+  await page.getByRole('button', { name: /^Add item$/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByLabel('Title').fill('Clearable Note Item');
   await page.getByRole('textbox', { name: /description/i }).fill('Remove me');

@@ -32,7 +32,7 @@ export const PastEducationCallout = ({
     </div>
     <div className="flex flex-col gap-2 sm:flex-row">
       <Button variant="secondary" onClick={onViewPast}>
-        View Past items
+        View past items
       </Button>
       <Button variant="ghost" onClick={onDismissEducation}>
         Got it

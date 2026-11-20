@@ -185,7 +185,7 @@ describe('<FriendActionButton />', () => {
       state: 'NONE',
     });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Add Friend' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add friend' }));
 
     await waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalledWith('/api/friends/requests', {
@@ -221,7 +221,7 @@ describe('<FriendActionButton />', () => {
       state: 'NONE',
     });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Add Friend' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add friend' }));
 
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(

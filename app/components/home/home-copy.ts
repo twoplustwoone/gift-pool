@@ -38,9 +38,9 @@ export const HOME_COPY = {
   },
   panels: {
     emptyWishlistTitle: 'Your wishlist is empty. Start adding dreams.',
-    emptyWishlistCta: 'Add Item',
+    emptyWishlistCta: 'Add item',
     emptyGroupsTitle: 'No groups yet. Create one and invite friends.',
-    emptyGroupsCta: 'Create Group',
+    emptyGroupsCta: 'Create group',
     birthdaysHeading: 'Upcoming birthdays',
     recentActivityHeading: 'Recent activity',
     planGift: 'Plan gift',

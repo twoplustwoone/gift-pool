@@ -504,7 +504,7 @@ function InviteQrDialog({
           <Button variant="secondary" onClick={onClose}>
             Close
           </Button>
-          {inviteUrl ? <Button onClick={onCopy}>Copy Link</Button> : null}
+          {inviteUrl ? <Button onClick={onCopy}>Copy link</Button> : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

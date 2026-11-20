@@ -19,7 +19,7 @@ const createWishlistItem = async ({
   page: Page;
   title: string;
 }) => {
-  await page.getByRole('button', { name: /^Add Item$/ }).click();
+  await page.getByRole('button', { name: /^Add item$/ }).click();
   const editor = page.getByRole('dialog');
   await expect(editor).toBeVisible();
   await editor.getByLabel('Title').fill(title);

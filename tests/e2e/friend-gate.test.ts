@@ -42,7 +42,7 @@ test('profile page does not expose details to non-friends', async ({ page }) => 
       ),
     });
     await expect(gateHeading).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add Friend' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add friend' })).toBeVisible();
     await expect(
       page.getByText(/^Joined\s+/i).or(page.getByText(/\bJoined\b/i)),
     ).toHaveCount(0);
@@ -105,7 +105,7 @@ test('non-friend profile prompts request and sends invite', async ({
     });
     await expect(gateHeading).toBeVisible();
 
-    const addButton = page.getByRole('button', { name: 'Add Friend' });
+    const addButton = page.getByRole('button', { name: 'Add friend' });
     await expect(addButton).toBeVisible();
     await addButton.click();
 
@@ -169,7 +169,7 @@ test('non-friend wishlist prompts request and sends invite', async ({
     });
     await expect(gateHeading).toBeVisible();
 
-    const addButton = page.getByRole('button', { name: 'Add Friend' });
+    const addButton = page.getByRole('button', { name: 'Add friend' });
     await expect(addButton).toBeVisible();
     await addButton.click();
 
@@ -422,7 +422,7 @@ test('incoming friend request: Reject cancels the pending request', async ({
     await rejectResponse;
 
     // UI: after reject the gate flips back to NONE, which shows the
-    // "Send friend request" / "Add Friend" variant again.
+    // "Send friend request" / "Add friend" variant again.
     await expect(
       page.getByRole('button', { name: /add friend/i }),
     ).toBeVisible({ timeout: 10_000 });

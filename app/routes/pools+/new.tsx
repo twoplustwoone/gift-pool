@@ -628,7 +628,7 @@ const NewPool = () => {
               <Button asChild variant="outline">
                 <Link to={cancelHref}>Cancel</Link>
               </Button>
-              <Button type="submit">Start Pool</Button>
+              <Button type="submit">Start pool</Button>
             </Flex>
           </Stack>
         </Form>
