@@ -142,7 +142,7 @@ const JoinGroupPage = () => {
     <InviteLanding
       title={`Join ${giftGroupName}`}
       isAuthenticated={isAuthenticated}
-      acceptLabel={requireApproval ? 'Request to join' : 'Join Group'}
+      acceptLabel={requireApproval ? 'Request to join' : 'Join group'}
       cancelTo="/groups"
     >
       <p>

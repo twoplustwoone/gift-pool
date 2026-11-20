@@ -271,7 +271,7 @@ describe('app/routes/pools+/new.tsx', () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/Or just their name/i)).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Start Pool' }),
+      screen.getByRole('button', { name: 'Start pool' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('radio', { name: /Organizer chooses/i }),

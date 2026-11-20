@@ -80,7 +80,7 @@ describe('PastEducationCallout', () => {
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 
-  it('"View Past items" calls onViewPast', () => {
+  it('"View past items" calls onViewPast', () => {
     const onViewPast = vi.fn();
     const App = createRoutesStub([
       {

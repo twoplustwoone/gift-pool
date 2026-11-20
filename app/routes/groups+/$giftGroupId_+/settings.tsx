@@ -573,7 +573,7 @@ const GroupSettingsRoute = () => {
                   }}
                 >
                   <Button variant="destructive">
-                    <Icon name="trash" className="mr-2" /> Delete Group
+                    <Icon name="trash" className="mr-2" /> Delete group
                   </Button>
                 </ConfirmDialog>
               </div>
@@ -607,7 +607,7 @@ const GroupSettingsRoute = () => {
               form?.requestSubmit();
             }}
           >
-            <Button variant="destructive">Leave Group</Button>
+            <Button variant="destructive">Leave group</Button>
           </ConfirmDialog>
         </div>
       ) : null}
