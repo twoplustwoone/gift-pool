@@ -1,12 +1,12 @@
 import { invariant } from '@epic-web/invariant';
 import { redirect } from 'react-router';
-import { safeRedirect } from 'remix-utils/safe-redirect';
 import { twoFAVerificationType } from '#app/routes/settings+/profile.two-factor.tsx';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { getUserId, sessionKey } from '#app/utils/auth.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { combineResponseInits } from '#app/utils/misc.tsx';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
+import { safeRedirectPath } from '#app/utils/request-path.server.ts';
 import { authSessionStorage } from '#app/utils/session.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import { verifySessionStorage } from '#app/utils/verification.server.ts';
@@ -75,7 +75,7 @@ export async function handleNewSession(
     });
 
     return redirect(
-      safeRedirect(redirectTo),
+      safeRedirectPath(redirectTo),
       combineResponseInits(
         {
           headers: {
@@ -151,7 +151,7 @@ export async function handleVerification({
     await verifySessionStorage.destroySession(verifySession),
   );
 
-  return redirect(safeRedirect(redirectTo), { headers });
+  return redirect(safeRedirectPath(redirectTo), { headers });
 }
 
 export async function shouldRequestTwoFA(request: Request) {

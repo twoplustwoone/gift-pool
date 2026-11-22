@@ -18,7 +18,6 @@ import {
   useSearchParams,
 } from 'react-router';
 import { HoneypotInputs } from 'remix-utils/honeypot/react';
-import { safeRedirect } from 'remix-utils/safe-redirect';
 import { z } from 'zod';
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
@@ -34,6 +33,7 @@ import { checkHoneypot } from '#app/utils/honeypot.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { CURRENT_LEGAL_VERSION } from '#app/utils/legal.ts';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
+import { safeRedirectPath } from '#app/utils/request-path.server.ts';
 import { authSessionStorage } from '#app/utils/session.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import {
@@ -175,7 +175,7 @@ export async function action({ request }: ActionFunctionArgs) {
     },
   });
   return redirectWithToast(
-    safeRedirect(redirectTo),
+    safeRedirectPath(redirectTo),
     {
       title: 'Welcome',
       description: 'Thanks for signing up!',
