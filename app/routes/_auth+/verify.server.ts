@@ -11,6 +11,7 @@ import { prisma } from '#app/utils/db.server.ts';
 import { sendEmail } from '#app/utils/email.server.ts';
 import { getDomainUrl } from '#app/utils/misc.tsx';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
+import { getRequestPath } from '#app/utils/request-path.server.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import { generateTOTP, verifyTOTP } from '#app/utils/totp.server.ts';
 import { type twoFAVerifyVerificationType } from '../settings+/profile.two-factor.verify.tsx';
@@ -53,30 +54,6 @@ export function getRedirectToUrl({
   return redirectToUrl;
 }
 
-export function getPostVerificationRedirectPath(request: Request) {
-  const reqUrl = new URL(request.url);
-  const searchParams = new URLSearchParams(reqUrl.search);
-  let pathname = reqUrl.pathname;
-
-  if (pathname === '/_root.data') {
-    pathname = '/';
-  } else if (pathname.endsWith('/_.data')) {
-    pathname = pathname.slice(0, -'_.data'.length);
-  } else if (pathname.endsWith('.data')) {
-    pathname = pathname.slice(0, -'.data'.length);
-  }
-  if (pathname.length > 1 && pathname.endsWith('/')) {
-    pathname = pathname.slice(0, -1);
-  }
-
-  searchParams.delete('_data');
-  searchParams.delete('_routes');
-  searchParams.delete('index');
-
-  const search = searchParams.toString();
-  return search ? `${pathname}?${search}` : pathname;
-}
-
 export async function requireRecentVerification(request: Request) {
   const userId = await requireUserId(request);
   const shouldReverify = await shouldRequestTwoFA(request);
@@ -85,7 +62,7 @@ export async function requireRecentVerification(request: Request) {
       request,
       target: userId,
       type: twoFAVerificationType,
-      redirectTo: getPostVerificationRedirectPath(request),
+      redirectTo: getRequestPath(request),
     });
     throw await redirectWithToast(redirectUrl.toString(), {
       title: 'Please Reverify',
