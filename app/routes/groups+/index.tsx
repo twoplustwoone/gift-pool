@@ -113,7 +113,7 @@ const GroupsIndex = () => {
           <Button>
             <Flex gap={1}>
               <LuPlus />
-              <Text>Create Group</Text>
+              <Text>Create group</Text>
             </Flex>
           </Button>
         </CreateGroupDialog>

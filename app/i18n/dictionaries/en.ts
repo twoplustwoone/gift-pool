@@ -151,7 +151,7 @@ export const en = {
     markAllReadSuccess: 'All notifications marked as read.',
   },
   friends: {
-    add: 'Add Friend',
+    add: 'Add friend',
     accept: 'Accept',
     reject: 'Reject',
     cancelRequest: 'Cancel request',

@@ -26,7 +26,7 @@ function GroupsListDemo({ groups }: { groups: GroupCardData[] }) {
           <Button>
             <Flex gap={1}>
               <LuPlus />
-              <Text>Create Group</Text>
+              <Text>Create group</Text>
             </Flex>
           </Button>
         </div>
@@ -65,8 +65,8 @@ function GroupsListDemo({ groups }: { groups: GroupCardData[] }) {
         <Button
           type="button"
           size="icon"
-          aria-label="Create Group"
-          title="Create Group"
+          aria-label="Create group"
+          title="Create group"
           className="h-14 w-14 rounded-full border bg-primary text-primary-foreground shadow-lg"
         >
           <Icon name="plus" />

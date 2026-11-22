@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { type ComponentProps } from 'react';
 import { createRoutesStub } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -105,7 +105,9 @@ describe('GeneralErrorBoundary default handlers', () => {
     expect(
       screen.getByText('Please try again, or head back home.'),
     ).toBeInTheDocument();
-    expect(captureException).toHaveBeenCalled();
+    // The boundary reports from a passive effect, which can run after the
+    // heading is already in the DOM.
+    await waitFor(() => expect(captureException).toHaveBeenCalled());
   });
 
   it('still honors a caller-provided statusHandlers override', async () => {
