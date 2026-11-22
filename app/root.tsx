@@ -133,7 +133,7 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
     },
   ];
 };
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function loader({ request, url }: LoaderFunctionArgs) {
   const timings = makeTimings('root loader');
   const { requestId } = await getRequestContext(request);
   // Anonymous visitor id for drop-off analytics — set/refreshed on every
@@ -204,7 +204,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
       requestInfo: {
         hints: getHints(request),
         origin: getDomainUrl(request),
-        path: new URL(request.url).pathname,
+        // `url`, not `request.url`: with v8_passThroughRequests the raw URL
+        // carries the single-fetch `.data` suffix on revalidations.
+        path: url.pathname,
         requestId,
         userPrefs: {
           theme: getTheme(request),
