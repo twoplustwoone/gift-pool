@@ -155,7 +155,44 @@ describe('readHydrationSnapshot', () => {
       routerMatchIds: null,
       routerInitialized: null,
       routeIdsMissingData: null,
+      bodyChildren: null,
+      unexpectedBodyChild: null,
     });
+  });
+
+  it('lists <body> children and flags ones root never renders', () => {
+    const body = (...children: Array<[string, string?]>) => ({
+      location: { pathname: '/' },
+      document: {
+        body: {
+          children: children.map(([tagName, id = '']) => ({ tagName, id })),
+        },
+      },
+    });
+
+    const clean = readHydrationSnapshot(
+      body(['DIV'], ['DIV'], ['SECTION'], ['SCRIPT'], ['LINK']),
+      null,
+    );
+    expect(clean.bodyChildren).toEqual([
+      'div',
+      'div',
+      'section',
+      'script',
+      'link',
+    ]);
+    expect(clean.unexpectedBodyChild).toBe(false);
+
+    // What an extension content script typically prepends.
+    const injected = readHydrationSnapshot(
+      body(['GRAMMARLY-DESKTOP-INTEGRATION'], ['DIV', 'app']),
+      null,
+    );
+    expect(injected.bodyChildren).toEqual([
+      'grammarly-desktop-integration',
+      'div#app',
+    ]);
+    expect(injected.unexpectedBodyChild).toBe(true);
   });
 });
 

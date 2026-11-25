@@ -9,6 +9,12 @@ import { setContext, setTag } from '@sentry/react-router';
 // the router hydrated from, once per document, before `router.initialize()`
 // runs, so the next occurrence carries enough to tell the causes apart (a
 // reload or back/forward restore vs. a server/client route mismatch).
+//
+// GIFTPOOL-UI-1H has a second, unrelated source: the app hydrates the whole
+// `document`, and React 18 throws #418 and client-renders everything when a
+// node it didn't render sits before its own content in <body> — which is what
+// browser extensions inject. Reproduced locally, but not yet confirmed as the
+// production cause, so the snapshot also lists <body>'s direct children.
 
 type RouterLike = {
   state: {
@@ -19,8 +25,11 @@ type RouterLike = {
   };
 };
 
+type ElementLike = { tagName: string; id: string };
+
 type HydrationWindow = {
   location: { pathname: string };
+  document?: { body?: { children: ArrayLike<ElementLike> } | null };
   performance?: { getEntriesByType?: (type: string) => unknown[] };
   __reactRouterDataRouter?: RouterLike;
   __reactRouterRouteModules?: Record<string, unknown>;
@@ -56,7 +65,26 @@ export type HydrationSnapshot = {
   // routeId`. Loaderless routes (e.g. an action-only index) never have a
   // `loaderData` entry, so they are excluded, as React Router does.
   routeIdsMissingData: string[] | null;
+  // <body>'s direct children as `tag#id` (first 20; never text or classes).
+  // Root renders only the elements in SERVER_BODY_TAGS there, so anything
+  // else was injected before hydration, e.g. by a browser extension.
+  bodyChildren: string[] | null;
+  unexpectedBodyChild: boolean | null;
 };
+
+const SERVER_BODY_TAGS = new Set(['div', 'section', 'script', 'link']);
+const MAX_BODY_CHILDREN = 20;
+
+function readBodyChildren(win: HydrationWindow) {
+  const children = win.document?.body?.children;
+  if (!children) return null;
+  return Array.from(children)
+    .slice(0, MAX_BODY_CHILDREN)
+    .map(({ tagName, id }) => {
+      const tag = tagName.toLowerCase();
+      return id ? `${tag}#${id}` : tag;
+    });
+}
 
 function readNavigationType(win: HydrationWindow): string | null {
   const entry = win.performance?.getEntriesByType?.('navigation')?.[0] as
@@ -75,6 +103,7 @@ export function readHydrationSnapshot(
     ? router.state.matches.map((match) => match.route.id)
     : null;
   const manifestRoutes = win.__reactRouterManifest?.routes ?? {};
+  const bodyChildren = readBodyChildren(win);
 
   return {
     pathname: win.location.pathname,
@@ -94,6 +123,12 @@ export function readHydrationSnapshot(
               !(state?.errors && id in state.errors),
           )
         : null,
+    bodyChildren,
+    unexpectedBodyChild: bodyChildren
+      ? bodyChildren.some(
+          (child) => !SERVER_BODY_TAGS.has(child.split('#')[0]!),
+        )
+      : null,
   };
 }
 
@@ -146,5 +181,9 @@ function recordHydrationSnapshot() {
   setTag(
     'hydration.missing_route_data',
     String((snapshot.routeIdsMissingData?.length ?? 0) > 0),
+  );
+  setTag(
+    'hydration.unexpected_body_child',
+    String(snapshot.unexpectedBodyChild ?? 'unknown'),
   );
 }
