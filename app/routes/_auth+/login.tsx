@@ -23,6 +23,7 @@ import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { login, requireAnonymous } from '#app/utils/auth.server.ts';
+import { requireFormData } from '#app/utils/form-data.server.ts';
 import { checkHoneypot } from '#app/utils/honeypot.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { UsernameSchema } from '#app/utils/user-validation.ts';
@@ -45,7 +46,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 export async function action({ request }: ActionFunctionArgs) {
   await requireAnonymous(request);
-  const formData = await request.formData();
+  const formData = await requireFormData(request);
   await checkHoneypot(formData);
   const submission = await parseWithZod(formData, {
     schema: (intent) =>

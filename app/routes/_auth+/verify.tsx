@@ -19,6 +19,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { ErrorList, OTPField } from '#app/components/forms.tsx';
 import { Spacer } from '#app/components/spacer.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
+import { requireFormData } from '#app/utils/form-data.server.ts';
 import { checkHoneypot } from '#app/utils/honeypot.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { handleResend, validateRequest } from './verify.server.ts';
@@ -43,7 +44,7 @@ export const VerifySchema = z.object({
 });
 
 export async function action({ request }: ActionFunctionArgs) {
-  const formData = await request.formData();
+  const formData = await requireFormData(request);
   await checkHoneypot(formData);
   if (formData.get('intent') === 'resend') {
     return handleResend(request, formData);
