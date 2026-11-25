@@ -1,5 +1,6 @@
 // form utilities are not needed here anymore
 import { parseWithZod } from '@conform-to/zod';
+import { setUser as setSentryUser } from '@sentry/react-router';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   data,
@@ -64,6 +65,7 @@ import {
   getRequestContext,
 } from './utils/request-context.server.ts';
 import { useRequestInfo } from './utils/request-info.ts';
+import { normalizeDataRequestPathname } from './utils/route-url.ts';
 import { type Theme, getTheme } from './utils/theme.server.ts';
 import { makeTimings, time } from './utils/timing.server.ts';
 import { getToast } from './utils/toast.server.ts';
@@ -204,7 +206,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       requestInfo: {
         hints: getHints(request),
         origin: getDomainUrl(request),
-        path: new URL(request.url).pathname,
+        // Root revalidates over single fetch; don't expose `/x.data`.
+        path: normalizeDataRequestPathname(new URL(request.url).pathname),
         requestId,
         userPrefs: {
           theme: getTheme(request),
@@ -328,6 +331,11 @@ const App = () => {
   );
   useIsomorphicLayoutEffect(() => {
     setPrefetchCacheScope(data.user?.id ?? null);
+  }, [data.user?.id]);
+  useEffect(() => {
+    // Safe before the lazy Sentry init: scope data carries over. Opaque id
+    // only, cleared on logout.
+    setSentryUser(data.user ? { id: data.user.id } : null);
   }, [data.user?.id]);
   useToast(data.toast);
   useEffect(() => {

@@ -22,7 +22,7 @@ const { sendEmail, queueLogEvent, captureException } = vi.hoisted(() => ({
 
 vi.mock('#app/utils/email.server.ts', () => ({ sendEmail }));
 vi.mock('#app/utils/analytics.server.ts', () => ({ queueLogEvent }));
-vi.mock('@sentry/react-router', () => ({ captureException }));
+vi.mock('@sentry/react-router', () => ({ captureException, setUser: vi.fn() }));
 
 import { action } from './api.feedback.tsx';
 
@@ -51,7 +51,11 @@ const baseBody = {
 describe('/api/feedback action', () => {
   it('requires an email for anonymous submissions', async () => {
     const result = await action(
-      toActionArgs({ request: createRequest(baseBody), params: {}, context: {} as any }),
+      toActionArgs({
+        request: createRequest(baseBody),
+        params: {},
+        context: {} as any,
+      }),
     );
     expect(getRouteResultStatus(result)).toBe(400);
     await expect(getRouteResultData(result)).resolves.toMatchObject({
@@ -69,7 +73,9 @@ describe('/api/feedback action', () => {
         context: {} as any,
       }),
     );
-    await expect(getRouteResultData(result)).resolves.toMatchObject({ ok: true });
+    await expect(getRouteResultData(result)).resolves.toMatchObject({
+      ok: true,
+    });
 
     const rows = await prisma.feedback.findMany();
     expect(rows).toHaveLength(1);
@@ -108,7 +114,9 @@ describe('/api/feedback action', () => {
         context: {} as any,
       }),
     );
-    await expect(getRouteResultData(result)).resolves.toMatchObject({ ok: true });
+    await expect(getRouteResultData(result)).resolves.toMatchObject({
+      ok: true,
+    });
 
     const operatorCall = (
       sendEmail.mock.calls as unknown as Array<[{ to: string; cc?: string }]>
@@ -135,7 +143,9 @@ describe('/api/feedback action', () => {
         context: {} as any,
       }),
     );
-    await expect(getRouteResultData(result)).resolves.toMatchObject({ ok: true });
+    await expect(getRouteResultData(result)).resolves.toMatchObject({
+      ok: true,
+    });
 
     const row = await prisma.feedback.findFirstOrThrow();
     expect(row.userId).toBe(user.id);
@@ -149,7 +159,11 @@ describe('/api/feedback action', () => {
     // failure must reach Sentry.
     sendEmail.mockResolvedValue({
       status: 'error',
-      error: { name: 'rate_limit', message: 'Too many requests', statusCode: 429 },
+      error: {
+        name: 'rate_limit',
+        message: 'Too many requests',
+        statusCode: 429,
+      },
     } as never);
 
     const result = await action(
@@ -160,16 +174,20 @@ describe('/api/feedback action', () => {
       }),
     );
     // Action still succeeds — the side-effect failure never 500s the request.
-    await expect(getRouteResultData(result)).resolves.toMatchObject({ ok: true });
+    await expect(getRouteResultData(result)).resolves.toMatchObject({
+      ok: true,
+    });
 
     // Flush the fire-and-forget `.then` microtasks before asserting.
     await new Promise((resolve) => setTimeout(resolve));
 
     expect(captureException).toHaveBeenCalled();
-    const reported = (captureException.mock.calls as Array<[Error, unknown]>).map(
-      (call) => (call[0] as Error).message,
-    );
+    const reported = (
+      captureException.mock.calls as Array<[Error, unknown]>
+    ).map((call) => (call[0] as Error).message);
     expect(reported.some((m) => /operator email failed/.test(m))).toBe(true);
-    expect(reported.some((m) => /acknowledgment email failed/.test(m))).toBe(true);
+    expect(reported.some((m) => /acknowledgment email failed/.test(m))).toBe(
+      true,
+    );
   });
 });

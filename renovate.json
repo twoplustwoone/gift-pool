@@ -6,6 +6,16 @@
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "automerge": true,
       "automergeType": "pr"
+    },
+    {
+      "description": "@sentry/node peers on @opentelemetry/api <1.10.0. A second API copy breaks Sentry's async context: every server request shares one scope, so users, tags and request data leak between concurrent requests. Lift these caps only together with a Sentry release that widens its peer range (see monitoring isolation test).",
+      "matchPackageNames": ["@opentelemetry/api"],
+      "allowedVersions": "<1.10.0"
+    },
+    {
+      "description": "0.300+ requires @opentelemetry/api >=1.10.0; see the rule above.",
+      "matchPackageNames": ["@opentelemetry/instrumentation"],
+      "allowedVersions": "<0.300.0"
     }
   ]
 }

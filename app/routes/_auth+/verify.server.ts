@@ -11,6 +11,10 @@ import { prisma } from '#app/utils/db.server.ts';
 import { sendEmail } from '#app/utils/email.server.ts';
 import { getDomainUrl } from '#app/utils/misc.tsx';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
+import {
+  normalizeDataRequestPathname,
+  stripDataRequestParams,
+} from '#app/utils/route-url.ts';
 import { redirectWithToast } from '#app/utils/toast.server.ts';
 import { generateTOTP, verifyTOTP } from '#app/utils/totp.server.ts';
 import { type twoFAVerifyVerificationType } from '../settings+/profile.two-factor.verify.tsx';
@@ -55,23 +59,13 @@ export function getRedirectToUrl({
 
 export function getPostVerificationRedirectPath(request: Request) {
   const reqUrl = new URL(request.url);
-  const searchParams = new URLSearchParams(reqUrl.search);
-  let pathname = reqUrl.pathname;
-
-  if (pathname === '/_root.data') {
-    pathname = '/';
-  } else if (pathname.endsWith('/_.data')) {
-    pathname = pathname.slice(0, -'_.data'.length);
-  } else if (pathname.endsWith('.data')) {
-    pathname = pathname.slice(0, -'.data'.length);
-  }
+  const searchParams = stripDataRequestParams(
+    new URLSearchParams(reqUrl.search),
+  );
+  let pathname = normalizeDataRequestPathname(reqUrl.pathname);
   if (pathname.length > 1 && pathname.endsWith('/')) {
     pathname = pathname.slice(0, -1);
   }
-
-  searchParams.delete('_data');
-  searchParams.delete('_routes');
-  searchParams.delete('index');
 
   const search = searchParams.toString();
   return search ? `${pathname}?${search}` : pathname;
