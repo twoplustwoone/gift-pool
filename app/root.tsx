@@ -1,5 +1,6 @@
 // form utilities are not needed here anymore
 import { parseWithZod } from '@conform-to/zod';
+import { setUser as setSentryUser } from '@sentry/react-router';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   data,
@@ -330,6 +331,11 @@ const App = () => {
   );
   useIsomorphicLayoutEffect(() => {
     setPrefetchCacheScope(data.user?.id ?? null);
+  }, [data.user?.id]);
+  useEffect(() => {
+    // Safe before the lazy Sentry init: scope data carries over. Opaque id
+    // only, cleared on logout.
+    setSentryUser(data.user ? { id: data.user.id } : null);
   }, [data.user?.id]);
   useToast(data.toast);
   useEffect(() => {

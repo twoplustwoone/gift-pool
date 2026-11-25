@@ -1,4 +1,5 @@
 import { type Password, type User } from '@prisma/client';
+import * as Sentry from '@sentry/react-router';
 import bcrypt from 'bcryptjs';
 import { redirect } from 'react-router';
 import { safeRedirect } from 'remix-utils/safe-redirect';
@@ -31,6 +32,10 @@ export async function getUserId(request: Request) {
       },
     });
   }
+  // Per-request: Sentry's isolation scope is forked for each incoming
+  // request (guarded by sentry-isolation.server.test.ts), so this can't tag
+  // another user's concurrent errors. Opaque id only — no email or name.
+  Sentry.setUser({ id: session.user.id });
   return session.user.id;
 }
 
