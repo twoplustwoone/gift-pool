@@ -1,3 +1,8 @@
+import {
+  normalizeDataRequestPathname,
+  stripDataRequestParams,
+} from './route-url.ts';
+
 const PREFETCH_CACHE_BASE_URL = 'https://prefetch.giftpool.local';
 
 type PrefetchCacheEntry = {
@@ -18,32 +23,16 @@ function toURL(input: string | URL) {
     : new URL(input, PREFETCH_CACHE_BASE_URL);
 }
 
-function normalizeReactRouterDataPath(pathname: string) {
-  if (pathname === '/_root.data') return '/';
-  if (pathname.endsWith('/_.data')) {
-    return pathname.slice(0, -'_.data'.length);
-  }
-  if (pathname.endsWith('.data')) {
-    return pathname.slice(0, -'.data'.length);
-  }
-
-  return pathname;
-}
-
 function normalizeScopeKey(scopeKey?: string | null) {
   return scopeKey ?? ANONYMOUS_PREFETCH_SCOPE;
 }
 
 export function normalizePrefetchCacheKey(input: string | URL) {
   const url = toURL(input);
-  const pathname = normalizeReactRouterDataPath(url.pathname);
-  const searchParams = new URLSearchParams(url.search);
-
+  const pathname = normalizeDataRequestPathname(url.pathname);
   // React Router appends internal params when issuing single-fetch loader
   // requests. They should not affect cache reuse for the underlying route.
-  searchParams.delete('_data');
-  searchParams.delete('_routes');
-  searchParams.delete('index');
+  const searchParams = stripDataRequestParams(new URLSearchParams(url.search));
 
   if (pathname === '/friends') {
     searchParams.delete('q');
