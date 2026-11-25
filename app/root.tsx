@@ -64,6 +64,7 @@ import {
   getRequestContext,
 } from './utils/request-context.server.ts';
 import { useRequestInfo } from './utils/request-info.ts';
+import { normalizeDataRequestPathname } from './utils/route-url.ts';
 import { type Theme, getTheme } from './utils/theme.server.ts';
 import { makeTimings, time } from './utils/timing.server.ts';
 import { getToast } from './utils/toast.server.ts';
@@ -204,7 +205,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       requestInfo: {
         hints: getHints(request),
         origin: getDomainUrl(request),
-        path: new URL(request.url).pathname,
+        // Root revalidates over single fetch; don't expose `/x.data`.
+        path: normalizeDataRequestPathname(new URL(request.url).pathname),
         requestId,
         userPrefs: {
           theme: getTheme(request),

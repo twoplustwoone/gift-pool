@@ -5,6 +5,7 @@ import { safeRedirect } from 'remix-utils/safe-redirect';
 import { prisma } from './db.server.ts';
 import { LEGAL_DOCUMENT_TYPE } from './legal.ts';
 import { combineHeaders } from './misc.tsx';
+import { getRoutePath } from './route-url.ts';
 import { authSessionStorage } from './session.server.ts';
 
 export const SESSION_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 30;
@@ -39,11 +40,11 @@ export async function requireUserId(
 ) {
   const userId = await getUserId(request);
   if (!userId) {
-    const requestUrl = new URL(request.url);
+    // getRoutePath, not request.url: on a client-side navigation this is a
+    // single-fetch `.data` request, and sending the user back to that URL
+    // after login breaks the app (GIFTPOOL-UI-37).
     redirectTo =
-      redirectTo === null
-        ? null
-        : (redirectTo ?? `${requestUrl.pathname}${requestUrl.search}`);
+      redirectTo === null ? null : (redirectTo ?? getRoutePath(request.url));
     const loginParams = redirectTo ? new URLSearchParams({ redirectTo }) : null;
     const loginRedirect = ['/login', loginParams?.toString()]
       .filter(Boolean)
