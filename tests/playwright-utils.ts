@@ -125,6 +125,10 @@ export async function loginWithPassword(
   await page.getByRole('textbox', { name: /password/i }).fill(password);
   await page.getByRole('button', { name: /log in/i }).click();
   await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
+  // The landing page is still importing route modules when the URL changes.
+  // A goto() right away makes WebKit fail that import, and React Router
+  // answers a failed import by reloading the page, which aborts the goto.
+  await page.waitForLoadState('networkidle');
 }
 
 /**
