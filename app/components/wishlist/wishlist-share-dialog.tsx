@@ -91,7 +91,7 @@ function PublicLinkCard({
   onGenerate: () => void;
   onStartRevoke: () => void;
   publicLink: string;
-  publicLinkRef: React.RefObject<HTMLInputElement>;
+  publicLinkRef: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
     <div className="rounded-xl border border-border/80 bg-background p-4 shadow-sm">
