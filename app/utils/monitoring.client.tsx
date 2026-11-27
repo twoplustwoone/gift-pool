@@ -1,8 +1,11 @@
 import {
   init as sentryInit,
+  reactErrorHandler,
   reactRouterTracingIntegration,
   replayIntegration,
 } from '@sentry/react-router';
+
+export const reportRootError = reactErrorHandler();
 
 export function init() {
   sentryInit({

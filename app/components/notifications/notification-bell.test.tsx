@@ -117,7 +117,9 @@ vi.mock('#app/components/ui/popover.tsx', async () => {
       children,
     }: {
       asChild?: boolean;
-      children: ReactModule.ReactElement;
+      children: ReactModule.ReactElement<{
+        onClick?: (event: ReactModule.MouseEvent) => void;
+      }>;
     }) => {
       const context = React.useContext(PopoverContext);
       if (asChild) {

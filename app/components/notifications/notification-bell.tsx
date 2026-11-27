@@ -309,7 +309,7 @@ export const NotificationBell = () => {
   );
   const notificationsRef = useRef<ApiNotification[]>([]);
   const unreadCountRef = useRef(unreadCount);
-  const openEventHandlerRef = useRef<(event: Event) => void>();
+  const openEventHandlerRef = useRef<(event: Event) => void>(undefined);
 
   useEffect(() => {
     notificationsRef.current = notifications;

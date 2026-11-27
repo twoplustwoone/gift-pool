@@ -4,10 +4,17 @@ import { HydratedRouter } from 'react-router/dom';
 import { reloadOnceForChunkError } from './utils/chunk-error.client.ts';
 import { recordHydrationSnapshotOnRouterCreation } from './utils/hydration-diagnostics.ts';
 import { NonceProvider } from './utils/nonce-provider.ts';
+import { createRootErrorReporter } from './utils/root-error-reporter.ts';
 import { NOTIFICATIONS_REFRESH_EVENT } from './utils/web-push.client.ts';
 
-if (ENV.MODE === 'production' && ENV.SENTRY_DSN) {
-  void import('./utils/monitoring.client.tsx').then(({ init }) => init());
+const sentryEnabled = ENV.MODE === 'production' && Boolean(ENV.SENTRY_DSN);
+const rootErrors = createRootErrorReporter();
+
+if (sentryEnabled) {
+  void import('./utils/monitoring.client.tsx').then((monitoring) => {
+    monitoring.init();
+    rootErrors.connect(monitoring.reportRootError);
+  });
 }
 
 window.addEventListener('unhandledrejection', (event) => {
@@ -44,5 +51,11 @@ startTransition(() => {
     <NonceProvider value={nonce}>
       <HydratedRouter />
     </NonceProvider>,
+    sentryEnabled
+      ? {
+          onUncaughtError: rootErrors.onRootError,
+          onRecoverableError: rootErrors.onRootError,
+        }
+      : undefined,
   );
 });
