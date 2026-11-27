@@ -1,31 +1,21 @@
-import { type ErrorInfo, startTransition } from 'react';
+import { startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import { reloadOnceForChunkError } from './utils/chunk-error.client.ts';
 import { recordHydrationSnapshotOnRouterCreation } from './utils/hydration-diagnostics.ts';
 import { NonceProvider } from './utils/nonce-provider.ts';
+import { createRootErrorReporter } from './utils/root-error-reporter.ts';
 import { NOTIFICATIONS_REFRESH_EVENT } from './utils/web-push.client.ts';
 
-type RootErrorHandler = (error: unknown, errorInfo: ErrorInfo) => void;
-
 const sentryEnabled = ENV.MODE === 'production' && Boolean(ENV.SENTRY_DSN);
-let reportRootError: RootErrorHandler | undefined;
-// Hydration errors can fire before the lazy Sentry chunk arrives; hold them so
-// they reach Sentry, with their component stack, once it has initialized.
-const pendingRootErrors: Parameters<RootErrorHandler>[] = [];
+const rootErrors = createRootErrorReporter();
 
 if (sentryEnabled) {
   void import('./utils/monitoring.client.tsx').then((monitoring) => {
     monitoring.init();
-    reportRootError = monitoring.reportRootError;
-    for (const args of pendingRootErrors.splice(0)) reportRootError(...args);
+    rootErrors.connect(monitoring.reportRootError);
   });
 }
-
-const onRootError: RootErrorHandler = (error, errorInfo) => {
-  if (reportRootError) reportRootError(error, errorInfo);
-  else pendingRootErrors.push([error, errorInfo]);
-};
 
 window.addEventListener('unhandledrejection', (event) => {
   reloadOnceForChunkError(event.reason);
@@ -62,7 +52,10 @@ startTransition(() => {
       <HydratedRouter />
     </NonceProvider>,
     sentryEnabled
-      ? { onUncaughtError: onRootError, onRecoverableError: onRootError }
+      ? {
+          onUncaughtError: rootErrors.onRootError,
+          onRecoverableError: rootErrors.onRootError,
+        }
       : undefined,
   );
 });
