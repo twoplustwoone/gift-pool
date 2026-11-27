@@ -1,6 +1,5 @@
 import { type Meta, type StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
-import { MemoryRouter } from 'react-router';
 import { DrawControls } from '../app/components/exchanges/draw-controls';
 import { ExchangeEmptyState } from '../app/components/exchanges/exchange-empty-state';
 import {
@@ -78,11 +77,9 @@ const meta = {
   tags: ['autodocs'],
   decorators: [
     (Story) => (
-      <MemoryRouter>
-        <div className="mx-auto max-w-md">
-          <Story />
-        </div>
-      </MemoryRouter>
+      <div className="mx-auto max-w-md">
+        <Story />
+      </div>
     ),
   ],
 } satisfies Meta;
@@ -317,11 +314,9 @@ export const RevealedDesktop: Story = {
   ...Revealed,
   decorators: [
     (Story) => (
-      <MemoryRouter>
-        <div className="mx-auto max-w-3xl">
-          <Story />
-        </div>
-      </MemoryRouter>
+      <div className="mx-auto max-w-3xl">
+        <Story />
+      </div>
     ),
   ],
 };
