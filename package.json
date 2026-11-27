@@ -87,7 +87,7 @@
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-toast": "^1.2.1",
     "@radix-ui/react-tooltip": "^1.1.2",
-    "@react-email/components": "0.5.7",
+    "@react-email/components": "1.0.12",
     "@react-router/express": "^7.18.0",
     "@react-router/node": "^7.18.0",
     "@sentry/profiling-node": "^10.42.0",
