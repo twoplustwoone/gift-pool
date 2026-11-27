@@ -178,7 +178,7 @@
     "@types/qrcode": "^1.5.5",
     "@types/react": "^19.3.3",
     "@types/react-dom": "^19.3.0",
-    "@types/set-cookie-parser": "^2.4.10",
+    "@types/set-cookie-parser": "^3.0.0",
     "@types/source-map-support": "^0.5.10",
     "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^5.0.0",
