@@ -1,6 +1,5 @@
 import { type Meta, type StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
-import { MemoryRouter } from 'react-router';
 import { GiftingSegments } from '../app/components/gifting/gifting-segments';
 import { Button } from '../app/components/ui/button';
 import { ConfirmDialog } from '../app/components/ui/confirm-dialog';
@@ -98,12 +97,11 @@ export const Secrecy: Story = {
 };
 
 export const Segments: Story = {
+  parameters: { initialEntries: ['/pools'] },
   render: () => (
-    <MemoryRouter initialEntries={['/pools']}>
-      <div className="space-y-3">
-        <GiftingSegments active="pools" />
-        <GiftingSegments active="exchanges" />
-      </div>
-    </MemoryRouter>
+    <div className="space-y-3">
+      <GiftingSegments active="pools" />
+      <GiftingSegments active="exchanges" />
+    </div>
   ),
 };
