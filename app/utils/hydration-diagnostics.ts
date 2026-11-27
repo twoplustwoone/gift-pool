@@ -11,10 +11,11 @@ import { setContext, setTag } from '@sentry/react-router';
 // reload or back/forward restore vs. a server/client route mismatch).
 //
 // GIFTPOOL-UI-1H has a second, unrelated source: the app hydrates the whole
-// `document`, and React 18 throws #418 and client-renders everything when a
-// node it didn't render sits before its own content in <body> — which is what
-// browser extensions inject. Reproduced locally, but not yet confirmed as the
-// production cause, so the snapshot also lists <body>'s direct children.
+// `document`, and React (18 and 19 alike) throws #418 and client-renders all
+// of it when a node it didn't render sits before its own content in <body>,
+// which is what browser extensions inject. Reproduced locally, but not yet
+// confirmed as the production cause, so the snapshot also lists <body>'s
+// direct children.
 
 type RouterLike = {
   state: {
