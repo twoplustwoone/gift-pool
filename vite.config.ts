@@ -1,7 +1,6 @@
 import path from 'path';
 import { reactRouter } from '@react-router/dev/vite';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
-import { glob } from 'glob';
 import { envOnlyMacros } from 'vite-env-only';
 import { defineConfig } from 'vitest/config';
 
@@ -83,15 +82,30 @@ export default defineConfig({
           project: process.env.SENTRY_PROJECT,
           release: {
             name: process.env.COMMIT_SHA,
-            setCommits: {
-              auto: true,
-            },
+            // Manual, not `auto`: the Docker build context excludes .git, so
+            // auto-detection has no repository to read.
+            setCommits: process.env.COMMIT_SHA
+              ? {
+                  repo: 'twoplustwoone/gift-pool',
+                  commit: process.env.COMMIT_SHA,
+                  ignoreMissing: true,
+                }
+              : undefined,
+          },
+          // The plugin's default is to throw and stop the build. Release
+          // metadata and source maps are worth a warning, never a blocked
+          // deploy.
+          errorHandler: (error) => {
+            console.warn('[sentry-vite-plugin] continuing build:', error);
           },
           sourcemaps: {
-            filesToDeleteAfterUpload: await glob([
+            // Patterns, resolved by the plugin after the build. Pre-globbing
+            // here ran at config load, before any map existed, so nothing was
+            // ever deleted. other/Dockerfile also deletes maps unconditionally.
+            filesToDeleteAfterUpload: [
               './build/**/*.map',
-              '.server-build/**/*.map',
-            ]),
+              './server-build/**/*.map',
+            ],
           },
         })
       : null,

@@ -23,6 +23,7 @@ import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { queueLogEvent } from '#app/utils/analytics.server.ts';
 import { prisma } from '#app/utils/db.server.ts';
 import { sendEmail } from '#app/utils/email.server.ts';
+import { requireFormData } from '#app/utils/form-data.server.ts';
 import { checkHoneypot } from '#app/utils/honeypot.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { getRequestContext } from '#app/utils/request-context.server.ts';
@@ -35,7 +36,7 @@ const SignupSchema = z.object({
   email: EmailSchema,
 });
 export async function action({ request }: ActionFunctionArgs) {
-  const formData = await request.formData();
+  const formData = await requireFormData(request);
   await checkHoneypot(formData);
   const submission = await parseWithZod(formData, {
     schema: SignupSchema.superRefine(async (data, ctx) => {

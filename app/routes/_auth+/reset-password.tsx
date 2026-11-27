@@ -11,12 +11,16 @@ import {
   redirect,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
-  type MetaFunction, Form, useActionData, useLoaderData 
+  type MetaFunction,
+  Form,
+  useActionData,
+  useLoaderData,
 } from 'react-router';
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx';
 import { ErrorList, Field } from '#app/components/forms.tsx';
 import { StatusButton } from '#app/components/ui/status-button.tsx';
 import { requireAnonymous, resetUserPassword } from '#app/utils/auth.server.ts';
+import { requireFormData } from '#app/utils/form-data.server.ts';
 import { useIsPending } from '#app/utils/misc.tsx';
 import { PasswordAndConfirmPasswordSchema } from '#app/utils/user-validation.ts';
 import { verifySessionStorage } from '#app/utils/verification.server.ts';
@@ -46,7 +50,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 export async function action({ request }: ActionFunctionArgs) {
   const resetPasswordUsername = await requireResetPasswordUsername(request);
-  const formData = await request.formData();
+  const formData = await requireFormData(request);
   const submission = parseWithZod(formData, {
     schema: ResetPasswordSchema,
   });

@@ -38,9 +38,12 @@ FROM base as build
 ARG COMMIT_SHA
 ENV COMMIT_SHA=$COMMIT_SHA
 
-# Use the following environment variables to configure Sentry
-# ENV SENTRY_ORG=
-# ENV SENTRY_PROJECT=
+# Sentry release + source map upload (vite.config.ts). Slugs, not secrets:
+# the auth token arrives as a build secret below. Without them the plugin
+# skipped the upload on every deploy ("No org provided"), so server and
+# client stack traces were never symbolicated.
+ENV SENTRY_ORG=giftpool-k0
+ENV SENTRY_PROJECT=giftpool-ui
 
 
 WORKDIR /myapp
@@ -56,10 +59,15 @@ COPY other ./other
 
 RUN npx prisma generate
 
-# Mount the secret and set it as an environment variable and run the build
+# Mount the secret and set it as an environment variable and run the build.
+# Then delete every source map: the Sentry plugin already uploaded them, and
+# it leaves them in place when the upload fails or is skipped, so they would
+# ship in build/client and express.static serves the app's original source at
+# /assets/*.map. Staging builds have no token and never upload at all.
 RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN \
   export SENTRY_AUTH_TOKEN=$(cat /run/secrets/SENTRY_AUTH_TOKEN) && \
-  npm run build
+  npm run build && \
+  find ./build ./server-build -name '*.map' -delete
 
 # Finally, build the production image with minimal footprint
 FROM base
